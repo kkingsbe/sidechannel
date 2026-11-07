@@ -1,5 +1,6 @@
+# Historical pre-workspace deployment; use ../compose.yaml from repository root.
 x-app: &app
-  image: sidechannel-agent:local
+  image: ${SIDECHANNEL_IMAGE:-sidechannel-agent:local}
   build:
     context: ..
     dockerfile: agent/Dockerfile

@@ -1,3 +1,5 @@
+> Historical pre-workspace source paths and commands. See [current operations](../../docs/harness-operations.md) and [current Jev guide](../../docs/jev-analysis.md). Saved evidence paths below are retained.
+
 # JEV trace analysis
 
 The canonical pipeline lives in `src/analysis/jev-*`, with shared evidence types in `evidence-contracts.ts`. It reads terminal harness runs and never updates their evidence or lifecycle. The researcher API is under `/api/jev`. The combined analysis/monitor worker polls this pipeline independently of the experiment worker; `npm run jev:worker` can also run only JEV work.

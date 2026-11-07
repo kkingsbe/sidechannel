@@ -1,0 +1,50 @@
+{
+  "name": "@sidechannel/api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "node ../scripts/test.mjs src",
+    "lint": "eslint src",
+    "dev": "node ../scripts/dev.mjs api",
+    "dev:local": "tsx watch --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env src/main.ts",
+    "start": "node --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env dist/main.js"
+  },
+  "dependencies": {
+    "mongodb": "7.7.0",
+    "zod": "4.6.7",
+    "@sidechannel/contracts": "1.0.0",
+    "@sidechannel/domain": "1.0.0",
+    "@sidechannel/persistence": "1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "@types/node": "26.6.6",
+    "tsx": "4.21.0"
+  },
+  "nx": {
+    "tags": [
+      "layer:service"
+    ],
+    "targets": {
+      "dev": {
+        "cache": false,
+        "continuous": true,
+        "dependsOn": [
+          "^build"
+        ]
+      },
+      "dev:local": {
+        "cache": false,
+        "continuous": true
+      },
+      "start": {
+        "cache": false,
+        "continuous": true
+      }
+    }
+  },
+  "main": "./dist/main.js"
+}

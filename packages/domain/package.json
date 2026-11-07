@@ -1,0 +1,127 @@
+{
+  "name": "@sidechannel/domain",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node ../../scripts/build-provenance.mjs",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "node ../../scripts/test.mjs src",
+    "lint": "eslint src",
+    "dev": "tsc -w -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "zod": "4.6.7",
+    "@sidechannel/contracts": "1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "@types/node": "26.6.6",
+    "tsx": "4.21.0"
+  },
+  "nx": {
+    "tags": [
+      "layer:domain"
+    ],
+    "targets": {
+      "dev": {
+        "cache": false,
+        "continuous": true
+      },
+      "build": {
+        "inputs": [
+          "default",
+          "^default",
+          "{workspaceRoot}/api/src/**/*",
+          "{workspaceRoot}/api/package.json",
+          "{workspaceRoot}/experiment-worker/src/**/*",
+          "{workspaceRoot}/experiment-worker/package.json",
+          "{workspaceRoot}/analysis-worker/src/**/*",
+          "{workspaceRoot}/analysis-worker/package.json",
+          "{workspaceRoot}/dashboard/src/**/*",
+          "{workspaceRoot}/dashboard/package.json",
+          "{workspaceRoot}/packages/contracts/src/**/*",
+          "{workspaceRoot}/packages/contracts/package.json",
+          "{workspaceRoot}/packages/domain/src/**/*",
+          "{workspaceRoot}/packages/domain/package.json",
+          "{workspaceRoot}/packages/persistence/src/**/*",
+          "{workspaceRoot}/packages/persistence/package.json"
+        ]
+      }
+    }
+  },
+  "exports": {
+    "./analysis/configuration": {
+      "types": "./dist/analysis/configuration.d.ts",
+      "import": "./dist/analysis/configuration.js"
+    },
+    "./analysis/jev-questions": {
+      "types": "./dist/analysis/jev-questions.d.ts",
+      "import": "./dist/analysis/jev-questions.js"
+    },
+    "./analysis/jev-repository": {
+      "types": "./dist/analysis/jev-repository.d.ts",
+      "import": "./dist/analysis/jev-repository.js"
+    },
+    "./analysis/jev-reviews": {
+      "types": "./dist/analysis/jev-reviews.d.ts",
+      "import": "./dist/analysis/jev-reviews.js"
+    },
+    "./analysis/jev-service": {
+      "types": "./dist/analysis/jev-service.d.ts",
+      "import": "./dist/analysis/jev-service.js"
+    },
+    "./analysis/normalization": {
+      "types": "./dist/analysis/normalization.d.ts",
+      "import": "./dist/analysis/normalization.js"
+    },
+    "./analysis/serialization": {
+      "types": "./dist/analysis/serialization.d.ts",
+      "import": "./dist/analysis/serialization.js"
+    },
+    "./analysis/store": {
+      "types": "./dist/analysis/store.d.ts",
+      "import": "./dist/analysis/store.js"
+    },
+    "./analysis/windows": {
+      "types": "./dist/analysis/windows.d.ts",
+      "import": "./dist/analysis/windows.js"
+    },
+    "./harness/config": {
+      "types": "./dist/harness/config.d.ts",
+      "import": "./dist/harness/config.js"
+    },
+    "./harness/initialization": {
+      "types": "./dist/harness/initialization.d.ts",
+      "import": "./dist/harness/initialization.js"
+    },
+    "./harness/provenance": {
+      "types": "./dist/harness/provenance.d.ts",
+      "import": "./dist/harness/provenance.js"
+    },
+    "./harness/repository": {
+      "types": "./dist/harness/repository.d.ts",
+      "import": "./dist/harness/repository.js"
+    },
+    "./harness/scenario-initialization": {
+      "types": "./dist/harness/scenario-initialization.d.ts",
+      "import": "./dist/harness/scenario-initialization.js"
+    },
+    "./oversight/comparison": {
+      "types": "./dist/oversight/comparison.d.ts",
+      "import": "./dist/oversight/comparison.js"
+    },
+    "./oversight/projections": {
+      "types": "./dist/oversight/projections.d.ts",
+      "import": "./dist/oversight/projections.js"
+    },
+    "./oversight/reviews": {
+      "types": "./dist/oversight/reviews.d.ts",
+      "import": "./dist/oversight/reviews.js"
+    },
+    "./oversight/service": {
+      "types": "./dist/oversight/service.d.ts",
+      "import": "./dist/oversight/service.js"
+    }
+  }
+}

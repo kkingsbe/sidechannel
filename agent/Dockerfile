@@ -1,3 +1,4 @@
+# Historical pre-workspace Dockerfile; use root Compose and api/experiment-worker/analysis-worker Dockerfiles.
 FROM node:24.11.1-bookworm-slim@sha256:48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57 AS dependencies
 WORKDIR /app/agent
 COPY agent/package.json agent/package-lock.json ./

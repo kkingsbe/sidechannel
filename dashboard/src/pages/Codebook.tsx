@@ -19,6 +19,7 @@ import {
   ErrorState,
   Field,
   Input,
+  JsonView,
   Loading,
   Notice,
   PageHeader,
@@ -34,7 +35,9 @@ import type {
   Page,
 } from "../lib/analysis-types";
 export default function CodebookPage() {
-  const books = useApi<Page<Codebook>>("/codebooks");
+  const [bookCursor, setBookCursor] = useState<string | null>(null);
+  const books = useApi<Page<Codebook>>("/codebooks?limit=30" + (bookCursor ? "&after=" + encodeURIComponent(bookCursor) : ""));
+  const [bookOptions, setBookOptions] = useState<Codebook[]>([]);
   const [bookId, setBookId] = useState("");
   const current = useApi<{ codebook: Codebook; revision: CodebookRevision }>(
     bookId ? "/codebooks/" + bookId : null,
@@ -47,28 +50,43 @@ export default function CodebookPage() {
   );
   const [dirty, setDirty] = useState(false);
   const [history, setHistory] = useState(false);
+  const [revisionCursor, setRevisionCursor] = useState<string | null>(null);
+  const [revisionPages, setRevisionPages] = useState<(string | null)[]>([]);
+  const [formBookId, setFormBookId] = useState("");
+  const [baseRevisionId, setBaseRevisionId] = useState("");
+  const [baseRevision, setBaseRevision] = useState(0);
+  const [recovery, setRecovery] = useState<{name:string;codes:BehaviorCode[];baseRevision:number}>();
   const revisions = useApi<Page<CodebookRevision>>(
-    history && bookId ? "/codebooks/" + bookId + "/revisions" : null,
+    history && bookId ? "/codebooks/" + bookId + "/revisions?limit=30" + (revisionCursor ? "&after=" + encodeURIComponent(revisionCursor) : "") : null,
   );
   const [historyRevision, setHistoryRevision] = useState<CodebookRevision>();
   const mutation = useMutation();
   useEffect(() => {
+    if (books.data) setBookOptions(previous => [...new Map([...previous, ...books.data!.items].map(book => [book.id, book])).values()]);
+  }, [books.data]);
+  useEffect(() => { setRevisionCursor(null); setRevisionPages([]); setHistoryRevision(undefined); }, [bookId]);
+  useEffect(() => {
     if (!bookId && books.data?.items[0]) setBookId(books.data.items[0].id);
   }, [books.data, bookId]);
   useEffect(() => {
-    if (!current.data) return;
+    if (!current.data || current.data.codebook.id !== bookId) return;
+    setFormBookId(current.data.codebook.id);
+    setBaseRevisionId(current.data.revision.id);
+    setBaseRevision(current.data.revision.revision);
+    setRecovery(undefined);
     const key = "sidechannel-codebook-" + current.data.codebook.id;
     const saved = localStorage.getItem(key);
     if (saved) {
       try {
         const recovered = JSON.parse(saved);
-        if (recovered.baseRevision === current.data.codebook.revision) {
+        if (Array.isArray(recovered.codes) && typeof recovered.name === 'string' && recovered.baseRevision === current.data.codebook.revision) {
           setCodes(recovered.codes);
           setName(recovered.name);
           setSelected(recovered.codes[0]?.id || "");
           setDirty(true);
           return;
         }
+        if (Array.isArray(recovered.codes) && typeof recovered.name === 'string') setRecovery(recovered);
       } catch {
         /* Invalid recovery copy. */
       }
@@ -77,18 +95,18 @@ export default function CodebookPage() {
     setName(current.data.codebook.name);
     setSelected(current.data.revision.codes[0]?.id || "");
     setDirty(false);
-  }, [current.data]);
+  }, [current.data, bookId]);
   useEffect(() => {
-    if (dirty && current.data)
+    if (dirty && formBookId && formBookId === bookId)
       localStorage.setItem(
         "sidechannel-codebook-" + bookId,
         JSON.stringify({
           codes,
           name,
-          baseRevision: current.data.codebook.revision,
+          baseRevision,
         }),
       );
-  }, [codes, name, dirty, bookId, current.data]);
+  }, [codes, name, dirty, bookId, formBookId, baseRevision]);
   const edit = (patch: Partial<BehaviorCode>) => {
     setCodes(
       codes.map((code) =>
@@ -128,12 +146,13 @@ export default function CodebookPage() {
       }),
     );
     if (result) {
+      setBookOptions(previous => [...previous.filter(book => book.id !== result.codebook.id), result.codebook]);
       setBookId(result.codebook.id);
       void books.refresh();
     }
   };
   const save = async () => {
-    if (!current.data) return;
+    if (!current.data || formBookId !== bookId || !baseRevisionId) return;
     const result = await mutation.run(
       () =>
         api<{ codebook: Codebook; revision: CodebookRevision }>(
@@ -141,9 +160,9 @@ export default function CodebookPage() {
           {
             method: "PATCH",
             body: JSON.stringify({
-              expectedRevisionId: current.data!.revision.id,
+              expectedRevisionId: baseRevisionId,
               name,
-              codes,
+              codes: codes.map(code=>({...code,...Object.fromEntries((['inclusionCriteria','exclusionCriteria','examples','counterexamples','qualifyingEvidenceTypes'] as const).map(key=>[key,code[key].map(value=>value.trim()).filter(Boolean)]))})),
               author,
             }),
           },
@@ -198,6 +217,7 @@ export default function CodebookPage() {
         description="Define what Jev screens for. These exploratory codes are separate from run-level outcomes."
         actions={
           <>
+            <Button variant="secondary" onClick={create} disabled={mutation.busy || dirty}><Plus size={15} />New codebook</Button>
             <Button
               variant="secondary"
               onClick={() => setHistory(true)}
@@ -208,7 +228,7 @@ export default function CodebookPage() {
             </Button>
             <Button
               onClick={save}
-              disabled={mutation.busy || !dirty || invalid || !author.trim()}
+              disabled={mutation.busy || current.loading || formBookId !== bookId || !dirty || invalid || !author.trim()}
             >
               <Save size={15} />
               Save revision
@@ -220,15 +240,20 @@ export default function CodebookPage() {
         <Notice kind="error">
           {mutation.error.message}
           {"status" in mutation.error && mutation.error.status === 409 && (
-            <p>
+            <div><p>
               Another researcher saved a newer revision. Your edits are retained
               locally. Reload the latest revision, then reconcile your changes
               before saving.
-            </p>
+            </p><Button variant="secondary" onClick={() => { mutation.clear(); void current.refresh(); }}>Load latest for reconciliation</Button></div>
           )}
         </Notice>
       )}
       {mutation.message && <Notice kind="success">{mutation.message}</Notice>}
+      {recovery && <Card><CardHeading title="Recover edits from an older revision" description={`Your local edits started at revision ${recovery.baseRevision}. The form below shows the latest saved revision ${baseRevision}. Review both before saving.`}/><div className="card-body"><JsonView value={recovery} title="Preserved local edits"/><JsonView value={current.data?.revision} title="Latest saved definitions"/><Button variant="secondary" onClick={() => {
+        const localIds = new Set(recovery.codes.map(code => code.id));
+        setCodes([...recovery.codes, ...(current.data?.revision.codes ?? []).filter(code => !localIds.has(code.id))]);
+        setName(recovery.name); setSelected(recovery.codes[0]?.id ?? ''); setDirty(true); setRecovery(undefined);
+      }}>Restore local edits for reconciliation</Button><p className="helper">Restoring does not save. New definitions from the latest revision are retained; inspect changed fields before creating a revision.</p></div></Card>}
       {dirty && (
         <Notice>
           Unsaved codebook changes are kept in this browser. Saving creates a
@@ -248,7 +273,7 @@ export default function CodebookPage() {
         <Card>
           <Empty
             title="Create the study codebook"
-            description="Start with the editable tentative behavior definitions, then refine them through pilots."
+            description="Create an empty study codebook and add behavior definitions through the editor."
           >
             <Button onClick={create} disabled={mutation.busy}>
               <Plus size={14} />
@@ -273,12 +298,13 @@ export default function CodebookPage() {
                   setBookId(e.target.value);
                 }}
               >
-                {books.data.items.map((book) => (
+                {bookOptions.map((book) => (
                   <option key={book.id} value={book.id}>
-                    {book.name} · r{book.revision}
+                    {book.name}{book.revision?` · r${book.revision}`:''}
                   </option>
                 ))}
               </Select>
+              {books.data.nextCursor && <Button variant="ghost" size="sm" onClick={() => setBookCursor(books.data!.nextCursor)}>Load more codebooks</Button>}
             </Field>
             <Field label="Codebook name">
               <Input
@@ -445,7 +471,7 @@ export default function CodebookPage() {
                         <Textarea
                           value={code[key].join("\n")}
                           onChange={(e) =>
-                            edit({ [key]: list(e.target.value) })
+                        edit({ [key]: e.target.value.split('\n') })
                           }
                         />
                       </Field>
@@ -541,6 +567,7 @@ export default function CodebookPage() {
             ))}
           </div>
         )}
+        <div className="actions"><Button variant="secondary" disabled={!revisionPages.length || revisions.loading} onClick={() => { setRevisionCursor(revisionPages.at(-1) ?? null); setRevisionPages(previous => previous.slice(0,-1)); setHistoryRevision(undefined); }}>Previous revisions</Button><Button variant="secondary" disabled={!revisions.data?.nextCursor || revisions.loading} onClick={() => { setRevisionPages(previous => [...previous, revisionCursor]); setRevisionCursor(revisions.data!.nextCursor); setHistoryRevision(undefined); }}>Next revisions</Button></div>
       </Drawer>
     </>
   );

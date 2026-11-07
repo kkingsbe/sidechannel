@@ -1,0 +1,128 @@
+x-app: &app
+  image: ${SIDECHANNEL_IMAGE:-sidechannel-agent:local}
+  build:
+    context: ..
+    dockerfile: agent/Dockerfile
+  init: true
+  networks: [default]
+  depends_on:
+    mongo:
+      condition: service_healthy
+
+x-database: &database
+  # directConnection is intentional: the existing local rs0 advertises localhost.
+  MONGODB_URI: mongodb://mongo:27017/?directConnection=true&replicaSet=rs0
+  MONGODB_DB_NAME: ${MONGODB_DB_NAME:-sidechannel}
+  MASTRA_DB_NAME: ${MASTRA_DB_NAME:-sidechannel_mastra}
+
+services:
+  mongo:
+    image: mongo:8.0@sha256:b9924c330a8bbc5800fe9c69f04a84e221eca7b28fd049a0354147d9908fa142
+    container_name: sidechannel-harness-mongo
+    command: [mongod, --replSet, rs0, --bind_ip_all]
+    ports:
+      - "127.0.0.1:27018:27017"
+    volumes:
+      - harness-mongo:/data/db
+    networks: [default]
+    healthcheck:
+      test: [CMD-SHELL, "mongosh --quiet --eval 'try { rs.status() } catch { rs.initiate({_id:\"rs0\",members:[{_id:0,host:\"localhost:27017\"}]}) }'"]
+      interval: 3s
+      timeout: 10s
+      retries: 20
+  api:
+    <<: *app
+    image: ${API_IMAGE:-sidechannel-api:local}
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment:
+      <<: *database
+      HARNESS_HOST: 0.0.0.0
+      HARNESS_PORT: "4310"
+      DASHBOARD_DIST_DIR: /app/dashboard/dist
+      RESEARCHER_TOKEN: ${RESEARCHER_TOKEN:-}
+    ports:
+      - "127.0.0.1:4310:4310"
+    networks:
+      default:
+      tunnel:
+        # Compatibility for existing remotely managed tunnel origins.
+        aliases: [dashboard]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4310/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 6
+  experiment-worker:
+    <<: *app
+    image: ${EXPERIMENT_WORKER_IMAGE:-sidechannel-experiment-worker:local}
+    build:
+      context: .
+      dockerfile: experiment-worker/Dockerfile
+    environment:
+      <<: *database
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ADAPTION_API_KEY: ${ADAPTION_API_KEY:-}
+    # Never automatically restart a worker after a crash: ownership needs recovery.
+    restart: "no"
+    stop_grace_period: 2m
+  analysis-worker:
+    <<: *app
+    image: ${ANALYSIS_WORKER_IMAGE:-sidechannel-analysis-worker:local}
+    build:
+      context: .
+      dockerfile: analysis-worker/Dockerfile
+    environment:
+      <<: *database
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-${TYPESAFE_AI_API_KEY:-}}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ADAPTION_API_KEY: ${ADAPTION_API_KEY:-}
+    restart: unless-stopped
+    stop_grace_period: 2m
+  mastra:
+    <<: *app
+    image: ${MASTRA_IMAGE:-sidechannel-mastra:local}
+    profiles: [studio]
+    build:
+      context: .
+      dockerfile: experiment-worker/Dockerfile
+      target: studio
+    environment:
+      MASTRA_HOST: 0.0.0.0
+      PORT: "4111"
+      MASTRA_STUDIO_PATH: .mastra/output/studio
+      MASTRA_TELEMETRY_DISABLED: "1"
+    ports:
+      - "127.0.0.1:4111:4111"
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4111/api/agents').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 6
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.0@sha256:9b49eed8f62806d5d45ddf59ecefb5710429598ea6d3fcccd2af938f621b2b07
+    profiles: [tunnel]
+    command: [tunnel, --no-autoupdate, run, --token-file, /run/secrets/cloudflare_tunnel_token]
+    secrets: [cloudflare_tunnel_token]
+    networks: [tunnel]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  default:
+    # Existing running MongoDB container uses this original Compose network.
+    name: agent_default
+  # Only the API/static host shares the connector network.
+  tunnel:
+    name: agent_tunnel
+secrets:
+  cloudflare_tunnel_token:
+    file: ${CLOUDFLARE_TUNNEL_TOKEN_FILE:-./agent/secrets/cloudflare-tunnel-token.txt}
+volumes:
+  harness-mongo:
+    name: sidechannel-harness-mongo

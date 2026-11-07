@@ -84,7 +84,10 @@ function completeConfiguration(
   input: unknown,
 ): ExperimentConfig {
   const merge = (base: unknown, value: unknown): unknown => {
-    if(Array.isArray(base)) return Array.isArray(value) ? value.map(item=>base.length?merge(base[0],item):item) : structuredClone(base);
+    if (Array.isArray(base))
+      return Array.isArray(value)
+        ? value.map((item) => (base.length ? merge(base[0], item) : item))
+        : structuredClone(base);
     if (base && typeof base === "object" && !Array.isArray(base)) {
       const object =
         value && typeof value === "object" && !Array.isArray(value)
@@ -238,6 +241,7 @@ export default function Experiments() {
     );
     if (result) {
       setDraft(result);
+      launchKey.current = crypto.randomUUID();
       setDirty(false);
       setSavedLocal(false);
       localStorage.removeItem("sidechannel-experiment-draft");
@@ -295,6 +299,7 @@ export default function Experiments() {
     if (result) {
       setConfig(result.config);
       setDraft(result);
+      launchKey.current = crypto.randomUUID();
       setDirty(false);
       void drafts.refresh();
     }
@@ -498,6 +503,7 @@ export default function Experiments() {
                   value={notes}
                   onChange={(e) => {
                     setNotes(e.target.value);
+                    launchKey.current = crypto.randomUUID();
                     setDirty(true);
                   }}
                 />

@@ -5,8 +5,8 @@ export type {
   BoardMessage,
   ArtifactVersion,
   Json,
-} from "../../../agent/src/harness/contracts";
-import type { ExperimentConfig } from "../../../agent/src/harness/contracts";
+} from "@sidechannel/contracts/browser";
+import type { ExperimentConfig } from "@sidechannel/contracts/browser";
 export interface Draft {
   id: string;
   config: ExperimentConfig;
@@ -21,7 +21,7 @@ import type {
   MonitorDefinition,
   OutcomeDefinition,
   Verdict,
-} from "../../../agent/src/oversight/contracts";
+} from "@sidechannel/contracts/browser";
 export interface RunReviewContext {
   runId: string;
   evidenceRevision: string;
@@ -62,7 +62,7 @@ export interface RunOutcomeAgreement {
 import type {
   MonitorJudgment,
   MonitorView,
-} from "../../../agent/src/oversight/contracts";
+} from "@sidechannel/contracts/browser";
 export interface MonitorComparison {
   evaluationId: string;
   definitionRevisionId: string;

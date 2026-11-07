@@ -1,0 +1,82 @@
+{
+  "name": "@sidechannel/experiment-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "node ../scripts/test.mjs src",
+    "lint": "eslint src",
+    "dev": "node ../scripts/dev.mjs experiment-worker",
+    "dev:local": "tsx watch --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env src/main.ts",
+    "start": "node --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env dist/main.js",
+    "studio": "mastra dev",
+    "build:studio": "mastra build --studio",
+    "start:studio": "mastra start",
+    "fixture": "tsx --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env src/commands/fixture.ts",
+    "recover": "tsx --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env src/commands/recover.ts",
+    "smoke:live": "tsx --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env src/commands/live-smoke.ts"
+  },
+  "dependencies": {
+    "@mastra/core": "1.82.0",
+    "@mastra/duckdb": "1.18.0",
+    "@mastra/libsql": "1.29.0",
+    "@mastra/memory": "1.41.0",
+    "@mastra/mongodb": "1.26.0",
+    "@mastra/observability": "1.23.1",
+    "zod": "4.6.7",
+    "@sidechannel/contracts": "1.0.0",
+    "@sidechannel/domain": "1.0.0",
+    "@sidechannel/persistence": "1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "@types/node": "26.6.6",
+    "tsx": "4.21.0",
+    "mastra": "1.38.0"
+  },
+  "nx": {
+    "tags": [
+      "layer:service"
+    ],
+    "targets": {
+      "dev": {
+        "cache": false,
+        "continuous": true,
+        "dependsOn": [
+          "^build"
+        ]
+      },
+      "dev:local": {
+        "cache": false,
+        "continuous": true
+      },
+      "start": {
+        "cache": false,
+        "continuous": true
+      },
+      "studio": {
+        "cache": false,
+        "continuous": true
+      },
+      "build:studio": {
+        "cache": false
+      },
+      "start:studio": {
+        "cache": false,
+        "continuous": true
+      },
+      "fixture": {
+        "cache": false
+      },
+      "recover": {
+        "cache": false
+      },
+      "smoke:live": {
+        "cache": false
+      }
+    }
+  },
+  "main": "./dist/main.js"
+}

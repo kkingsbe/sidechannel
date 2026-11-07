@@ -1,3 +1,5 @@
+> Historical pre-workspace source paths and commands. See [current operations](../../docs/harness-operations.md) and [current Jev guide](../../docs/jev-analysis.md). Saved evidence paths below are retained.
+
 # Verification — November 7, 2026
 
 Verified against the final implementation after recovering from a host restart:

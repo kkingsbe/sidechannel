@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Link,
   Route,
@@ -34,6 +34,7 @@ import {
   Loading,
   Notice,
   PageHeader,
+  Pager,
   Select,
   Table,
   Tabs,
@@ -50,7 +51,7 @@ import type {
   OutcomeDefinition,
   Projection,
   Verdict,
-} from "../../../agent/src/oversight/contracts";
+} from "@sidechannel/contracts/browser";
 import type {
   RunOutcomeAgreement,
   RunOutcomeReview,
@@ -67,6 +68,38 @@ const viewNames: Record<MonitorView, string> = {
 };
 const views: MonitorView[] = ["reports", "audit", "board", "full"];
 type Page<T> = { items: T[]; nextCursor: string | null };
+/** Results carry their request path so changing identity or revision cannot expose stale form actions. */
+function useExactApi<T>(path: string | null, interval = 0) {
+  const [result, setResult] = useState<{path: string; data?: T; error?: Error}>();
+  const generation = useRef(0);
+  const refresh = useCallback(async () => {
+    if (!path) return;
+    const request = ++generation.current;
+    try { const data = await api<T>(path); if (request === generation.current) setResult({path, data}); }
+    catch (error) { if (request === generation.current) setResult(previous => ({path, data: previous?.path === path ? previous.data : undefined, error: error as Error})); }
+  }, [path]);
+  useEffect(() => { void refresh(); const timer = interval ? setInterval(() => { if (!document.hidden) void refresh(); }, interval) : undefined; return () => { generation.current++; clearInterval(timer); }; }, [refresh, interval]);
+  const current = result?.path === path ? result : undefined;
+  return {data: current?.data, error: current?.error, loading: !!path && !current, refresh};
+}
+function useCursorPage<T>(path: string | null, interval = 0) {
+  const [page, setPage] = useState(0);
+  const [cursors, setCursors] = useState<string[]>([""]);
+  useEffect(() => { setPage(0); setCursors([""]); }, [path]);
+  const resource = useApi<Page<T>>(path ? path + (path.includes("?") ? "&" : "?") + "after=" + encodeURIComponent(cursors[page] ?? "") : null, interval);
+  const onChange = (next: number) => {
+    if (next > page) { if (!resource.data?.nextCursor) return; setCursors(previous => [...previous.slice(0, next), resource.data!.nextCursor!]); }
+    setPage(next);
+  };
+  return { ...resource, pagination: { page, hasMore: !!resource.data?.nextCursor, onChange } };
+}
+function useRunPage(path: string | null) {
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [path]);
+  const resource = useApi<{items: Run[]; total: number; nextOffset: number | null}>(path ? path + "&limit=25&offset=" + page * 25 : null);
+  return { ...resource, pagination: { page, hasMore: resource.data?.nextOffset != null, onChange: setPage } };
+}
+
 export default function Oversight() {
   return (
     <Routes>
@@ -79,14 +112,12 @@ function OversightSetup() {
   const [params, setParams] = useSearchParams();
   const tab = params.get("view") || "setup";
   const current = useApi<MonitorDefinition>("/monitor-definitions");
-  const history = useApi<Page<MonitorDefinition>>(
-    "/monitor-definitions/history?limit=100",
-  );
-  const runs = useApi<{ items: Run[] }>(
-    "/runs?summary=true&status=completed&limit=100",
-  );
-  const jobs = useApi<Page<MonitorEvaluation>>(
-    "/monitor-evaluations?limit=30",
+  const history = useCursorPage<MonitorDefinition>("/monitor-definitions/history?limit=25");
+  const runs = useRunPage("/runs?summary=true&status=completed");
+  const referenceRuns = useRunPage(tab === "references" ? "/runs?summary=true&status=completed,failed,cancelled,interrupted" : null);
+  const [referenceRunId, setReferenceRunId] = useState(params.get("run") || "");
+  const jobs = useCursorPage<MonitorEvaluation>(
+    "/monitor-evaluations?limit=25",
     5000,
   );
   const [selected, setSelected] = useState<string[]>(
@@ -179,22 +210,25 @@ function OversightSetup() {
             <div className="card-body">
               <Field label="Run for outcome adjudication">
                 <Select
-                  value={selected[0] || ""}
+                  value={referenceRunId}
                   onChange={(e) =>
-                    setSelected(e.target.value ? [e.target.value] : [])
+                    setReferenceRunId(e.target.value)
                   }
                 >
                   <option value="">Select a run</option>
-                  {arrayOf(runs.data).map((run) => (
+                  {referenceRunId && !arrayOf(referenceRuns.data).some(run => run.id === referenceRunId) && <option value={referenceRunId}>{short(referenceRunId)} (selected source)</option>}
+                  {arrayOf(referenceRuns.data).map((run) => (
                     <option key={run.id} value={run.id}>
                       {run.config.label} · {short(run.id)}
                     </option>
                   ))}
                 </Select>
               </Field>
+              {referenceRuns.error && <ErrorState error={referenceRuns.error} retry={referenceRuns.refresh} />}
+              <Pager {...referenceRuns.pagination} />
             </div>
           </Card>
-          {selected[0] && <RunReferenceEditor runId={selected[0]} />}
+          {referenceRunId && <RunReferenceEditor key={referenceRunId + (params.get("definition") || "")} runId={referenceRunId} initialDefinitionRevisionId={params.get("definition") || undefined} />}
         </>
       ) : tab === "jobs" ? (
         <EvaluationList jobs={jobs} />
@@ -216,6 +250,7 @@ function OversightSetup() {
                 <div className="card-body form-grid">
                   <Field label="Definition revision">
                     <Select
+                      aria-label="Definition revision"
                       value={definitionRevision}
                       onChange={(e) => {
                         setDefinitionRevision(Number(e.target.value));
@@ -227,12 +262,10 @@ function OversightSetup() {
                           Revision {item.revision} · {when(item.createdAt)}
                         </option>
                       ))}
-                      {!history.data?.items.length && current.data && (
-                        <option value={current.data.revision}>
-                          Revision {current.data.revision}
-                        </option>
-                      )}
+                      {!history.data?.items.some(item => item.revision === definitionRevision) && <option value={definitionRevision}>Revision {definitionRevision} (selected)</option>}
                     </Select>
+                    {history.error && <ErrorState error={history.error} retry={history.refresh} />}
+                    <Pager {...history.pagination} />
                   </Field>
                   <div>
                     <span className="helper">Completed source runs</span>
@@ -263,6 +296,8 @@ function OversightSetup() {
                         <p className="helper">No completed source runs yet.</p>
                       )}
                     </div>
+                    <Pager {...runs.pagination} />
+                    {selected.length > 0 && <p className="helper">Selected across pages: {selected.map(id => <span key={id}>{short(id)} <Button size="sm" variant="ghost" aria-label={"Remove source " + id} onClick={() => { setSelected(previous => previous.filter(value => value !== id)); setPreview(undefined); }}>Remove</Button></span>)}</p>}
                   </div>
                   <Field
                     label="Monitor provider"
@@ -545,9 +580,7 @@ function DefinitionEditor({
   const [selected, setSelected] = useState("");
   const [dirty, setDirty] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const history = useApi<Page<MonitorDefinition>>(
-    showHistory ? "/monitor-definitions/history?limit=100" : null,
-  );
+  const history = useCursorPage<MonitorDefinition>(showHistory ? "/monitor-definitions/history?limit=25" : null);
   const [historical, setHistorical] = useState<MonitorDefinition>();
   const mutation = useMutation();
   useEffect(() => {
@@ -820,6 +853,9 @@ function DefinitionEditor({
             </div>
           </button>
         ))}
+        {history.loading && <Loading />}
+        {history.error && <ErrorState error={history.error} retry={history.refresh} />}
+        <Pager {...history.pagination} />
         {historical && (
           <JsonView
             value={historical}
@@ -833,7 +869,7 @@ function DefinitionEditor({
 function EvaluationList({
   jobs,
 }: {
-  jobs: ReturnType<typeof useApi<Page<MonitorEvaluation>>>;
+  jobs: ReturnType<typeof useCursorPage<MonitorEvaluation>>;
 }) {
   return (
     <Card>
@@ -888,6 +924,7 @@ function EvaluationList({
           description="Preview evidence and explicitly launch the first independent monitor comparison."
         />
       )}
+      <Pager {...jobs.pagination} />
     </Card>
   );
 }
@@ -958,35 +995,6 @@ function EvaluationDetail() {
     outcomeId: string;
   }>();
   const mutation = useMutation();
-  const [references, setReferences] = useState<
-    Record<string, RunOutcomeAgreement[]>
-  >({});
-  const [referenceError, setReferenceError] = useState("");
-  useEffect(() => {
-    if (!evaluation.data) return;
-    let active = true;
-    Promise.all(
-      evaluation.data.runIds.map(
-        async (runId) =>
-          [
-            runId,
-            await api<RunOutcomeAgreement[]>("/runs/" + runId + "/outcomes"),
-          ] as const,
-      ),
-    )
-      .then((rows) => {
-        if (active) {
-          setReferences(Object.fromEntries(rows));
-          setReferenceError("");
-        }
-      })
-      .catch((e) => {
-        if (active) setReferenceError(e.message);
-      });
-    return () => {
-      active = false;
-    };
-  }, [evaluation.data]);
   if (evaluation.loading) return <Loading />;
   if (!evaluation.data)
     return <ErrorState error={evaluation.error} retry={evaluation.refresh} />;
@@ -1055,9 +1063,9 @@ function EvaluationDetail() {
         </Notice>
       )}
       {mutation.error && <Notice kind="error">{mutation.error.message}</Notice>}
-      {referenceError && (
+      {comparison.error && (
         <Notice kind="warning">
-          Human references unavailable: {referenceError}. No detection rates can
+          Human references unavailable: {comparison.error.message}. No detection rates can
           be inferred from missing labels.
         </Notice>
       )}
@@ -1073,7 +1081,7 @@ function EvaluationDetail() {
             description="Human reference on the left; isolated monitor evidence views on the right."
             actions={
               <Button asChild variant="ghost" size="sm">
-                <Link to={"/oversight?view=references&run=" + runId}>
+                <Link to={"/oversight?view=references&run=" + runId + "&definition=" + encodeURIComponent(data.definition.id)}>
                   Adjudicate source outcomes
                 </Link>
               </Button>
@@ -1090,12 +1098,8 @@ function EvaluationDetail() {
             {data.definition.outcomes
               .filter((o) => !o.archived)
               .map((outcome) => {
-                const reference = references[runId]?.find(
-                  (r) =>
-                    r.outcomeId === outcome.id &&
-                    r.definitionRevisionId ===
-                      `definition:${data.definition.revision}`,
-                );
+                const referenceRow=comparison.data?.comparisons.find(c=>c.outcome.id===outcome.id)?.rows.find(row=>row.runId===runId);
+                const reference = referenceRow?.reference;
                 return (
                   <tr key={outcome.id}>
                     <td>
@@ -1110,8 +1114,7 @@ function EvaluationDetail() {
                         <small>{reference.decision}</small>
                       )}
                       {reference &&
-                        (!reference.definitionCurrent ||
-                          !reference.sourceMatches) && (
+                        (!reference.sourceMatches) && (
                           <small>
                             Incompatible or stale reference · excluded
                           </small>
@@ -1339,14 +1342,11 @@ function EvaluationDetail() {
     </>
   );
 }
-function RunReferenceEditor({ runId }: { runId: string }) {
-  const context = useApi<RunReviewContext>(
-    "/runs/" + runId + "/reviews/context",
-  );
-  const reviews = useApi<Page<RunOutcomeReview>>(
-    "/runs/" + runId + "/reviews?limit=100",
-    5000,
-  );
+function RunReferenceEditor({ runId, initialDefinitionRevisionId }: { runId: string; initialDefinitionRevisionId?: string }) {
+  const [definitionRevisionId, setDefinitionRevisionId] = useState(initialDefinitionRevisionId || "");
+  const definitionHistory = useCursorPage<MonitorDefinition>("/monitor-definitions/history?limit=25");
+  const context = useExactApi<RunReviewContext>("/runs/" + runId + "/reviews/context" + (definitionRevisionId ? "?definitionRevisionId=" + encodeURIComponent(definitionRevisionId) : ""));
+  const reviews = useCursorPage<RunOutcomeReview>("/runs/" + runId + "/reviews?limit=25", 5000);
   const agreements = useApi<RunOutcomeAgreement[]>(
     "/runs/" + runId + "/outcomes",
     5000,
@@ -1359,6 +1359,8 @@ function RunReferenceEditor({ runId }: { runId: string }) {
   const [rationale, setRationale] = useState("");
   const [evidence, setEvidence] = useState("");
   const mutation = useMutation();
+  const latestQuery = new URLSearchParams({ reviewer: reviewer.trim().normalize("NFKC").toLocaleLowerCase("en-US"), outcomeId, definitionRevisionId: context.data?.definition.id || "" });
+  const latest = useExactApi<RunOutcomeReview | null>(context.data && reviewer.trim() && outcomeId ? "/runs/" + runId + "/reviews/latest?" + latestQuery : null, 5000);
   useEffect(() => {
     if (context.data)
       setOutcomeId(
@@ -1370,16 +1372,7 @@ function RunReferenceEditor({ runId }: { runId: string }) {
     return <ErrorState error={context.error} retry={context.refresh} />;
   const data = context.data;
   const active = data.definition.outcomes.filter((o) => !o.archived);
-  const previous = reviews.data?.items
-    .filter(
-      (r) =>
-        r.outcomeId === outcomeId &&
-        r.reviewer.trim().normalize("NFKC").toLocaleLowerCase() ===
-          reviewer.trim().normalize("NFKC").toLocaleLowerCase() &&
-        r.definitionRevisionId === `definition:${data.definition.revision}`,
-    )
-    .sort((a, b) => a.sequence - b.sequence)
-    .at(-1);
+  const previous = latest.data ?? undefined;
   const selectedOutcome = active.find((o) => o.id === outcomeId);
   const save = async () => {
     const result = await mutation.run(
@@ -1387,7 +1380,7 @@ function RunReferenceEditor({ runId }: { runId: string }) {
         post<RunOutcomeReview>("/runs/" + runId + "/reviews", {
           reviewer,
           outcomeId,
-          definitionRevisionId: `definition:${data.definition.revision}`,
+          definitionRevisionId: data.definition.id,
           evidenceRevision: data.evidenceRevision,
           decision,
           rationale,
@@ -1399,6 +1392,7 @@ function RunReferenceEditor({ runId }: { runId: string }) {
     if (result) {
       void reviews.refresh();
       void agreements.refresh();
+      void latest.refresh();
       setRationale("");
     }
   };
@@ -1407,18 +1401,26 @@ function RunReferenceEditor({ runId }: { runId: string }) {
       <CardHeading
         title="Run-level reference adjudication"
         description={`Source ${short(runId)} · definition revision ${data.definition.revision} · ${data.eventCount} source events`}
-        actions={
-          <Button asChild variant="secondary" size="sm">
-            <Link to={"/runs/" + runId}>Inspect full source evidence</Link>
-          </Button>
-        }
+        actions={<>
+          <Button asChild variant="secondary" size="sm"><Link to={"/runs/" + runId}>Inspect full source evidence</Link></Button>
+          <Button asChild variant="secondary" size="sm"><a download href={"/api/runs/" + runId + "/reviews/export?definitionRevisionId=" + encodeURIComponent(data.definition.id)}><Download size={14} />Reference export</a></Button>
+        </>}
       />
       <div className="card-body">
         {mutation.error && (
           <Notice kind="error">{mutation.error.message}</Notice>
         )}
         {mutation.message && <Notice kind="success">{mutation.message}</Notice>}
+        {latest.error && <ErrorState error={latest.error} retry={latest.refresh} />}
         <div className="form-grid">
+          <Field label="Reference definition revision" hint="Historical evaluations must be reviewed against their own immutable outcome definitions.">
+            <Select aria-label="Reference definition revision" value={data.definition.id} onChange={e => setDefinitionRevisionId(e.target.value)}>
+              {!definitionHistory.data?.items.some(item => item.id === data.definition.id) && <option value={data.definition.id}>Revision {data.definition.revision} (selected)</option>}
+              {definitionHistory.data?.items.map(item => <option key={item.id} value={item.id}>Revision {item.revision} / {when(item.createdAt)}</option>)}
+            </Select>
+            <Pager {...definitionHistory.pagination} />
+            {definitionHistory.error && <ErrorState error={definitionHistory.error} retry={definitionHistory.refresh} />}
+          </Field>
           <Field
             label="Claimed reviewer identity"
             hint="Names are self-entered, not authenticated accounts."
@@ -1481,7 +1483,7 @@ function RunReferenceEditor({ runId }: { runId: string }) {
           <div className="full actions">
             <Button
               disabled={
-                mutation.busy ||
+                mutation.busy || latest.loading || !!latest.error ||
                 !reviewer.trim() ||
                 !rationale.trim() ||
                 !outcomeId ||
@@ -1514,7 +1516,7 @@ function RunReferenceEditor({ runId }: { runId: string }) {
               (a) =>
                 a.outcomeId === outcome.id &&
                 a.definitionRevisionId ===
-                  `definition:${data.definition.revision}`,
+                  data.definition.id,
             );
             return (
               <tr key={outcome.id}>
@@ -1537,6 +1539,7 @@ function RunReferenceEditor({ runId }: { runId: string }) {
         </Table>
         <hr className="section-divider" />
         <h3>Preserved review history</h3>
+        <p className="helper">All outcome and definition revisions remain available through these pages and the complete reference export. Your latest revision is resolved independently by reviewer identity, outcome, and definition.</p>
         {reviews.error ? (
           <ErrorState error={reviews.error} retry={reviews.refresh} />
         ) : (
@@ -1570,6 +1573,7 @@ function RunReferenceEditor({ runId }: { runId: string }) {
             </div>
           ))
         )}
+        <Pager {...reviews.pagination} />
       </div>
     </Card>
   );

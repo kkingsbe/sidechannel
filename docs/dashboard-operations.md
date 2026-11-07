@@ -7,20 +7,20 @@ The React application is in `dashboard/`. Its API and static assets share one or
 Use Node 22.18+ on the 22.x line, or Node 24.11+. From the repository root:
 
 ```powershell
-npm --prefix agent ci
-npm --prefix dashboard ci
-npm --prefix dashboard run build
+npm ci
+npm run build
+docker compose up -d --wait mongo
 ```
 
 Start MongoDB using the existing Compose service, then run these in separate terminals:
 
 ```powershell
-npm --prefix agent run dashboard
-npm --prefix agent run worker
-npm --prefix agent run analysis:worker
+npm run dev:api
+npm run dev:experiment
+npm run dev:analysis
 ```
 
-Open `http://127.0.0.1:4310`. For UI development, `npm --prefix dashboard run dev` starts Vite and proxies `/api` to port 4310. Keep provider credentials in backend environment files. `TYPESAFE_API_KEY` is needed for Jev. The monitor uses its independently selected provider and that provider's server-side credentials. The scripted experiment fixture needs no model key.
+Open `http://127.0.0.1:4310`. For UI development, `npm run dev:dashboard` starts Vite and proxies `/api` to port 4310. Keep provider credentials in backend environment files. `TYPESAFE_API_KEY` is needed for Jev. The monitor uses its independently selected provider and that provider's server-side credentials. The scripted experiment fixture needs no model key.
 
 The dashboard follows the system light/dark preference until a researcher selects an override. Display preferences never alter saved inference settings.
 
@@ -53,20 +53,22 @@ Run exports contain canonical evidence and frozen run configuration. Monitor exp
 
 ## Deployment
 
-Compose builds from the repository root using `agent/Dockerfile`. The image includes `dashboard/dist`. Only the dashboard shares a network with the optional Cloudflare connector. The initial deployment is open: leave `RESEARCHER_TOKEN` blank and use the existing tunnel's single `http://dashboard:4310` application route for both UI and API. Inspect remote routing and any prior Access application before changing them. Database, worker and Mastra routes remain private.
+Root `compose.yaml` builds separate API, experiment-worker and analysis-worker images from their service Dockerfiles. Each runs its compiled Node entry point with its own production dependencies. The API image includes `/app/dashboard/dist` and explicitly sets `DASHBOARD_DIST_DIR`; worker images do not contain dashboard assets. Only the API/static host shares a network with the optional Cloudflare connector. The initial deployment is open: leave `RESEARCHER_TOKEN` blank and use the existing tunnel's single `http://api:4310` (the existing `dashboard` network alias remains valid during cutover) application route for both UI and API. Inspect remote routing and any prior Access application before changing them. Database, worker and Mastra routes remain private.
 
 External hostname configuration is account-owned and is not inferred from a local Compose file. A successful local build does not prove the public hostname is reachable.
 
 ## Verification
 
 ```powershell
-npm --prefix agent run check
-npm --prefix agent test
-npm --prefix agent run test:mongo
-npm --prefix dashboard test
-npm --prefix dashboard run build
+npm run check
+npm test
+npm run test:integration
+npm run lint
+npm run build
 ```
 
 Routine tests use deterministic fixtures and injected provider transports, with no paid model calls. Mongo integration tests use isolated databases. Keep real research datasets and their existing named volume intact when rebuilding services.
 
-For an interactive acceptance workspace, run `npm --prefix agent run dashboard:smoke` and open `http://127.0.0.1:4311`. It seeds an in-memory matched fixture pair, simulated analyses and oversight judgments. Every result is illustrative, explicitly marked scripted, and never a research finding. Restarting this smoke server resets its disposable data; it does not access MongoDB or a model provider.
+For an interactive acceptance workspace, run `npm run smoke:dashboard --workspace=@sidechannel/integration` and open `http://127.0.0.1:4311`. It seeds an in-memory matched fixture pair, simulated analyses and oversight judgments. Every result is illustrative, explicitly marked scripted, and never a research finding. Restarting this smoke server resets its disposable data; it does not access MongoDB or a model provider.
+
+Root workspace commands delegate to Nx for dependency-ordered builds and checks. Host services load root `.env`, then the existing `agent/.env` compatibility file, then the service `.env`; process variables take precedence. Compose uses its explicitly selected `--env-file .env.compose` instead. See [harness operations](harness-operations.md) for per-service credentials, optional Studio, manual recovery, existing-volume reuse and deployment cutover. Do not start a replacement experiment worker while an old worker still owns the database.

@@ -1,3 +1,5 @@
+> Historical pre-workspace source paths and commands. See [current operations](../../docs/harness-operations.md) and [current Jev guide](../../docs/jev-analysis.md). Saved evidence paths below are retained.
+
 # First milestone decisions — 2026-11-07
 
 1. Retain TypeScript/Mastra; use Node HTTP and static browser assets plus a separate worker. No deployment destination is assumed.

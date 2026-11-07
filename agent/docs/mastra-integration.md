@@ -1,3 +1,5 @@
+> Historical pre-workspace source paths and commands. See [current operations](../../docs/harness-operations.md) and [current Jev guide](../../docs/jev-analysis.md). Saved evidence paths below are retained.
+
 # Mastra integration verification
 
 The harness uses the installed, pinned `@mastra/core` 1.82.0, `@mastra/memory` 1.41.0, `@mastra/mongodb` 1.26.0 and `@mastra/observability` 1.23.1 APIs. The adapter boundaries are `src/harness/mastra-adapter.ts` and `src/mastra/index.ts`. Framework APIs were checked against embedded docs, public type definitions and installed implementation; package upgrades require repeating these checks.

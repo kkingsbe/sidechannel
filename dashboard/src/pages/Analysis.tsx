@@ -41,6 +41,7 @@ import {
   Textarea,
 } from "../components/ui";
 import { api, arrayOf, post, useApi, useMutation } from "../lib/api";
+import { useCursorApi, useOffsetApi } from "../lib/paging";
 import { list, pretty, short, when } from "../lib/utils";
 import type { Run } from "../lib/types";
 import type {
@@ -81,12 +82,13 @@ function AnalysisSetup() {
   const [params, setParams] = useSearchParams();
   const runId = params.get("run") || "";
   const clone = params.get("clone");
-  const runs = useApi<{ items: Run[] }>("/runs?summary=true&limit=100");
+  const runs = useOffsetApi<Run>("/runs?summary=true", 50);
   const source = useApi<Run>(runId ? "/runs/" + runId : null);
-  const books = useApi<Page<Codebook>>("/codebooks");
+  const books = useCursorApi<Codebook>("/codebooks");
   const cloned = useApi<AnalysisJob>(clone ? "/analyses/" + clone : null);
-  const jobs = useApi<Page<AnalysisJob>>(
-    runId ? "/runs/" + runId + "/analyses?limit=30" : null,
+  const jobs = useCursorApi<AnalysisJob>(
+    runId ? "/runs/" + runId + "/analyses" : null,
+    30,
     5000,
   );
   const [settings, setSettings] = useState<AnalysisSettings>({
@@ -105,9 +107,9 @@ function AnalysisSetup() {
   const revision = useApi<{ codebook: Codebook; revision: CodebookRevision }>(
     settings.codebookId ? "/codebooks/" + settings.codebookId : null,
   );
-  const revisionHistory = useApi<Page<CodebookRevision>>(
+  const revisionHistory = useCursorApi<CodebookRevision>(
     settings.codebookId
-      ? "/codebooks/" + settings.codebookId + "/revisions?limit=100"
+      ? "/codebooks/" + settings.codebookId + "/revisions"
       : null,
   );
   const [preview, setPreview] = useState<AnalysisPreview>();
@@ -179,63 +181,101 @@ function AnalysisSetup() {
           <Card className="form-section">
             <CardHeading title="Source & frozen definitions" />
             <div className="card-body form-grid">
-              <Field
-                label="Source run"
-                hint="Only terminal runs can be analyzed."
-              >
-                <Select
-                  value={runId}
-                  onChange={(e) => {
-                    setParams((prev) => {
-                      prev.set("run", e.target.value);
-                      return prev;
-                    });
-                    setPreview(undefined);
-                  }}
+              <div>
+                <Field
+                  label="Source run"
+                  hint="Only terminal runs can be analyzed."
                 >
-                  <option value="">Select a source run</option>
-                  {arrayOf(runs.data).map((run) => (
-                    <option key={run.id} value={run.id}>
-                      {run.config.label} · {run.status} · {short(run.id)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Codebook">
-                <Select
-                  value={settings.codebookId}
-                  onChange={(e) => {
-                    const book = books.data?.items.find(
-                      (b) => b.id === e.target.value,
-                    );
-                    change({
-                      codebookId: e.target.value,
-                      codebookRevisionId: book?.currentRevisionId || "",
-                    });
-                  }}
+                  <Select
+                    value={runId}
+                    onChange={(e) => {
+                      setParams((prev) => {
+                        prev.set("run", e.target.value);
+                        return prev;
+                      });
+                      setPreview(undefined);
+                    }}
+                  >
+                    <option value="">Select a source run</option>
+                    {runId &&
+                      !runs.data?.items.some((run) => run.id === runId) && (
+                        <option value={runId}>
+                          {source.data?.config.label || runId} · selected source
+                        </option>
+                      )}
+                    {arrayOf(runs.data).map((run) => (
+                      <option key={run.id} value={run.id}>
+                        {run.config.label} · {run.status} · {short(run.id)}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Pager {...runs.pagination} />
+              </div>
+              <div>
+                <Field label="Codebook">
+                  <Select
+                    value={settings.codebookId}
+                    onChange={(e) => {
+                      const book = books.data?.items.find(
+                        (b) => b.id === e.target.value,
+                      );
+                      change({
+                        codebookId: e.target.value,
+                        codebookRevisionId: book?.currentRevisionId || "",
+                      });
+                    }}
+                  >
+                    <option value="">Select codebook</option>
+                    {settings.codebookId &&
+                      !books.data?.items.some(
+                        (book) => book.id === settings.codebookId,
+                      ) && (
+                        <option value={settings.codebookId}>
+                          {revision.data?.codebook.name || "Selected codebook"}
+                        </option>
+                      )}
+                    {books.data?.items.map((book) => (
+                      <option key={book.id} value={book.id}>
+                        {book.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Pager {...books.pagination} />
+              </div>
+              <div>
+                <Field
+                  label="Codebook revision"
+                  hint="Historical definitions remain read-only. New analyses use the current codebook revision."
                 >
-                  <option value="">Select codebook</option>
-                  {books.data?.items.map((book) => (
-                    <option key={book.id} value={book.id}>
-                      {book.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Codebook revision">
-                <Select
-                  value={settings.codebookRevisionId}
-                  onChange={(e) =>
-                    change({ codebookRevisionId: e.target.value })
-                  }
-                >
-                  {revisionHistory.data?.items.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      Revision {item.revision} · {when(item.createdAt)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
+                  <Select
+                    value={settings.codebookRevisionId}
+                    onChange={(e) =>
+                      change({ codebookRevisionId: e.target.value })
+                    }
+                  >
+                    {revision.data &&
+                      !revisionHistory.data?.items.some(
+                        (item) => item.id === revision.data?.revision.id,
+                      ) && (
+                        <option value={revision.data.revision.id}>
+                          Current revision {revision.data.revision.revision}
+                        </option>
+                      )}
+                    {revisionHistory.data?.items.map((item) => (
+                      <option
+                        key={item.id}
+                        value={item.id}
+                        disabled={item.id !== revision.data?.revision.id}
+                      >
+                        Revision {item.revision} · {when(item.createdAt)}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Pager {...revisionHistory.pagination} />
+              </div>
               <Field
                 label="Researcher / creator"
                 hint="Claimed identity in the open workspace."
@@ -572,6 +612,7 @@ function AnalysisSetup() {
               ) : (
                 <Empty title="No analyses of this source run yet" />
               )}
+              <Pager {...jobs.pagination} />
             </Card>
           )}
         </div>
@@ -740,6 +781,11 @@ function AnalysisDetail() {
   const detail = useApi<WindowDetail>(
     windowId ? "/analyses/" + id + "/windows/" + windowId : null,
   );
+  const persistedBatch = useApi<{ batch: ReviewBatch }>(
+    params.get("batch")
+      ? `/analyses/${id}/review-batches/${params.get("batch")}?limit=1`
+      : null,
+  );
   const [threshold, setThreshold] = useState(0.7);
   const [visible, setVisible] = useState<string[]>();
   const mutation = useMutation();
@@ -750,8 +796,8 @@ function AnalysisDetail() {
   const otherWindows = useApi<Page<AnalysisWindow>>(
     compareId ? "/analyses/" + compareId + "/windows?limit=30" : null,
   );
-  const sourceJobs = useApi<Page<AnalysisJob>>(
-    job.data ? "/runs/" + job.data.runId + "/analyses?limit=100" : null,
+  const sourceJobs = useCursorApi<AnalysisJob>(
+    job.data ? "/runs/" + job.data.runId + "/analyses" : null,
   );
   if (job.loading) return <Loading />;
   if (!job.data) return <ErrorState error={job.error} retry={job.refresh} />;
@@ -1053,6 +1099,7 @@ function AnalysisDetail() {
                   ))}
               </Select>
             </Field>
+            <Pager {...sourceJobs.pagination} />
             {comparison.data && (
               <>
                 <hr className="section-divider" />
@@ -1201,9 +1248,16 @@ function AnalysisDetail() {
         ) : (
           detail.data && (
             <WindowInspector
+              key={detail.data.window.id}
               detail={detail.data}
               job={data}
-              blind={tab === "review" && params.get("blind") === "true"}
+              blind={
+                tab === "review" &&
+                (params.get("batch")
+                  ? persistedBatch.data?.batch.id !== params.get("batch") ||
+                    persistedBatch.data?.batch.mode === "blind"
+                  : params.get("blind") === "true")
+              }
             />
           )
         )}
@@ -1391,8 +1445,8 @@ function ReviewWorkspace({
   const [seed, setSeed] = useState("pilot-42");
   const [queueFilter, setQueueFilter] = useState("all");
   const [batchCursor, setBatchCursor] = useState<string | null>(null);
-  const batches = useApi<Page<ReviewBatch>>(
-    "/analyses/" + job.id + "/review-batches?limit=30",
+  const batches = useCursorApi<ReviewBatch>(
+    "/analyses/" + job.id + "/review-batches",
   );
   const batch = useApi<{
     batch: ReviewBatch;
@@ -1405,13 +1459,17 @@ function ReviewWorkspace({
           batchId +
           "?limit=30&reviewer=" +
           encodeURIComponent(reviewer) +
+          "&filter=" +
+          encodeURIComponent(queueFilter) +
           (batchCursor ? "&after=" + encodeURIComponent(batchCursor) : "")
       : null,
   );
-  const reviews = useApi<Page<HumanReview>>(
-    "/analyses/" + job.id + "/reviews?limit=100",
-    5000,
-  );
+  useEffect(() => {
+    if (batch.data?.batch.id === batchId) setMode(batch.data.batch.mode);
+  }, [batch.data, batchId]);
+  useEffect(() => {
+    setBatchCursor(null);
+  }, [queueFilter, reviewer, batchId]);
   const mutation = useMutation();
   const blind = mode === "blind";
   const create = async () => {
@@ -1434,18 +1492,7 @@ function ReviewWorkspace({
       void batches.refresh();
     }
   };
-  const filtered =
-    batch.data?.selections.items.filter((s) => {
-      const matching =
-        reviews.data?.items.filter((r) => r.windowId === s.windowId) || [];
-      return queueFilter === "unreviewed"
-        ? !matching.length
-        : queueFilter === "uncertain"
-          ? matching.some((r) => r.decision === "uncertain")
-          : queueFilter === "disagreement"
-            ? new Set(matching.map((r) => r.decision)).size > 1
-            : true;
-    }) ?? [];
+  const filtered = batch.data?.selections.items ?? [];
   return (
     <>
       <Notice>
@@ -1626,12 +1673,13 @@ function ReviewWorkspace({
               </div>
             </button>
           ))}
+          <Pager {...batches.pagination} />
         </Card>
       </div>
     </>
   );
 }
-function WindowInspector({
+export function WindowInspector({
   detail,
   job,
   blind,
@@ -1643,12 +1691,17 @@ function WindowInspector({
   const [reviewer, setReviewer] = useState(
     () => localStorage.getItem("sidechannel-reviewer") || "",
   );
+  const [historyPage, setHistoryPage] = useState(0),
+    [historyCursors, setHistoryCursors] = useState<(string | null)[]>([null]);
   const reviews = useApi<Page<HumanReview>>(
     "/analyses/" +
       job.id +
       "/reviews?windowId=" +
       detail.window.id +
-      "&limit=100",
+      "&limit=30" +
+      (historyCursors[historyPage]
+        ? "&after=" + encodeURIComponent(historyCursors[historyPage]!)
+        : ""),
     4000,
   );
   const [scope, setScope] = useState<"window" | "event">("window");
@@ -1658,14 +1711,33 @@ function WindowInspector({
   const [decision, setDecision] = useState<Decision>("uncertain");
   const [rationale, setRationale] = useState("");
   const [eventIds, setEventIds] = useState("");
+  const ownPresence = useApi<Page<HumanReview>>(
+    reviewer.trim()
+      ? `/analyses/${job.id}/reviews?windowId=${detail.window.id}&reviewer=${encodeURIComponent(reviewer)}&latest=true&limit=1`
+      : null,
+  );
+  const subjectId = scope === "window" ? detail.window.id : list(eventIds)[0];
+  const ownLatest = useApi<Page<HumanReview>>(
+    reviewer.trim() && subjectId
+      ? `/analyses/${job.id}/reviews?windowId=${detail.window.id}&subjectId=${encodeURIComponent(subjectId)}&scope=${scope}&codeId=${encodeURIComponent(codeId)}&reviewer=${encodeURIComponent(reviewer)}&latest=true&limit=1`
+      : null,
+  );
   const mutation = useMutation();
   const ownReviews =
-    reviews.data?.items.filter(
-      (r) => r.reviewer === reviewer && r.windowId === detail.window.id,
+    ownPresence.data?.items.filter(
+      (r) => r.reviewer === reviewer.trim() && r.windowId === detail.window.id,
     ) || [];
   const predictionsVisible = !blind || ownReviews.length > 0;
-  const latest = ownReviews
-    .filter((r) => r.scope === scope && r.codeId === codeId)
+  const latest = ownLatest.data?.items
+    .filter(
+      (r) =>
+        r.reviewer === reviewer.trim() &&
+        r.scope === scope &&
+        r.codeId === codeId &&
+        (scope === "window"
+          ? r.subjectId === detail.window.id
+          : r.subjectId === list(eventIds)[0]),
+    )
     .at(-1);
   const save = async () => {
     const result = await mutation.run(
@@ -1686,6 +1758,8 @@ function WindowInspector({
     );
     if (result) {
       void reviews.refresh();
+      void ownPresence.refresh();
+      void ownLatest.refresh();
       setRationale("");
     }
   };
@@ -1834,6 +1908,8 @@ function WindowInspector({
           <Button
             disabled={
               mutation.busy ||
+              ownLatest.loading ||
+              !!ownLatest.error ||
               !reviewer.trim() ||
               !rationale.trim() ||
               !codeId ||
@@ -1850,7 +1926,11 @@ function WindowInspector({
       </div>
       <hr className="section-divider" />
       <h3>Review history</h3>
-      {reviews.error ? (
+      {!predictionsVisible ? (
+        <p className="helper">
+          Prior judgments are hidden until your initial judgment is saved.
+        </p>
+      ) : reviews.error ? (
         <ErrorState error={reviews.error} retry={reviews.refresh} />
       ) : (
         reviews.data?.items
@@ -1881,6 +1961,20 @@ function WindowInspector({
               </p>
             </div>
           ))
+      )}
+      {predictionsVisible && (
+        <Pager
+          page={historyPage}
+          hasMore={!!reviews.data?.nextCursor}
+          onChange={(next) => {
+            if (next > historyPage)
+              setHistoryCursors((previous) => [
+                ...previous.slice(0, next),
+                reviews.data?.nextCursor ?? null,
+              ]);
+            setHistoryPage(next);
+          }}
+        />
       )}
     </>
   );

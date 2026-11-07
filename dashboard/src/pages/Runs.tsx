@@ -51,12 +51,15 @@ import type {
 } from "../lib/types";
 import { cn, pretty, short, when } from "../lib/utils";
 import { RunTable } from "../App";
+import { ArtifactView } from "../components/artifact-view";
 type RecordPage<T> = {
   items: T[];
   nextOffset?: number | null;
   total?: number;
   posts?: T[];
   deliveries?: HarnessEvent[];
+  reporting?: { instructions: string; schemaVersion: string };
+  deliveriesMayHaveMore?: boolean;
 };
 export default function Runs() {
   return (
@@ -619,6 +622,25 @@ function RunDetail() {
                   : "Recorded source evidence with immutable provenance."
             }
           />
+          {tab === "reports" &&
+            !Array.isArray(evidence.data) &&
+            evidence.data?.reporting && (
+              <div className="card-body">
+                <JsonView
+                  value={evidence.data.reporting}
+                  title="Exact reporting instructions and schema version"
+                />
+              </div>
+            )}
+          {tab === "board" &&
+            !Array.isArray(evidence.data) &&
+            evidence.data?.deliveriesMayHaveMore && (
+              <Notice kind="warning">
+                This response contains a page of delivery events. For a complete
+                delivery history, filter the timeline for board_delivery and
+                paginate through the source events.
+              </Notice>
+            )}
           {evidence.error && (
             <ErrorState error={evidence.error} retry={evidence.refresh} />
           )}
@@ -673,16 +695,22 @@ function RunDetail() {
                       </div>
                     </div>
                     <div className="card-body">
-                      <p className="text-block">
-                        {tab === "board"
-                          ? String(object.text ?? "")
-                          : tab === "reports"
-                            ? String(object.raw ?? "")
-                            : pretty(object.value ?? object.data ?? item).slice(
-                                0,
-                                500,
-                              )}
-                      </p>
+                      {tab === "artifacts" ? (
+                        <ArtifactView
+                          value={object.value}
+                          schemaVersion={data.config.artifactSchemaVersion}
+                        />
+                      ) : (
+                        <p className="text-block">
+                          {tab === "board"
+                            ? String(object.text ?? "")
+                            : tab === "reports"
+                              ? String(object.raw ?? "")
+                              : pretty(
+                                  object.value ?? object.data ?? item,
+                                ).slice(0, 500)}
+                        </p>
+                      )}
                       {tab === "board" && (
                         <BoardDelivery
                           id={String(object.id)}
@@ -844,9 +872,14 @@ function BoardDelivery({
         <div className="actions">
           <span className="helper">Exact delivery records:</span>
           {matches.map((e) => (
-            <Badge key={e.id}>
-              {e.agentId} · event #{e.sequence}
-            </Badge>
+            <Link
+              key={e.id}
+              to={`/runs/${e.runId}?view=timeline&evidence=${encodeURIComponent(e.id)}`}
+            >
+              <Badge>
+                {e.agentId} · event #{e.sequence}
+              </Badge>
+            </Link>
           ))}
         </div>
       ) : (

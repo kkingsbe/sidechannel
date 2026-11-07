@@ -1,4 +1,4 @@
-name: Build and publish Docker image
+name: Build and publish Docker images
 
 on:
   pull_request:
@@ -17,9 +17,25 @@ concurrency:
 
 jobs:
   build:
-    name: Shared application image
+    name: ${{ matrix.image }} image
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            dockerfile: api/Dockerfile
+            target: runtime
+          - image: experiment-worker
+            dockerfile: experiment-worker/Dockerfile
+            target: production
+          - image: analysis-worker
+            dockerfile: analysis-worker/Dockerfile
+            target: runtime
+          - image: mastra
+            dockerfile: experiment-worker/Dockerfile
+            target: studio
     permissions:
       contents: read
       packages: write
@@ -44,7 +60,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
-          images: ghcr.io/${{ github.repository }}-agent
+          images: ghcr.io/${{ github.repository }}-${{ matrix.image }}
           flavor: latest=false
           tags: |
             type=ref,event=branch
@@ -53,16 +69,15 @@ jobs:
             type=sha,format=long
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
-      # Dashboard/API, experiment worker, analysis worker, and Mastra all use
-      # this Dockerfile; Compose supplies each service's runtime command.
-      - name: Build and publish application image
+      - name: Build and publish service image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
-          file: agent/Dockerfile
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=sidechannel-agent
-          cache-to: type=gha,mode=max,scope=sidechannel-agent
+          cache-from: type=gha,scope=sidechannel-${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=sidechannel-${{ matrix.image }}

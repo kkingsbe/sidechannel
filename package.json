@@ -1,0 +1,53 @@
+{
+  "name": "sidechannel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "api",
+    "experiment-worker",
+    "analysis-worker",
+    "dashboard",
+    "packages/*",
+    "tests/integration"
+  ],
+  "engines": {
+    "node": "^22.18.0 || >=24.11.0"
+  },
+  "packageManager": "npm@11.5.1",
+  "scripts": {
+    "dev:dashboard": "node scripts/nx.mjs run sidechannel-dashboard:dev",
+    "dev:api": "node scripts/nx.mjs run @sidechannel/api:dev",
+    "dev:experiment": "node scripts/nx.mjs run @sidechannel/experiment-worker:dev",
+    "dev:analysis": "node scripts/nx.mjs run @sidechannel/analysis-worker:dev",
+    "build": "node scripts/nx.mjs run-many -t build",
+    "check": "node scripts/nx.mjs run-many -t check",
+    "lint": "node scripts/nx.mjs run-many -t lint && node scripts/verify-boundaries.mjs",
+    "test": "node scripts/nx.mjs run-many -t test",
+    "test:integration": "node scripts/nx.mjs run @sidechannel/integration:test:integration",
+    "verify": "npm run lint && npm run check && npm test && npm run build",
+    "test:compiled": "npm run build && node scripts/verify-compiled.mjs",
+    "test:equivalence": "npm run build && node scripts/verify-migration-equivalence.mjs",
+    "fixture": "node scripts/nx.mjs run @sidechannel/experiment-worker:fixture",
+    "recover": "node scripts/nx.mjs run @sidechannel/experiment-worker:recover",
+    "smoke:live": "node scripts/nx.mjs run @sidechannel/experiment-worker:smoke:live",
+    "smoke:jev": "node scripts/nx.mjs run @sidechannel/integration:smoke:jev",
+    "smoke:dashboard": "node scripts/nx.mjs run @sidechannel/integration:smoke:dashboard",
+    "studio": "node scripts/nx.mjs run @sidechannel/experiment-worker:studio",
+    "build:studio": "node scripts/nx.mjs run @sidechannel/experiment-worker:build:studio",
+    "start:studio": "node scripts/nx.mjs run @sidechannel/experiment-worker:start:studio",
+    "jev:worker": "node scripts/nx.mjs run @sidechannel/analysis-worker:jev:worker",
+    "nx": "node scripts/nx.mjs"
+  },
+  "devDependencies": {
+    "nx": "23.3.1",
+    "@nx/js": "23.3.1",
+    "@nx/eslint-plugin": "23.3.1",
+    "@typescript-eslint/parser": "8.62.0",
+    "eslint": "9.39.4",
+    "eslint-config-prettier": "10.1.8",
+    "typescript": "6.0.3",
+    "tsx": "4.21.0",
+    "@types/node": "26.6.6"
+  }
+}

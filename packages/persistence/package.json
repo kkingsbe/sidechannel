@@ -1,0 +1,52 @@
+{
+  "name": "@sidechannel/persistence",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "node ../../scripts/test.mjs src",
+    "lint": "eslint src",
+    "dev": "tsc -w -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "mongodb": "7.7.0",
+    "@sidechannel/contracts": "1.0.0",
+    "@sidechannel/domain": "1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "@types/node": "26.6.6",
+    "tsx": "4.21.0"
+  },
+  "nx": {
+    "tags": [
+      "layer:persistence"
+    ],
+    "targets": {
+      "dev": {
+        "cache": false,
+        "continuous": true
+      }
+    }
+  },
+  "exports": {
+    "./analysis/jev-repository": {
+      "types": "./dist/analysis/jev-repository.d.ts",
+      "import": "./dist/analysis/jev-repository.js"
+    },
+    "./analysis/review-repository": {
+      "types": "./dist/analysis/review-repository.d.ts",
+      "import": "./dist/analysis/review-repository.js"
+    },
+    "./analysis/store": {
+      "types": "./dist/analysis/store.d.ts",
+      "import": "./dist/analysis/store.js"
+    },
+    "./harness/repository": {
+      "types": "./dist/harness/repository.d.ts",
+      "import": "./dist/harness/repository.js"
+    }
+  }
+}
