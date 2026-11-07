@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import { MongoClient, type Db, type Document } from 'mongodb';
 import { isDeepStrictEqual } from 'node:util';
 import { assertPairEquivalent } from '@sidechannel/domain/harness/config';
 import type { HarnessEvent, NewEvent, Run } from '@sidechannel/contracts/harness/contracts';
 import type { Repository } from '@sidechannel/contracts/harness/server';
-import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, type EvidenceKind, type EvidencePage } from '@sidechannel/contracts/harness/repository';
+import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, type EvidenceKind, type EvidencePage, type TurnSummary } from '@sidechannel/contracts/harness/repository';
+import { matchesEventQuery, summarizeTurns } from '@sidechannel/domain/harness/event-pages';
 import { summarizeRun } from '@sidechannel/domain/harness/repository';
 
 function assertSameLaunch(existing: Run, requested: Run) {
@@ -17,10 +19,6 @@ function assertPair(runs: Run[]) {
         throw new RepositoryConflict('A matched pair requires exactly two distinct conditions and one pair identity');
     try { assertPairEquivalent(runs[0]!.config, runs[1]!.config); } catch { throw new RepositoryConflict('Matched configurations differ outside condition'); }
 }
-
-function eventPhase(event: HarnessEvent): string { return (event.data as { phase?: string } | null)?.phase ?? (event.type.startsWith('report') || event.invocationId?.includes(':report:') ? 'report' : 'action'); }
-
-function matchesEvent(event: HarnessEvent, query: EventQuery) { return event.sequence > (query.after ?? 0) && (!query.actor || event.agentId === query.actor) && (!query.type || event.type === query.type) && (!query.phase || eventPhase(event) === query.phase) && (query.from === undefined || event.sequence >= query.from) && (query.to === undefined || event.sequence <= query.to); }
 
 function matchesRun(run: Run, q: RunQuery) { return (!q.status || q.status.split(',').includes(run.status)) && (!q.model || run.config.model.id === q.model) && (!q.condition || run.config.condition.id === q.condition) && (!q.scenario || [run.config.scenario.version, run.config.scenario.datasetId].includes(q.scenario)) && (!q.designation || (run.config.model.provider === 'scripted' ? 'fixture' : run.config.phase) === q.designation); }
 
@@ -41,6 +39,7 @@ export class InMemoryRepository implements Repository {
     protected events: HarnessEvent[] = [];
     protected drafts = new Map<string, Draft>();
     private claims = new Set<string>();
+    private appended = new EventEmitter().setMaxListeners(0);
     async getRun(id: string) { return clone(this.runs.get(id) ?? null); }
     async getRunByLaunchKey(launchKey: string) { return clone([...this.runs.values()].find(run => run.launchKey === launchKey) ?? null); }
     async listRuns() { return clone([...this.runs.values()].reverse()); }
@@ -95,6 +94,7 @@ export class InMemoryRepository implements Repository {
     async appendEvent(event: NewEvent) {
         const record: HarnessEvent = { ...clone(event), schemaVersion: 1, id: randomUUID(), timestamp: new Date().toISOString(), sequence: this.events.filter(e => e.runId === event.runId).length + 1 };
         this.events.push(record);
+        this.appended.emit(event.runId);
         return clone(record);
     }
     async listEvents(id: string, afterSequence = 0, limit = 1000) { return clone(this.events.filter(e => e.runId === id && e.sequence > afterSequence).slice(0, limit)); }
@@ -105,7 +105,14 @@ export class InMemoryRepository implements Repository {
     async getRunSummary(id: string) { const run = this.runs.get(id); return run ? clone(summarizeRun(run)) : null; }
     async getEvidencePage(id: string, kind: EvidenceKind, offset: number, limit: number): Promise<EvidencePage> { const run = this.runs.get(id)!; return clone({ items: run[kind].slice(offset, offset + limit), total: run[kind].length, ...(kind === 'reports' ? { reporting: { instructions: run.config.reportInstructions, schemaVersion: run.config.reportSchemaVersion } } : {}) }); }
     async getEvidenceItem(id: string, kind: EvidenceKind, key: string): Promise<unknown | null> { const rows = this.runs.get(id)?.[kind] ?? []; const field = kind === 'board' ? 'id' : kind === 'artifacts' ? 'version' : 'agentId'; return clone(rows.find(row => String((row as unknown as Record<string, unknown>)[field]) === key) ?? null); }
-    async queryEvents(id: string, query: EventQuery) { const offset = query.offset ?? 0; return clone(this.events.filter(event => event.runId === id && matchesEvent(event, query)).slice(offset, offset + (query.limit ?? 200))); }
+    async queryEvents(id: string, query: EventQuery) {
+        const offset = query.offset ?? 0;
+        const rows = this.events.filter(event => event.runId === id && matchesEventQuery(event, query));
+        if (query.order === 'desc') rows.reverse();
+        return clone(rows.slice(offset, offset + (query.limit ?? 200)));
+    }
+    async listTurns(runId: string): Promise<TurnSummary[]> { return summarizeTurns(this.events.filter(event => event.runId === runId)); }
+    subscribeEvents(runId: string, onAppend: () => void) { this.appended.on(runId, onAppend); return () => { this.appended.off(runId, onAppend); }; }
     async getEvent(runId: string, eventId: string) { return clone(this.events.find(event => event.runId === runId && event.id === eventId) ?? null); }
     async workerStatus() { return { capacity: 1, available: null, status: 'unknown' }; }
     async requestCancel(id: string) {
@@ -245,15 +252,37 @@ export class MongoRepository implements Repository {
         return row?.item ?? null;
     }
     async queryEvents(runId: string, query: EventQuery) {
-        const filter: Document = { runId, sequence: { $gt: query.after ?? 0, ...(query.from === undefined ? {} : { $gte: query.from }), ...(query.to === undefined ? {} : { $lte: query.to }) } };
+        const filter: Document = { runId, sequence: { $gt: query.after ?? 0, ...(query.before === undefined ? {} : { $lt: query.before }), ...(query.from === undefined ? {} : { $gte: query.from }), ...(query.to === undefined ? {} : { $lte: query.to }) } };
         if (query.actor) filter.agentId = query.actor;
         if (query.type) filter.type = query.type;
         const reporting = { $or: [{ 'data.phase': 'report' }, { type: /^report/ }, { invocationId: /:report:/ }] };
         if (query.phase === 'report') Object.assign(filter, reporting);
         else if (query.phase === 'action') filter.$nor = [reporting];
-        return (await this.db.collection('events').find(filter).sort({ sequence: 1 }).skip(query.offset ?? 0).limit(query.limit ?? 200).toArray()).map(row => clean<HarnessEvent>(row)!);
+        return (await this.db.collection('events').find(filter).sort({ sequence: query.order === 'desc' ? -1 : 1 }).skip(query.offset ?? 0).limit(query.limit ?? 200).toArray()).map(row => clean<HarnessEvent>(row)!);
     }
     async getEvent(runId: string, id: string) { return clean<HarnessEvent>(await this.db.collection('events').findOne({ runId, id })); }
+    async listTurns(runId: string): Promise<TurnSummary[]> {
+        const rows = await this.db.collection('events').aggregate<{ _id: { agentId: string; round?: number | null; turn: number }; firstSequence: number; lastSequence: number; eventCount: number; calls: (string | null)[]; failures: number }>([
+            { $match: { runId, agentId: { $nin: [null, ''] }, turn: { $gt: 0 } } },
+            { $group: {
+                _id: { agentId: '$agentId', round: '$round', turn: '$turn' },
+                firstSequence: { $min: '$sequence' },
+                lastSequence: { $max: '$sequence' },
+                eventCount: { $sum: 1 },
+                calls: { $addToSet: { $cond: [{ $eq: ['$type', 'model_requested'] }, { $ifNull: ['$invocationId', null] }, null] } },
+                failures: { $sum: { $cond: [{ $regexMatch: { input: '$type', regex: 'denied|error|fail' } }, 1, 0] } },
+            } },
+            { $sort: { firstSequence: 1 } },
+        ]).toArray();
+        return rows.map(({ _id, calls, ...counts }) => ({ agentId: _id.agentId, ...(_id.round == null ? {} : { round: _id.round }), turn: _id.turn, ...counts, modelCalls: calls.filter(call => call !== null).length }));
+    }
+    /** Wake-up hint from a change stream. On a standalone server the stream errors and callers fall back to polling. */
+    subscribeEvents(runId: string, onAppend: () => void) {
+        const stream = this.db.collection('events').watch([{ $match: { operationType: 'insert', 'fullDocument.runId': runId } }]);
+        stream.on('change', () => onAppend());
+        stream.on('error', () => { /* the consumer's poll interval keeps delivering events */ });
+        return () => { void stream.close().catch(() => undefined); };
+    }
     /** The current lease with its heartbeat age measured on the database clock; `ageMs` is null for a lease that never heartbeated. */
     async workerLease(): Promise<{ owner: string; startedAt?: string; heartbeatAt?: string; ageMs: number | null } | null> {
         const [row] = await this.db.collection('worker_guard').aggregate([
