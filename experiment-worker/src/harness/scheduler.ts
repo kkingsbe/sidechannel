@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto';
 import type { Run, Json, Message } from '@sidechannel/contracts/harness/contracts';
 import type { EventLog, RunStateStore, PrivateMemory, ModelAdapter, Scenario } from '@sidechannel/contracts/harness/server';
 import { fixtureScenario } from './scenario.js';
-import { executeTool } from './gateway.js';
 import { validateTokenBudget } from '@sidechannel/domain/harness/token-budget';
 import { EventRecorder } from './event-recorder.js';
 import { InferenceGateway, modelInputFor } from './inference-gateway.js';
+import { ToolAdmission, type TurnState } from './tool-admission.js';
 import { RunTermination } from './termination.js';
 
 export interface SchedulerOptions {
@@ -42,6 +42,7 @@ export class HarnessScheduler {
                 throw new Error('Run duration cap exceeded');
         };
         const gateway = new InferenceGateway({ runId, run, adapter, recorder, checkpoint: boundary, startedAt: started });
+        const admission = new ToolAdmission({ runId, run, scenario, memory, recorder, checkpoint: boundary });
         try {
             const budgetErrors = validateTokenBudget(run.config);
             if (budgetErrors.length) throw new Error(budgetErrors.join('; '));
@@ -60,91 +61,22 @@ export class HarnessScheduler {
                     await recorder.emit('turn_started', { allowance: run.remainingAllowance, turnId: `${runId}:turn:${run.turn}`, orderPosition: run.config.scheduler.order.indexOf(agentId), round });
                     await recorder.persist();
                     const snapshot = await memory.load(runId, agentId);
-                    let ended = false;
-                    let reason = 'model_step_limit';
-                    for (let step = 0; step < run.config.limits.maxModelStepsPerTurn && !ended; step++) {
+                    const state: TurnState = { ended: false, reason: 'model_step_limit' };
+                    for (let step = 0; step < run.config.limits.maxModelStepsPerTurn && !state.ended; step++) {
                         const messages: Message[] = [{ role: 'system', content: `${scenario.initialContext(run.config, role)}\n${run.config.condition.text}\nPrivate working memory (agent-authored):\n${snapshot.notes}\nRound: ${run.round}/${run.config.scheduler.rounds}; order position: ${run.config.scheduler.order.indexOf(agentId) + 1}/${run.config.scheduler.order.length}; turn: ${run.turn}; remaining tool allowance: ${run.remainingAllowance}` }, ...snapshot.messages, { role: 'user', content: 'Continue your scheduled turn.' }];
                         const invocationId = `${runId}:turn:${run.turn}:step:${step}`;
                         const response = await gateway.infer(modelInputFor(run, runId, scenario, role, messages, 'action', invocationId));
                         snapshot.messages.push({ role: 'assistant', content: response.text, toolCalls: response.toolCalls });
                         if (!response.toolCalls.length) {
-                            ended = true;
-                            reason = 'text_only';
+                            state.ended = true;
+                            state.reason = 'text_only';
                         }
-                        for (let index = 0; index < response.toolCalls.length; index++) {
-                            const call = response.toolCalls[index]!;
-                            await recorder.emit('tool_requested', { call, index }, { invocationId, toolCallId: call.id, operationId: `${runId}:turn:${run.turn}:call:${call.id}` });
-                        }
-                        try {
-                            await boundary();
-                        }
-                        catch (error) {
-                            for (const call of response.toolCalls)
-                                await recorder.emit('tool_unexecuted', { call, reason: error instanceof Error ? error.message : String(error) }, { invocationId, toolCallId: call.id, operationId: `${runId}:turn:${run.turn}:call:${call.id}` });
-                            throw error;
-                        }
-                        for (const [callIndex, call] of response.toolCalls.entries()) {
-                            let admitted = false;
-                            try {
-                                const operationId = `${runId}:turn:${run.turn}:call:${call.id}`;
-                                let result: Json;
-                                if (ended || run.remainingAllowance! <= 0) {
-                                    result = { ok: false, disposition: 'unexecuted', reason };
-                                    await recorder.emit('tool_unexecuted', { call, reason }, { invocationId, toolCallId: call.id, operationId });
-                                }
-                                else {
-                                    await boundary();
-                                    run.remainingAllowance!--;
-                                    admitted = true;
-                                    await recorder.emit('tool_admitted', { call, remainingAllowance: run.remainingAllowance }, { invocationId, toolCallId: call.id, operationId });
-                                    const fingerprint = JSON.stringify({ name: call.name, arguments: call.arguments });
-                                    const previous = run.operations[operationId];
-                                    if (previous && previous.fingerprint !== fingerprint)
-                                        throw new Error('Ambiguous operation identity reuse');
-                                    if (previous) {
-                                        result = previous.result;
-                                        await recorder.emit('tool_deduplicated', { result }, { operationId, toolCallId: call.id });
-                                    }
-                                    else {
-                                        const outcome = await executeTool(run, role, scenario, memory, snapshot, { runId, agentId, operationId }, call.name, call.arguments);
-                                        result = outcome.result;
-                                        run.operations[operationId] = { fingerprint, result };
-                                        await recorder.persist();
-                                        if (outcome.changed)
-                                            await recorder.emit(outcome.changed, { before: outcome.before, after: outcome.after }, { operationId, toolCallId: call.id });
-                                        if (outcome.yielded) {
-                                            ended = true;
-                                            reason = 'explicit_yield';
-                                        }
-                                    }
-                                    await recorder.emit('tool_result', { result, disposition: (result as {
-                                            disposition?: string;
-                                        }).disposition ?? ((result as {
-                                            ok?: boolean;
-                                        }).ok === false ? 'invalid' : 'executed'), remainingAllowance: run.remainingAllowance }, { invocationId, toolCallId: call.id, operationId });
-                                    if (!ended && run.remainingAllowance === 0) {
-                                        ended = true;
-                                        reason = 'budget_exhausted';
-                                    }
-                                }
-                                snapshot.messages.push({ role: 'tool', content: JSON.stringify({ result, remainingAllowance: run.remainingAllowance }), toolCallId: call.id, toolName: call.name });
-                            }
-                            catch (error) {
-                                if (!recorder.evidenceFailed) {
-                                    const failure = error instanceof Error ? error.message : String(error);
-                                    await recorder.emit(admitted ? 'tool_failed' : 'tool_unexecuted', { call, reason: failure }, { invocationId, toolCallId: call.id, operationId: `${runId}:turn:${run.turn}:call:${call.id}` });
-                                    for (const pending of response.toolCalls.slice(callIndex + 1)) {
-                                        await recorder.emit('tool_unexecuted', { call: pending, reason: failure }, { invocationId, toolCallId: pending.id, operationId: `${runId}:turn:${run.turn}:call:${pending.id}` });
-                                    }
-                                }
-                                throw error;
-                            }
-                        }
+                        await admission.handle(response.toolCalls, invocationId, role, snapshot, state);
                         await memory.save(runId, agentId, snapshot);
                     }
-                    if (!ended)
+                    if (!state.ended)
                         throw new Error('Model step limit exceeded');
-                    await recorder.emit('turn_ended', { reason, remainingAllowance: run.remainingAllowance });
+                    await recorder.emit('turn_ended', { reason: state.reason, remainingAllowance: run.remainingAllowance });
                     termination.activeTurn = false;
                     await recorder.persist();
                 }
