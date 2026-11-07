@@ -5,6 +5,7 @@ import { fixtureScenario } from './scenario.js';
 import { executeTool, toolCatalog } from './gateway.js';
 import { measureModelInput, validateTokenBudget } from '@sidechannel/domain/harness/token-budget';
 import { EventRecorder } from './event-recorder.js';
+import { RunTermination } from './termination.js';
 
 export interface SchedulerOptions {
     runState: RunStateStore;
@@ -29,8 +30,8 @@ export class HarnessScheduler {
         const run = (await runState.getRun(runId))!;
         const started = Date.now();
         const recorder = new EventRecorder({ run, runId, runState, events });
+        const termination = new RunTermination({ run, recorder });
         const memory: PrivateMemory = { load: (r, a) => underlyingMemory.load(r, a), save: (r, a, v) => recorder.guard(() => underlyingMemory.save(r, a, v)) };
-        let activeTurn = false;
         const boundary = async () => {
             if ((await runState.getRun(runId))?.cancelRequested) {
                 run.cancelRequested = true;
@@ -84,7 +85,7 @@ export class HarnessScheduler {
                     run.turn++;
                     run.activeAgentId = agentId;
                     run.remainingAllowance = run.config.scheduler.toolCallsPerTurn;
-                    activeTurn = true;
+                    termination.activeTurn = true;
                     await recorder.emit('turn_started', { allowance: run.remainingAllowance, turnId: `${runId}:turn:${run.turn}`, orderPosition: run.config.scheduler.order.indexOf(agentId), round });
                     await recorder.persist();
                     const snapshot = await memory.load(runId, agentId);
@@ -173,7 +174,7 @@ export class HarnessScheduler {
                     if (!ended)
                         throw new Error('Model step limit exceeded');
                     await recorder.emit('turn_ended', { reason, remainingAllowance: run.remainingAllowance });
-                    activeTurn = false;
+                    termination.activeTurn = false;
                     await recorder.persist();
                 }
             await boundary();
@@ -214,27 +215,7 @@ export class HarnessScheduler {
             await recorder.emit('run_completed', {});
         }
         catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            const reporting = run.status === 'reporting';
-            run.status = message === 'CANCELLED' ? 'cancelled' : recorder.evidenceFailed ? 'interrupted' : 'failed';
-            run.failureReason = message;
-            try {
-                if (!recorder.evidenceFailed && reporting)
-                    for (const role of run.config.roles.filter(role => !run.reports.some(report => report.agentId === role.id)))
-                        await recorder.emit('report_missing', { reason: message, phase: 'report' }, { agentId: role.id });
-                if (!recorder.evidenceFailed && activeTurn)
-                    await recorder.emit('turn_ended', { reason: message === 'CANCELLED' ? 'cancelled' : 'error', error: message });
-                if (!recorder.evidenceFailed)
-                    await recorder.emit('run_terminated', { status: run.status, reason: message });
-            }
-            catch { }
-            if (recorder.evidenceFailed)
-                run.status = 'interrupted';
-            run.activeAgentId = undefined;
-            try {
-                await recorder.persist();
-            }
-            catch { }
+            await termination.terminate(error);
         }
         return run;
     }
