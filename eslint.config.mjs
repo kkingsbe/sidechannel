@@ -74,6 +74,11 @@ export default [
     plugins: { '@nx': nx, workspace: { rules: { imports } } },
     rules: {
       'workspace/imports': 'error',
+      // Structural budgets (SOLID remediation WS0 T0.3). Warnings, not errors:
+      // the decomposition workstreams (WS3x/WS6) drive these to zero; until then
+      // a reviewer sees every module that still needs splitting.
+      'max-lines': ['warn', { max: 700, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['warn', { max: 250, skipBlankLines: true, skipComments: true }],
       '@nx/enforce-module-boundaries': ['error', {
         enforceBuildableLibDependency: true,
         allow: [],
@@ -85,6 +90,26 @@ export default [
           { sourceTag: 'layer:persistence', onlyDependOnLibsWithTags: ['layer:contracts', 'layer:domain', 'layer:persistence'] },
           { sourceTag: 'layer:test', onlyDependOnLibsWithTags: ['*'] }
         ]
+      }]
+    }
+  },
+  // One transport seam (SOLID remediation WS5): only dashboard/src/lib may call
+  // fetch directly; every page/component goes through the typed clients. The
+  // `as unknown as` escape hatch is banned in the transport layer so adapter
+  // parity bugs surface as type errors instead of silent casts.
+  {
+    files: ['dashboard/**/*.{ts,tsx}'],
+    ignores: ['dashboard/src/lib/**', '**/*.test.ts', '**/*.test.tsx'],
+    rules: {
+      'no-restricted-globals': ['error', { name: 'fetch', message: 'Use the typed clients in dashboard/src/lib/clients instead of calling fetch directly.' }]
+    }
+  },
+  {
+    files: ['dashboard/src/lib/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': ['error', {
+        selector: 'TSAsExpression > TSAsExpression[typeAnnotation.type="TSUnknownKeyword"]',
+        message: 'Do not chain `as unknown as`; model the real type or add a validated adapter.'
       }]
     }
   },
