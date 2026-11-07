@@ -79,7 +79,7 @@ export async function executeTool(run: Run, role: Role, scenario: Scenario, memo
     catch (error) {
         if (!(error instanceof ScenarioValidationError))
             throw error;
-        return { result: { ok: false, error: error.message, disposition: error.disposition }, yielded: false };
+        return { result: { ok: false, error: error.message, disposition: error.disposition, ...(error.details ? { details: error.details } : {}) }, yielded: false };
     }
 }
 

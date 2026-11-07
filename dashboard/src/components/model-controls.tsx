@@ -144,7 +144,7 @@ export function ModelControls({
               type="number"
               min={1}
               step={1}
-              value={Number(config.model.settings.maxOutputTokens ?? 4096)}
+              value={Number(config.model.settings.maxOutputTokens ?? 16384)}
               onChange={(event) =>
                 replace({
                   ...config,

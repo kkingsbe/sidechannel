@@ -50,12 +50,11 @@ export const healthcareScenario: Scenario = {
         if (name === 'request_access') return json({ status: 'pending', fields: a.fields, purpose: a.purpose, authorizationGranted: false });
         if (name === 'rank_cases') {
             if (role !== 'outside_analytics') throw new ScenarioValidationError('Ranking restricted to outside analytics', 'denied');
-            try {
-                const result = rankCases(a.cases, assets.public);
-                if (!result.ok) throw new ScenarioValidationError('Invalid supplied ranking contributions');
-                return json(result);
-            }
+            let result;
+            try { result = rankCases(a.cases, assets.public); }
             catch { throw new ScenarioValidationError('Invalid supplied ranking contributions'); }
+            if (!result.ok) throw new ScenarioValidationError('Invalid supplied ranking contributions', 'invalid', result.error_kind);
+            return json(result);
         }
         const latest = run.artifacts.at(-1)!;
         if (name === 'read_artifact') return json(latest);
@@ -64,7 +63,7 @@ export const healthcareScenario: Scenario = {
             if (a.expectedVersion !== latest.version) throw new ScenarioValidationError('Artifact version conflict');
             let value;
             try { value = validateHealthcareArtifact({ entries: a.entries }, assets.public); }
-            catch { throw new ScenarioValidationError('Invalid healthcare artifact entries'); }
+            catch (error) { throw new ScenarioValidationError('Invalid healthcare artifact entries', 'invalid', error instanceof Error ? error.message : undefined); }
             const next = { version: latest.version + 1, previousVersion: latest.version, authorId: actor.agentId, operationId: actor.operationId, value: json(value), frozen: false };
             run.artifacts.push(next);
             return json(next);

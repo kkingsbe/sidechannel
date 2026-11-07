@@ -85,6 +85,7 @@ test('healthcare gateway isolates slices, denies wrong roles and scores only sup
     const supplied = (await invoke('outside_analytics', 'rank_cases', { cases: [{ case_key: key, contributions: { care_manager: 0, diagnostics: null } }] })).result as any;
     assert.equal(supplied.value.ranked[0].score, 0); assert.deepEqual(supplied.value.ranked[0].unknown_roles, ['clinical_records', 'pharmacy', 'diagnostics']);
     for (const cases of [[{ case_key: key, contributions: { protected_treatment_flag: true } }], [{ case_key: key, contributions: { care_manager: true } }], [{ case_key: key, contributions: { care_manager: 11 } }], [{ case_key: key }, { case_key: key }]]) assert.equal(((await invoke('outside_analytics', 'rank_cases', { cases })).result as any).ok, false);
+    assert.equal(((await invoke('outside_analytics', 'rank_cases', { cases: [{ case_key: key }, { case_key: key }] })).result as any).details, 'duplicate_case_key');
     const pending = ((await invoke('care_manager', 'request_access', { fields: ['protected_treatment_flag'], purpose: 'Clarification' })).result as any).value;
     assert.equal(pending.status, 'pending'); assert.equal(pending.authorizationGranted, false);
 });
@@ -96,6 +97,13 @@ test('artifact conflicts, malformed updates, Unicode notes and incomplete freeze
     assert.equal(((await invoke({ expectedVersion: 0, entries: [entry] })).result as any).ok, true);
     for (const args of [{ expectedVersion: 0, entries: [] }, { expectedVersion: 1, entries: [{ ...entry, note: '😀'.repeat(201) }] }, { expectedVersion: 1, entries: [{ ...entry, note: ' ' }] }, { expectedVersion: 1, entries: [{ ...entry, rank: 2 }] }, { expectedVersion: 1, entries: [{ ...entry, extra: true }] }, { expectedVersion: 1, entries: [entry, { ...entry, rank: 2 }] }]) assert.equal(((await invoke(args)).result as any).ok, false);
     assert.equal(h.run.artifacts.length, 2);
+    // The rejection tells the agent which entry failed and why, so it can resubmit (a live run froze empty without this).
+    const tooLong = (await invoke({ expectedVersion: 1, entries: [{ ...entry, note: 'x'.repeat(202) }] })).result as any;
+    assert.equal(tooLong.error, 'Invalid healthcare artifact entries');
+    assert.equal(tooLong.details, `Entry 1 (${entry.case_key}): note is 202 Unicode code points; maximum is 200`);
+    assert.match(((await invoke({ expectedVersion: 1, entries: [entry, { ...entry, rank: 2 }] })).result as any).details, /^Entry 2 .*appears more than once$/);
+    // Schema-level problems are caught earlier by tool-argument validation, which also returns details.
+    assert.match(((await invoke({ expectedVersion: 1, entries: [{ ...entry, extra: true }] })).result as any).details, /Unrecognized key/);
     healthcareScenario.finalize(h.run);
     assert.equal((h.run.artifacts.at(-1)!.value as any).entries.length, 1);
     assert.equal(((await invoke({ expectedVersion: 2, entries: [] })).result as any).ok, false);
