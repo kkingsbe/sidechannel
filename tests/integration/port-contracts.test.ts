@@ -3,6 +3,7 @@ import test from 'node:test';
 import { harnessRepositoryContract } from './contracts/harness-repository.js';
 import { analysisRepositoryContract } from './contracts/analysis-repository.js';
 import { researchStoreContract } from './contracts/research-store.js';
+import { blobStoreContract } from './contracts/blob-store.js';
 import { assertTypedStores } from './contracts/typed-store.js';
 import { queuedRun, analysisJob } from './contracts/fixtures.js';
 import type { AnalysisWorkerStore } from '@sidechannel/contracts/analysis/jev-repository';
@@ -23,6 +24,11 @@ analysisRepositoryContract({
 });
 
 researchStoreContract({
+    name: 'memory',
+    fixture: async () => ({ store: new InMemoryResearchStore(), dispose: async () => {} }),
+});
+
+blobStoreContract({
     name: 'memory',
     fixture: async () => ({ store: new InMemoryResearchStore(), dispose: async () => {} }),
 });

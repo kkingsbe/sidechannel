@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import type { Repository } from '@sidechannel/contracts/harness/server';
 import { allRecords, hash, timestamp } from '../analysis/store.js';
 import type { ResearchStore } from '@sidechannel/contracts/analysis/store';
 import type { MonitorDefinition } from '@sidechannel/contracts/oversight/contracts';
-import { currentDefinition, OversightError, readEvents } from './service.js';
+import { currentDefinition } from './definition.js';
+import { OversightError } from './errors.js';
+import { readEvents, type OversightSource } from './events.js';
 import type { RunReviewContext, RunOutcomeReview, RunOutcomeAgreement } from '@sidechannel/contracts/oversight/reviews';
 
 const reviewInput = z.object({
@@ -15,7 +16,7 @@ const reviewInput = z.object({
 
 export const normalizedReviewer = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('en-US');
 
-async function sourceSnapshot(repository: Pick<Repository, 'getRun' | 'listEvents'>, runId: string) {
+async function sourceSnapshot(repository: OversightSource, runId: string) {
     const run = await repository.getRun(runId);
     if (!run) throw new OversightError(404, 'Run not found');
     if (!['completed', 'failed', 'cancelled', 'interrupted'].includes(run.status)) throw new OversightError(409, 'Run outcome review requires a terminal source run');
@@ -27,7 +28,7 @@ async function sourceSnapshot(repository: Pick<Repository, 'getRun' | 'listEvent
     return { run, events, evidenceRevision };
 }
 
-export async function runReviewContext(repository: Pick<Repository, 'getRun' | 'listEvents'>, store: ResearchStore, runId: string, definitionRevisionId?: string): Promise<RunReviewContext> {
+export async function runReviewContext(repository: OversightSource, store: ResearchStore, runId: string, definitionRevisionId?: string): Promise<RunReviewContext> {
     const source = await sourceSnapshot(repository, runId);
     const definition = definitionRevisionId ? await store.get<MonitorDefinition>('monitor_definitions', definitionRevisionId) : await currentDefinition(store);
     if (!definition) throw new OversightError(404, 'Monitor definition revision not found');
@@ -56,7 +57,7 @@ function agreement(history: RunOutcomeReview[], evidenceRevision?: string, defin
         definitionCurrent: first.definitionRevisionId === definitionRevisionId };
 }
 
-export async function saveRunOutcomeReview(repository: Pick<Repository, 'getRun' | 'listEvents'>, store: ResearchStore, runId: string, input: unknown): Promise<RunOutcomeReview> {
+export async function saveRunOutcomeReview(repository: OversightSource, store: ResearchStore, runId: string, input: unknown): Promise<RunOutcomeReview> {
     const parsed = reviewInput.parse(input), source = await sourceSnapshot(repository, runId);
     if (parsed.evidenceRevision !== source.evidenceRevision) throw new OversightError(409, 'Source evidence changed; reload review context before judging');
     const definition = await store.get<MonitorDefinition>('monitor_definitions', parsed.definitionRevisionId);
@@ -83,7 +84,7 @@ export async function saveRunOutcomeReview(repository: Pick<Repository, 'getRun'
     return review;
 }
 
-export async function runOutcomeAgreements(repository: Pick<Repository, 'getRun' | 'listEvents'>, store: ResearchStore, runId: string): Promise<RunOutcomeAgreement[]> {
+export async function runOutcomeAgreements(repository: OversightSource, store: ResearchStore, runId: string): Promise<RunOutcomeAgreement[]> {
     const context = await runReviewContext(repository, store, runId);
     const rows = await allRecords<RunOutcomeReview>(store, 'run_outcome_reviews', { runId });
     return agreementsFrom(rows, context);
@@ -95,7 +96,7 @@ function agreementsFrom(rows: RunOutcomeReview[], context: RunReviewContext): Ru
     return [...groups.values()].map(history => agreement(history, context.evidenceRevision, context.definition.id));
 }
 
-export async function latestRunOutcomeReview(repository: Pick<Repository, 'getRun' | 'listEvents'>, store: ResearchStore, runId: string, input: { reviewer: string; outcomeId: string; definitionRevisionId: string }) {
+export async function latestRunOutcomeReview(repository: OversightSource, store: ResearchStore, runId: string, input: { reviewer: string; outcomeId: string; definitionRevisionId: string }) {
     const reviewer = z.string().trim().min(1).max(200).parse(input.reviewer);
     const context = await runReviewContext(repository, store, runId, input.definitionRevisionId);
     if (!context.definition.outcomes.some(outcome => outcome.id === input.outcomeId)) throw new OversightError(400, 'Unknown outcome in this definition revision');
@@ -103,7 +104,7 @@ export async function latestRunOutcomeReview(repository: Pick<Repository, 'getRu
     return rows.sort((a, b) => a.sequence - b.sequence).at(-1) ?? null;
 }
 
-export async function exportRunOutcomeReviews(repository: Pick<Repository, 'getRun' | 'listEvents'>, store: ResearchStore, runId: string, definitionRevisionId?: string) {
+export async function exportRunOutcomeReviews(repository: OversightSource, store: ResearchStore, runId: string, definitionRevisionId?: string) {
     const context = await runReviewContext(repository, store, runId, definitionRevisionId);
     const current = await currentDefinition(store);
     const reviews = await allRecords<RunOutcomeReview>(store, 'run_outcome_reviews', { runId });

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Repository } from '@sidechannel/contracts/harness/server';
 import { allRecords } from '@sidechannel/domain/analysis/store';
 import type { ResearchStore } from '@sidechannel/contracts/analysis/store';
+import type { MonitorStore } from '@sidechannel/contracts/oversight/blob-store';
 import type { MonitorDefinition, MonitorEvaluation, MonitorJudgment, MonitorPreview, MonitorViewResult, Projection } from '@sidechannel/contracts/oversight/contracts';
 import type { MonitorProvider } from '@sidechannel/contracts/oversight/server';
 import { getMonitorPreview, OversightError } from '@sidechannel/domain/oversight/service';
@@ -38,7 +39,7 @@ async function updateJob(store: ResearchStore, id: string, change: (job: Monitor
     throw new Error('Monitor job revision remained busy');
 }
 
-export async function processNextMonitorJob(_repository: Repository, store: ResearchStore, provider: MonitorProvider, workerId: string): Promise<boolean> {
+export async function processNextMonitorJob(_repository: Pick<Repository, 'getRun' | 'listEvents'>, store: MonitorStore, provider: MonitorProvider, workerId: string): Promise<boolean> {
     const candidates = (await allRecords<MonitorEvaluation>(store, 'monitor_evaluations')).filter(job => ['queued', 'running'].includes(job.status)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     for (const candidate of candidates) {
         const ttl = Math.max(60000, candidate.settings.timeoutMs + 30000);

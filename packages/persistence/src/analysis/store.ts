@@ -1,9 +1,12 @@
 import type { Db, Document } from 'mongodb';
 import type { ResearchCollection, ResearchRecord, Page, ResearchFilter, ResearchStore } from '@sidechannel/contracts/analysis/store';
+import type { MonitorStore } from '@sidechannel/contracts/oversight/blob-store';
+import { ResearchBlobStore } from '../oversight/blob-store.js';
 
-export class InMemoryResearchStore implements ResearchStore {
+export class InMemoryResearchStore implements MonitorStore {
   private collections = new Map<string, Map<string, ResearchRecord>>();
   private leases = new Map<string, { owner: string; until: number }>();
+  private readonly blobs = new ResearchBlobStore(this);
   private rows(collection: ResearchCollection) { let rows = this.collections.get(collection); if (!rows) { rows = new Map(); this.collections.set(collection, rows); } return rows; }
   async get<T extends ResearchRecord>(collection: ResearchCollection, id: string) { return structuredClone(this.rows(collection).get(id) as T ?? null); }
   async insert<T extends ResearchRecord>(collection: ResearchCollection, record: T) { const rows = this.rows(collection); if (rows.has(record.id)) return false; rows.set(record.id, structuredClone(record)); return true; }
@@ -12,13 +15,16 @@ export class InMemoryResearchStore implements ResearchStore {
   async claim(scope: string, id: string, owner: string, ttlMs: number) { const key = `${scope}:${id}`; const lease = this.leases.get(key); if (lease && lease.until > Date.now()) return false; this.leases.set(key, { owner, until: Date.now() + ttlMs }); return true; }
   async renew(scope: string, id: string, owner: string, ttlMs: number) { const lease = this.leases.get(`${scope}:${id}`); if (!lease || lease.owner !== owner || lease.until <= Date.now()) return false; lease.until = Date.now() + ttlMs; return true; }
   async release(scope: string, id: string, owner: string) { if (this.leases.get(`${scope}:${id}`)?.owner === owner) this.leases.delete(`${scope}:${id}`); }
+  putBlob(blob: { id: string; createdAt: string; text: string }) { return this.blobs.putBlob(blob); }
+  getBlob(id: string) { return this.blobs.getBlob(id); }
 }
 
 const clean = <T>(row: Document | null): T | null => { if (!row) return null; const { _id, ...rest } = row; return rest as T; };
 
 /** Research collections never share the harness worker guard or mutate source runs. */
-export class MongoResearchStore implements ResearchStore {
+export class MongoResearchStore implements MonitorStore {
   constructor(readonly db: Db) {}
+  private readonly blobs = new ResearchBlobStore(this);
   private collection(name: ResearchCollection) { if (!/^[a-z][a-z0-9_]*$/.test(name)) throw new Error('Invalid research collection'); return this.db.collection(`research_${name}`); }
   async initialize() { await this.db.collection('research_leases').createIndex({ expiresAt: 1 }); }
   async get<T extends ResearchRecord>(collection: ResearchCollection, id: string) { return clean<T>(await this.collection(collection).findOne({ _id: id as unknown as Document['_id'] })); }
@@ -28,4 +34,6 @@ export class MongoResearchStore implements ResearchStore {
   async claim(scope: string, id: string, owner: string, ttlMs: number) { const leases = this.db.collection('research_leases'); const key = `${scope}:${id}`; try { const result = await leases.updateOne({ _id: key as unknown as Document['_id'], $or: [{ expiresAt: { $lte: new Date() } }, { expiresAt: { $exists: false } }] }, { $set: { owner, expiresAt: new Date(Date.now() + ttlMs) } }, { upsert: true }); return Boolean(result.modifiedCount || result.upsertedCount); } catch (error) { if ((error as { code?: number }).code === 11000) return false; throw error; } }
   async renew(scope: string, id: string, owner: string, ttlMs: number) { const result = await this.db.collection('research_leases').updateOne({ _id: `${scope}:${id}` as unknown as Document['_id'], owner, expiresAt: { $gt: new Date() } }, { $set: { expiresAt: new Date(Date.now() + ttlMs) } }); return result.modifiedCount === 1; }
   async release(scope: string, id: string, owner: string) { await this.db.collection('research_leases').deleteOne({ _id: `${scope}:${id}` as unknown as Document['_id'], owner }); }
+  putBlob(blob: { id: string; createdAt: string; text: string }) { return this.blobs.putBlob(blob); }
+  getBlob(id: string) { return this.blobs.getBlob(id); }
 }

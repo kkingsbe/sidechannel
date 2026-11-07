@@ -1,6 +1,6 @@
 import { ZodError } from 'zod';
 import type { Repository } from '@sidechannel/contracts/harness/server';
-import type { ResearchStore } from '@sidechannel/contracts/analysis/store';
+import type { MonitorStore } from '@sidechannel/contracts/oversight/blob-store';
 import type { MonitorDefinition, MonitorEvaluation } from '@sidechannel/contracts/oversight/contracts';
 import { cancelMonitor, createMonitorPreview, currentDefinition, getMonitorPreview, launchMonitor, OversightError, saveDefinition } from '@sidechannel/domain/oversight/service';
 import { exportRunOutcomeReviews, latestRunOutcomeReview, runOutcomeAgreements, runReviewContext, saveRunOutcomeReview } from '@sidechannel/domain/oversight/reviews';
@@ -14,7 +14,7 @@ function limit(query: URLSearchParams) {
     return value;
 }
 
-export function createOversightHandler(repository: Pick<Repository, 'getRun' | 'listEvents'>, store: ResearchStore) {
+export function createOversightHandler(repository: Pick<Repository, 'getRun' | 'listEvents'>, store: MonitorStore) {
     return async (request: ResearchRouteRequest): Promise<ResearchRouteResult | null> => {
         const { method, path, query } = request;
         const body = () => request.body();

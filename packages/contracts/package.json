@@ -86,6 +86,10 @@
       "types": "./dist/harness/server.d.ts",
       "import": "./dist/harness/server.js"
     },
+    "./oversight/blob-store": {
+      "types": "./dist/oversight/blob-store.d.ts",
+      "import": "./dist/oversight/blob-store.js"
+    },
     "./oversight/comparison": {
       "types": "./dist/oversight/comparison.d.ts",
       "import": "./dist/oversight/comparison.js"
