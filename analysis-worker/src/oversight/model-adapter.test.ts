@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { ModelInput } from '@sidechannel/contracts/harness/server';
+import type { ExperimentConfig } from '@sidechannel/contracts/harness/contracts';
+import { providerProfile } from '@sidechannel/domain/providers';
 import { MonitorModelAdapter } from './model-adapter.js';
-import { resolveInferenceProvider } from './inference-provider.js';
+
+const resolveInferenceProvider = (model: ExperimentConfig['model'], env: NodeJS.ProcessEnv) => providerProfile(model.provider).resolveTransport(model, env);
 
 test('monitor Mastra transport makes one stateless inference per view with exact controls and usage', async () => {
     const requests: any[] = [];

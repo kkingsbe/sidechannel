@@ -3,6 +3,7 @@ import { validateTokenBudget } from './token-budget.js';
 import { isInstalledScenarioVersion } from './scenario-initialization.js';
 import { HEALTHCARE_ARTIFACT_VERSION, HEALTHCARE_ROLES, HEALTHCARE_SCENARIO_VERSION } from '@sidechannel/contracts/healthcare/contracts';
 import { validateHealthcareAssets } from '../healthcare/package.js';
+import { hostedPolicy, providerProfile } from '../providers/index.js';
 
 export function seededOrder(ids: string[], seed: number): string[] {
     const result = [...ids];
@@ -91,34 +92,10 @@ function validateConfigurationUnchecked(input: unknown): {
     if (!isRecord(c.model.settings))
         errors.push('Settings must be a JSON object');
     else
-        for (const [key, value] of Object.entries(c.model.settings)) {
-            if (key === 'providerOptions') {
-                if (!isRecord(value))
-                    errors.push('providerOptions must be an object');
-                continue;
-            }
-            if (key === 'stopSequences') {
-                if (!Array.isArray(value) || value.some(x => typeof x !== 'string'))
-                    errors.push('stopSequences must be strings');
-                continue;
-            }
-            if (!['maxOutputTokens', 'temperature', 'topP', 'topK', 'presencePenalty', 'frequencyPenalty', 'seed'].includes(key)) {
-                errors.push(`Unsupported model setting ${key}`);
-                continue;
-            }
-            if (typeof value !== 'number' || !Number.isFinite(value))
-                errors.push(`${key} must be finite`);
-            else if (['maxOutputTokens', 'topK'].includes(key) && (!Number.isSafeInteger(value) || value < 1))
-                errors.push(`${key} must be positive integer`);
-            else if (key === 'seed' && !Number.isSafeInteger(value))
-                errors.push('provider seed must be integer');
-            else if (key === 'temperature' && (value < 0 || value > 2) || key === 'topP' && (value < 0 || value > 1))
-                errors.push(`${key} outside supported range`);
-        }
-    if (c.model.provider === 'adaption') {
-        if (!/^[a-z0-9][a-z0-9._-]*$/i.test(c.model.id)) errors.push('model.id must be a direct hosted Adaption model ID');
-        for (const key of Object.keys(c.model.settings)) if (!['maxOutputTokens', 'temperature'].includes(key)) errors.push(`Unsupported Adaption model setting ${key}`);
-    }
+        errors.push(...providerProfile(c.model.provider).validateSettings(c.model.settings));
+    const hostedModelPolicy = hostedPolicy(c.model.provider);
+    if (hostedModelPolicy)
+        errors.push(...hostedModelPolicy.modelIdErrors(c.model.id));
     if (c.memory.maxPrivateNoteCharacters !== undefined && (!Number.isSafeInteger(c.memory.maxPrivateNoteCharacters) || c.memory.maxPrivateNoteCharacters < 1)) errors.push('memory.maxPrivateNoteCharacters must be a positive integer');
     if (typeof c.memory.template !== 'string' || !c.memory.version)
         errors.push('Versioned neutral memory template required');

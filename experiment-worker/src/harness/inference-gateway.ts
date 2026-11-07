@@ -1,6 +1,7 @@
 import type { Message, Role, Run } from '@sidechannel/contracts/harness/contracts';
 import type { ModelAdapter, ModelInput, ModelResponse, Scenario } from '@sidechannel/contracts/harness/server';
 import { measureModelInput } from '@sidechannel/domain/harness/token-budget';
+import { usageSource } from '@sidechannel/domain/providers';
 import type { EventSink } from './event-recorder.js';
 import { toolCatalog } from './gateway.js';
 
@@ -46,7 +47,7 @@ export class InferenceGateway implements Inferencer {
                 throw new Error('Unparseable model response');
             await recorder.emit('model_response', response, { invocationId: input.invocationId });
             await recorder.emit('model_usage', { phase: input.phase, provider: input.model.provider,
-                source: response.usage ? (input.model.provider === 'scripted' ? 'scripted' : 'provider-reported') : 'unavailable',
+                source: response.usage ? usageSource(input.model.provider) : 'unavailable',
                 usage: response.usage ?? null, inputAccounting: accounting }, { invocationId: input.invocationId });
             for (const [k, v] of Object.entries(response.usage ?? {}))
                 if (typeof v === 'number' && Number.isFinite(v))

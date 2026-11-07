@@ -1,5 +1,5 @@
 import { defaultFixtureConfiguration, resolveConfiguration } from '@sidechannel/domain/harness/config';
-import { configurationSchema } from '@sidechannel/contracts/server/config-schema';
+import { configurationSchema } from '@sidechannel/domain/harness/configuration-schema';
 import type { ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
 import type { ConfigurationPipeline } from '../configuration.js';
 

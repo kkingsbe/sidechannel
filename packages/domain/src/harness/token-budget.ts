@@ -1,18 +1,9 @@
 import type { ExperimentConfig, ModelCapacity, TokenBudget } from '@sidechannel/contracts/harness/contracts';
 import type { ModelInput } from '@sidechannel/contracts/harness/server';
+import { adaptionModelCapacity } from '../providers/adaption-capacity.js';
+import { hostedPolicy, providerProfile } from '../providers/index.js';
 
-const sourceUrl = 'https://docs.adaptionlabs.ai/inference-stacks/models/#configurations';
-const capacities: Record<string, number> = {
-    'gemma-4-31b-it': 256000, 'glm-5.2': 786432, 'qwen3.5-397b': 131072,
-    'gemma-4-26b-a4b-it': 256000, 'qwen3.8-27b': 262144,
-    'deepseek-v4-flash': 1048576, 'glm-53-flash': 1048576,
-};
-
-/** Serving deployment limits, not upstream model cards or AutoScientist training limits. */
-export function adaptionModelCapacity(modelId: string): ModelCapacity | undefined {
-    const tokens = Object.hasOwn(capacities, modelId) ? capacities[modelId] : undefined;
-    return tokens ? { modelId, tokens, sourceUrl, verifiedAt: '2026-11-07', version: 'adaption-hosted-2026-11-07' } : undefined;
-}
+export { adaptionModelCapacity } from '../providers/adaption-capacity.js';
 
 export function defaultTokenBudget(modelId?: string): TokenBudget {
     const capacity = modelId ? adaptionModelCapacity(modelId) : undefined;
@@ -31,13 +22,14 @@ export function validateTokenBudget(config: ExperimentConfig): string[] {
     if (!Number.isSafeInteger(counting?.reservedTokens) || counting.reservedTokens < 2048) errors.push('tokenBudget.counting.reservedTokens must be an integer of at least 2048 for unmeasured provider framing');
     if (!Number.isSafeInteger(config.model.settings.maxOutputTokens) || Number(config.model.settings.maxOutputTokens) < 1) errors.push('model.settings.maxOutputTokens must be a positive integer for token runs');
     if (!Number.isSafeInteger(config.memory.maxPrivateNoteCharacters) || Number(config.memory.maxPrivateNoteCharacters) < 1) errors.push('memory.maxPrivateNoteCharacters must be a positive integer for token runs');
-    if (config.model.provider === 'adaption') {
-        const expected = adaptionModelCapacity(config.model.id);
+    const policy = hostedPolicy(config.model.provider);
+    if (policy) {
+        const expected = policy.capacityFor(config.model.id);
         if (!expected) errors.push('tokenBudget.capacity is unverified for this hosted deployment; select a documented model or update the verified serving catalog');
         else if (!budget.capacity || (Object.keys(expected) as (keyof ModelCapacity)[]).some(key => budget.capacity![key] !== expected[key])) errors.push('tokenBudget.capacity must match verified metadata for the selected Adaption model; reselect the model');
-        if (!/^[a-z0-9][a-z0-9._-]*$/i.test(config.model.id)) errors.push('model.id must be a direct hosted Adaption model ID');
-        for (const name of Object.keys(config.model.settings)) if (!['maxOutputTokens', 'temperature'].includes(name)) errors.push(`Unsupported Adaption model setting ${name}`);
-    } else if (config.model.provider !== 'scripted') errors.push('tokenBudget.capacity verification is currently supported for Adaption hosted models only');
+        errors.push(...policy.modelIdErrors(config.model.id));
+        errors.push(...policy.unsupportedSettings(config.model.settings));
+    } else if (!providerProfile(config.model.provider).fixture) errors.push('tokenBudget.capacity verification is currently supported for Adaption hosted models only');
     const capacity = budget.capacity;
     if (capacity && (!Number.isSafeInteger(capacity.tokens) || capacity.tokens < 1)) errors.push('tokenBudget.capacity.tokens must be a positive integer');
     // The input limit covers the measured payload; reserved framing is counted once, separately.

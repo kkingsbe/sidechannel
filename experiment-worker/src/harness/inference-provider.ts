@@ -1,28 +1,17 @@
 import type { Agent } from '@mastra/core/agent';
 import type { ExperimentConfig } from '@sidechannel/contracts/harness/contracts';
+import { providerProfile } from '@sidechannel/domain/providers';
 
-export const adaptionBaseUrl = 'https://api.prod.adaptionlabs.ai/api/v1';
+export { adaptionBaseUrl } from '@sidechannel/domain/providers';
 
-/** Resolve transport/auth separately from the frozen, credential-free run configuration. */
+/**
+ * Service-local edge only: Mastra narrows the transport type, so the cast stays here.
+ * The provider policy itself lives in `@sidechannel/domain/providers`.
+ */
 export function resolveInferenceProvider(config: ExperimentConfig['model'], env: NodeJS.ProcessEnv = process.env): {
     model: ConstructorParameters<typeof Agent>[0]['model'];
     providerOptions: unknown;
 } {
-    if (config.provider !== 'adaption')
-        return { model: `${config.provider}/${config.id}`, providerOptions: config.settings.providerOptions };
-    if (!/^[a-z0-9][a-z0-9._-]*$/i.test(config.id))
-        throw new Error('Adaption requires a direct hosted model ID, not a stack or harness');
-    // These are the sampling controls verified against Adaption's Responses API.
-    // Fail before inference rather than silently dropping requested experiment settings.
-    for (const name of Object.keys(config.settings))
-        if (!['maxOutputTokens', 'temperature'].includes(name))
-            throw new Error(`Unsupported Adaption model setting: ${name}; use maxOutputTokens and temperature`);
-    const apiKey = env.ADAPTION_API_KEY?.trim();
-    if (!apiKey)
-        throw new Error('Missing ADAPTION_API_KEY in the backend environment');
-    return {
-        model: { providerId: 'adaption', modelId: config.id, url: adaptionBaseUrl, apiKey, api: 'responses' },
-        // History is owned by Sidechannel. Direct models have no stack agentic memory.
-        providerOptions: { openai: { store: false } },
-    };
+    const resolved = providerProfile(config.provider).resolveTransport(config, env);
+    return { model: resolved.model as ConstructorParameters<typeof Agent>[0]['model'], providerOptions: resolved.providerOptions };
 }

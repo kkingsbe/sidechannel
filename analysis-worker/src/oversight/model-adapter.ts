@@ -1,5 +1,5 @@
 import { Agent } from '@mastra/core/agent';
-import { resolveInferenceProvider } from './inference-provider.js';
+import { providerProfile } from '@sidechannel/domain/providers';
 import type { Message } from '@sidechannel/contracts/harness/contracts';
 import type { ModelAdapter, ModelInput, ModelResponse } from '@sidechannel/contracts/harness/server';
 
@@ -22,13 +22,10 @@ export class MonitorModelAdapter implements ModelAdapter {
     constructor(private readonly modelOverride?: ConstructorParameters<typeof Agent>[0]['model']) { }
     async complete(input: ModelInput): Promise<ModelResponse> {
         const { providerOptions, ...settings } = input.model.settings;
-        const supported = new Set(['maxOutputTokens', 'temperature', 'topP', 'topK', 'presencePenalty', 'frequencyPenalty', 'stopSequences', 'seed']);
-        for (const key of Object.keys(settings))
-            if (!supported.has(key)) {
-                throw new Error(`Unsupported model setting ${key}; provider-specific controls must use providerOptions`);
-            }
+        const errors = providerProfile(input.model.provider).validateSettings(settings);
+        if (errors.length) throw new Error(`${errors[0]}; provider-specific controls must use providerOptions`);
         const tools = {};
-        const resolved = this.modelOverride ? { model: this.modelOverride, providerOptions } : resolveInferenceProvider(input.model);
+        const resolved = this.modelOverride ? { model: this.modelOverride, providerOptions } : providerProfile(input.model.provider).resolveTransport(input.model, process.env);
         const agent = new Agent({ id: `monitor-${JSON.stringify([input.runId, input.agentId])}`, name: input.agentId,
             instructions: '', model: resolved.model, tools, maxRetries: 0 });
         const result = await agent.generate(modelMessages(input.messages), {
