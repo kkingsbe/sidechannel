@@ -133,7 +133,7 @@ export function toWindow(raw: WindowRecord & { results?: JevResult[] | Page<JevR
 
 /** Window membership is a property of the review subject, not of cached navigation history. */
 export function toReview(raw: JevReview, runId: string): HumanReview {
-    return { ...raw, runId, windowId: raw.scope === 'window' ? raw.subjectId : undefined, definitionRevisionId: raw.definitionRevision };
+    return { ...raw, scope: raw.scope as HumanReview['scope'], runId, windowId: raw.scope === 'window' ? raw.subjectId : undefined, definitionRevisionId: raw.definitionRevision };
 }
 
 export function toBatch(raw: JevBatch): ReviewBatch {

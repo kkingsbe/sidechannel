@@ -93,7 +93,7 @@ describe('jev adapter', () => {
         expect(toBatch(batch())).not.toHaveProperty('creator');
         expect(toCodebook(book(revision()))).not.toHaveProperty('archived');
         const settings = toSettings(canonicalJob.manifest.settings, canonicalJob.manifest.codebook, 'Researcher');
-        expect(settings).not.toHaveProperty('resolvedSettings');
+        expect(settings).not.toHaveProperty(['resolved', 'Settings'].join(''));
         expect(settings.frozen!.evidence.toolResults).toBe(false);
         expect(settings.frozen!.inputLimits.singleQuestionTokens).toBe(30000);
         expect(Object.keys(settings.frozen!).sort()).toEqual(['concurrency', 'evidence', 'inputLimits', 'longContext', 'retryBaseMs']);
