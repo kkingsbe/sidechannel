@@ -1,0 +1,64 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { once } from 'node:events';
+import type { AddressInfo } from 'node:net';
+import { MongoRepository } from '@sidechannel/persistence/harness/repository';
+import { defaultFixtureConfiguration } from '@sidechannel/domain/harness/config';
+import { createResearcherServer } from '../../api/src/server/index.js';
+
+test('every resource router keeps its status codes and payload keys over Mongo', async () => {
+    const uri = process.env.TEST_MONGODB_URI ?? 'mongodb://127.0.0.1:27018/?directConnection=true&replicaSet=rs0';
+    const repository = await MongoRepository.connect(uri, 'sidechannel_api_routes_' + randomUUID().replaceAll('-', ''));
+    const server = createResearcherServer(repository);
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api`;
+    const call = (path: string, init?: RequestInit) => fetch(base + path, init);
+    const json = async (path: string, init?: RequestInit) => { const response = await call(path, init); return { status: response.status, body: await response.json() as Record<string, any> }; };
+    const post = (path: string, body: unknown) => json(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    try {
+        const config = defaultFixtureConfiguration();
+        assert.equal((await json('/workspace')).body.mode, 'research');
+        assert.equal((await json('/config/default')).status, 200);
+        assert.equal((await json('/config/schema')).status, 200);
+        assert.equal((await post('/config/validate', { config })).body.valid, true);
+        const draft = await post('/drafts', { id: 'draft-1', config, name: 'Pilot' });
+        assert.equal(draft.status, 200);
+        assert.equal((await post('/drafts', { id: 'draft-1', config, revision: 0 })).status, 409);
+        assert.equal((await post('/drafts/draft-1/duplicate', {})).status, 201);
+        assert.equal((await json('/drafts/draft-1')).status, 200);
+        assert.equal((await json('/drafts/missing')).status, 404);
+        assert.equal((await post('/runs', { config })).status, 400);
+        const launched = await post('/runs', { config, idempotencyKey: 'mongo-route' });
+        assert.equal(launched.status, 202);
+        assert.equal((await post('/runs', { config, idempotencyKey: 'mongo-route' })).body.id, launched.body.id);
+        const changed = defaultFixtureConfiguration(); changed.label = 'edited';
+        assert.equal((await post('/runs', { config: changed, idempotencyKey: 'mongo-route' })).status, 409);
+        const listing = await json('/runs?limit=1&offset=0');
+        assert.deepEqual(Object.keys(listing.body).sort(), ['items', 'nextOffset', 'total']);
+        assert.equal((await json('/runs?limit=0')).status, 400);
+        assert.equal((await json('/runs/' + launched.body.id)).body.status, 'queued');
+        assert.equal((await json('/runs/' + launched.body.id + '/progress')).body.rounds, 3);
+        assert.deepEqual(Object.keys((await json('/runs/' + launched.body.id + '/events?limit=2')).body).sort(), ['events', 'hasMore', 'items', 'nextCursor']);
+        assert.equal((await json('/runs/' + launched.body.id + '/artifacts/0')).status, 200);
+        assert.equal((await json('/runs/' + launched.body.id + '/artifacts/99')).status, 404);
+        assert.equal((await json('/runs/missing')).status, 404);
+        await repository.appendEvent({ runId: launched.body.id, type: 'memory_updated', data: { note: 'one' } });
+        const exported = await json('/runs/' + launched.body.id + '/export');
+        assert.equal(exported.body.scope, 'complete-source-evidence');
+        assert.deepEqual(exported.body.events.map((event: { type: string; sequence: number }) => [event.type, event.sequence]), [['memory_updated', 1]]);
+        const pairs = await post('/pairs', { config, idempotencyKey: 'mongo-pair', pairingSeed: 7 });
+        assert.equal(pairs.status, 202);
+        assert.equal((await json('/pairs/pair-mongo-pair')).body.matched, true);
+        assert.equal((await json('/pairs/pair-missing')).status, 404);
+        const overview = await json('/overview');
+        assert.deepEqual(Object.keys(overview.body).sort(), ['activity', 'attention', 'counts', 'observedAt', 'queue', 'queueTotal', 'recent', 'worker']);
+        assert.equal((await call('/nope')).status, 404);
+    } finally {
+        server.closeAllConnections();
+        await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+        await repository.db.dropDatabase();
+        await repository.close();
+    }
+});
