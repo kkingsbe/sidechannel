@@ -51,8 +51,9 @@ import { ArtifactView } from "../components/artifact-view";
 import { BudgetSummary } from "../components/budget-summary";
 import { HealthcareResults } from "../components/healthcare-results";
 import { MODEL_CALL_EVENT_TYPES } from "../lib/model-calls";
-import { TimelinePanel } from "./runs/TimelinePanel";
-import { TracesPanel } from "./runs/TracesPanel";
+import type { TurnSummary } from "@sidechannel/contracts/browser";
+import { useRunEvents, type EventStart } from "../lib/use-run-events";
+import { RunEventsView, StreamBadge } from "./runs/RunEventsView";
 import { ModelCallDetail } from "./runs/ModelCallDetail";
 type RecordPage<T> = {
   items: T[];
@@ -202,6 +203,8 @@ function RunList() {
     </>
   );
 }
+const ACTIVE_STATUSES = ["queued", "running", "reporting", "stopping"];
+
 function RunDetail() {
   const { id } = useParams();
   const [params, setParams] = useSearchParams();
@@ -218,26 +221,44 @@ function RunDetail() {
     [from, setFrom] = useState(""),
     [to, setTo] = useState("");
   const [page, setPage] = useState(0);
-  const [cursors, setCursors] = useState([0]);
-  const query = new URLSearchParams({
-    limit: "50",
-    after: String(cursors[page] || 0),
-  });
-  if (actor) query.set("actor", actor);
-  if (phase) query.set("phase", phase);
-  if (eventType) query.set("type", eventType);
-  if (from) query.set("from", from);
-  if (to) query.set("to", to);
-  const events = useApi<{
-    events: HarnessEvent[];
-    nextCursor: number;
-    hasMore?: boolean;
-  }>(
-    tab === "timeline" || tab === "traces"
-      ? "/runs/" + id + "/events?" + query
-      : null,
-    4000,
+  const eventTabs = tab === "timeline" || tab === "traces";
+  // Guard against the previous run's data during a route change: useApi clears data only after render.
+  const status =
+    run.data?.id === id
+      ? (progress.data?.id === id ? progress.data?.status : undefined) ?? run.data?.status
+      : undefined;
+  const runActive = !!status && ACTIVE_STATUSES.includes(status);
+  // Whether the run was active when this page opened decides the default start, so a run that finishes
+  // while you watch keeps its window instead of jumping back to the first event.
+  const [opened, setOpened] = useState<{ id: string; active: boolean }>();
+  const openedActive = opened?.id === id ? opened?.active : undefined;
+  useEffect(() => {
+    if (id && openedActive === undefined && status) setOpened({ id, active: runActive });
+  }, [id, openedActive, status, runActive]);
+  const at = params.get("at");
+  const start: EventStart =
+    at === "end"
+      ? "latest"
+      : at && Number.isSafeInteger(Number(at)) && Number(at) > 0
+        ? Number(at)
+        : openedActive
+          ? "latest"
+          : "first";
+  const follow = runActive && start === "latest" && !to;
+  const runEvents = useRunEvents(
+    id,
+    { actor, phase, type: eventType, from, to },
+    { start, follow, enabled: eventTabs && openedActive !== undefined },
   );
+  const turns = useApi<{ turns: TurnSummary[] }>(
+    eventTabs ? "/runs/" + id + "/turns" : null,
+    follow ? 10000 : 0,
+  );
+  const jumpTo = (target: number | "end") =>
+    setParams((prev) => {
+      prev.set("at", String(target));
+      return prev;
+    });
   const selectedEvent = useApi<HarnessEvent>(
     selected && ["timeline", "traces", "memory"].includes(tab)
       ? "/runs/" + id + "/events/" + encodeURIComponent(selected)
@@ -267,7 +288,6 @@ function RunDetail() {
   );
   useEffect(() => {
     setPage(0);
-    setCursors([0]);
   }, [tab, actor, phase, eventType, from, to, id]);
   const data = run.data
     ? { ...run.data, ...progress.data, config: run.data.config }
@@ -291,13 +311,13 @@ function RunDetail() {
     ? evidence.data
     : (evidence.data?.items ?? evidence.data?.posts ?? []);
   const event =
-    selectedEvent.data ?? events.data?.events.find((e) => e.id === selected);
+    selectedEvent.data ?? runEvents.events.find((e) => e.id === selected);
   const selectedItem =
     event ??
     selectedRecord.data ??
     items.find((item, index) => evidenceKey(item, index) === selected);
   // Both panels need the whole page: Traces derives tool status from tool lifecycle events.
-  const traceEvents = events.data?.events ?? [];
+  const traceEvents = runEvents.events;
   const focusCall = params.get("call");
   const openTraces = (invocationId: string) =>
     setParams((prev) => {
@@ -309,9 +329,7 @@ function RunDetail() {
     });
   if (run.loading) return <Loading />;
   if (!data) return <ErrorState error={run.error} retry={run.refresh} />;
-  const active = ["queued", "running", "reporting", "stopping"].includes(
-    data.status,
-  );
+  const active = ACTIVE_STATUSES.includes(data.status);
   const cancel = async () => {
     if (
       !window.confirm(
@@ -476,16 +494,9 @@ function RunDetail() {
               description={
                 tab === "timeline"
                   ? "Proposed requests, admitted actions, side effects, and results remain distinct."
-                  : "One card per model call on this page: what it reasoned, what it said, and what it proposed."
+                  : "One card per model call in the loaded turns: what it reasoned, what it said, and what it proposed."
               }
-              actions={
-                <Badge>
-                  {progress.updatedAt
-                    ? "Live · " +
-                      new Date(progress.updatedAt).toLocaleTimeString()
-                    : "Progress not yet received"}
-                </Badge>
-              }
+              actions={<StreamBadge status={runEvents.status} />}
             />
             <div className="filter-bar">
               <Field label="Actor">
@@ -533,46 +544,17 @@ function RunDetail() {
                 />
               </Field>
             </div>
-            {events.error && (
-              <ErrorState error={events.error} retry={events.refresh} />
-            )}
-            {events.loading ? (
-              <Loading />
-            ) : traceEvents.length ? (
-              tab === "timeline" ? (
-                <TimelinePanel
-                  events={traceEvents}
-                  provider={data.config.model.provider}
-                  onInspect={inspect}
-                  onOpenTraces={openTraces}
-                />
-              ) : (
-                <TracesPanel
-                  events={traceEvents}
-                  provider={data.config.model.provider}
-                  onInspect={inspect}
-                  focusInvocationId={focusCall}
-                />
-              )
-            ) : (
-              <Empty
-                title="No matching events"
-                description="New recorded evidence will appear here without changing your selected object."
-              />
-            )}
-            <Pager
-              page={page}
-              hasMore={
-                events.data?.hasMore ?? events.data?.events.length === 50
-              }
-              onChange={(next) => {
-                if (next > page)
-                  setCursors((prev) => [
-                    ...prev.slice(0, next),
-                    events.data?.nextCursor ?? 0,
-                  ]);
-                setPage(next);
-              }}
+            <RunEventsView
+              tab={tab === "timeline" ? "timeline" : "traces"}
+              runEvents={runEvents}
+              follow={follow}
+              turns={turns.data?.turns}
+              start={start}
+              provider={data.config.model.provider}
+              focusCall={focusCall}
+              onInspect={inspect}
+              onOpenTraces={openTraces}
+              onJump={jumpTo}
             />
           </Card>
         ) : tab === "configuration" ? (

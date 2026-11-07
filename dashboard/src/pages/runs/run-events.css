@@ -1,0 +1,11 @@
+.run-events { position: relative; }
+.run-events-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 12px; }
+.turn-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+.turn-nav select { max-width: min(100%, 440px); }
+.run-events-more { margin: 8px 0; }
+.run-events-pill {
+  position: sticky; bottom: 16px; display: block; margin: 8px auto 0; padding: 6px 14px;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--foreground);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.12); font-size: 13px; cursor: pointer;
+}
+.run-events-pill:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
