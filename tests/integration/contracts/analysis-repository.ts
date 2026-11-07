@@ -19,7 +19,6 @@ export function analysisRepositoryContract(harness: AnalysisRepositoryHarness): 
         assert.equal(await repository.getWindow('missing', 'window-1'), null);
         assert.deepEqual((await repository.listWindows('missing')).items, []);
         assert.deepEqual(await repository.resultsForWindows('missing', ['window-1']), []);
-        await repository.readyJob('missing');
     });
 
     test(`${harness.name}: job reservation is idempotent per launch key`, async (t) => {

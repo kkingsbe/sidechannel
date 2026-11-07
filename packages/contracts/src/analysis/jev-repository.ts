@@ -48,33 +48,56 @@ export class AnalysisPayloadTooLarge extends Error { readonly status = 413; }
 
 export interface Lease { jobId: string; owner: string; fence: number; }
 
-export interface AnalysisRepository {
+/** Codebook authoring and revision history; the codebook editor and codebook routes. */
+export interface CodebookStore {
     listCodebooks(page?: PageOptions): Promise<Page<Codebook>>;
     getCodebook(id: string): Promise<Codebook | null>;
     getRevision(id: string, revisionId: string): Promise<CodebookRevision | null>;
     listRevisions(codebookId: string, page?: PageOptions): Promise<Page<CodebookRevision>>;
     saveCodebook(book: Codebook, revision: CodebookRevision, expectedRevision?: string): Promise<void>;
+}
+
+/** Job lifecycle and lease protocol: the analysis service, the worker, and the review routes. */
+export interface JobLifecycleStore {
     reserveJob(job: AnalysisJob): Promise<{ job: AnalysisJob; created: boolean }>;
-    readyJob(id: string): Promise<void>;
     getJob(id: string): Promise<AnalysisJob | null>;
     listJobs(runId: string, page?: PageOptions): Promise<Page<AnalysisJob>>;
     listAllJobs(page?: PageOptions): Promise<Page<AnalysisJob>>;
-    putWindow(window: WindowRecord): Promise<void>;
-    getWindow(jobId: string, windowId: string): Promise<WindowRecord | null>;
-    listWindows(jobId: string, page?: PageOptions): Promise<Page<WindowRecord>>;
-    putArtifact(id: string, value: unknown): Promise<void>;
-    readArtifact<T = unknown>(id: string): Promise<T>;
-    artifactChunks(id: string): AsyncIterable<{ index: number; text: string }>;
     claim(owner: string, now: string, leaseMs: number): Promise<{ job: AnalysisJob; lease: Lease } | null>;
     heartbeat(lease: Lease, now: string, leaseMs: number): Promise<boolean>;
     updateCounters(lease: Lease, counters: JobCounters, usage?: JobUsage): Promise<boolean>;
+    finishJob(lease: Lease, status: JobStatus, counters: JobCounters, error?: string, usage?: JobUsage): Promise<boolean>;
+    cancel(id: string): Promise<AnalysisJob | null>;
+    retry(id: string): Promise<AnalysisJob | null>;
+}
+
+/** Analysis windows belonging to one job. */
+export interface WindowStore {
+    putWindow(window: WindowRecord): Promise<void>;
+    getWindow(jobId: string, windowId: string): Promise<WindowRecord | null>;
+    listWindows(jobId: string, page?: PageOptions): Promise<Page<WindowRecord>>;
     updateWindow(lease: Lease, windowId: string, patch: Partial<Pick<WindowRecord, 'status' | 'diagnostics'>>): Promise<boolean>;
+}
+
+/** Immutable chunked blobs: serialized inputs, model responses and exports. */
+export interface ArtifactStore {
+    putArtifact(id: string, value: unknown): Promise<void>;
+    readArtifact<T = unknown>(id: string): Promise<T>;
+    artifactChunks(id: string): AsyncIterable<{ index: number; text: string }>;
+}
+
+/** Model attempts and their per-window classification results. */
+export interface ResultStore {
     startAttempt(lease: Lease, attempt: AnalysisAttempt): Promise<boolean>;
     finishAttempt(lease: Lease, attempt: AnalysisAttempt, results: AnalysisResult[]): Promise<boolean>;
     listResults(jobId: string, page?: PageOptions): Promise<Page<AnalysisResult>>;
     resultsForWindows(jobId: string, windowIds: string[]): Promise<AnalysisResult[]>;
     listAttempts(jobId: string, page?: PageOptions): Promise<Page<AnalysisAttempt>>;
-    finishJob(lease: Lease, status: JobStatus, counters: JobCounters, error?: string, usage?: JobUsage): Promise<boolean>;
-    cancel(id: string): Promise<AnalysisJob | null>;
-    retry(id: string): Promise<AnalysisJob | null>;
+}
+
+/** Everything `AnalysisWorker` touches: leases, windows, artifacts, results. Never codebooks. */
+export type AnalysisWorkerStore = JobLifecycleStore & WindowStore & ArtifactStore & ResultStore;
+
+/** Composition of the analysis capability slices used by the analysis service, review routes and contract suites. */
+export interface AnalysisRepository extends CodebookStore, JobLifecycleStore, WindowStore, ArtifactStore, ResultStore {
 }

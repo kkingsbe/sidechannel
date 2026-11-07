@@ -36,7 +36,6 @@ export class InMemoryAnalysisRepository implements AnalysisRepository {
         if (existing) { if (existing.launchHash !== job.launchHash) throw new AnalysisConflict('Idempotency key already used with different configuration'); return { job: copy(existing), created: false }; }
         this.jobs.set(job.id, copy(job)); return { job: copy(job), created: true };
     }
-    async readyJob(id: string) { const job = this.jobs.get(id); if (job && !job.ready) { job.ready = true; job.status = job.cancelRequested ? 'cancelled' : 'queued'; } }
     async getJob(id: string) { return copy(this.jobs.get(id) ?? null); }
     async listJobs(runId: string, p?: PageOptions) { return pageOf([...this.jobs.values()].filter(j => j.runId === runId), p); }
     async listAllJobs(p?: PageOptions) { return pageOf([...this.jobs.values()], p); }
@@ -98,7 +97,6 @@ export class MongoAnalysisRepository implements AnalysisRepository {
         bounded(job); try { await this.db.collection('analysis_jobs').insertOne(copy(job)); return { job, created: true }; }
         catch (e) { if ((e as { code?: number }).code !== 11000) throw e; const existing = clean<AnalysisJob>(await this.db.collection('analysis_jobs').findOne({ runId: job.runId, idempotencyKey: job.idempotencyKey })); if (!existing || existing.launchHash !== job.launchHash) throw new AnalysisConflict('Idempotency key already used with different configuration'); return { job: existing, created: false }; }
     }
-    async readyJob(id: string) { await this.db.collection('analysis_jobs').updateOne({ id, ready: false }, [{ $set: { ready: true, status: { $cond: ['$cancelRequested', 'cancelled', 'queued'] } } }]); }
     async getJob(id: string) { return clean<AnalysisJob>(await this.db.collection('analysis_jobs').findOne({ id })); }
     async listJobs(runId: string, p?: PageOptions) { return this.page<AnalysisJob>('analysis_jobs', { runId }, p); }
     async listAllJobs(p?: PageOptions) { return this.page<AnalysisJob>('analysis_jobs', {}, p); }

@@ -3,7 +3,8 @@ import test from 'node:test';
 import { harnessRepositoryContract } from './contracts/harness-repository.js';
 import { analysisRepositoryContract } from './contracts/analysis-repository.js';
 import { researchStoreContract } from './contracts/research-store.js';
-import { queuedRun } from './contracts/fixtures.js';
+import { queuedRun, analysisJob } from './contracts/fixtures.js';
+import type { AnalysisWorkerStore } from '@sidechannel/contracts/analysis/jev-repository';
 import type { DraftStore, EvidenceReader, RunQueries, WorkerSupervisor } from '@sidechannel/contracts/server/contracts';
 import { InMemoryRepository } from '@sidechannel/persistence/harness/repository';
 import { InMemoryAnalysisRepository } from '@sidechannel/persistence/analysis/jev-repository';
@@ -36,4 +37,26 @@ test('researcher capability slices are satisfied by one adapter instance indepen
     assert.deepEqual(await evidence.getEvidencePage(run.id, 'board', 0, 10), { items: [], total: 0 });
     assert.deepEqual(await evidence.queryEvents(run.id, {}), []);
     assert.equal((await supervisor.workerStatus()).capacity, 1);
+});
+
+test('the analysis worker port does not require codebook operations', async () => {
+    const repository = new InMemoryAnalysisRepository();
+    // Compile-time proof: a worker-shaped store is assembled from four slices only.
+    const workerStore: AnalysisWorkerStore = {
+        reserveJob: repository.reserveJob.bind(repository), getJob: repository.getJob.bind(repository),
+        listJobs: repository.listJobs.bind(repository), listAllJobs: repository.listAllJobs.bind(repository),
+        claim: repository.claim.bind(repository), heartbeat: repository.heartbeat.bind(repository),
+        updateCounters: repository.updateCounters.bind(repository), finishJob: repository.finishJob.bind(repository),
+        cancel: repository.cancel.bind(repository), retry: repository.retry.bind(repository),
+        putWindow: repository.putWindow.bind(repository), getWindow: repository.getWindow.bind(repository),
+        listWindows: repository.listWindows.bind(repository), updateWindow: repository.updateWindow.bind(repository),
+        putArtifact: repository.putArtifact.bind(repository), readArtifact: repository.readArtifact.bind(repository),
+        artifactChunks: repository.artifactChunks.bind(repository),
+        startAttempt: repository.startAttempt.bind(repository), finishAttempt: repository.finishAttempt.bind(repository),
+        listResults: repository.listResults.bind(repository), resultsForWindows: repository.resultsForWindows.bind(repository),
+        listAttempts: repository.listAttempts.bind(repository),
+    };
+    await repository.reserveJob(analysisJob('slice-job'));
+    assert.equal((await workerStore.getJob('slice-job'))!.id, 'slice-job');
+    assert.ok(!('readyJob' in workerStore));
 });

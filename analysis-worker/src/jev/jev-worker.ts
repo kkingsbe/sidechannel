@@ -5,7 +5,7 @@ import { buildBehaviorQuestions, buildSystemOnePayload } from '@sidechannel/doma
 import { JevProviderError, type JevProvider, type JevQuestion, type JsonValue } from '@sidechannel/contracts/analysis/jev-provider';
 import { TypeSafeJevProvider } from './jev-provider.js';
 import { emptyCounters } from '@sidechannel/domain/analysis/jev-repository';
-import type { AnalysisAttempt, AnalysisJob, AnalysisRepository, AnalysisResult, JobCounters, JobUsage, Lease, WindowRecord } from '@sidechannel/contracts/analysis/jev-repository';
+import type { AnalysisAttempt, AnalysisJob, AnalysisResult, AnalysisWorkerStore, JobCounters, JobUsage, Lease, WindowRecord } from '@sidechannel/contracts/analysis/jev-repository';
 import { pages } from '@sidechannel/domain/analysis/jev-service';
 
 export interface AnalysisWorkerOptions { owner?: string; leaseMs?: number; heartbeatMs?: number; provider?: JevProvider; providerFactory?: (settings: AnalysisConfiguration) => JevProvider; }
@@ -13,7 +13,7 @@ export interface AnalysisWorkerOptions { owner?: string; leaseMs?: number; heart
 /** Owns analysis leases only. Never invokes or mutates the experiment scheduler. */
 export class AnalysisWorker {
     private readonly owner: string; private readonly leaseMs: number; private readonly heartbeatMs: number;
-    constructor(private readonly repository: AnalysisRepository, private readonly options: AnalysisWorkerOptions = {}) {
+    constructor(private readonly repository: AnalysisWorkerStore, private readonly options: AnalysisWorkerOptions = {}) {
         this.owner = options.owner ?? randomUUID(); this.leaseMs = options.leaseMs ?? 30_000; this.heartbeatMs = options.heartbeatMs ?? Math.floor(this.leaseMs / 3);
         if (this.leaseMs < 100 || this.heartbeatMs < 10 || this.heartbeatMs >= this.leaseMs) throw new Error('Heartbeat must be shorter than a positive lease');
     }

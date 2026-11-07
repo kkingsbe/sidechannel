@@ -4,7 +4,7 @@ import { ReviewService } from '@sidechannel/domain/analysis/jev-reviews';
 import type { ReviewContext, ReviewListFilter, ReviewQueueFilter } from '@sidechannel/contracts/analysis/jev-reviews';
 import type { ReviewStore } from '@sidechannel/contracts/analysis/review-repository';
 
-export async function reviewContext(repository: AnalysisRepository, analysisId: string): Promise<ReviewContext> {
+export async function reviewContext(repository: Pick<AnalysisRepository, 'getJob' | 'listWindows' | 'listResults'>, analysisId: string): Promise<ReviewContext> {
     const job = await repository.getJob(analysisId);
     if (!job) throw new Error('Analysis not found');
     const windows: ReviewContext['windows'] = [];
@@ -25,7 +25,7 @@ export async function reviewContext(repository: AnalysisRepository, analysisId: 
     return { analysisId, runId: job.runId, definitionRevision: job.manifest.codebook.id, evidenceRevision: job.manifest.source.evidenceHash, codeIds: job.manifest.codebook.definitions.filter(d => d.enabled && !d.archived).map(d => d.id), windows };
 }
 
-export function createReviewService(repository: AnalysisRepository, store: ReviewStore) { return new ReviewService(store, id => reviewContext(repository, id), async (analysisId, windowId) => {
+export function createReviewService(repository: Pick<AnalysisRepository, 'getJob' | 'getWindow' | 'listWindows' | 'listResults'>, store: ReviewStore) { return new ReviewService(store, id => reviewContext(repository, id), async (analysisId, windowId) => {
     const window = await repository.getWindow(analysisId, windowId);
     return window ? { id: window.id, eventIds: window.eventIds, stepIds: window.stepIds, probabilities: {} } : null;
 }); }
@@ -38,7 +38,7 @@ async function body(req: IncomingMessage) {
     return parsed as Record<string, unknown>;
 }
 
-export function createReviewRouteHandler(service: ReviewService, repository: AnalysisRepository) {
+export function createReviewRouteHandler(service: ReviewService, repository: Pick<AnalysisRepository, 'getJob'>) {
     return async (req: IncomingMessage, url: URL) => {
         const match = url.pathname.match(/^\/api\/analyses\/([^/]+)\/(reviews|review-batches)(?:\/([^/]+))?$/);
         if (!match) return null;

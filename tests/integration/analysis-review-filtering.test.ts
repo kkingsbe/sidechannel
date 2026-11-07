@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { IncomingMessage } from 'node:http';
-import type { AnalysisRepository } from '@sidechannel/contracts/analysis/jev-repository';
 import { MemoryReviewStore } from '@sidechannel/persistence/analysis/review-repository';
 import { ReviewService } from '@sidechannel/domain/analysis/jev-reviews';
 import type { Review, ReviewContext, ReviewQueueFilter } from '@sidechannel/contracts/analysis/jev-reviews';
+import { analysisJob } from './contracts/fixtures.js';
 import { createReviewRouteHandler } from '../../api/src/routes/review-routes.js';
 
 const context: ReviewContext = { analysisId: 'large-analysis', runId: 'source', definitionRevision: 'definition', evidenceRevision: 'frozen-source', codeIds: ['supply', 'challenge'],
@@ -69,7 +69,7 @@ test('filtered review and queue routes validate filters and apply the service se
     const service = fixture();
     await service.save(context.analysisId, input('e179', { scope: 'event', eventIds: ['e179'], decision: 'uncertain' }));
     const batch = await service.createBatch(context.analysisId, { seed: 'route-filter', randomSize: 180 });
-    const repository = { getJob: async () => ({ id: context.analysisId }) } as unknown as AnalysisRepository;
+    const repository = { getJob: async () => analysisJob(context.analysisId) };
     const handler = createReviewRouteHandler(service, repository);
     const get = (path: string) => handler({ method: 'GET' } as IncomingMessage, new URL(`http://local/api/analyses/${context.analysisId}/${path}`));
     const history = await get('reviews?windowId=w179&subjectId=e179&scope=event&codeId=supply&reviewer=alice&latest=true&limit=1');

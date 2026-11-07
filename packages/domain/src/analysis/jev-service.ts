@@ -18,6 +18,7 @@ const validate = <T>(fn: () => T): T => { try { return fn(); } catch (e) { throw
 export async function* pages<T>(fetch: (p: PageOptions) => Promise<{ items: T[]; nextCursor: string | null }>): AsyncGenerator<T> { let after: string | undefined; do { const p = await fetch({ limit: 100, after }); for (const item of p.items) yield item; after = p.nextCursor ?? undefined; } while (after); }
 
 export class AnalysisService {
+    /** Composed analysis port: this service is the codebook + job lifecycle entry point. */
     constructor(readonly repository: AnalysisRepository, private readonly source: Pick<Repository, 'getRun' | 'listEvents'>) {}
     async seedCodebook() { const existing = await this.repository.getCodebook('tentative-default'); if (existing) return existing; const { codebook, revision } = createSeedCodebook(); codebook.id = 'tentative-default'; codebook.currentRevisionId = revision.id = 'tentative-default-v1'; revision.codebookId = codebook.id; try { await this.repository.saveCodebook(codebook, revision); } catch (e) { if (!(e instanceof AnalysisConflict)) throw e; } return (await this.repository.getCodebook(codebook.id))!; }
     async createCodebook(input: { name: string; creator: string; definitions: BehaviorDefinition[] }) {
