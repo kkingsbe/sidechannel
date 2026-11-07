@@ -1,94 +1,116 @@
 {
-    "$comment": "Architecture budgets for the 2026-11-07 SOLID remediation program. Measured by scripts/architecture-budget.mjs. `max` is the ceiling enforced by `npm run architecture:check`; `target` is the program-end value each workstream drives the metric to. Audit numbers come from research/docs/2026-11-07-solid-principles-audit.md / the HTML report; deviations are recorded in docs/solid-remediation-decisions.md.",
+    "$comment": "Architecture budgets for the 2026-11-07 SOLID remediation program. Measured by scripts/architecture-budget.mjs. `max` is the ceiling enforced by `npm run architecture:check`; `target` is the program-end value. Budgets were tightened to the achieved end state at program close (2026-11-07) so the remediation cannot silently regress. Audit numbers come from research/docs/2026-11-07-solid-principles-audit.md; measured baselines and deviations are recorded in docs/solid-remediation-decisions.md.",
     "baseline": {
         "commit": "5a31bf7",
         "audit": "2026-11-07 SOLID audit (measured on 20bc219; tree advanced by 5a31bf7 before execution)",
-        "plan": "docs/superpowers/plans/2026-11-07-solid-remediation-program.md"
+        "plan": "docs/superpowers/plans/2026-11-07-solid-remediation-program.md",
+        "closed": "2026-11-07 on branch refactor/solid-remediation"
     },
     "budgets": {
         "largestSourceFileLines": {
-            "max": 2524,
+            "max": 500,
             "target": 500,
             "audit": 2523,
-            "note": "dashboard/src/pages/Analysis.tsx. WS6 target: no page file over 500 lines."
+            "baseline": 2524,
+            "note": "dashboard/src/pages/analysis/window-inspector.tsx (431). WS6 closed the 2,524-line Analysis.tsx page."
         },
         "largestPageFileLines": {
-            "max": 2524,
+            "max": 500,
             "target": 500,
             "audit": 2523,
-            "note": "WS6 target: < 500 lines per page file."
+            "baseline": 2524,
+            "note": "dashboard/src/pages/Codebook.tsx (149); every page is now a router shell."
         },
         "largestBackendModuleLines": {
             "max": 300,
             "target": 300,
             "audit": 264,
-            "note": "packages/persistence/src/harness/repository.ts measured 272 at 5a31bf7 (audit 264 at 20bc219). Ceiling matches the WS3c target of < 300 lines per backend module."
+            "baseline": 272,
+            "note": "WS3c split the persistence repository and the domain oversight service; WS3b brought scheduler.ts to 98."
         },
         "pageFilesDefiningDataHooks": {
-            "max": 4,
+            "max": 0,
             "target": 0,
             "audit": 4,
-            "note": "Page entry files over 1000 lines that own data access (Analysis, Oversight, Experiments, Runs). WS5/WS6 drive to 0."
+            "baseline": 4,
+            "note": "WS5/WS6: no page entry file owns data access; hooks live in pages/<page>/ hook files."
         },
         "fetchPageImplementations": {
-            "max": 6,
+            "max": 1,
             "target": 1,
             "audit": 6,
-            "note": "2 fetch hooks + 4 pagers at baseline (dashboard/src/lib + Oversight.tsx). WS5 target: one implementation (useResource*/query.ts)."
+            "baseline": 6,
+            "note": "One implementation in dashboard/src/lib/clients/query.ts (useResource/useResourcePage/useResourceOffsetPage)."
         },
         "providerSettingsPolicySites": {
-            "max": 10,
+            "max": 1,
             "target": 1,
             "audit": 9,
-            "note": "Audit 9 sites / 7 backend files; the dashboard copy in Experiments.tsx makes 10. WS4 collapses the backend copies to packages/domain/src/providers/settings.ts; the dashboard copy goes in WS6."
+            "baseline": 10,
+            "note": "packages/domain/src/providers/settings.ts is the only supported-sampling-control list; WS6 removed the dashboard copy."
         },
         "providerNameBranchSites": {
-            "max": 20,
-            "target": 0,
+            "max": 5,
+            "target": 5,
             "audit": 16,
-            "note": "Broader regex than the audit (includes dashboard and worker branches). WS4 removes provider-name branches outside the registry; dashboard sites are WS6."
+            "baseline": 20,
+            "note": "Dashboard presentation checks (fixture badge, capacity copy) plus three backend capability checks that read registry data; no provider-name policy is restated."
         },
         "scenarioVersionLiteralSites": {
-            "max": 14,
+            "max": 6,
             "target": 6,
             "audit": 30,
-            "note": "Literal version strings in production source (measured 14 sites / 11 files at 5a31bf7). The audit's 30 sites / 14 files counted literal strings AND HEALTHCARE_SCENARIO_VERSION references; WS4 replaced the literals with one definition plus constant references (see scenarioVersionConstantReferences). 3 sites / 3 files after WS4; the dashboard remainder is WS6."
+            "baseline": 14,
+            "note": "Literal version strings only. Remaining: scenario definitions in contracts/domain plus the dashboard-owned presentation fallback (metadata-unavailable path). WS4 replaced the 14 baseline copies with one definition plus constant references."
         },
         "scenarioVersionConstantReferences": {
-            "max": 22,
-            "target": 22,
+            "max": 12,
+            "target": 12,
             "audit": 16,
-            "note": "References to the HEALTHCARE_SCENARIO_VERSION constant. This is the single-source form, not a copy of the policy; the count is expected to grow as consumers adopt the registry and is capped so a second scenario constant cannot hide here."
+            "baseline": 16,
+            "note": "References to HEALTHCARE_SCENARIO_VERSION: the single-source form, not a copy of the policy."
         },
         "byteIdenticalDuplicateFiles": {
-            "max": 2,
+            "max": 0,
             "target": 0,
             "audit": 2,
-            "note": "experiment-worker/src/harness/inference-provider.ts == analysis-worker/src/oversight/inference-provider.ts. WS4 deletes the duplicate."
+            "baseline": 2,
+            "note": "WS4 deleted the duplicated inference-provider resolver."
         },
-        "statusVocabularyArraySites": {
-            "max": 29,
-            "target": 6,
+        "statusVocabularyTableDefinitions": {
+            "max": 12,
+            "target": 12,
+            "audit": null,
+            "baseline": null,
+            "note": "Canonical vocabulary tables (RUN_STATUSES, TERMINAL_RUN_STATUSES, EVIDENCE_KINDS, JOB_STATUSES, MONITOR_VIEW_BUILDERS, dashboard status.ts tables, ...). Expected; each is the single source for its vocabulary."
+        },
+        "statusVocabularyDuplicateSites": {
+            "max": 3,
+            "target": 3,
             "audit": 8,
-            "note": "Superset of the audit's narrower 'terminal RunStatus subsets' census (4 files / 8 sites): counts every status array with >= 2 run statuses. WS7 T7.3 drives it into dispatch/constant tables."
+            "baseline": 29,
+            "note": "Ad-hoc status arrays outside the canonical tables: two dashboard UI grouping arrays in lib/status.ts (presentation groups, not policy) and one compound Mongo $or in analysis persistence. Down from the audit's 8 terminal subsets / the 29-site superset."
         },
         "AnalysisRepository": {
-            "max": 28,
-            "target": 8,
+            "max": 0,
+            "target": 0,
             "audit": 28,
-            "note": "WS2 T2.2 splits it into CodebookStore/JobLifecycleStore/WindowStore/ArtifactStore/ResultStore; no capability port may exceed 8 members."
+            "baseline": 28,
+            "note": "WS2 split it into CodebookStore/JobLifecycleStore/WindowStore/ArtifactStore/ResultStore; the composed name declares no members."
         },
         "ResearcherRepository": {
-            "max": 13,
-            "target": 13,
+            "max": 0,
+            "target": 0,
             "audit": 20,
-            "note": "13 declared members plus the 7 inherited from Repository = the audit's 20. WS2 keeps it only as a composed type for the API composition root; consumers narrow to capability ports."
+            "baseline": 13,
+            "note": "WS2 split it into capability slices; the composed name declares no members."
         },
         "Repository": {
-            "max": 7,
-            "target": 7,
+            "max": 0,
+            "target": 0,
             "audit": 7,
-            "note": "Harness Repository. WS2 T2.3 splits it into RunStateStore/EventLog/RunQueue/WorkerGuard; it may remain as a composed alias, so the ceiling is the baseline."
+            "baseline": 7,
+            "note": "WS2 split it into RunStateStore/EventLog/RunQueue/WorkerGuard; the composed name declares no members."
         }
     }
 }

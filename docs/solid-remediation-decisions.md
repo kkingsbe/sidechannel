@@ -30,26 +30,27 @@ Measured by `npm run architecture` (`scripts/architecture-budget.mjs` against
 `scripts/architecture-budget.json`). Metrics are source files only
 (`node_modules`, `dist`, `.nx`, docs and research excluded).
 
-| Metric | Audit (20bc219) | Measured (5a31bf7) | Program target | Note |
-| --- | --- | --- | --- | --- |
-| Largest source file | 2,523 (`Analysis.tsx`) | 2,524 | < 500 | ±1 line; WS6 |
-| Largest backend module | 264 (`scheduler.ts`, `persistence/repository.ts`) | 272 (`persistence/repository.ts`) | < 300 | tree advanced after the audit |
-| Page files defining data hooks | 4 | 4 | 0 | >1000-line page entries that fetch; WS5/WS6 |
-| Fetch-page implementations (dashboard) | 6 (2 hooks + 4 pagers) | 6 | 1 | WS5 |
-| Provider-settings policy sites | 9 sites / 7 files | 10 sites / 9 files | 1 | +1 is the dashboard `Experiments.tsx` copy, owned by WS6 |
-| Provider-name branch sites | 16 sites / 11 files | 20 sites / 14 files | 0 outside the registry | broader regex (includes dashboard/worker branches) |
-| Scenario-version literal sites (literal strings) | 30 (audit census: literals + constant refs) | 14 sites / 11 files (literal strings only) | ≤ 6 | WS4 took it to 3 sites / 3 files; the constant references are counted separately below |
-| Scenario-version constant references (`HEALTHCARE_SCENARIO_VERSION`) | 16 (derived) | 22 | informational | single-source form, not a copy; capped so a second constant cannot hide |
-| Byte-identical duplicated files | 2 | 2 | 0 | `inference-provider.ts` in two services |
-| Status-vocabulary array sites | 8 (terminal subsets only) | 29 (all status arrays) | ≤ 6 | superset census; WS7 |
-| `AnalysisRepository` members | 28 | 28 | ≤ 8 per capability port | WS2 |
-| `ResearcherRepository` members | 20 | 13 declared + 7 inherited = 20 | composed type only | WS2 |
-| Harness `Repository` members | 7 | 7 | split into 4 capability ports | WS2 |
+| Metric | Audit (20bc219) | Baseline (5a31bf7) | **Final (branch head)** | Program target | Note |
+| --- | --- | --- | --- | --- | --- |
+| Largest source file | 2,523 (`Analysis.tsx`) | 2,524 | **431** (`window-inspector.tsx`) | < 500 | WS6 closed the 2,524-line page; every page is now a router shell (largest page 149) |
+| Largest page file | 2,523 (`Analysis.tsx`) | 2,524 | **149** (`Codebook.tsx`) | < 500 | WS6 |
+| Largest backend module | 264 (`scheduler.ts`, `persistence/repository.ts`) | 272 | **242** | < 300 | WS3b `scheduler.ts` 98; WS3c persistence/oversight splits |
+| Page files defining data hooks | 4 | 4 | **0** | 0 | WS5/WS6 |
+| Fetch-page implementations (dashboard) | 6 (2 hooks + 4 pagers) | 6 | **1** | 1 | WS5 single implementation in `lib/clients/query.ts` |
+| Provider-settings policy sites | 9 sites / 7 files | 10 sites / 9 files | **1** | 1 | WS4 registry + WS6 removal of the dashboard copy |
+| Provider-name branch sites | 16 sites / 11 files | 20 sites / 14 files | **5** | no policy restated outside the registry | dashboard presentation checks + backend capability checks |
+| Scenario-version literal sites (literal strings) | 30 (audit census: literals + constant refs) | 14 sites / 11 files | **6** | ≤ 6 | WS4/WS6; definitions and the metadata-unavailable fallback remain |
+| Scenario-version constant references (`HEALTHCARE_SCENARIO_VERSION`) | 16 (derived) | 16 | **12** | informational | single-source form, not a copy |
+| Byte-identical duplicated files | 2 | 2 | **0** | 0 | WS4 deleted the duplicated resolver |
+| Status-vocabulary duplicate sites (outside canonical tables) | 8 (terminal subsets only) | 29 (all status arrays) | **3** | ≤ 3 | two dashboard UI grouping arrays + one compound Mongo `$or`; WS7 also added 12 canonical table definitions |
+| `AnalysisRepository` members | 28 | 28 | **0** (composed) | 5 capability ports | WS2 split into CodebookStore/JobLifecycleStore/WindowStore/ArtifactStore/ResultStore |
+| `ResearcherRepository` members | 20 | 13 declared + 7 inherited = 20 | **0** (composed) | capability slices | WS2 split into RunStore/RunQueries/DraftStore/EvidenceReader/WorkerSupervisor |
+| Harness `Repository` members | 7 | 7 | **0** (composed) | split into 4 ports | WS2 split into RunStateStore/EventLog/RunQueue/WorkerGuard |
 
-`npm run architecture:check` fails when a budget in
-`scripts/architecture-budget.json` is exceeded. Budgets are tightened by the
-workstream that lowers a metric; they are never relaxed without an entry in the
-decision log below.
+All budgets in `scripts/architecture-budget.json` are tightened to the final
+column above at program close, so a regression fails `npm run architecture:check`
+rather than merely showing a worse number. Budgets are never relaxed without an
+entry in the decision log below.
 
 ## Finding ownership (all 45 findings)
 
@@ -57,28 +58,28 @@ Severity and titles are taken verbatim from the audit report.
 
 | ID | Severity | Finding (short) | Owner | Status |
 | --- | --- | --- | --- | --- |
-| F1 | critical | Dashboard `Experiments` page: one 1,050-line component owns creation, validation, launch, drafts, recovery | WS6 T6.1 | planned |
-| F2 | critical | Dashboard `AnalysisDetail`: 553-line component, 18 hooks, 10 endpoints, six views | WS6 T6.2 | planned |
-| F3 | critical | Dashboard `OversightSetup` fuses monitor evaluation with human run-outcome adjudication | WS6 T6.3 | planned |
-| F4 | high | Dashboard `AnalysisSetup`: 728-line component owns selection, form, preview, validation, launch | WS6 T6.4 | planned |
-| F5 | high | Dashboard `RunDetail`: 692-line component owns polling, tabs, pagination, evidence, commands | WS6 T6.5 | planned |
-| F6 | high | Dashboard `CodebookPage`: 16 `useState`, 5 `useEffect`, three validation paths | WS6 T6.6 | planned |
-| F7 | high | Dashboard view dispatch is an else-chain with a silent fallback | WS6 T6.8 | planned |
+| F1 | critical | Dashboard `Experiments` page: one 1,050-line component owns creation, validation, launch, drafts, recovery | WS6 T6.1 | done (`9b8e46a`) — 1,211 → 57 lines |
+| F2 | critical | Dashboard `AnalysisDetail`: 553-line component, 18 hooks, 10 endpoints, six views | WS6 T6.2 | done (`f7e3c90`) — detail view registry |
+| F3 | critical | Dashboard `OversightSetup` fuses monitor evaluation with human run-outcome adjudication | WS6 T6.3 | done (`485cf17`) — 1,832 → 52 lines, tabs own their fetches |
+| F4 | high | Dashboard `AnalysisSetup`: 728-line component owns selection, form, preview, validation, launch | WS6 T6.4 | done (`e47ce38`) — `Analysis.tsx` 2,492 → 24 lines |
+| F5 | high | Dashboard `RunDetail`: 692-line component owns polling, tabs, pagination, evidence, commands | WS6 T6.5 | done (`59b854f`) — `Runs.tsx` 1,195 → 16 lines |
+| F6 | high | Dashboard `CodebookPage`: 16 `useState`, 5 `useEffect`, three validation paths | WS6 T6.6 | done (`78d62c5`) — 561 → 149 lines, one validator |
+| F7 | high | Dashboard view dispatch is an else-chain with a silent fallback | WS6 T6.8/T6.9 | done (`d961ef0`) — `Record<TabId, ComponentType>` + `NotFound` on every page |
 | F8 | high | Two abstractions, six implementations of data hooks and pagers | WS5 T5.1 | done (`ce3664c`) — `fetchPageImplementations` 6→1 |
-| F9 | high | The two data hooks and two pagers are not substitutable | WS5 T5.1/T5.2 | hook/pager unification done (`ce3664c`); client substitutability in T5.2 |
+| F9 | high | The two data hooks and two pagers are not substitutable | WS5 T5.1/T5.2 | done (`ce3664c`, `ff39399`) |
 | F10 | high | The dashboard "port" is a URL string; five raw anchors bypass it | WS5 T5.2 | done (`ff39399`) — zero raw `/api/` anchors, six typed clients |
 | F11 | high | `jev-transport.ts` is a stateful repository, policy layer and route table | WS5 T5.3 | done (`edaeb61`) |
 | F12 | high | The adapter fabricates contract fields and invents constants | WS5 T5.3 | done (`edaeb61`) |
-| F13 | high | Shared type modules are server-contract dumps; one review input serves two domains | WS0 (dead exports) / WS5 T5.5 / WS6 | dashboard part done (`9b356e5`, `ce3664c`); WS6 leftovers |
-| F14 | high | Provider/scenario capability rules hardcoded in 5–7 dashboard sites | WS4 T4.3 (metadata) / WS6 (wiring) | metadata endpoints done (`d443c77`); dashboard wiring is WS6 |
-| F15 | medium | Domain vocabularies bypassed by strings; `Badge` invents statuses | WS7 T7.1 | planned |
+| F13 | high | Shared type modules are server-contract dumps; one review input serves two domains | WS0 (dead exports) / WS5 T5.5 / WS6 / WS7 T7.5 | done (`9b356e5`, `ce3664c`, `f36c926`; `tsc --noUnusedLocals` clean for `dashboard/src`) |
+| F14 | high | Provider/scenario capability rules hardcoded in 5–7 dashboard sites | WS4 T4.3 (metadata) / WS6 (wiring) | done (`d443c77`, `0dc0efb`) — three documented payload gaps keep a literal |
+| F15 | medium | Domain vocabularies bypassed by strings; `Badge` invents statuses | WS7 T7.1 | done (`5a66e6e`) — tone-only `Badge`, exhaustive tables, fabrication deleted |
 | F16 | medium | No shared response-envelope contract; pages sniff payload shapes | WS5 T5.4 | done (`f91e735`) — `arrayOf` deleted |
-| F17 | medium | App shell owns a domain table and forms an import cycle with the Runs page | WS6 T6.7 | planned |
-| F18 | medium | The two largest pages duplicate cancel, review-history and reviewer-identity code | WS6 T6.7 | planned |
-| F19 | low | Components take whole hook results as props; shared stylesheet imported by the wrong page | WS0 (unused imports) / WS6 T6.7 | planned |
+| F17 | medium | App shell owns a domain table and forms an import cycle with the Runs page | WS6 T6.7 | done (`82c35b4`) — `RunTable` moved, App↔Runs cycle = 0 |
+| F18 | medium | The two largest pages duplicate cancel, review-history and reviewer-identity code | WS6 T6.7 | done (`82c35b4`) — shared `CancelJobButton`/`ReviewHistoryRow`/`useClaimedReviewer` |
+| F19 | low | Components take whole hook results as props; shared stylesheet imported by the wrong page | WS0 (unused imports) / WS6 T6.7 / WS7 T7.5 | done (`82c35b4`, `f36c926`) — per-page stylesheets |
 | P1 | high | `domain/oversight/service.ts` has ten reasons to change, including Mongo storage layout | WS3c T3c.2 | done (`cf18026`) |
 | P2 | high | Harness repository file is two adapters, a schema migration and copied domain invariants | WS3c T3c.1 | done (`058a180`) |
-| P3 | high | Closed unions re-encoded as literal arrays and ternaries in 5–8 places | WS7 T7.3 | backend done (`baa89a3`); dashboard vocabularies in WS7 T7.1 |
+| P3 | high | Closed unions re-encoded as literal arrays and ternaries in 5–8 places | WS7 T7.3 / T7.1 | backend done (`baa89a3`); dashboard done (`5a66e6e`) |
 | P4 | medium | "Which Run fields are summary fields" is expressed four times | WS7 T7.2 | done (`46d2b2a`) |
 | P5 | high | The two harness repositories disagree about a missing run | WS1 Task 2 | done (`b169c1c`) |
 | P6 | medium | `workerStatus(): Promise` unconstrained and returns different shapes | WS1 Task 3 | done (`c711a28`) — typed `WorkerStatus`; accepted note that registration is not a heartbeat |
@@ -225,3 +226,53 @@ Types: `ProviderMetadata`, `ProviderCatalogResponse`, `ScenarioMetadata`, `Scena
 1. Which path serves a provider's live model catalog. WS6 keeps the `/models/adaption` call for non-fixture providers. Adding `modelCatalogPath?: string` to `ProviderMetadata` is additive and the recommended follow-up (WS6 + a contract change, one PR).
 2. `toolNames` is present on the domain descriptor but **not** in `scenarioCatalog()`, because the conventions-pinned payload is `{ version, label, fixture, artifactSchemaVersion, presentation }`. If WS6 needs the tool list for the roles editor, the additive fix is `presentation.toolNames` (single PR across contracts + domain + dashboard).
 3. Per-scenario dataset identifiers. `presentation.hasDatasetPreset` tells the form whether a dataset preset exists; the actual list still comes from `GET /api/datasets`.
+
+## WS7 dashboard half and program close-out (2026-11-07)
+
+| Date | Decision | Rationale | Owner |
+| --- | --- | --- | --- |
+| 2026-11-07 (WS7) | `dashboard/src/lib/status.ts` is the sole dashboard vocabulary/tone source (`runStatusMeta`, `reviewDecisionMeta`, `monitorStatusMeta`, `jobStatusMeta`, `windowStatusMeta`, `agreementMeta`, `eventMeta`, `runListGroups`, `overviewCards`); `Badge` takes a semantic `tone` only and the fabricated `oversized → failed` mapping is deleted; all 19 `Badge status=` sites migrated | F15 closes: pages never re-list statuses, and an unknown status is a compile error through the exhaustive records | WS7 |
+| 2026-11-07 (WS7) | `packages/contracts/src/browser.ts` publishes `RUN_STATUSES`/`TERMINAL_RUN_STATUSES`/`ACTIVE_RUN_STATUSES`/`isTerminalRun` and the `JobStatus` type to the browser graph (the only backend edit the dashboard half needed) | The dashboard consumes the canonical vocabulary instead of re-declaring it; the browser contract graph is the declared crossing point | WS7 |
+| 2026-11-07 (WS7) | `statusVocabularyDuplicateSites` (ad-hoc status arrays outside canonical tables) reaches **3**: two dashboard UI grouping arrays in `lib/status.ts` (presentation groups such as "Active runs", not policy) and one compound Mongo `$or` in analysis persistence; the canonical table definitions are counted separately (12). Artifact rendering is keyed by scenario metadata's `artifactSchemaVersion`; the unreachable legacy scenario→schema map is deleted | The restated target "≤ 3 non-table sites" is now enforced by two separate budgets, so a future ad-hoc status list fails CI while the 12 legitimate single-source tables do not | WS7 |
+| 2026-11-07 (WS7) | Dead-code cleanup: removed `ReviewBatchInput`, `analysisViewOrder`, a `ReactElement` re-export, the dead `withServer` helper, the unreachable legacy schema map, the orphaned `pages/analysis/analysis.css` (never imported, classes unstyled at baseline) and 51 unused imports/locals; `tsc --noUnusedLocals --noUnusedParameters` is clean for `dashboard/src`; `runs-oversight.css` split into per-page stylesheets | T7.5 closes F13 leftovers; the orphan CSS was dead at the baseline, so deleting it changes nothing rendered | WS7 |
+
+### Final gate evidence
+
+| Gate | Command | Result |
+| --- | --- | --- |
+| Lint + boundary verifier | `npm run lint` | pass (8/8 projects; "Type-only boundary violations rejected; browser contracts compile without server declarations") |
+| Composition roots | `node scripts/verify-composition.mjs` | pass ("no concrete adapters in workers or routes, no lazy provider import, no mutable Mastra global, one zod module in contracts") |
+| Typecheck | `npm run check` | pass (14/14 nx tasks) |
+| Unit tests | `npm test` | pass (14/14 nx tasks) |
+| Dashboard tests | `npm run nx sidechannel-dashboard:test -- --skip-nx-cache` | **37 files / 130 tests pass**, reproduced twice uncached |
+| Mongo integration | `npm run test:integration` | **29/29 pass** |
+| Adapter contract suites (memory) | `npm run test:contracts` | **98/98 pass** |
+| Compiled ESM smoke | `node scripts/verify-compiled.mjs` | pass ("API matched-pair submission, idempotency, scripted worker execution, provenance, exports, SPA deep links, and assets") |
+| Migration equivalence | `node scripts/verify-migration-equivalence.mjs` | pass ("configuration, pair, initial state, normalized trace, windows, definitions, and exact Jev payloads") |
+| Architecture budgets | `npm run architecture:check` | pass with budgets tightened to the final state |
+| Jev smoke | `npm run smoke:jev` | pass |
+| Healthcare smoke | `npm run smoke:healthcare` | pass (`structuralValidity: true`, 3 submissions, truth hash recorded) |
+| Dashboard smoke | `npm run smoke:dashboard` | **not runnable in this environment** — the long-lived in-memory server + browser probe does not finish within 180 s and hangs the same way on the untouched baseline checkout. Recorded as an environment limitation, not a green gate |
+| Fixture export | `npm run fixture` | **blocked by environment** — a stale `worker_guard` document in the shared `sidechannel` database (owned by the compose stack's worker) refuses a second worker. Baseline verification used ephemeral databases; the committed export was never regenerated (see the WS1 evidence-drift entry) |
+
+### Program status and accepted deferrals
+
+All nine execution plans plus WS0 were executed on branch `refactor/solid-remediation`; every one of the 45 audit findings is closed or has a written rationale in the table above. The program-level deferred/accepted items are:
+
+| Item | Status | Rationale |
+| --- | --- | --- |
+| WS7 T7.4 canonical hashing (`hashVersion: 2`, sorted keys, dual-read) | **deferred** to the post-program backlog | The gate requires confirming that no study data depends on the current hashes. `data/` holds scenario datasets and the committed fixture export is a referenced research artifact, so the gate is not satisfied. Persisted identity hashes (`configHash`, launch keys, review keys, preview hashes) stay byte-identical; WS1 de-duplicated the implementations without changing values. A future execution is additive/versioned per the WS7 plan. |
+| S6 model-usage provenance typing | deferred (WS3b report) | Requires edits in WS2/WS4-owned contracts while keeping recorded `model_usage` payloads byte-identical. |
+| S4 tool-dispatch table, S7 `PrivateMemory` typing | backlog | Medium findings; functionally covered by WS3b tool admission / unchanged memory semantics. |
+| P6 `workerStatus` richness, P9 healthcare catalog byte-level parity | accepted | Documented in the ownership table; the honest contract is a typed shape with a "no heartbeat" note, and the in-memory catalog legitimately cannot reproduce byte-level integrity checks. |
+| Evidence drift: committed `agent/examples/completed-fixture.json` (103 events) vs current code (123 events) | recorded, not fixed | Pre-existing at the baseline commit; program rule is never to rewrite characterization evidence to make a gate green. |
+| `datasetExportUrl` dead route, `presentation.toolNames` / `modelCatalogPath` metadata gaps | backlog | Pre-existing/unreachable behaviours preserved by the no-behaviour-change constraint; additive follow-ups in the WS4 hand-off section. |
+| Re-run the SOLID audit for the "grade ≥ B, 0 critical/high findings" program criterion | **not executed** | The audit is a research exercise outside this execution; it is the remaining external acceptance step named in program plan §9. |
+
+### Execution record
+
+- Branch: `refactor/solid-remediation`, created from `main` (`5a31bf7`) and executed in the worktree `C:\Users\Kyle\Documents\code\sidechannel-solid-remediation` (the source checkout was left untouched).
+- Plan documents were committed first (`c998c28`), so the branch is self-contained.
+- One commit per plan task (WS0 T0.1–T0.4 each have their own commit). Workstream anchors: WS0 `2661d9b`,`b9f7ee5`,`2c163cc`,`684032a`; WS1 `37085bd`…`8a1e0a3`; WS2 `8c78108`…`d886687`; WS3a `14a19c9`…`6b73807`; WS3b `dc40629`…`69f0653`; WS3c `058a180`,`7dbf591`,`cf18026`,`f0b127c`,`b781d28`,`13f424c`; WS4 `ef3a4c9`…`73ddcfb`; WS5 `ce3664c`…`18a560b`; WS6 `e9b02a4`…`d961ef0`; WS7 `46d2b2a`,`baa89a3`,`c228216`,`5a66e6e`,`f36c926`.
+- Execution-order deviations (all recorded above): T3a.4 before T3a.3; WS3c ran T3c.1/T3c.3 before T3c.2 to avoid the WS3a-frozen oversight route; WS7 backend (T7.2/T7.3) and dashboard (T7.1/T7.5) ran as two disjoint halves; WS6 was split across three executors by page, with cross-page shared files (`App.tsx`, `ui.tsx`, registry, test clients) reserved to one owner at a time.
+- One transient failure was observed during the first `npm run verify` of the close-out (dashboard vitest under load); two immediate uncached reruns passed (37/130) and the full `npm run verify` then passed. No source change was made for it.

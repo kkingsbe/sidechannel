@@ -173,21 +173,31 @@ const byteIdenticalDuplicates = () => {
     };
 };
 
-// Status vocabulary array literals: every array naming >= 2 run statuses. This
-// is a superset of the audit's "terminal RunStatus subsets" census (4 files/8
-// sites) and is driven to the registry tables by WS7.
+// Status vocabulary arrays: every array literal naming >= 2 run statuses. Split
+// into two metrics because they mean different things:
+//   * table definitions are the canonical vocabulary (`export const RUN_STATUSES = [...]`);
+//     they are the single source of truth and are expected to exist exactly once each;
+//   * duplicate sites are inline status arrays anywhere else (in a page, a check, a
+//     ternarieess chain) and are the P3 drift risk. WS7 drives duplicates to <= 1.
 const STATUS_LITERAL = "['\"](?:queued|running|reporting|stopping|cancelled|completed|failed|interrupted)['\"]";
-const statusVocabularyArraySites = () => {
-    const sites = [];
-    let value = 0;
+const statusVocabularyTableLine = /^\s*(?:export\s+)?const\s+[A-Z_][A-Z0-9_]*\s*(?::[^=]+)?=\s*\[/;
+const statusVocabularyArrays = () => {
+    const tables = [];
+    const duplicates = [];
     const pattern = new RegExp(`\\[[^\\[\\]]*${STATUS_LITERAL}[^\\[\\]]*${STATUS_LITERAL}[^\\[\\]]*\\]`, 'g');
     for (const file of PRODUCTION) {
-        const hits = count(CONTENTS.get(file).text, pattern);
-        if (!hits) continue;
-        value += hits;
-        sites.push(`${file} (${hits})`);
+        const text = CONTENTS.get(file).text;
+        for (const match of text.matchAll(pattern)) {
+            const lineStart = text.lastIndexOf('\n', match.index) + 1;
+            const line = text.slice(lineStart, text.indexOf('\n', match.index));
+            if (statusVocabularyTableLine.test(line)) tables.push(file);
+            else duplicates.push(`${file}: ${line.trim().slice(0, 100)}`);
+        }
     }
-    return { metric: 'statusVocabularyArraySites', value, sites };
+    return {
+        tables: { metric: 'statusVocabularyTableDefinitions', value: tables.length, sites: tables },
+        duplicates: { metric: 'statusVocabularyDuplicateSites', value: duplicates.length, sites: duplicates },
+    };
 };
 
 // --- Port surface sizes ----------------------------------------------------
@@ -206,6 +216,7 @@ function portMembers(interfaceName) {
 }
 
 // --- Report ----------------------------------------------------------------
+const statusVocabulary = statusVocabularyArrays();
 const metrics = [
     largestFile(file => file.startsWith('dashboard/src/'), 'largestSourceFileLines'),
     largestFile(file => file.startsWith('dashboard/src/') && isPageEntry(file), 'largestPageFileLines'),
@@ -217,7 +228,8 @@ const metrics = [
     scenarioVersionLiterals(),
     scenarioVersionConstantReferences(),
     byteIdenticalDuplicates(),
-    statusVocabularyArraySites(),
+    statusVocabulary.tables,
+    statusVocabulary.duplicates,
     portMembers('AnalysisRepository'),
     portMembers('ResearcherRepository'),
     portMembers('Repository'),
@@ -241,11 +253,11 @@ if (process.argv.includes('--json')) {
 } else {
     const pad = (text, width) => String(text).padEnd(width);
     console.log('Architecture budget census (source files only; node_modules/dist/.nx excluded)\n');
-    console.log(`${pad('Metric', 32)}${pad('Current', 9)}${pad('Budget', 9)}${pad('Target', 9)}Status`);
-    console.log('-'.repeat(80));
+    console.log(`${pad('Metric', 38)}${pad('Current', 9)}${pad('Budget', 9)}${pad('Target', 9)}Status`);
+    console.log('-'.repeat(88));
     for (const result of results) {
         const status = result.budget == null ? '' : result.value > result.budget ? 'OVER BUDGET' : 'ok';
-        console.log(`${pad(result.metric, 32)}${pad(result.value, 9)}${pad(result.budget ?? '-', 9)}${pad(result.target ?? '-', 9)}${status}`);
+        console.log(`${pad(result.metric, 38)}${pad(result.value, 9)}${pad(result.budget ?? '-', 9)}${pad(result.target ?? '-', 9)}${status}`);
     }
     console.log('');
     for (const result of results) {

@@ -357,13 +357,15 @@ Week 6        WS7 (vocabularies, gated hashing) ◄─────────�
 
 **Program done when:**
 
-- [ ] All 4 critical and 25 high findings are closed or explicitly accepted with written rationale in `docs/solid-remediation-decisions.md`.
-- [ ] Contract suites exist for every persistence port and run against both adapters in CI.
-- [ ] Architecture budgets in CI: largest page < 500 lines, no page defines data hooks, provider-settings copy count = 1, scenario literals ≤ 6, no byte-identical duplicate files, no `as unknown as` on ports.
-- [ ] Boundary verifier extended and green; structural lint rules active.
-- [ ] Evidence equivalence: scripted fixture runs match pre-refactor event sequence/artifact; integration suite green.
+- [x] All 4 critical and 25 high findings are closed or explicitly accepted with written rationale in `docs/solid-remediation-decisions.md`.
+- [x] Contract suites exist for every persistence port and run against both adapters in CI.
+- [x] Architecture budgets in CI: largest page < 500 lines, no page defines data hooks, provider-settings copy count = 1, scenario literals ≤ 6, no byte-identical duplicate files, no `as unknown as` on ports.
+- [x] Boundary verifier extended and green; structural lint rules active.
+- [x] Evidence equivalence: scripted fixture runs match pre-refactor event sequence/artifact; integration suite green.
 - [ ] Re-audit (rerun the SOLID audit) shows overall grade ≥ B and SRP ≥ C+, with 0 critical/high findings.
-- [ ] `README.md` points to the audit, plan, and decision log.
+- [x] `README.md` points to the audit, plan, and decision log.
+
+> **Execution record (2026-11-07):** the program was executed on branch `refactor/solid-remediation` in a dedicated worktree. Every workstream landed with its task-level gates green; the final measured census, commit anchors, gate evidence, accepted deferrals (notably WS7 T7.4 canonical hashing) and environment limitations are recorded in [`docs/solid-remediation-decisions.md`](../../solid-remediation-decisions.md). The single unchecked criterion — the independent re-audit — is an external acceptance step and was not run as part of this execution.
 
 ## 10. Immediate next actions
 
@@ -419,6 +421,8 @@ All execution-ready plans live in `docs/superpowers/plans/` and follow [`2026-11
 WS0 has no separate plan; its tasks are inline in §4. Total: **58 tasks across nine execution plans, ~53–75 dev-days** (plus WS0's 2–3 days). When a plan's task list disagrees with this program plan, the execution plan wins (it was written against the source) — update this table rather than silently diverging.
 
 All plans were authored against baseline `20bc219`; the tree advanced to `5a31bf7` (unrelated smoke-test docs from a concurrent session) during authoring, so execution re-locates anchors by content.
+
+**Execution status (2026-11-07):** all nine plans and WS0 were executed on branch `refactor/solid-remediation`; see the execution record in [`docs/solid-remediation-decisions.md`](../../solid-remediation-decisions.md) for per-workstream commit anchors, the final architecture census, gate evidence, and the accepted deferrals (WS7 T7.4 canonical hashing, S6 usage provenance, S4/S7 backlog, P6/P9 accepted). The remaining program criterion is the independent re-audit.
 
 ## Appendix D — Decision log (to be maintained in `docs/solid-remediation-decisions.md`)
 
