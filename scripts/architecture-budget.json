@@ -1,0 +1,88 @@
+{
+    "$comment": "Architecture budgets for the 2026-11-07 SOLID remediation program. Measured by scripts/architecture-budget.mjs. `max` is the ceiling enforced by `npm run architecture:check`; `target` is the program-end value each workstream drives the metric to. Audit numbers come from research/docs/2026-11-07-solid-principles-audit.md / the HTML report; deviations are recorded in docs/solid-remediation-decisions.md.",
+    "baseline": {
+        "commit": "5a31bf7",
+        "audit": "2026-11-07 SOLID audit (measured on 20bc219; tree advanced by 5a31bf7 before execution)",
+        "plan": "docs/superpowers/plans/2026-11-07-solid-remediation-program.md"
+    },
+    "budgets": {
+        "largestSourceFileLines": {
+            "max": 2524,
+            "target": 500,
+            "audit": 2523,
+            "note": "dashboard/src/pages/Analysis.tsx. WS6 target: no page file over 500 lines."
+        },
+        "largestPageFileLines": {
+            "max": 2524,
+            "target": 500,
+            "audit": 2523,
+            "note": "WS6 target: < 500 lines per page file."
+        },
+        "largestBackendModuleLines": {
+            "max": 300,
+            "target": 300,
+            "audit": 264,
+            "note": "packages/persistence/src/harness/repository.ts measured 272 at 5a31bf7 (audit 264 at 20bc219). Ceiling matches the WS3c target of < 300 lines per backend module."
+        },
+        "pageFilesDefiningDataHooks": {
+            "max": 4,
+            "target": 0,
+            "audit": 4,
+            "note": "Page entry files over 1000 lines that own data access (Analysis, Oversight, Experiments, Runs). WS5/WS6 drive to 0."
+        },
+        "fetchPageImplementations": {
+            "max": 6,
+            "target": 1,
+            "audit": 6,
+            "note": "2 fetch hooks + 4 pagers at baseline (dashboard/src/lib + Oversight.tsx). WS5 target: one implementation (useResource*/query.ts)."
+        },
+        "providerSettingsPolicySites": {
+            "max": 10,
+            "target": 1,
+            "audit": 9,
+            "note": "Audit 9 sites / 7 backend files; the dashboard copy in Experiments.tsx makes 10. WS4 collapses the backend copies to packages/domain/src/providers/settings.ts; the dashboard copy goes in WS6."
+        },
+        "providerNameBranchSites": {
+            "max": 20,
+            "target": 0,
+            "audit": 16,
+            "note": "Broader regex than the audit (includes dashboard and worker branches). WS4 removes provider-name branches outside the registry; dashboard sites are WS6."
+        },
+        "scenarioVersionLiteralSites": {
+            "max": 30,
+            "target": 6,
+            "audit": 30,
+            "note": "30 sites / 14 files reproduces the audit exactly (import/export wiring excluded). WS4 brings the backend to ~3 sites; dashboard remainder is WS6."
+        },
+        "byteIdenticalDuplicateFiles": {
+            "max": 2,
+            "target": 0,
+            "audit": 2,
+            "note": "experiment-worker/src/harness/inference-provider.ts == analysis-worker/src/oversight/inference-provider.ts. WS4 deletes the duplicate."
+        },
+        "statusVocabularyArraySites": {
+            "max": 29,
+            "target": 6,
+            "audit": 8,
+            "note": "Superset of the audit's narrower 'terminal RunStatus subsets' census (4 files / 8 sites): counts every status array with >= 2 run statuses. WS7 T7.3 drives it into dispatch/constant tables."
+        },
+        "AnalysisRepository": {
+            "max": 28,
+            "target": 8,
+            "audit": 28,
+            "note": "WS2 T2.2 splits it into CodebookStore/JobLifecycleStore/WindowStore/ArtifactStore/ResultStore; no capability port may exceed 8 members."
+        },
+        "ResearcherRepository": {
+            "max": 13,
+            "target": 13,
+            "audit": 20,
+            "note": "13 declared members plus the 7 inherited from Repository = the audit's 20. WS2 keeps it only as a composed type for the API composition root; consumers narrow to capability ports."
+        },
+        "Repository": {
+            "max": 7,
+            "target": 7,
+            "audit": 7,
+            "note": "Harness Repository. WS2 T2.3 splits it into RunStateStore/EventLog/RunQueue/WorkerGuard; it may remain as a composed alias, so the ceiling is the baseline."
+        }
+    }
+}
