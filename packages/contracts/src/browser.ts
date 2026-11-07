@@ -4,3 +4,6 @@ export type { AnalysisConfiguration, BehaviorDefinition, Codebook, CodebookRevis
 export type { AnalysisJob, AnalysisResult, Page, WindowRecord } from './analysis/jev-repository.js';
 export type { Review, ReviewBatch } from './analysis/jev-reviews.js';
 export type { MonitorDefinition, MonitorEvaluation, MonitorPreview, MonitorSettings, MonitorView, OutcomeDefinition, Projection, Verdict, MonitorJudgment } from './oversight/contracts.js';
+
+export type { DatasetCatalogItem, HealthcareEvaluation } from './healthcare/contracts.js';
+export type { AdaptionModelCatalog, TokenBudget, ModelCapacity } from './harness/contracts.js';

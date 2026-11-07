@@ -5,8 +5,8 @@ import { createQueuedRun } from '@sidechannel/domain/harness/initialization';
 import { HarnessScheduler } from './scheduler.js';
 import { InMemoryRepository } from '@sidechannel/persistence/harness/repository';
 import { ScriptedAdapter, fixtureScript } from './scripted-adapter.js';
-import type { PrivateMemory, ModelResponse } from '@sidechannel/contracts/harness/server';
-import type { MemorySnapshot, NewEvent } from '@sidechannel/contracts/harness/contracts';
+import type { PrivateMemory, ModelResponse, ModelInput } from '@sidechannel/contracts/harness/server';
+import type { MemorySnapshot, NewEvent, Run } from '@sidechannel/contracts/harness/contracts';
 import { executeTool } from './gateway.js';
 import { fixtureScenario } from './scenario.js';
 
@@ -22,7 +22,7 @@ class TestMemory implements PrivateMemory {
     async save(r: string, a: string, s: MemorySnapshot) { this.values.set(`${r}/${a}`, structuredClone(s)); }
 }
 
-async function harness(script: (input: import("@sidechannel/contracts/harness/server").ModelInput, index: number) => ModelResponse | Promise<ModelResponse>, repo = new InMemoryRepository(), mutate?: (c: ReturnType<typeof defaultFixtureConfiguration>) => void) { const draft = defaultFixtureConfiguration(); mutate?.(draft); const run = createQueuedRun(resolveConfiguration(draft), 'test'); await repo.createRun(run); const memory = new TestMemory(); const adapter = new ScriptedAdapter(script); const scheduler = new HarnessScheduler({ repository: repo, memory, adapter }); return { repo, run, memory, adapter, scheduler }; }
+async function harness(script: (input: ModelInput, index: number) => ModelResponse | Promise<ModelResponse>, repo = new InMemoryRepository(), mutate?: (c: ReturnType<typeof defaultFixtureConfiguration>) => void) { const draft = defaultFixtureConfiguration(); mutate?.(draft); const run = createQueuedRun(resolveConfiguration(draft), 'test'); await repo.createRun(run); const memory = new TestMemory(); const adapter = new ScriptedAdapter(script); const scheduler = new HarnessScheduler({ repository: repo, memory, adapter }); return { repo, run, memory, adapter, scheduler }; }
 
 const text = () => ({ text: 'done', toolCalls: [] });
 
@@ -208,7 +208,7 @@ test('credential-like model settings are rejected recursively without exposing v
 
 test('cancellation racing terminal save becomes cancelled with no completion event', async () => {
     class TerminalRace extends InMemoryRepository {
-        override async saveRun(run: import("@sidechannel/contracts/harness/contracts").Run) {
+        override async saveRun(run: Run) {
             if (run.status === 'completed')
                 await this.requestCancel(run.id);
             await super.saveRun(run);

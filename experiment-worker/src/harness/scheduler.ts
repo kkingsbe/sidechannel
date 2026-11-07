@@ -3,6 +3,7 @@ import type { Run, Json, Message, NewEvent, Role } from '@sidechannel/contracts/
 import type { Repository, PrivateMemory, ModelAdapter, Scenario, ModelInput } from '@sidechannel/contracts/harness/server';
 import { fixtureScenario } from './scenario.js';
 import { executeTool, toolCatalog } from './gateway.js';
+import { measureModelInput, validateTokenBudget } from '@sidechannel/domain/harness/token-budget';
 
 export interface SchedulerOptions {
     repository: Repository;
@@ -65,6 +66,12 @@ export class HarnessScheduler {
         };
         const infer = async (input: ModelInput) => {
             await boundary();
+            const accounting = measureModelInput(input, run.config);
+            await event('context_accounted', { phase: input.phase, ...accounting }, { invocationId: input.invocationId });
+            if (accounting.exceeds) {
+                await event('context_limit_exceeded', { phase: input.phase, ...accounting }, { invocationId: input.invocationId });
+                throw new Error(`${input.phase} context budget exceeded (${accounting.unit}); no silent trimming`);
+            }
             await event('model_requested', input, { invocationId: input.invocationId });
             input.timeoutMs = Math.max(1, Math.min(input.timeoutMs, run.config.limits.maxDurationMs - (Date.now() - started)));
             const controller = new AbortController();
@@ -74,6 +81,9 @@ export class HarnessScheduler {
                 if (!response || typeof response.text !== 'string' || !Array.isArray(response.toolCalls))
                     throw new Error('Unparseable model response');
                 await event('model_response', response, { invocationId: input.invocationId });
+                await event('model_usage', { phase: input.phase, provider: input.model.provider,
+                    source: response.usage ? (input.model.provider === 'scripted' ? 'scripted' : 'provider-reported') : 'unavailable',
+                    usage: response.usage ?? null, inputAccounting: accounting }, { invocationId: input.invocationId });
                 for (const [k, v] of Object.entries(response.usage ?? {}))
                     if (typeof v === 'number' && Number.isFinite(v))
                         run.usage[k] = (run.usage[k] ?? 0) + v;
@@ -86,6 +96,8 @@ export class HarnessScheduler {
         };
         const inputFor = (role: Role, messages: Message[], phase: 'action' | 'report', invocationId: string): ModelInput => ({ runId, agentId: role.id, threadId: `experiment-thread:${JSON.stringify([runId, role.id])}`, resourceId: `experiment-resource:${JSON.stringify([runId, role.id])}`, invocationId, phase, model: run.config.model, messages, tools: phase === 'report' ? [] : toolCatalog(run, role, scenario), timeoutMs: run.config.limits.requestTimeoutMs });
         try {
+            const budgetErrors = validateTokenBudget(run.config);
+            if (budgetErrors.length) throw new Error(budgetErrors.join('; '));
             run.status = 'running';
             await event('run_started', { config: run.config });
             await persist();
@@ -105,11 +117,6 @@ export class HarnessScheduler {
                     let reason = 'model_step_limit';
                     for (let step = 0; step < run.config.limits.maxModelStepsPerTurn && !ended; step++) {
                         const messages: Message[] = [{ role: 'system', content: `${scenario.initialContext(run.config, role)}\n${run.config.condition.text}\nPrivate working memory (agent-authored):\n${snapshot.notes}\nRound: ${run.round}/${run.config.scheduler.rounds}; order position: ${run.config.scheduler.order.indexOf(agentId) + 1}/${run.config.scheduler.order.length}; turn: ${run.turn}; remaining tool allowance: ${run.remainingAllowance}` }, ...snapshot.messages, { role: 'user', content: 'Continue your scheduled turn.' }];
-                        const size = JSON.stringify(messages).length;
-                        if (size > run.config.memory.contextBudget) {
-                            await event('context_limit_exceeded', { characters: size, limit: run.config.memory.contextBudget });
-                            throw new Error('Context budget exceeded; no silent trimming');
-                        }
                         const invocationId = `${runId}:turn:${run.turn}:step:${step}`;
                         const response = await infer(inputFor(role, messages, 'action', invocationId));
                         snapshot.messages.push({ role: 'assistant', content: response.text, toolCalls: response.toolCalls });
@@ -205,8 +212,6 @@ export class HarnessScheduler {
                 run.activeAgentId = role.id;
                 const snapshot = await memory.load(runId, role.id);
                 const input = inputFor(role, [{ role: 'system', content: `${scenario.initialContext(run.config, role)}\n${run.config.condition.text}\nPrivate working memory:\n${snapshot.notes}` }, ...snapshot.messages, { role: 'user', content: run.config.reportInstructions }], 'report', `${runId}:report:${role.id}:0`);
-                if (JSON.stringify(input.messages).length > run.config.memory.contextBudget)
-                    throw new Error('Report context budget exceeded');
                 const response = await infer(input);
                 for (const [index, call] of response.toolCalls.entries()) {
                     const extra = { invocationId: input.invocationId, toolCallId: call.id, operationId: `${input.invocationId}:call:${call.id}` };
@@ -235,9 +240,13 @@ export class HarnessScheduler {
         }
         catch (error) {
             const message = error instanceof Error ? error.message : String(error);
+            const reporting = run.status === 'reporting';
             run.status = message === 'CANCELLED' ? 'cancelled' : evidenceFailed ? 'interrupted' : 'failed';
             run.failureReason = message;
             try {
+                if (!evidenceFailed && reporting)
+                    for (const role of run.config.roles.filter(role => !run.reports.some(report => report.agentId === role.id)))
+                        await event('report_missing', { reason: message, phase: 'report' }, { agentId: role.id });
                 if (!evidenceFailed && activeTurn)
                     await event('turn_ended', { reason: message === 'CANCELLED' ? 'cancelled' : 'error', error: message });
                 if (!evidenceFailed)

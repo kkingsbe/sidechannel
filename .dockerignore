@@ -19,6 +19,10 @@
 !packages/**
 !dashboard/
 !dashboard/**
+!data/
+!data/healthcare/
+!data/healthcare/points-out/
+!data/healthcare/points-out/**
 **/node_modules
 **/.npm-cache
 **/dist

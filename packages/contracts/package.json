@@ -105,6 +105,14 @@
     "./server/contracts": {
       "types": "./dist/server/contracts.d.ts",
       "import": "./dist/server/contracts.js"
+    },
+    "./healthcare/contracts": {
+      "types": "./dist/healthcare/contracts.d.ts",
+      "import": "./dist/healthcare/contracts.js"
+    },
+    "./healthcare/repository": {
+      "types": "./dist/healthcare/repository.d.ts",
+      "import": "./dist/healthcare/repository.js"
     }
   }
 }

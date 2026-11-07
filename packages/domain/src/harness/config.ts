@@ -1,4 +1,8 @@
 import type { ExperimentConfig } from '@sidechannel/contracts/harness/contracts';
+import { validateTokenBudget } from './token-budget.js';
+import { isInstalledScenarioVersion } from './scenario-initialization.js';
+import { HEALTHCARE_ARTIFACT_VERSION, HEALTHCARE_ROLES, HEALTHCARE_SCENARIO_VERSION } from '@sidechannel/contracts/healthcare/contracts';
+import { validateHealthcareAssets } from '../healthcare/package.js';
 
 export function seededOrder(ids: string[], seed: number): string[] {
     const result = [...ids];
@@ -111,10 +115,28 @@ function validateConfigurationUnchecked(input: unknown): {
             else if (key === 'temperature' && (value < 0 || value > 2) || key === 'topP' && (value < 0 || value > 1))
                 errors.push(`${key} outside supported range`);
         }
+    if (c.model.provider === 'adaption') {
+        if (!/^[a-z0-9][a-z0-9._-]*$/i.test(c.model.id)) errors.push('model.id must be a direct hosted Adaption model ID');
+        for (const key of Object.keys(c.model.settings)) if (!['maxOutputTokens', 'temperature'].includes(key)) errors.push(`Unsupported Adaption model setting ${key}`);
+    }
+    if (c.memory.maxPrivateNoteCharacters !== undefined && (!Number.isSafeInteger(c.memory.maxPrivateNoteCharacters) || c.memory.maxPrivateNoteCharacters < 1)) errors.push('memory.maxPrivateNoteCharacters must be a positive integer');
     if (typeof c.memory.template !== 'string' || !c.memory.version)
         errors.push('Versioned neutral memory template required');
     if (c.scheduler.rounds > 10000 || c.scheduler.toolCallsPerTurn > 1000 || c.board.maxPageSize > 1000 || c.board.maxPostLength > 100000)
         errors.push('Configuration exceeds v1 bounded size limits');
+    if (!isInstalledScenarioVersion(c.scenario.version)) errors.push('scenario.version: Scenario runtime is not installed');
+    if (c.scenario.version === HEALTHCARE_SCENARIO_VERSION) {
+        if (JSON.stringify(c.roles.map(role => role.id).sort()) !== JSON.stringify([...HEALTHCARE_ROLES].sort())) errors.push('roles: Healthcare requires exactly the five canonical roles');
+        if (c.artifactSchemaVersion !== HEALTHCARE_ARTIFACT_VERSION) errors.push('artifactSchemaVersion: Unsupported healthcare artifact schema');
+        const tools = ['list_agents', 'post_board', 'read_board', 'update_working_memory', 'read_role_data', 'read_legacy_archive', 'request_access', 'rank_cases', 'read_artifact', 'update_artifact', 'end_turn'];
+        for (const role of c.roles)
+            if (role.allowedTools.some(tool => !tools.includes(tool)) || !['read_role_data', 'read_board', 'post_board', 'read_artifact', 'update_artifact', 'end_turn'].every(tool => role.allowedTools.includes(tool)) || role.id === 'outside_analytics' && !role.allowedTools.includes('rank_cases')) errors.push(`roles: Invalid healthcare tool configuration for ${role.id}`);
+        if (c.model.provider === 'scripted' && c.model.id !== HEALTHCARE_SCENARIO_VERSION) errors.push('model.id: Select the healthcare scripted driver');
+        if (!['scripted', 'adaption'].includes(c.model.provider)) errors.push('model.provider: Healthcare supports scripted development or Adaption');
+        try { validateHealthcareAssets(c.scenario.assets); }
+        catch { errors.push('scenario.assets: Invalid healthcare assets'); }
+    }
+    errors.push(...validateTokenBudget(c));
     return { valid: errors.length === 0, errors };
 }
 

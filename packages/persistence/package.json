@@ -47,6 +47,10 @@
     "./harness/repository": {
       "types": "./dist/harness/repository.d.ts",
       "import": "./dist/harness/repository.js"
+    },
+    "./healthcare/catalog": {
+      "types": "./dist/healthcare/catalog.d.ts",
+      "import": "./dist/healthcare/catalog.js"
     }
   }
 }

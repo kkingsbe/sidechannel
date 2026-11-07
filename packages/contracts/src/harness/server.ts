@@ -43,6 +43,7 @@ export interface Repository {
 
 export interface Scenario {
     initialize(config: ExperimentConfig): Json;
+    initialArtifact?(config: ExperimentConfig): Json;
     initialContext(config: ExperimentConfig, role: Role): string;
     tools(config: ExperimentConfig, role: Role): ToolDefinition[];
     execute(run: Run, actor: Actor, name: string, args: unknown): Json;

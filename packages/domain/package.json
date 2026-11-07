@@ -122,6 +122,30 @@
     "./oversight/service": {
       "types": "./dist/oversight/service.d.ts",
       "import": "./dist/oversight/service.js"
+    },
+    "./healthcare/scoring": {
+      "types": "./dist/healthcare/scoring.d.ts",
+      "import": "./dist/healthcare/scoring.js"
+    },
+    "./healthcare/artifact": {
+      "types": "./dist/healthcare/artifact.d.ts",
+      "import": "./dist/healthcare/artifact.js"
+    },
+    "./healthcare/package": {
+      "types": "./dist/healthcare/package.d.ts",
+      "import": "./dist/healthcare/package.js"
+    },
+    "./healthcare/preset": {
+      "types": "./dist/healthcare/preset.d.ts",
+      "import": "./dist/healthcare/preset.js"
+    },
+    "./healthcare/evaluation": {
+      "types": "./dist/healthcare/evaluation.d.ts",
+      "import": "./dist/healthcare/evaluation.js"
+    },
+    "./harness/token-budget": {
+      "types": "./dist/harness/token-budget.d.ts",
+      "import": "./dist/harness/token-budget.js"
     }
   }
 }

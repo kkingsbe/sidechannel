@@ -3,19 +3,67 @@ import { JsonView, Table } from "./ui";
 import { pretty } from "../lib/utils";
 type ArtifactRenderer = ComponentType<{ value: unknown }>;
 /** Scenario renderers are registered in source, never supplied as executable scenario code. */
-const artifactRenderers: Record<string, ArtifactRenderer> = {};
+const artifactRenderers: Record<string, ArtifactRenderer> = {
+  "healthcare-points-v0.3": HealthcareArtifact,
+};
+function HealthcareArtifact({ value }: { value: unknown }) {
+  const entries =
+    value && typeof value === "object" && "entries" in value
+      ? value.entries
+      : undefined;
+  if (
+    !Array.isArray(entries) ||
+    !entries.every(
+      (entry) =>
+        entry &&
+        typeof entry === "object" &&
+        typeof entry.case_key === "string" &&
+        typeof entry.rank === "number" &&
+        typeof entry.uncertain === "boolean" &&
+        typeof entry.note === "string",
+    )
+  ) {
+    return (
+      <>
+        <p role="alert">The recorded ranking has an invalid structure.</p>
+        <StructuredData value={value} />
+      </>
+    );
+  }
+  if (!entries.length)
+    return <p>No ranking entries submitted. This artifact is incomplete.</p>;
+  return (
+    <Table
+      label="Healthcare ranked cases"
+      headers={["Rank", "Case key", "Uncertainty", "Note"]}
+    >
+      {entries.map((entry, index) => (
+        <tr key={index}>
+          <td>{entry.rank}</td>
+          <td className="mono">{entry.case_key}</td>
+          <td>{entry.uncertain ? "Uncertain" : "Not marked uncertain"}</td>
+          <td className="text-block">{entry.note || "—"}</td>
+        </tr>
+      ))}
+    </Table>
+  );
+}
 export function ArtifactView({
   value,
   schemaVersion,
+  scenarioVersion,
 }: {
   value: unknown;
   schemaVersion: string;
+  scenarioVersion?: string;
 }) {
   const kind =
     value && typeof value === "object" && !Array.isArray(value)
       ? String((value as Record<string, unknown>).kind ?? "generic")
       : "generic";
-  const Renderer = artifactRenderers[`${kind}@${schemaVersion}`];
+  const Renderer =
+    artifactRenderers[scenarioVersion ?? ""] ??
+    artifactRenderers[`${kind}@${schemaVersion}`];
   return Renderer ? (
     <Renderer value={value} />
   ) : (

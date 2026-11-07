@@ -33,6 +33,9 @@ import { api, post, useApi, useMutation } from "../lib/api";
 import type { Draft, ExperimentConfig, Json, Run } from "../lib/types";
 import { pretty, when } from "../lib/utils";
 import "./Experiments.css";
+import { HealthcarePreset } from "../components/healthcare-preset";
+import { ModelControls } from "../components/model-controls";
+import { BudgetSummary } from "../components/budget-summary";
 const readableName = (value: string) =>
   value
     .replace(/([a-z])([A-Z])/g, "$1 $2")
@@ -237,6 +240,13 @@ export default function Experiments() {
     setLaunchReview(false);
     launchKey.current = crypto.randomUUID();
   };
+  const replace = (value: ExperimentConfig) => {
+    setConfig(value);
+    setDirty(true);
+    setValidation(undefined);
+    setLaunchReview(false);
+    launchKey.current = crypto.randomUUID();
+  };
   const field = (
     path: string,
     label: string,
@@ -303,6 +313,7 @@ export default function Experiments() {
     );
     if (result) {
       setValidation(result);
+      if (result.valid && result.config) setConfig(result.config);
       setLaunchReview(result.valid);
       if (!result.valid) {
         const path = Object.keys(result.fieldErrors || {})[0];
@@ -617,6 +628,11 @@ export default function Experiments() {
               description="Versioned scenario and study metadata"
             />
             <div className="card-body form-grid">
+              <HealthcarePreset
+                config={config}
+                replace={replace}
+                errors={validation?.fieldErrors}
+              />
               {field("label", "Experiment name")}
               {field("experimentId", "Experiment / group identifier")}
               {field("configVersion", "Configuration version")}
@@ -631,13 +647,17 @@ export default function Experiments() {
                 </Select>
               </Field>
               {field("scenario.version", "Scenario version")}
-              {field("scenario.datasetId", "Dataset identifier")}
-              {field("scenario.datasetVersion", "Dataset version")}
-              {field(
-                "scenario.datasetSeed",
-                "Dataset seed",
-                undefined,
-                "number",
+              {config.scenario.version !== "healthcare-points-v0.3" && (
+                <>
+                  {field("scenario.datasetId", "Dataset identifier")}
+                  {field("scenario.datasetVersion", "Dataset version")}
+                  {field(
+                    "scenario.datasetSeed",
+                    "Dataset seed",
+                    undefined,
+                    "number",
+                  )}
+                </>
               )}
               <div className="full">
                 {field(
@@ -664,58 +684,69 @@ export default function Experiments() {
                   }}
                 />
               </Field>
-              <div className="full">
-                <h3>Scenario assets</h3>
-                <p className="helper">
-                  Synthetic fixture fields are editable below. Structured
-                  scenario assets are retained and require a supported scenario
-                  form.
-                </p>
-              </div>
-              {primitiveAssets ? (
-                primitiveAssets.map(([key, value]) => (
-                  <Field key={key} label={readableName(key)}>
-                    {typeof value === "string" || typeof value === "number" ? (
-                      <Input
-                        type={typeof value === "number" ? "number" : "text"}
-                        value={value}
-                        onChange={(e) =>
-                          change("scenario.assets", {
-                            ...(config.scenario.assets as Record<string, Json>),
-                            [key]:
-                              typeof value === "number"
-                                ? e.target.valueAsNumber
-                                : e.target.value,
-                          })
-                        }
-                      />
-                    ) : typeof value === "boolean" ? (
-                      <Select
-                        value={String(value)}
-                        onChange={(e) =>
-                          change("scenario.assets", {
-                            ...(config.scenario.assets as Record<string, Json>),
-                            [key]: e.target.value === "true",
-                          })
-                        }
-                      >
-                        <option>true</option>
-                        <option>false</option>
-                      </Select>
-                    ) : (
-                      <Notice kind="warning">
-                        Unsupported structured asset field. Preserved in
-                        configuration: {key}.
-                      </Notice>
-                    )}
-                  </Field>
-                ))
-              ) : (
-                <Notice kind="warning">
-                  This scenario uses a structured asset schema without a
-                  registered editor. Existing assets are preserved; choose a
-                  supported scenario draft to change them.
-                </Notice>
+              {config.scenario.version !== "healthcare-points-v0.3" && (
+                <>
+                  <div className="full">
+                    <h3>Scenario assets</h3>
+                    <p className="helper">
+                      Synthetic fixture fields are editable below. Structured
+                      scenario assets are retained and require a supported
+                      scenario form.
+                    </p>
+                  </div>
+                  {primitiveAssets ? (
+                    primitiveAssets.map(([key, value]) => (
+                      <Field key={key} label={readableName(key)}>
+                        {typeof value === "string" ||
+                        typeof value === "number" ? (
+                          <Input
+                            type={typeof value === "number" ? "number" : "text"}
+                            value={value}
+                            onChange={(e) =>
+                              change("scenario.assets", {
+                                ...(config.scenario.assets as Record<
+                                  string,
+                                  Json
+                                >),
+                                [key]:
+                                  typeof value === "number"
+                                    ? e.target.valueAsNumber
+                                    : e.target.value,
+                              })
+                            }
+                          />
+                        ) : typeof value === "boolean" ? (
+                          <Select
+                            value={String(value)}
+                            onChange={(e) =>
+                              change("scenario.assets", {
+                                ...(config.scenario.assets as Record<
+                                  string,
+                                  Json
+                                >),
+                                [key]: e.target.value === "true",
+                              })
+                            }
+                          >
+                            <option>true</option>
+                            <option>false</option>
+                          </Select>
+                        ) : (
+                          <Notice kind="warning">
+                            Unsupported structured asset field. Preserved in
+                            configuration: {key}.
+                          </Notice>
+                        )}
+                      </Field>
+                    ))
+                  ) : (
+                    <Notice kind="warning">
+                      This scenario uses a structured asset schema without a
+                      registered editor. Existing assets are preserved; choose a
+                      supported scenario draft to change them.
+                    </Notice>
+                  )}
+                </>
               )}
             </div>
           </Card>
@@ -725,44 +756,60 @@ export default function Experiments() {
               description="All roles use this model. Provider credentials stay on the server."
             />
             <div className="card-body form-grid">
-              {field(
-                "model.provider",
-                "Model provider",
-                "For example openai, anthropic, or scripted",
-              )}
-              {field(
-                "model.id",
-                "Exact model identifier",
-                "Scripted models are clearly marked as fixtures.",
+              {config.scenario.version === "healthcare-points-v0.3" ? (
+                <ModelControls
+                  config={config}
+                  replace={replace}
+                  errors={validation?.fieldErrors}
+                />
+              ) : (
+                <>
+                  {field(
+                    "model.provider",
+                    "Model provider",
+                    "For example openai, anthropic, or scripted",
+                  )}
+                  {field(
+                    "model.id",
+                    "Exact model identifier",
+                    "Scripted models are clearly marked as fixtures.",
+                  )}
+                </>
               )}
               <details className="full experiment-details">
                 <summary>Advanced model parameters</summary>
                 <div className="form-grid">
-                  {supportedSettings.map((key) => (
-                    <Field
-                      key={key}
-                      label={readableName(key)}
-                      hint="Optional; leave blank to use the provider default."
-                      error={validation?.fieldErrors?.[`model.settings.${key}`]}
-                    >
-                      <Input
-                        data-config-path={`model.settings.${key}`}
-                        type="number"
-                        step="any"
-                        value={
-                          typeof config.model.settings[key] === "number"
-                            ? config.model.settings[key]
-                            : ""
+                  {supportedSettings
+                    .filter(
+                      (key) => key !== "maxOutputTokens" || !config.tokenBudget,
+                    )
+                    .map((key) => (
+                      <Field
+                        key={key}
+                        label={readableName(key)}
+                        hint="Optional; leave blank to use the provider default."
+                        error={
+                          validation?.fieldErrors?.[`model.settings.${key}`]
                         }
-                        onChange={(e) => {
-                          const settings = { ...config.model.settings };
-                          if (e.target.value === "") delete settings[key];
-                          else settings[key] = e.target.valueAsNumber;
-                          change("model.settings", settings);
-                        }}
-                      />
-                    </Field>
-                  ))}
+                      >
+                        <Input
+                          data-config-path={`model.settings.${key}`}
+                          type="number"
+                          step="any"
+                          value={
+                            typeof config.model.settings[key] === "number"
+                              ? config.model.settings[key]
+                              : ""
+                          }
+                          onChange={(e) => {
+                            const settings = { ...config.model.settings };
+                            if (e.target.value === "") delete settings[key];
+                            else settings[key] = e.target.valueAsNumber;
+                            change("model.settings", settings);
+                          }}
+                        />
+                      </Field>
+                    ))}
                   {Object.keys(config.model.settings)
                     .filter((key) => !supportedSettings.includes(key))
                     .map((key) => (
@@ -936,13 +983,14 @@ export default function Experiments() {
                   "number",
                   1,
                 )}
-                {field(
-                  "memory.contextBudget",
-                  "Memory context budget (characters)",
-                  "Character bound, not a token limit.",
-                  "number",
-                  1,
-                )}
+                {!config.tokenBudget &&
+                  field(
+                    "memory.contextBudget",
+                    "Memory context budget (characters)",
+                    "Character bound, not a token limit.",
+                    "number",
+                    1,
+                  )}
                 {field("memory.version", "Memory template version")}
                 <div className="full">
                   {field(
@@ -988,12 +1036,20 @@ export default function Experiments() {
               <dl className="definition-list">
                 <dt>Scenario</dt>
                 <dd>{config.scenario.version}</dd>
+                <dt>Dataset</dt>
+                <dd>
+                  {config.scenario.datasetId} · v
+                  {config.scenario.datasetVersion}
+                </dd>
+                <dt>Configuration version</dt>
+                <dd>{config.configVersion}</dd>
                 <dt>Model</dt>
                 <dd>
                   {config.model.provider} / {config.model.id}
                 </dd>
                 <dt>Roles</dt>
                 <dd>{config.roles.map((r) => r.id).join(", ")}</dd>
+                <BudgetSummary config={config} />
                 <dt>Rounds</dt>
                 <dd>
                   {config.scheduler.rounds} ×{" "}

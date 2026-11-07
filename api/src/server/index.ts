@@ -12,6 +12,9 @@ import { defaultFixtureConfiguration, resolveConfiguration, resolvePair, validat
 import { createQueuedRun } from '@sidechannel/domain/harness/initialization';
 import { configurationSchema, fieldErrors } from '@sidechannel/contracts/server/config-schema';
 import type { ResearcherRepository, ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
+import type { HealthcareCatalog } from '@sidechannel/contracts/healthcare/repository';
+import { HealthcareService } from '../healthcare/service.js';
+import { adaptionModelRoute, validateAdaptionModelSelection } from './adaption-models.js';
 
 export type { Draft } from '@sidechannel/contracts/harness/repository';
 
@@ -23,6 +26,7 @@ export interface ResearcherServerOptions {
     buildMetadata?: ExperimentConfig['build'];
     extensionHandlers?: ResearchRouteHandler[];
     dashboardDirectory?: string;
+    healthcareCatalog?: HealthcareCatalog;
 }
 
 class HttpError extends Error { constructor(public status: number, message: string) { super(message); } }
@@ -55,7 +59,22 @@ function differences(left: unknown, right: unknown, path = ''): string[] {
 }
 
 export function createResearcherServer(repository: ResearcherRepository, options: ResearcherServerOptions = {}): Server {
+    const healthcare = options.healthcareCatalog ? new HealthcareService(options.healthcareCatalog) : undefined;
+    const extensionHandlers = [adaptionModelRoute, ...(healthcare ? [healthcare.routes(repository)] : []), ...(options.extensionHandlers ?? [])];
     const withBuild = (input: unknown): unknown => input && typeof input === 'object' && !Array.isArray(input) ? { ...input, ...(options.buildMetadata ? { build: options.buildMetadata } : {}) } : input;
+    const prepare = async (input: unknown) => {
+        let config = withBuild(input);
+        try {
+            if (healthcare) config = await healthcare.resolveConfiguration(config);
+            else if ((config as ExperimentConfig)?.scenario?.version === 'healthcare-points-v0.3') throw new Error('scenario.datasetId: Healthcare catalog is unavailable; bootstrap the datasets');
+        } catch (error) { const message = error instanceof Error ? error.message : 'Dataset resolution failed'; return { config, validation: { valid: false, errors: [message], fieldErrors: { 'scenario.datasetId': message }, fieldIssues: [{ path: 'scenario.datasetId', message }] } }; }
+        const base = validate(config);
+        const additional = base.valid ? await validateAdaptionModelSelection(config as ExperimentConfig) : [];
+        if (!additional.length) return { config, validation: base };
+        const issues = additional.map(message => ({ path: message.includes(':') ? message.split(':')[0]! : message.startsWith('model.') ? message.split(' ')[0]! : 'model.id', message }));
+        return { config, validation: { ...base, valid: false, errors: [...base.errors, ...additional], fieldIssues: [...base.fieldIssues, ...issues], fieldErrors: { ...base.fieldErrors, ...Object.fromEntries(issues.map(issue => [issue.path, issue.message])) } } };
+    };
+    const freezeReference = async (run: Run) => { const existing = await repository.getRunByLaunchKey(run.launchKey); if (existing) { if (existing.configHash !== run.configHash) throw new HttpError(409, 'Idempotency key conflicts with a different configuration'); run.id = existing.id; } await healthcare?.freezeRunReference(run); return run; };
     const dashboardDirectory = options.dashboardDirectory ?? process.env.DASHBOARD_DIST_DIR ?? fileURLToPath(new URL('../../../dashboard/dist/', import.meta.url));
     return createServer(async (req, res) => {
         res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -87,7 +106,7 @@ export function createResearcherServer(repository: ResearcherRepository, options
                 if (method === 'GET' && path === '/config/default') return send(200, defaultFixtureConfiguration());
                 if (method === 'GET' && path === '/config/schema') return send(200, configurationSchema);
                 if (method === 'POST' && path === '/config/validate') {
-                    const b = await input(), config = withBuild(b.config), validation = validate(config);
+                    const b = await input(), { config, validation } = await prepare(b.config);
                     return send(200, { ...validation, ...(validation.valid ? { config: resolveConfiguration(config) } : {}) });
                 }
                 if (path === '/drafts' && method === 'GET') return send(200, await repository.listDrafts());
@@ -124,7 +143,8 @@ export function createResearcherServer(repository: ResearcherRepository, options
                     return send(200, { ...result, nextOffset: offset + limit < result.total ? offset + limit : null });
                 }
                 if ((path === '/runs' || path === '/pairs') && method === 'POST') {
-                    const b = await input(), key = idempotency(b.idempotencyKey), config = withBuild(b.config);
+                    const b = await input(), key = idempotency(b.idempotencyKey), { config, validation } = await prepare(b.config);
+                    if (!validation.valid) return send(400, { error: validation.errors.join('; '), ...validation });
                     let sourceDraft: Run['sourceDraft'];
                     if (b.sourceDraftId !== undefined || b.sourceDraftRevision !== undefined) {
                         if (typeof b.sourceDraftId !== 'string' || !Number.isSafeInteger(b.sourceDraftRevision) || Number(b.sourceDraftRevision) < 1) throw new HttpError(400, 'Saved draft launches require sourceDraftId and sourceDraftRevision');
@@ -133,16 +153,17 @@ export function createResearcherServer(repository: ResearcherRepository, options
                         else {
                             const draft = await repository.getDraft(b.sourceDraftId);
                             if (!draft || draft.revision !== b.sourceDraftRevision) throw new HttpError(409, 'Source draft changed; reload and review its current revision');
-                            if (!isDeepStrictEqual(resolveConfiguration(withBuild(draft.config)), resolveConfiguration(config))) throw new HttpError(409, 'Launch configuration differs from the selected saved draft');
+                            const preparedDraft = await prepare(draft.config);
+                            if (!preparedDraft.validation.valid || !isDeepStrictEqual(resolveConfiguration(preparedDraft.config), resolveConfiguration(config))) throw new HttpError(409, 'Launch configuration differs from the selected saved draft');
                             const { config: ignored, updatedAt, ...snapshot } = draft;
                             sourceDraft = snapshot;
                         }
                     }
                     const source = sourceDraft ? { sourceDraft } : {};
-                    if (path === '/runs') return send(202, await repository.createRun({ ...createQueuedRun(resolveConfiguration(config), key), ...source }));
+                    if (path === '/runs') return send(202, await repository.createRun(await freezeReference({ ...createQueuedRun(resolveConfiguration(config), key), ...source })));
                     const configs = resolvePair(config), pairingSeed = cursor(String(b.pairingSeed ?? 42), 42), pairId = 'pair-' + key;
                     const runs = seededOrder(['0', '1'], pairingSeed).map((index, pairPosition) => ({ ...createQueuedRun(configs[Number(index)]!, key + ':' + index, pairId), pairingSeed, pairPosition, ...source }));
-                    return send(202, await repository.createPair(runs));
+                    return send(202, await repository.createPair(await Promise.all(runs.map(freezeReference))));
                 }
                 const pair = path.match(/^\/pairs\/([^/]+)$/);
                 if (pair && method === 'GET') {
@@ -189,9 +210,10 @@ export function createResearcherServer(repository: ResearcherRepository, options
                     if (!op) return send(200, run);
                     const events = []; let after = 0;
                     while (true) { const rows = await repository.listEvents(id, after, 1000); events.push(...rows); if (rows.length < 1000) break; after = rows.at(-1)!.sequence; }
-                    return send(200, { schemaVersion: 1, scope: 'complete-source-evidence', exportedAt: new Date().toISOString(), run, events });
+                    const researcherEvaluation = await healthcare?.researcherExport(run, repository);
+                    return send(200, { schemaVersion: 1, scope: 'complete-source-evidence', exportedAt: new Date().toISOString(), run, events, ...(researcherEvaluation ? { researcherEvaluation } : {}) });
                 }
-                for (const handler of options.extensionHandlers ?? []) {
+                for (const handler of extensionHandlers) {
                     const result = await handler({ method, path, query, body: ['GET', 'HEAD'].includes(method) ? {} : await input() });
                     if (result) {
                         if (result.data && typeof result.data === 'object' && Symbol.asyncIterator in result.data) {

@@ -4,6 +4,7 @@ import { createResearcherServer } from './server/index.js';
 import { createJevExtension } from './routes/jev-extension.js';
 import { MongoResearchStore } from '@sidechannel/persistence/analysis/store';
 import { createOversightHandler } from './routes/oversight.js';
+import { MongoHealthcareCatalog } from '@sidechannel/persistence/healthcare/catalog';
 
 const host = process.env.HARNESS_HOST ?? '127.0.0.1';
 
@@ -14,8 +15,10 @@ const repository = await MongoRepository.connect(process.env.MONGODB_URI ?? 'mon
 const researchStore = new MongoResearchStore(repository.db);
 
 await researchStore.initialize();
+const healthcareCatalog = new MongoHealthcareCatalog(repository.client, repository.db);
+await healthcareCatalog.initialize();
 
-const server = createResearcherServer(repository, { host, token: process.env.RESEARCHER_TOKEN, buildMetadata: await buildMetadata(), extensionHandlers: [await createJevExtension(repository), createOversightHandler(repository, researchStore)] });
+const server = createResearcherServer(repository, { host, healthcareCatalog, token: process.env.RESEARCHER_TOKEN, buildMetadata: await buildMetadata(), extensionHandlers: [await createJevExtension(repository), createOversightHandler(repository, researchStore)] });
 
 server.listen(port, host, () => console.log(`Researcher dashboard: http://${host}:${port}`));
 

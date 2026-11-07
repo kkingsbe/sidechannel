@@ -53,6 +53,8 @@ import { cn, pretty, short, when } from "../lib/utils";
 import { RunTable } from "../App";
 import "./runs-oversight.css";
 import { ArtifactView } from "../components/artifact-view";
+import { BudgetSummary } from "../components/budget-summary";
+import { HealthcareResults } from "../components/healthcare-results";
 type RecordPage<T> = {
   items: T[];
   nextOffset?: number | null;
@@ -445,6 +447,9 @@ function RunDetail() {
           { id: "reports", label: "Reports" },
           { id: "traces", label: "Model & traces" },
           { id: "configuration", label: "Configuration" },
+          ...(data.config.scenario.version === "healthcare-points-v0.3"
+            ? [{ id: "results", label: "Researcher results" }]
+            : []),
         ]}
       />
       <section
@@ -453,7 +458,9 @@ function RunDetail() {
         aria-labelledby={`run-evidence-panel-tab-${tab}`}
         tabIndex={0}
       >
-        {["timeline", "traces"].includes(tab) ? (
+        {tab === "results" ? (
+          <HealthcareResults runId={id!} />
+        ) : ["timeline", "traces"].includes(tab) ? (
           <Card>
             <CardHeading
               title={
@@ -610,11 +617,8 @@ function RunDetail() {
                   <dt>Condition wording</dt>
                   <dd>{data.config.condition.text}</dd>
                   <dt>Memory isolation</dt>
-                  <dd>
-                    Private thread ·{" "}
-                    {data.config.memory.contextBudget.toLocaleString()}{" "}
-                    characters
-                  </dd>
+                  <dd>Private per-run, per-agent thread</dd>
+                  <BudgetSummary config={data.config} />
                   <dt>Agent order seed</dt>
                   <dd>{data.config.scheduler.seed}</dd>
                   <dt>Created</dt>
@@ -738,6 +742,7 @@ function RunDetail() {
                           <ArtifactView
                             value={object.value}
                             schemaVersion={data.config.artifactSchemaVersion}
+                            scenarioVersion={data.config.scenario.version}
                           />
                         ) : (
                           <p className="text-block">
@@ -1086,7 +1091,7 @@ function PairCondition({
         <dl className="definition-list">
           <dt>Execution</dt>
           <dd>
-            {run.status}  -  round {run.round} / {run.config.scheduler.rounds}  -
+            {run.status} - round {run.round} / {run.config.scheduler.rounds} -
             turn {run.turn}
           </dd>
           <dt>Recorded update</dt>
@@ -1109,8 +1114,8 @@ function PairCondition({
           <h3>Evidence availability</h3>
           {resource.data ? (
             <p>
-              {resource.data.board?.length ?? 0} board posts  - {" "}
-              {resource.data.artifacts?.length ?? 0} artifact versions  - {" "}
+              {resource.data.board?.length ?? 0} board posts -{" "}
+              {resource.data.artifacts?.length ?? 0} artifact versions -{" "}
               {resource.data.reports?.length ?? 0} final reports.{" "}
               <Link to={"/runs/" + run.id + "?view=timeline" + suffix}>
                 Open canonical event timeline
@@ -1135,6 +1140,7 @@ function PairCondition({
                   <ArtifactView
                     value={item.value}
                     schemaVersion={run.config.artifactSchemaVersion}
+                    scenarioVersion={run.config.scenario.version}
                   />
                 </div>
               ))
@@ -1154,7 +1160,7 @@ function PairCondition({
               resource.data.reports.map((report) => (
                 <details key={report.agentId}>
                   <summary>
-                    {report.agentId}  - {" "}
+                    {report.agentId} -{" "}
                     {report.parsed === null
                       ? "Invalid / unparsed"
                       : "Recorded report"}

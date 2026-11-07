@@ -60,7 +60,8 @@ export async function executeTool(run: Run, role: Role, scenario: Scenario, memo
         return { result: { ok: true, messages: messages as unknown as Json[], hasOlder, beforeSequence: hasOlder ? messages[0]!.sequence : null }, yielded: false, changed: 'board_delivery', after: messages };
     }
     if (name === 'update_working_memory') {
-        if (typeof a.notes !== 'string' || a.notes.length > run.config.memory.contextBudget)
+        const noteLimit = run.config.memory.maxPrivateNoteCharacters ?? run.config.memory.contextBudget;
+        if (typeof a.notes !== 'string' || a.notes.length > noteLimit)
             return { result: { ok: false, error: 'Invalid notes' }, yielded: false };
         const before = { version: snapshot.version, notes: snapshot.notes };
         snapshot.version++;
@@ -78,6 +79,6 @@ export async function executeTool(run: Run, role: Role, scenario: Scenario, memo
     catch (error) {
         if (!(error instanceof ScenarioValidationError))
             throw error;
-        return { result: { ok: false, error: error instanceof Error ? error.message : String(error) }, yielded: false };
+        return { result: { ok: false, error: error.message, disposition: error.disposition }, yielded: false };
     }
 }

@@ -15,6 +15,40 @@ export interface Role {
     allowedTools: string[];
 }
 
+export interface ModelCapacity {
+    modelId: string;
+    tokens: number;
+    sourceUrl: string;
+    verifiedAt: string;
+    version: string;
+}
+
+/** Explicit opt-in: saved character budgets are never reinterpreted as tokens. */
+export interface TokenBudget {
+    version: 1;
+    unit: 'tokens';
+    maxInputTokens: number;
+    capacity?: ModelCapacity;
+    counting: {
+        method: 'utf8-byte-upper-bound';
+        version: '1';
+        scope: 'messages-and-tool-definitions';
+        reservedTokens: number;
+    };
+}
+
+export interface AdaptionModelCatalog {
+    status: 'available' | 'unavailable';
+    models: {
+        id: string;
+        displayName: string;
+        capacity: ModelCapacity | null;
+        supportedSettings: string[];
+        launchable: boolean;
+    }[];
+    message?: string;
+}
+
 export interface ExperimentConfig {
     schemaVersion: 1;
     experimentId: string;
@@ -26,6 +60,7 @@ export interface ExperimentConfig {
         id: string;
         settings: Record<string, Json>;
     };
+    tokenBudget?: TokenBudget;
     condition: {
         id: 'reviewed' | 'excluded';
         version: string;
@@ -59,6 +94,8 @@ export interface ExperimentConfig {
         semanticRecall: false;
         observationalMemory: false;
         contextBudget: number;
+        /** Independent note control, in JavaScript string characters; required for token runs. */
+        maxPrivateNoteCharacters?: number;
     };
     limits: {
         requestTimeoutMs: number;

@@ -139,6 +139,7 @@ Mongo integration checks require the local replica set started by Docker Compose
 | [docs/service-layout-migration.md](docs/service-layout-migration.md) | Nx/npm monorepo migration requirements, boundaries and acceptance criteria |
 | [docs/healthcare-scenario-contract.md](docs/healthcare-scenario-contract.md) | Simplified distributed points-ranking task, collaboration requirements, and token-budget contract |
 | [docs/dataset-import-spec.md](docs/dataset-import-spec.md) | Versioned scenario packages, v0.2 conversion, truth separation, and import validation |
+| [docs/healthcare-dashboard-smoke-readiness.md](docs/healthcare-dashboard-smoke-readiness.md) | Remaining implementation and automated gates before the user runs the live healthcare dashboard smoke test |
 
 ## Next steps and limits
 

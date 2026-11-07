@@ -42,6 +42,7 @@ services:
       HARNESS_PORT: "4310"
       DASHBOARD_DIST_DIR: /app/dashboard/dist
       RESEARCHER_TOKEN: ${RESEARCHER_TOKEN:-}
+      ADAPTION_API_KEY: ${ADAPTION_API_KEY:-}
     ports:
       - "127.0.0.1:4310:4310"
     networks:

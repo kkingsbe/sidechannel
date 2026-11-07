@@ -41,6 +41,7 @@ COPY --from=build --chown=node:node /app/packages/domain/dist /app/packages/doma
 COPY --from=build --chown=node:node /app/packages/persistence/package.json /app/packages/persistence/package.json
 COPY --from=build --chown=node:node /app/packages/persistence/dist /app/packages/persistence/dist
 COPY --from=build --chown=node:node /app/dashboard/dist /app/dashboard/dist
+COPY --chown=node:node data/healthcare/points-out/ /app/data/healthcare/points-out/
 ENV DASHBOARD_DIST_DIR=/app/dashboard/dist
 USER node
 CMD ["node", "dist/main.js"]
