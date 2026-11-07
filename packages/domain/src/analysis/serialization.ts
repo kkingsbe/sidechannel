@@ -1,6 +1,7 @@
 import type { AnalysisWindow, CanonicalStep, EvidenceSelection, InputLimits, SerializedWindow } from '@sidechannel/contracts/analysis/evidence-contracts';
 import { immutableSnapshot, snapshotHash, stableStringify } from './configuration.js';
 import { evidenceAvailability } from './normalization.js';
+import { SIDE_EFFECT_ENABLED, TOOL_EFFECT_ENABLED } from './evidence-selection.js';
 import type { BudgetQuestion, QuestionBatch, WindowPreflight } from '@sidechannel/contracts/analysis/serialization';
 
 export const SERIALIZATION_VERSION = 'jev-state-v1';
@@ -75,7 +76,7 @@ export function serializeWindow(window: AnalysisWindow, input: readonly Canonica
             const projectedArgs = selection.toolArguments ? projectToolPayload(args, c.name, selection) : undefined;
             const projectedResult = selection.toolResults ? projectToolPayload(result, c.name, selection) : undefined;
             hasEvidence ||= meaningful(projectedArgs) || meaningful(projectedResult) || selection.toolResults && !!reason || selection.toolArguments;
-            const effects = s.sideEffects.filter(e => e.operationId && e.operationId === c.operationId && (e.type === 'memory_updated' ? selection.privateMemory : e.type === 'artifact_updated' ? selection.artifactChanges : e.type === 'board_delivery' ? selection.boardDelivery && selection.boardContent : selection.boardContent));
+            const effects = s.sideEffects.filter(e => e.operationId && e.operationId === c.operationId && TOOL_EFFECT_ENABLED[e.type](selection));
             return { ...meta,
                 ...(projectedArgs !== undefined ? { arguments: deduplicatePayload(projectedArgs, effects) } : {}),
                 ...(projectedResult !== undefined ? { result: deduplicatePayload(projectedResult, effects) } : {}),
@@ -83,7 +84,7 @@ export function serializeWindow(window: AnalysisWindow, input: readonly Canonica
         });
         const sideEffects = s.sideEffects.map(e => {
             const { before, after, ...meta } = e;
-            let enabled = e.type === 'memory_updated' ? selection.privateMemory : e.type === 'artifact_updated' ? selection.artifactChanges : e.type === 'board_delivery' ? selection.boardDelivery : selection.boardContent;
+            let enabled = SIDE_EFFECT_ENABLED[e.type](selection);
             let data = { before, after };
             if (e.type === 'board_delivery' && !selection.boardContent) data = { before: undefined, after: Array.isArray(after) ? after.map(v => { const { text: _text, ...m } = obj(v); return m; }) : undefined };
             if (enabled) hasEvidence = true;

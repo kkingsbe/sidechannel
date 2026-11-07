@@ -2,7 +2,19 @@ import { DomainFailure } from '../errors.js';
 import type { ProviderUsage } from './jev-provider.js';
 import type { AnalysisConfiguration, AnalysisWindow, Codebook, CodebookRevision, Diagnostic, EvidenceAvailability, SourceSnapshot } from './evidence-contracts.js';
 
-export type JobStatus = 'preparing' | 'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled';
+export const JOB_STATUSES = ['preparing', 'queued', 'running', 'completed', 'partial', 'failed', 'cancelled'] as const;
+
+export type JobStatus = typeof JOB_STATUSES[number];
+
+/** A job in one of these statuses is still owned by a worker: cancel is allowed, retry is not. */
+export const ACTIVE_JOB_STATUSES: readonly JobStatus[] = ['preparing', 'queued', 'running'];
+
+/** A job in one of these statuses may be retried. */
+export const RETRYABLE_JOB_STATUSES: readonly JobStatus[] = ['completed', 'partial', 'failed', 'cancelled'];
+
+export function isActiveJob(status: JobStatus): boolean {
+    return ACTIVE_JOB_STATUSES.includes(status);
+}
 
 export interface AnalysisManifest {
     version: 1; source: Omit<SourceSnapshot, 'eventIds'>; sourceArtifact: string;

@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { assertMatchedPair, assertSameLaunchConfiguration } from '@sidechannel/domain/harness/launch';
 import type { HarnessEvent, NewEvent, Run } from '@sidechannel/contracts/harness/contracts';
+import { ACTIVE_RUN_STATUSES, CANCEL_OVERRIDE_RUN_STATUSES } from '@sidechannel/contracts/harness/contracts';
 import type { ResearcherRepository, WorkerStatus } from '@sidechannel/contracts/server/contracts';
-import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, type EvidenceKind, type EvidencePage } from '@sidechannel/contracts/harness/repository';
+import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, EVIDENCE_KEY_FIELD, type EvidenceKind, type EvidencePage } from '@sidechannel/contracts/harness/repository';
 import { toRunSummary } from '@sidechannel/domain/harness/repository';
 
 function eventPhase(event: HarnessEvent): string {
@@ -62,7 +63,7 @@ export class InMemoryRepository implements ResearcherRepository {
         next.sourceDraft = current.sourceDraft;
         if (current.cancelRequested) {
             next.cancelRequested = true;
-            if (['queued', 'running', 'reporting', 'completed'].includes(next.status))
+            if (CANCEL_OVERRIDE_RUN_STATUSES.includes(next.status))
                 next.status = 'stopping';
         }
         this.runs.set(run.id, next);
@@ -92,7 +93,7 @@ export class InMemoryRepository implements ResearcherRepository {
             return { items: [], total: 0 };
         return clone({ items: run[kind].slice(offset, offset + limit), total: run[kind].length, ...(kind === 'reports' ? { reporting: { instructions: run.config.reportInstructions, schemaVersion: run.config.reportSchemaVersion } } : {}) });
     }
-    async getEvidenceItem(id: string, kind: EvidenceKind, key: string): Promise<unknown | null> { const rows = this.runs.get(id)?.[kind] ?? []; const field = kind === 'board' ? 'id' : kind === 'artifacts' ? 'version' : 'agentId'; return clone(rows.find(row => String((row as unknown as Record<string, unknown>)[field]) === key) ?? null); }
+    async getEvidenceItem(id: string, kind: EvidenceKind, key: string): Promise<unknown | null> { const rows = this.runs.get(id)?.[kind] ?? []; const field = EVIDENCE_KEY_FIELD[kind]; return clone(rows.find(row => String((row as unknown as Record<string, unknown>)[field]) === key) ?? null); }
     async queryEvents(id: string, query: EventQuery) { const offset = query.offset ?? 0; return clone(this.events.filter(event => event.runId === id && matchesEvent(event, query)).slice(offset, offset + (query.limit ?? 200))); }
     async getEvent(runId: string, eventId: string) { return clone(this.events.find(event => event.runId === runId && event.id === eventId) ?? null); }
     async workerStatus(): Promise<WorkerStatus> { return { capacity: 1, available: null, status: this.workerGuard ? 'registered' : 'unknown', ...(this.workerGuard ? { startedAt: this.workerGuard } : {}), note: 'Worker registration has no heartbeat; current availability is unknown.' }; }
@@ -105,7 +106,7 @@ export class InMemoryRepository implements ResearcherRepository {
     async releaseWorker(owner: string) { if (this.workerGuard === owner) this.workerGuard = undefined; }
     async requestCancel(id: string) {
         const run = this.runs.get(id);
-        if (run && ['queued', 'running', 'reporting', 'stopping'].includes(run.status)) {
+        if (run && ACTIVE_RUN_STATUSES.includes(run.status)) {
             run.cancelRequested = true;
             run.status = run.status === 'queued' ? 'cancelled' : 'stopping';
             run.updatedAt = new Date().toISOString();

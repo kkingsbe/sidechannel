@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { MongoClient, type Db, type Document } from 'mongodb';
 import { assertMatchedPair, assertSameLaunchConfiguration } from '@sidechannel/domain/harness/launch';
 import type { HarnessEvent, NewEvent, Run } from '@sidechannel/contracts/harness/contracts';
+import { ACTIVE_RUN_STATUSES, CANCEL_OVERRIDE_RUN_STATUSES } from '@sidechannel/contracts/harness/contracts';
 import type { ResearcherRepository, WorkerStatus } from '@sidechannel/contracts/server/contracts';
-import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, type EvidenceKind, type EvidencePage } from '@sidechannel/contracts/harness/repository';
+import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, EVIDENCE_KEY_COERCION, EVIDENCE_KEY_FIELD, type EvidenceKind, type EvidencePage } from '@sidechannel/contracts/harness/repository';
 import type { WorkerGuard } from '@sidechannel/contracts/harness/server';
 import { summaryProjection, toRunSummary, type SummaryRun } from '@sidechannel/domain/harness/repository';
 import { COLLECTIONS, initializeHarnessSchema } from '../schema.js';
@@ -76,7 +77,7 @@ export class MongoRepository implements ResearcherRepository, WorkerGuard {
         const result = await this.db.collection(COLLECTIONS.runs).updateOne({ id }, [{ $set: {
                     ...Object.fromEntries(Object.entries(mutable).map(([key, value]) => [key, { $literal: value }])),
                     cancelRequested: { $or: ['$cancelRequested', { $literal: Boolean(run.cancelRequested) }] },
-                    status: { $cond: [{ $and: ['$cancelRequested', { $literal: ['queued', 'running', 'reporting', 'completed'].includes(run.status) }] }, 'stopping', { $literal: run.status }] },
+                    status: { $cond: [{ $and: ['$cancelRequested', { $literal: CANCEL_OVERRIDE_RUN_STATUSES.includes(run.status) }] }, 'stopping', { $literal: run.status }] },
                 } }]);
         if (!result.matchedCount)
             throw new Error('Run not found');
@@ -123,7 +124,7 @@ export class MongoRepository implements ResearcherRepository, WorkerGuard {
         return row ?? { items: [], total: 0 };
     }
     async getEvidenceItem(id: string, kind: EvidenceKind, key: string): Promise<unknown | null> {
-        const field = kind === 'board' ? 'id' : kind === 'artifacts' ? 'version' : 'agentId', value = kind === 'artifacts' ? Number(key) : key;
+        const field = EVIDENCE_KEY_FIELD[kind], value = EVIDENCE_KEY_COERCION[kind](key);
         const [row] = await this.db.collection(COLLECTIONS.runs).aggregate<{ item?: unknown }>([{ $match: { id } }, { $project: { _id: 0, item: { $arrayElemAt: [{ $filter: { input: `$${kind}`, as: 'entry', cond: { $eq: [`$$entry.${field}`, { $literal: value }] } } }, 0] } } }]).toArray();
         return row?.item ?? null;
     }
@@ -143,7 +144,7 @@ export class MongoRepository implements ResearcherRepository, WorkerGuard {
             note: 'Worker registration has no heartbeat; current availability is unknown.' };
     }
     async requestCancel(id: string) {
-        await this.db.collection(COLLECTIONS.runs).updateOne({ id, status: { $in: ['queued', 'running', 'reporting', 'stopping'] } }, [{ $set: { cancelRequested: true, status: { $cond: [{ $eq: ['$status', 'queued'] }, 'cancelled', 'stopping'] }, updatedAt: new Date().toISOString() } }]);
+        await this.db.collection(COLLECTIONS.runs).updateOne({ id, status: { $in: [...ACTIVE_RUN_STATUSES] } }, [{ $set: { cancelRequested: true, status: { $cond: [{ $eq: ['$status', 'queued'] }, 'cancelled', 'stopping'] }, updatedAt: new Date().toISOString() } }]);
         return this.getRun(id);
     }
     async acquireWorker(owner: string) {

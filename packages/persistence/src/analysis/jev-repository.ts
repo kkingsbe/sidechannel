@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { MongoClient, type Db, type Document, type ClientSession } from 'mongodb';
 import type { Codebook, CodebookRevision } from '@sidechannel/contracts/analysis/evidence-contracts';
-import { type JobStatus, type JobCounters, type JobUsage, type AnalysisJob, type WindowRecord, type AnalysisResult, type AnalysisAttempt, type PageOptions, type Page, AnalysisConflict, AnalysisNotFound, AnalysisValidation, type Lease, type AnalysisRepository } from '@sidechannel/contracts/analysis/jev-repository';
+import { type JobStatus, type JobCounters, type JobUsage, type AnalysisJob, type WindowRecord, type AnalysisResult, type AnalysisAttempt, type PageOptions, type Page, AnalysisConflict, AnalysisNotFound, AnalysisValidation, type Lease, type AnalysisRepository, ACTIVE_JOB_STATUSES, RETRYABLE_JOB_STATUSES, isActiveJob } from '@sidechannel/contracts/analysis/jev-repository';
 
 const copy = <T>(v: T): T => structuredClone(v);
 
@@ -59,8 +59,8 @@ export class InMemoryAnalysisRepository implements AnalysisRepository {
     async resultsForWindows(jobId: string, ids: string[]) { if (ids.length > 500) throw new AnalysisValidation('Window result join is limited to 500 windows'); const selected = new Set(ids); return copy([...this.results.values()].filter(r => r.jobId === jobId && selected.has(r.windowId)).slice(0, 50_000)); }
     async listAttempts(jobId: string, p: PageOptions = {}) { return pageOf([...this.attempts.values()].filter(a => a.jobId === jobId && (!p.windowId || a.windowId === p.windowId)), p); }
     async finishJob(l: Lease, status: JobStatus, counters: JobCounters, error?: string, usage?: JobUsage) { const j = this.jobs.get(l.jobId); if (!live(j, l)) return false; j!.status = j!.cancelRequested ? 'cancelled' : status; j!.counters = copy(counters); j!.updatedAt = new Date().toISOString(); if (usage) j!.usage = copy(usage); if (error) j!.error = error; delete j!.lease; return true; }
-    async cancel(id: string) { const j = this.jobs.get(id); if (j && ['preparing', 'queued', 'running'].includes(j.status)) { j.cancelRequested = true; if (j.status !== 'running') j.status = 'cancelled'; } return this.getJob(id); }
-    async retry(id: string) { const j = this.jobs.get(id); if (j) { if (['preparing', 'queued', 'running'].includes(j.status)) throw new AnalysisConflict('Job is still active'); j.status = 'queued'; j.cancelRequested = false; delete j.lease; } return this.getJob(id); }
+    async cancel(id: string) { const j = this.jobs.get(id); if (j && isActiveJob(j.status)) { j.cancelRequested = true; if (j.status !== 'running') j.status = 'cancelled'; } return this.getJob(id); }
+    async retry(id: string) { const j = this.jobs.get(id); if (j) { if (isActiveJob(j.status)) throw new AnalysisConflict('Job is still active'); j.status = 'queued'; j.cancelRequested = false; delete j.lease; } return this.getJob(id); }
 }
 
 const clean = <T>(d: Document | null): T | null => { if (!d) return null; const { _id, ...rest } = d; return rest as T; };
@@ -121,6 +121,6 @@ export class MongoAnalysisRepository implements AnalysisRepository {
     async resultsForWindows(jobId: string, ids: string[]) { if (ids.length > 500) throw new AnalysisValidation('Window result join is limited to 500 windows'); return (await this.db.collection('analysis_results').find({ jobId, windowId: { $in: ids } }).limit(50000).toArray()).map(row => clean<AnalysisResult>(row)!); }
     async listAttempts(jobId: string, p: PageOptions = {}) { return this.page<AnalysisAttempt>('analysis_attempts', { jobId, ...(p.windowId ? { windowId: p.windowId } : {}) }, p); }
     async finishJob(l: Lease, status: JobStatus, counters: JobCounters, error?: string, usage?: JobUsage) { return (await this.db.collection('analysis_jobs').updateOne(this.guard(l), [{ $set: { status: { $cond: ['$cancelRequested', 'cancelled', { $literal: status }] }, counters: { $literal: counters }, ...(usage ? { usage: { $literal: usage } } : {}), ...(error ? { error: { $literal: error } } : {}), updatedAt: new Date().toISOString() } }, { $unset: 'lease' }])).matchedCount === 1; }
-    async cancel(id: string) { await this.db.collection('analysis_jobs').updateOne({ id, status: { $in: ['preparing', 'queued', 'running'] } }, [{ $set: { cancelRequested: true, status: { $cond: [{ $eq: ['$status', 'running'] }, 'running', 'cancelled'] } } }]); return this.getJob(id); }
-    async retry(id: string) { const r = await this.db.collection('analysis_jobs').updateOne({ id, ready: true, status: { $in: ['completed', 'partial', 'failed', 'cancelled'] } }, { $set: { status: 'queued', cancelRequested: false }, $unset: { lease: '' } }); const job = await this.getJob(id); if (job && !r.matchedCount) throw new AnalysisConflict('Job is still active'); return job; }
+    async cancel(id: string) { await this.db.collection('analysis_jobs').updateOne({ id, status: { $in: [...ACTIVE_JOB_STATUSES] } }, [{ $set: { cancelRequested: true, status: { $cond: [{ $eq: ['$status', 'running'] }, 'running', 'cancelled'] } } }]); return this.getJob(id); }
+    async retry(id: string) { const r = await this.db.collection('analysis_jobs').updateOne({ id, ready: true, status: { $in: [...RETRYABLE_JOB_STATUSES] } }, { $set: { status: 'queued', cancelRequested: false }, $unset: { lease: '' } }); const job = await this.getJob(id); if (job && !r.matchedCount) throw new AnalysisConflict('Job is still active'); return job; }
 }

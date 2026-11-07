@@ -64,7 +64,37 @@ function traceContent(event: HarnessEvent): unknown {
     return researchSafe(data);
 }
 
-export function buildProjection(run: Run, events: HarnessEvent[], view: MonitorView, definition: MonitorDefinition, settings: MonitorSettings): Projection {
+export interface ProjectionContext {
+    run: Run;
+    definition: MonitorDefinition;
+    settings: MonitorSettings;
+    ordered: HarnessEvent[];
+    tools: Map<string, string>;
+    allowedTools: Set<string>;
+    reportEvents: HarnessEvent[];
+    reports: { evidenceId: string; [key: string]: unknown }[];
+    final: Run['artifacts'][number] | undefined;
+    freezeEvent: HarnessEvent | undefined;
+}
+
+export interface ProjectionBuilderResult { projection: Projection; payload: Record<string, unknown>; }
+
+export interface ProjectionSpec {
+    audit: boolean;
+    board: boolean;
+    trace: boolean;
+    included: readonly string[];
+    excluded: readonly string[];
+}
+
+const BASE_INCLUDED = ['final reports', 'submitted artifact', 'task/policy context'] as const;
+const BASE_EXCLUDED = ['answer keys', 'Jev classifications', 'human labels', 'other monitor outputs'] as const;
+const AUDIT_INCLUDED = ['allowlisted actor/tool/time metadata'] as const;
+const BOARD_INCLUDED = ['board posts', 'exact board delivery IDs'] as const;
+const DEEP_INCLUDED = ['tool arguments/results', 'assistant outputs', 'artifact history', 'private memory', 'available normalized reasoning'] as const;
+const DEEP_EXCLUDED = ['tool payloads', 'intermediate artifact contents', 'private memory', 'provider reasoning'] as const;
+
+export function prepareProjection(run: Run, events: HarnessEvent[], definition: MonitorDefinition, settings: MonitorSettings): ProjectionContext {
     const ordered = [...events].sort((a, b) => a.sequence - b.sequence);
     const allowedTools = new Set(run.config.roles.flatMap(role => role.allowedTools).filter(tool => /^[a-zA-Z0-9_.-]{1,80}$/.test(tool)));
     const tools = new Map<string, string>();
@@ -72,14 +102,19 @@ export function buildProjection(run: Run, events: HarnessEvent[], view: MonitorV
         const call = record(record(event.data).call);
         if (event.operationId && typeof call.name === 'string') tools.set(event.operationId, call.name);
     }
-    const final = [...run.artifacts].reverse().find(artifact => artifact.frozen);
     const reportEvents = ordered.filter(event => event.type === 'report_submitted');
-    const freezeEvent = [...ordered].reverse().find(event => event.type === 'artifact_frozen');
-    const evidenceIds = new Set<string>(reportEvents.map(event => event.id));
-    if (freezeEvent) evidenceIds.add(freezeEvent.id);
     const reports = run.reports.map((report, i) => ({ ...researchSafe(report) as object,
         evidenceId: reportEvents.find(event => event.agentId === report.agentId)?.id ?? `report:${run.id}:${i}` }));
-    reports.forEach(report => evidenceIds.add(report.evidenceId));
+    return { run, definition, settings, ordered, tools, allowedTools, reportEvents, reports,
+        final: [...run.artifacts].reverse().find(artifact => artifact.frozen),
+        freezeEvent: [...ordered].reverse().find(event => event.type === 'artifact_frozen') };
+}
+
+function assemble(context: ProjectionContext, view: MonitorView, spec: ProjectionSpec): ProjectionBuilderResult {
+    const { run, definition, settings, ordered, tools, allowedTools, reportEvents, reports, final, freezeEvent } = context;
+    const evidenceIds = new Set<string>(reportEvents.map(event => event.id));
+    if (freezeEvent) evidenceIds.add(freezeEvent.id);
+    for (const report of reports) evidenceIds.add(report.evidenceId);
     const evidence: Record<string, unknown> = {
         context: { task: run.config.scenario.task, policy: run.config.scenario.policy,
             scenarioVersion: run.config.scenario.version, reportInstructions: run.config.reportInstructions,
@@ -89,27 +124,22 @@ export function buildProjection(run: Run, events: HarnessEvent[], view: MonitorV
         submittedArtifact: final ? { ...researchSafe(final) as object, evidenceId: freezeEvent?.id ?? `artifact:${run.id}:${final.version}` } : null,
     };
     if (final) evidenceIds.add(freezeEvent?.id ?? `artifact:${run.id}:${final.version}`);
-    const included = ['final reports', 'submitted artifact', 'task/policy context'];
-    const excluded = ['answer keys', 'Jev classifications', 'human labels', 'other monitor outputs'];
-    if (view !== 'reports') {
+    if (spec.audit) {
         evidence.audit = ordered.map(event => eventMetadata(event, tools, allowedTools));
         ordered.forEach(event => evidenceIds.add(event.id));
-        included.push('allowlisted actor/tool/time metadata');
-    } else excluded.push('audit metadata');
-    if (view === 'board' || view === 'full') {
+    }
+    if (spec.board) {
         evidence.board = researchSafe(run.board);
         run.board.forEach(post => evidenceIds.add(post.id));
         evidence.deliveries = ordered.filter(event => event.type === 'board_delivery').map(event => ({
             ...eventMetadata(event, tools, allowedTools), messageIds: Array.isArray(record(event.data).after)
                 ? (record(event.data).after as unknown[]).map(item => record(item).id).filter(id => typeof id === 'string') : [],
         }));
-        included.push('board posts', 'exact board delivery IDs');
-    } else excluded.push('board content and deliveries');
-    if (view === 'full') {
+    }
+    if (spec.trace) {
         evidence.trace = ordered.filter(event => traceTypes.has(event.type)).map(event => ({ ...eventMetadata(event, tools, allowedTools), data: traceContent(event) }));
         evidence.artifactHistory = researchSafe(run.artifacts);
-        included.push('tool arguments/results', 'assistant outputs', 'artifact history', 'private memory', 'available normalized reasoning');
-    } else excluded.push('tool payloads', 'intermediate artifact contents', 'private memory', 'provider reasoning');
+    }
     const availability = {
         privateMemory: ordered.some(event => event.type === 'memory_updated' || event.type === 'model_requested' && JSON.stringify(record(event.data).messages ?? []).includes('Private working memory')),
         providerReasoning: ordered.some(event => event.type === 'model_response' && availableReasoning(record(event.data)).length > 0),
@@ -121,8 +151,35 @@ export function buildProjection(run: Run, events: HarnessEvent[], view: MonitorV
     // Intentionally conservative. The provider still enforces its actual tokenizer capacity.
     const estimatedInputTokens = Buffer.byteLength(completeInput, 'utf8');
     const oversized = completeInput.length > settings.maxInputChars || estimatedInputTokens + settings.outputAllowanceTokens > settings.contextWindowTokens;
-    return { schemaVersion: 1, version: 'monitor-projection-v1', runId: run.id, configHash: run.configHash, view,
-        evidenceIds: [...evidenceIds], included, excluded, availability, evidence, serialized, hash: digest(payload),
+    return { payload, projection: { schemaVersion: 1, version: 'monitor-projection-v1', runId: run.id, configHash: run.configHash, view,
+        evidenceIds: [...evidenceIds], included: [...spec.included], excluded: [...spec.excluded], availability, evidence, serialized, hash: digest(payload),
         characters: completeInput.length, estimatedInputTokens, estimator: 'utf8-byte-upper-bound-v1', status: oversized ? 'oversized' : 'ready',
-        ...(oversized ? { reason: 'Complete request exceeds the configured character or conservative context-token budget. Change settings and preview again; no evidence was truncated.' } : {}) };
+        ...(oversized ? { reason: 'Complete request exceeds the configured character or conservative context-token budget. Change settings and preview again; no evidence was truncated.' } : {}) } };
+}
+
+/**
+ * One entry per MonitorView. The four tiers are cumulative (reports ⊂ audit ⊂ board ⊂ full); each
+ * builder states its own evidence sections and its own included/excluded copy, so a new view is a
+ * compile error here instead of a silent fall-through to the audit tier (finding P3).
+ */
+export const MONITOR_VIEW_BUILDERS: Record<MonitorView, (context: ProjectionContext) => ProjectionBuilderResult> = {
+    reports: context => assemble(context, 'reports', { audit: false, board: false, trace: false,
+        included: BASE_INCLUDED, excluded: [...BASE_EXCLUDED, 'audit metadata', 'board content and deliveries', ...DEEP_EXCLUDED] }),
+    audit: context => assemble(context, 'audit', { audit: true, board: false, trace: false,
+        included: [...BASE_INCLUDED, ...AUDIT_INCLUDED], excluded: [...BASE_EXCLUDED, 'board content and deliveries', ...DEEP_EXCLUDED] }),
+    board: context => assemble(context, 'board', { audit: true, board: true, trace: false,
+        included: [...BASE_INCLUDED, ...AUDIT_INCLUDED, ...BOARD_INCLUDED], excluded: [...BASE_EXCLUDED, ...DEEP_EXCLUDED] }),
+    full: context => assemble(context, 'full', { audit: true, board: true, trace: true,
+        included: [...BASE_INCLUDED, ...AUDIT_INCLUDED, ...BOARD_INCLUDED, ...DEEP_INCLUDED], excluded: BASE_EXCLUDED }),
+};
+
+export function buildProjectionWithPayload(run: Run, events: HarnessEvent[], view: MonitorView, definition: MonitorDefinition, settings: MonitorSettings): ProjectionBuilderResult {
+    const context = prepareProjection(run, events, definition, settings);
+    // Preserved behaviour: an unrecognised runtime value (for example from a stored preview written
+    // by an older build) degrades to the audit tier, exactly as `view !== 'reports'` did before WS7.
+    return (MONITOR_VIEW_BUILDERS[view] ?? MONITOR_VIEW_BUILDERS.audit)(context);
+}
+
+export function buildProjection(run: Run, events: HarnessEvent[], view: MonitorView, definition: MonitorDefinition, settings: MonitorSettings): Projection {
+    return buildProjectionWithPayload(run, events, view, definition, settings).projection;
 }

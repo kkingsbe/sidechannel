@@ -133,7 +133,30 @@ export interface MemorySnapshot {
     messages: Message[];
 }
 
-export type RunStatus = 'queued' | 'running' | 'reporting' | 'stopping' | 'cancelled' | 'completed' | 'failed' | 'interrupted';
+export const RUN_STATUSES = ['queued', 'running', 'reporting', 'stopping', 'cancelled', 'completed', 'failed', 'interrupted'] as const;
+
+export type RunStatus = typeof RUN_STATUSES[number];
+
+export const TERMINAL_RUN_STATUSES: readonly RunStatus[] = ['cancelled', 'completed', 'failed', 'interrupted'];
+
+export const ACTIVE_RUN_STATUSES: readonly RunStatus[] = ['queued', 'running', 'reporting', 'stopping'];
+
+/** Terminal statuses whose recorded evidence is complete. */
+export const COMPLETE_RUN_STATUSES: readonly RunStatus[] = ['completed', 'cancelled'];
+
+/** Terminal statuses whose recorded evidence may be incomplete. */
+export const INCOMPLETE_RUN_STATUSES: readonly RunStatus[] = ['failed', 'interrupted'];
+
+/**
+ * Statuses a persisted cancel request rewrites to `stopping`. `completed` is part of the historical
+ * literal (a cancel racing a completion) and is pinned by contracts.test.ts; changing it is a
+ * behaviour change, not a cleanup.
+ */
+export const CANCEL_OVERRIDE_RUN_STATUSES: readonly RunStatus[] = ['queued', 'running', 'reporting', 'completed'];
+
+export function isTerminalRun(status: RunStatus): boolean {
+    return TERMINAL_RUN_STATUSES.includes(status);
+}
 
 export interface BoardMessage {
     id: string;

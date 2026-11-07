@@ -1,4 +1,5 @@
 import type { Repository } from '@sidechannel/contracts/harness/server';
+import { isTerminalRun } from '@sidechannel/contracts/harness/contracts';
 import type { HealthcareCatalog } from '@sidechannel/contracts/healthcare/repository';
 import type { ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
 import { createHealthcarePreset } from '@sidechannel/domain/healthcare/preset';
@@ -23,7 +24,7 @@ export function healthcareRouteHandler(catalog: HealthcareCatalog, repository: P
             if (!reference) return { status: 200, data: { status: 'unavailable', reason: 'No healthcare evaluator reference' } };
             const artifact = run.artifacts.at(-1);
             if (!artifact?.frozen) return { status: 200, data: { status: 'pending', reason: 'Artifact has not been frozen' } };
-            if (!['completed', 'failed', 'cancelled', 'interrupted'].includes(run.status)) return { status: 200, data: { status: 'pending', reason: 'Waiting for execution and reports to finish' } };
+            if (!isTerminalRun(run.status)) return { status: 200, data: { status: 'pending', reason: 'Waiting for execution and reports to finish' } };
             try {
                 const previous = await catalog.getEvaluation(run.id, artifact.version, reference.evaluatorVersion);
                 if (previous) return { status: 200, data: previous };

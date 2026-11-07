@@ -1,6 +1,5 @@
 import type { ResearcherRepository, ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
-
-const RUN_STATUSES = ['queued', 'running', 'reporting', 'stopping', 'completed', 'cancelled', 'failed', 'interrupted'];
+import { RUN_STATUSES } from '@sidechannel/contracts/harness/contracts';
 
 export function createOverviewRouter(repository: Pick<ResearcherRepository, 'queryRuns' | 'workerStatus'>): ResearchRouteHandler {
     return async ({ method, path }) => {

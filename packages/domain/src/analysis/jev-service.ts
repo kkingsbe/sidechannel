@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { HarnessEvent } from '@sidechannel/contracts/harness/contracts';
+import { isTerminalRun } from '@sidechannel/contracts/harness/contracts';
 import type { Repository } from '@sidechannel/contracts/harness/server';
 import type { BehaviorDefinition, CodebookRevision, SerializedWindow } from '@sidechannel/contracts/analysis/evidence-contracts';
 import { createSeedCodebook, resolveAnalysisConfiguration, snapshotHash, staticContextForRun, validateBehaviorDefinitions } from './configuration.js';
@@ -39,7 +40,7 @@ export class AnalysisService {
     }
     private async prepare(runId: string, input: PreviewInput) {
         const run = await this.source.getRun(runId); if (!run) throw new AnalysisNotFound('Source run not found');
-        if (!['completed', 'failed', 'cancelled', 'interrupted'].includes(run.status)) throw new AnalysisConflict('Analysis requires a terminal source run');
+        if (!isTerminalRun(run.status)) throw new AnalysisConflict('Analysis requires a terminal source run');
         const book = await this.repository.getCodebook(text(input.codebookId, 'Codebook ID')); if (!book) throw new AnalysisNotFound('Codebook not found');
         if (input.codebookRevisionId && input.codebookRevisionId !== book.currentRevisionId) throw new AnalysisConflict('Codebook changed since preview');
         const revision = (await this.repository.getRevision(book.id, book.currentRevisionId))!, settings = validate(() => resolveAnalysisConfiguration(input.settings)), events: HarnessEvent[] = []; let after = 0, bytes = 0;

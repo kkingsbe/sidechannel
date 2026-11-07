@@ -20,7 +20,19 @@ export interface EventQuery { after?: number; offset?: number; limit?: number; a
 
 export interface RunQuery { status?: string; model?: string; condition?: string; scenario?: string; designation?: string; order?: 'recent' | 'queue'; limit: number; offset: number }
 
-export type EvidenceKind = 'board' | 'artifacts' | 'reports';
+export const EVIDENCE_KINDS = ['board', 'artifacts', 'reports'] as const;
+
+export type EvidenceKind = typeof EVIDENCE_KINDS[number];
+
+/** How an evidence collection is keyed for single-item reads. */
+export const EVIDENCE_KEY_FIELD: Record<EvidenceKind, 'id' | 'version' | 'agentId'> = { board: 'id', artifacts: 'version', reports: 'agentId' };
+
+/** Client keys arrive as strings; artifact versions are numbers in the stored document. */
+export const EVIDENCE_KEY_COERCION: Record<EvidenceKind, (key: string) => string | number> = {
+    board: key => key,
+    artifacts: key => Number(key),
+    reports: key => key,
+};
 
 export interface EvidencePage { items: unknown[]; total: number; reporting?: { instructions: string; schemaVersion: string } }
 

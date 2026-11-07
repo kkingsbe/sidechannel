@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isTerminalRun } from '@sidechannel/contracts/harness/contracts';
 import { allRecords, hash, timestamp } from '../analysis/store.js';
 import type { ResearchStore } from '@sidechannel/contracts/analysis/store';
 import type { MonitorDefinition } from '@sidechannel/contracts/oversight/contracts';
@@ -19,7 +20,7 @@ export const normalizedReviewer = (value: string) => value.trim().normalize('NFK
 async function sourceSnapshot(repository: OversightSource, runId: string) {
     const run = await repository.getRun(runId);
     if (!run) throw new DomainFailure('not-found', 'Run not found');
-    if (!['completed', 'failed', 'cancelled', 'interrupted'].includes(run.status)) throw new DomainFailure('conflict', 'Run outcome review requires a terminal source run');
+    if (!isTerminalRun(run.status)) throw new DomainFailure('conflict', 'Run outcome review requires a terminal source run');
     const events = (await readEvents(repository, runId)).sort((a, b) => a.sequence - b.sequence);
     // Include actor reports and artifact/board projections as well as the actual event bytes.
     // A config hash alone cannot identify the evidence that two people reviewed.
