@@ -76,7 +76,9 @@ async function compare(name: string, rendered: string): Promise<void> {
         await mkdir(snapshotDirectory, { recursive: true });
         await writeFile(url, `${rendered}\n`);
     }
-    const committed = (await readFile(url, 'utf8')).replace(/\n+$/, '');
+    // Snapshots are committed with LF but a Windows checkout (core.autocrlf=true) materialises CRLF;
+    // normalise line endings so the gate compares event content, never the checkout encoding.
+    const committed = (await readFile(url, 'utf8')).replace(/\r\n/g, '\n').replace(/\n+$/, '');
     compareLines(name, rendered.split('\n'), committed.split('\n'));
 }
 
