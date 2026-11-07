@@ -1,8 +1,9 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { ReviewStore, ReviewDocument, ReviewQuery, MemberQuery } from '@sidechannel/contracts/analysis/review-repository';
 import type { Decision, Review, ReviewWindow, ReviewContext, ReviewBatch, ReviewListFilter, ReviewQueueFilter } from '@sidechannel/contracts/analysis/jev-reviews';
+import { jsonHash } from '../hashing.js';
 
-const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const hash = jsonHash;
 
 const text = (value: unknown, name: string, max = 200) => { if (typeof value !== 'string' || !value.trim() || value.length > max) throw new Error(`Invalid ${name}`); return value.trim(); };
 

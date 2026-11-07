@@ -1,8 +1,8 @@
-import { createHash } from 'node:crypto';
 import type { HarnessEvent, Run } from '@sidechannel/contracts/harness/contracts';
 import type { MonitorDefinition, MonitorSettings, MonitorView, Projection } from '@sidechannel/contracts/oversight/contracts';
+import { jsonHash } from '../hashing.js';
 
-export const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+export const digest = jsonHash;
 
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 

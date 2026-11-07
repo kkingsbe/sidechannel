@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
 import type { ResearchRecord, ResearchFilter, ResearchStore } from '@sidechannel/contracts/analysis/store';
+import { jsonHash } from '../hashing.js';
 
-export const hash = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+export const hash = jsonHash;
 
 export const timestamp = (): string => new Date().toISOString();
 
