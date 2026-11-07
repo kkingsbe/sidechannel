@@ -4,7 +4,8 @@
 .turn-nav select { max-width: min(100%, 440px); }
 .run-events-more { margin: 8px 0; }
 .run-events-pill {
-  position: sticky; bottom: 16px; display: block; margin: 8px auto 0; padding: 6px 14px;
+  /* fixed, not sticky: the enclosing .card has overflow: hidden, which would trap a sticky element */
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 20; padding: 6px 14px;
   border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--foreground);
   box-shadow: 0 4px 14px rgb(0 0 0 / 0.12); font-size: 13px; cursor: pointer;
 }
