@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Link,
   Route,
@@ -9,6 +9,7 @@ import {
 } from "react-router-dom";
 import {
   ArrowLeft,
+  ArrowRight,
   ArrowUpRight,
   Braces,
   Copy,
@@ -36,23 +37,42 @@ import {
   Table,
   Tabs,
 } from "../components/ui";
-import { arrayOf, post, useApi, useMutation } from "../lib/api";
-import type {
-  ArtifactVersion,
-  BoardMessage,
-  Draft,
-  HarnessEvent,
-  Run,
-} from "../lib/types";
-import { cn, pretty, short, when } from "../lib/utils";
+import { ApiError, arrayOf, post, useApi, useMutation } from "../lib/api";
+import type { ArtifactVersion, Draft, HarnessEvent, Run } from "../lib/types";
+import { pretty, short, when } from "../lib/utils";
 import { RunTable } from "../App";
 import "./runs-oversight.css";
 import { ArtifactView } from "../components/artifact-view";
 import { BudgetSummary } from "../components/budget-summary";
 import { HealthcareResults } from "../components/healthcare-results";
-import { MODEL_CALL_EVENT_TYPES } from "../lib/model-calls";
+import { MODEL_CALL_EVENT_TYPES, type PageNav } from "../lib/model-calls";
 import { TimelinePanel } from "./runs/TimelinePanel";
 import { TracesPanel } from "./runs/TracesPanel";
+import { ReadableValue } from "../components/readable-value";
+import { BoardDeliveries } from "../components/run-evidence/board-deliveries";
+import { Downstream } from "../components/run-evidence/downstream";
+import {
+  ACTIVITY_EVENT_TYPES,
+  activityByAgent,
+  assessComparability,
+  eventLink,
+  isTerminal,
+  orderByCondition,
+  plural,
+  roundTurn,
+} from "../components/run-evidence/evidence-model";
+import { MemoryPanel } from "../components/run-evidence/memory-panel";
+import { RunDiagnostic } from "../components/run-evidence/run-diagnostic";
+import {
+  ActivityStrip,
+  ReportSections,
+} from "../components/run-evidence/report-sections";
+import { DiffView } from "../components/run-evidence/line-diff";
+import {
+  EVENT_PAGE_SIZE,
+  findLatestSequence,
+  useRunEventsByType,
+} from "../components/run-evidence/use-run-events";
 import { ModelCallDetail } from "./runs/ModelCallDetail";
 type RecordPage<T> = {
   items: T[];
@@ -217,12 +237,44 @@ function RunDetail() {
     [eventType, setEventType] = useState(""),
     [from, setFrom] = useState(""),
     [to, setTo] = useState("");
+  // Evidence tabs page by offset in local state; timeline/traces page by event cursor in the URL.
   const [page, setPage] = useState(0);
-  const [cursors, setCursors] = useState([0]);
+  const pageKey = tab === "traces" ? "tracePage" : "timelinePage";
+  const cursorKey = tab === "traces" ? "traceCursors" : "timelineCursors";
+  const urlCursors = (params.get(cursorKey) || "")
+    .split(",")
+    .map(Number)
+    .filter((value) => Number.isInteger(value) && value >= 0);
+  const urlPage = Math.max(0, Number(params.get(pageKey)) || 0);
+  const cursors =
+    urlPage > 0 && urlCursors.length === urlPage + 1 ? urlCursors : [0];
+  const eventPage = cursors.length - 1;
   const query = new URLSearchParams({
     limit: "50",
-    after: String(cursors[page] || 0),
+    after: String(cursors[eventPage] || 0),
   });
+  const setEventCursors = (next: number[], replace = false) =>
+    setParams(
+      (prev) => {
+        if (next.length <= 1) {
+          prev.delete(pageKey);
+          prev.delete(cursorKey);
+        } else {
+          prev.set(pageKey, String(next.length - 1));
+          prev.set(cursorKey, next.join(","));
+        }
+        return prev;
+      },
+      { replace },
+    );
+  const goToLatest = async (replace = false) => {
+    const latest = await findLatestSequence(id!);
+    const last = Math.max(0, Math.ceil(latest / EVENT_PAGE_SIZE) - 1);
+    setEventCursors(
+      Array.from({ length: last + 1 }, (_, index) => index * EVENT_PAGE_SIZE),
+      replace,
+    );
+  };
   if (actor) query.set("actor", actor);
   if (phase) query.set("phase", phase);
   if (eventType) query.set("type", eventType);
@@ -260,15 +312,68 @@ function RunDetail() {
       : null,
   );
   const evidence = useApi<RecordPage<unknown> | unknown[]>(
-    ["board", "artifacts", "memory", "reports"].includes(tab)
+    ["board", "artifacts", "reports"].includes(tab)
       ? `/runs/${id}/${tab}?limit=30&offset=${page * 30}`
       : null,
     5000,
   );
+  const workspace = useApi<{ mode?: string }>("/workspace");
+  const isActive = run.data
+    ? !isTerminal(progress.data?.status ?? run.data.status)
+    : false;
+  // Recorded events that give posts, artifact versions and report counts their round/turn and coverage.
+  const sideTypes =
+    tab === "board"
+      ? ["board_post"]
+      : tab === "artifacts"
+        ? ["artifact_updated"]
+        : tab === "reports"
+          ? ACTIVITY_EVENT_TYPES
+          : [];
+  const sideEvents = useRunEventsByType(
+    id,
+    sideTypes,
+    sideTypes.length > 0,
+    isActive ? 10000 : 0,
+  );
   useEffect(() => {
     setPage(0);
-    setCursors([0]);
-  }, [tab, actor, phase, eventType, from, to, id]);
+  }, [tab, id]);
+  // A filter change invalidates saved cursors (but not the position in a shared link on first load).
+  const filtersSeen = useRef(false);
+  useEffect(() => {
+    if (!filtersSeen.current) {
+      filtersSeen.current = true;
+      return;
+    }
+    setParams(
+      (prev) => {
+        for (const key of ["timelinePage", "timelineCursors", "tracePage", "traceCursors"])
+          prev.delete(key);
+        return prev;
+      },
+      { replace: true },
+    );
+  }, [actor, phase, eventType, from, to]);
+  // A failed run opens on its last page so the failure is visible; once per run and view.
+  const autoJumped = useRef("");
+  const failedRun = ["failed", "interrupted"].includes(
+    run.data?.status ?? "",
+  );
+  const unfiltered = !(actor || phase || eventType || from || to);
+  useEffect(() => {
+    const marker = id + ":" + tab;
+    if (
+      !failedRun ||
+      !unfiltered ||
+      !["timeline", "traces"].includes(tab) ||
+      autoJumped.current === marker
+    )
+      return;
+    autoJumped.current = marker;
+    if (params.has(pageKey) || params.has(cursorKey)) return;
+    void goToLatest(true).catch(() => undefined);
+  }, [failedRun, tab, id, unfiltered]);
   const data = run.data
     ? { ...run.data, ...progress.data, config: run.data.config }
     : undefined;
@@ -299,19 +404,101 @@ function RunDetail() {
   // Both panels need the whole page: Traces derives tool status from tool lifecycle events.
   const traceEvents = events.data?.events ?? [];
   const focusCall = params.get("call");
-  const openTraces = (invocationId: string) =>
+  const ordered = [...traceEvents].sort((a, b) => a.sequence - b.sequence);
+  const at = event ? ordered.findIndex((item) => item.id === event.id) : -1;
+  const stepEvent = (delta: number) => {
+    const next = ordered[at + delta];
+    if (next) inspect(next.id, next.sequence);
+  };
+  const hasMoreEvents = !!(
+    events.data?.hasMore ?? events.data?.events.length === EVENT_PAGE_SIZE
+  );
+  const paging: PageNav = {
+    hasPrevious: eventPage > 0,
+    hasNext: hasMoreEvents,
+    ...(isActive ? { onJumpToLatest: () => void goToLatest() } : {}),
+  };
+  const openTraces = (invocationId: string) => {
+    const alreadyThere =
+      params.get("view") === "traces" && params.get("call") === invocationId;
     setParams((prev) => {
       prev.set("view", "traces");
-      prev.set("call", invocationId);
+      // Re-selecting the focused call must re-trigger the panel's scroll/highlight.
+      if (alreadyThere) prev.delete("call");
+      else prev.set("call", invocationId);
       prev.delete("evidence");
       prev.delete("seq");
       return prev;
     });
+    if (alreadyThere)
+      setTimeout(
+        () =>
+          setParams(
+            (prev) => {
+              prev.set("call", invocationId);
+              return prev;
+            },
+            { replace: true },
+          ),
+        0,
+      );
+  };
   if (run.loading) return <Loading />;
-  if (!data) return <ErrorState error={run.error} retry={run.refresh} />;
+  if (!data) {
+    if (run.error instanceof ApiError && run.error.status === 404)
+      return (
+        <Card>
+          <div className="card-body stack">
+            <h2>Run not found</h2>
+            <p>
+              No run with ID <span className="mono">{id}</span> exists in this
+              workspace.
+              {workspace.data?.mode === "demo" &&
+                " This workspace is in demo mode: demo data resets whenever the service restarts, so runs from an earlier session are gone."}
+            </p>
+            <div className="actions">
+              <Button asChild>
+                <Link to={safeRunReturn(params.get("returnTo"))}>
+                  <ArrowLeft size={14} />
+                  Back to Runs
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </Card>
+      );
+    return <ErrorState error={run.error} retry={run.refresh} />;
+  }
   const active = ["queued", "running", "reporting", "stopping"].includes(
     data.status,
   );
+  const terminal = isTerminal(data.status);
+  const postEvents = new Map(
+    (sideEvents.events.board_post ?? []).map((event) => [
+      String((event.data as { after?: { id?: string } })?.after?.id),
+      event,
+    ]),
+  );
+  const versionEvents = new Map(
+    (sideEvents.events.artifact_updated ?? []).map((event) => [
+      Number((event.data as { after?: { version?: number } })?.after?.version),
+      event,
+    ]),
+  );
+  const activity = activityByAgent(sideEvents.events);
+  // The frozen final artifact is pinned first; remaining versions run newest to oldest.
+  const displayItems =
+    tab === "artifacts"
+      ? [...items].sort((a, b) => {
+          const left = a as ArtifactVersion;
+          const right = b as ArtifactVersion;
+          return left.frozen !== right.frozen
+            ? left.frozen
+              ? -1
+              : 1
+            : right.version - left.version;
+        })
+      : items;
   const cancel = async () => {
     if (
       !window.confirm(
@@ -439,9 +626,14 @@ function RunDetail() {
       )}
       {mutation.error && <Notice kind="error">{mutation.error.message}</Notice>}
       {mutation.message && <Notice kind="success">{mutation.message}</Notice>}
-      {data.failureReason && (
-        <Notice kind="error">Run diagnostic: {data.failureReason}</Notice>
-      )}
+      <RunDiagnostic
+        runId={id!}
+        status={data.status}
+        failureReason={data.failureReason}
+        createdAt={data.createdAt}
+        updatedAt={data.updatedAt}
+      />
+      <Downstream runId={id!} status={data.status} />
       <Tabs
         panelId="run-evidence-panel"
         value={tab}
@@ -466,7 +658,7 @@ function RunDetail() {
         tabIndex={0}
       >
         {tab === "results" ? (
-          <HealthcareResults runId={id!} />
+          <HealthcareResults runId={id!} runStatus={data.status} />
         ) : ["timeline", "traces"].includes(tab) ? (
           <Card>
             <CardHeading
@@ -479,12 +671,14 @@ function RunDetail() {
                   : "One card per model call on this page: what it reasoned, what it said, and what it proposed."
               }
               actions={
-                <Badge>
-                  {progress.updatedAt
-                    ? "Live · " +
-                      new Date(progress.updatedAt).toLocaleTimeString()
-                    : "Progress not yet received"}
-                </Badge>
+                terminal ? undefined : (
+                  <Badge>
+                    {progress.updatedAt
+                      ? "Live · " +
+                        new Date(progress.updatedAt).toLocaleTimeString()
+                      : "Progress not yet received"}
+                  </Badge>
+                )
               }
             />
             <div className="filter-bar">
@@ -545,6 +739,7 @@ function RunDetail() {
                   provider={data.config.model.provider}
                   onInspect={inspect}
                   onOpenTraces={openTraces}
+                  paging={paging}
                 />
               ) : (
                 <TracesPanel
@@ -552,6 +747,7 @@ function RunDetail() {
                   provider={data.config.model.provider}
                   onInspect={inspect}
                   focusInvocationId={focusCall}
+                  paging={paging}
                 />
               )
             ) : (
@@ -561,18 +757,15 @@ function RunDetail() {
               />
             )}
             <Pager
-              page={page}
-              hasMore={
-                events.data?.hasMore ?? events.data?.events.length === 50
+              page={eventPage}
+              hasMore={hasMoreEvents}
+              onChange={(next) =>
+                setEventCursors(
+                  next > eventPage
+                    ? [...cursors, events.data?.nextCursor ?? 0]
+                    : cursors.slice(0, next + 1),
+                )
               }
-              onChange={(next) => {
-                if (next > page)
-                  setCursors((prev) => [
-                    ...prev.slice(0, next),
-                    events.data?.nextCursor ?? 0,
-                  ]);
-                setPage(next);
-              }}
             />
           </Card>
         ) : tab === "configuration" ? (
@@ -598,6 +791,34 @@ function RunDetail() {
                   <dt>Memory isolation</dt>
                   <dd>Private per-run, per-agent thread</dd>
                   <BudgetSummary config={data.config} />
+                  <dt>Rounds</dt>
+                  <dd>{data.config.scheduler.rounds}</dd>
+                  <dt>Tool calls per turn</dt>
+                  <dd>{data.config.scheduler.toolCallsPerTurn}</dd>
+                  <dt>Model steps per turn</dt>
+                  <dd>{data.config.limits.maxModelStepsPerTurn}</dd>
+                  <dt>Report calls</dt>
+                  <dd>{data.config.limits.reportCalls}</dd>
+                  <dt>Request timeout</dt>
+                  <dd>
+                    {(data.config.limits.requestTimeoutMs / 1000).toLocaleString()}{" "}
+                    s
+                  </dd>
+                  <dt>Maximum run duration</dt>
+                  <dd>
+                    {(data.config.limits.maxDurationMs / 60000).toLocaleString()}{" "}
+                    min
+                  </dd>
+                  <dt>Agent order</dt>
+                  <dd>{data.config.scheduler.order.join(" → ")}</dd>
+                  <dt>Model parameters</dt>
+                  <dd>
+                    {Object.keys(data.config.model.settings ?? {}).length ? (
+                      <ReadableValue value={data.config.model.settings} />
+                    ) : (
+                      "Provider defaults (none set)"
+                    )}
+                  </dd>
                   <dt>Agent order seed</dt>
                   <dd>{data.config.scheduler.seed}</dd>
                   <dt>Created</dt>
@@ -615,7 +836,26 @@ function RunDetail() {
             <Card>
               <CardHeading title="Usage & provenance" />
               <div className="card-body">
-                <JsonView value={data.usage} title="Recorded provider usage" />
+                {data.usage && Object.keys(data.usage).length ? (
+                  <>
+                    <p>
+                      <strong>
+                        {(
+                          (data.usage.inputTokens ?? 0) +
+                          (data.usage.outputTokens ?? 0)
+                        ).toLocaleString()}
+                      </strong>{" "}
+                      total recorded tokens (input + output; other recorded
+                      counters are listed below).
+                    </p>
+                    <ReadableValue
+                      value={data.usage}
+                      rawLabel="Raw recorded usage"
+                    />
+                  </>
+                ) : (
+                  <p>No provider usage was recorded for this run.</p>
+                )}
                 <p className="helper">
                   Recorded usage may be partial. Missing provider reasoning does
                   not establish that the agent had no reasoning or intent.
@@ -661,16 +901,36 @@ function RunDetail() {
                   board_delivery and paginate through the source events.
                 </Notice>
               )}
-            {evidence.error && (
+            {tab !== "memory" && evidence.error && (
               <ErrorState error={evidence.error} retry={evidence.refresh} />
             )}
-            {evidence.loading ? (
+            {tab !== "memory" && sideEvents.partial && (
+              <Notice kind="warning">
+                Recorded event history was capped; round/turn details and
+                counts on this tab may be incomplete.
+              </Notice>
+            )}
+            {tab === "memory" ? (
+              <MemoryPanel runId={id!} active={active} onInspect={inspect} />
+            ) : evidence.loading ? (
               <Loading />
-            ) : items.length ? (
+            ) : displayItems.length ? (
               <div className="card-body stack">
-                {items.map((item, index) => {
+                {displayItems.map((item, index) => {
                   const object = item as Record<string, unknown>;
                   const key = evidenceKey(item, index);
+                  const postEvent =
+                    tab === "board" ? postEvents.get(String(object.id)) : undefined;
+                  const versionEvent =
+                    tab === "artifacts"
+                      ? versionEvents.get(Number(object.version))
+                      : undefined;
+                  const previous =
+                    tab === "artifacts" && typeof object.previousVersion === "number"
+                      ? (items as ArtifactVersion[]).find(
+                          (candidate) => candidate.version === object.previousVersion,
+                        )
+                      : undefined;
                   return (
                     <Card key={key}>
                       <div className="card-heading">
@@ -679,17 +939,33 @@ function RunDetail() {
                             {tab === "board"
                               ? `Post ${object.sequence ?? index + 1} · ${object.authorId ?? "Unknown author"}`
                               : tab === "artifacts"
-                                ? `Version ${object.version ?? index + 1}`
-                                : tab === "memory"
-                                  ? `${object.agentId ?? "Agent"} · ${object.type ?? "Memory snapshot"}`
-                                  : `Report · ${object.agentId ?? "Unknown agent"}`}
+                                ? object.frozen === true
+                                  ? `Final frozen version ${object.version ?? index + 1}`
+                                  : `Version ${object.version ?? index + 1}`
+                                : `Report · ${object.agentId ?? "Unknown agent"}`}
                           </h3>
                           <p>
-                            {object.id
-                              ? short(String(object.id))
-                              : object.operationId
-                                ? String(object.operationId)
-                                : "Recorded evidence"}
+                            {tab === "board"
+                              ? [
+                                  postEvent
+                                    ? roundTurn(postEvent)
+                                    : "Round/turn not loaded",
+                                  typeof object.timestamp === "string"
+                                    ? when(object.timestamp)
+                                    : undefined,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")
+                              : tab === "artifacts"
+                                ? object.frozen === true
+                                  ? `Frozen at the end of the run${typeof object.previousVersion === "number" ? ` from version ${object.previousVersion}` : ""}`
+                                  : [
+                                      String(object.authorId ?? "unknown author"),
+                                      versionEvent
+                                        ? roundTurn(versionEvent)
+                                        : "Round/turn not loaded",
+                                    ].join(" · ")
+                                : "Submitted final report"}
                           </p>
                         </div>
                         <div className="actions">
@@ -702,15 +978,7 @@ function RunDetail() {
                           <Button
                             variant="secondary"
                             size="sm"
-                            onClick={() =>
-                              inspect(
-                                key,
-                                tab === "memory" &&
-                                  typeof object.sequence === "number"
-                                  ? object.sequence
-                                  : undefined,
-                              )
-                            }
+                            onClick={() => inspect(key)}
                           >
                             Inspect
                           </Button>
@@ -722,21 +990,31 @@ function RunDetail() {
                             value={object.value}
                             schemaVersion={data.config.artifactSchemaVersion}
                             scenarioVersion={data.config.scenario.version}
+                            terminal={terminal}
                           />
+                        ) : tab === "reports" ? (
+                          <>
+                            <ReportSections
+                              parsed={object.parsed}
+                              raw={String(object.raw ?? "")}
+                            />
+                            <ActivityStrip
+                              agentId={String(object.agentId)}
+                              activity={activity.get(String(object.agentId))}
+                              partial={sideEvents.partial}
+                              loading={sideEvents.loading}
+                            />
+                          </>
                         ) : (
                           <p className="text-block">
-                            {tab === "board"
-                              ? String(object.text ?? "")
-                              : tab === "reports"
-                                ? String(object.raw ?? "")
-                                : pretty(
-                                    object.value ?? object.data ?? item,
-                                  ).slice(0, 500)}
+                            {String(object.text ?? "")}
                           </p>
                         )}
                         {tab === "board" && (
-                          <BoardDelivery
-                            id={String(object.id)}
+                          <BoardDeliveries
+                            postId={String(object.id)}
+                            authorId={String(object.authorId)}
+                            roles={data.config.roles.map((role) => role.id)}
                             deliveries={
                               !Array.isArray(evidence.data)
                                 ? evidence.data?.deliveries
@@ -744,23 +1022,16 @@ function RunDetail() {
                             }
                           />
                         )}
-                        {tab === "artifacts" && index > 0 && (
+                        {tab === "artifacts" && previous && (
                           <details style={{ marginTop: 12 }}>
                             <summary className="helper">
-                              Compare to previous version
+                              Compare to version {previous.version}
                             </summary>
-                            <div className="form-grid">
-                              <JsonView
-                                value={
-                                  (items[index - 1] as ArtifactVersion).value
-                                }
-                                title="Previous version"
-                              />
-                              <JsonView
-                                value={object.value}
-                                title="Selected version"
-                              />
-                            </div>
+                            <DiffView
+                              before={pretty(previous.value)}
+                              after={pretty(object.value)}
+                              label={`Changes from version ${previous.version}`}
+                            />
                           </details>
                         )}
                       </div>
@@ -768,20 +1039,27 @@ function RunDetail() {
                   );
                 })}
               </div>
+            ) : tab === "artifacts" && !terminal ? (
+              <Empty
+                title="No submission yet"
+                description="The run is still in progress; artifact versions appear as agents submit them."
+              />
             ) : (
               <Empty
                 title={"No " + tab + " recorded on this page"}
                 description="Unavailable evidence is distinct from an empty agent action or a negative finding."
               />
             )}
-            <Pager
-              page={page}
-              hasMore={
-                !Array.isArray(evidence.data) &&
-                evidence.data?.nextOffset != null
-              }
-              onChange={setPage}
-            />
+            {tab !== "memory" && (
+              <Pager
+                page={page}
+                hasMore={
+                  !Array.isArray(evidence.data) &&
+                  evidence.data?.nextOffset != null
+                }
+                onChange={setPage}
+              />
+            )}
           </Card>
         )}
       </section>
@@ -790,16 +1068,6 @@ function RunDetail() {
         indicate dashboard freshness, not worker health or proof of progress.
         Run record updated {when(data.updatedAt)}.
       </p>
-      {data.status === "completed" && (
-        <div className="actions" style={{ marginTop: 22 }}>
-          <Button asChild>
-            <Link to={"/analysis?run=" + id}>New Jev analysis</Link>
-          </Button>
-          <Button asChild variant="secondary">
-            <Link to={"/oversight?run=" + id}>Configure oversight</Link>
-          </Button>
-        </div>
-      )}
       <Drawer
         open={!!selected}
         onOpenChange={(open) => {
@@ -823,7 +1091,49 @@ function RunDetail() {
         {selectedEvent.loading ? (
           <Loading />
         ) : selectedItem ? (
-          <>
+          <div
+            onKeyDown={(keyEvent) => {
+              const target = keyEvent.target as HTMLElement;
+              if (
+                at < 0 ||
+                keyEvent.altKey ||
+                keyEvent.ctrlKey ||
+                keyEvent.metaKey ||
+                ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) ||
+                target.isContentEditable
+              )
+                return;
+              if (keyEvent.key === "ArrowLeft") stepEvent(-1);
+              else if (keyEvent.key === "ArrowRight") stepEvent(1);
+              else return;
+              keyEvent.preventDefault();
+            }}
+          >
+            {at >= 0 && (
+              <div className="actions drawer-event-nav">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={at === 0}
+                  onClick={() => stepEvent(-1)}
+                >
+                  <ArrowLeft size={13} />
+                  Previous event
+                </Button>
+                <span className="helper">
+                  {at + 1} of {ordered.length} on this page · ← → keys
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={at === ordered.length - 1}
+                  onClick={() => stepEvent(1)}
+                >
+                  Next event
+                  <ArrowRight size={13} />
+                </Button>
+              </div>
+            )}
             <dl className="definition-list">
               <dt>Source run</dt>
               <dd>
@@ -861,7 +1171,7 @@ function RunDetail() {
                     are recorded. Repeated input context is not a new action.
                   </Notice>
                 )}
-                <JsonView value={selectedItem} />
+                <ReadableValue value={selectedItem} />
                 {event?.invocationId && (
                   <Button
                     variant="secondary"
@@ -873,7 +1183,7 @@ function RunDetail() {
                 )}
               </>
             )}
-          </>
+          </div>
         ) : (
           <Empty
             title="Evidence is outside the current page"
@@ -895,42 +1205,6 @@ function evidenceKey(item: unknown, index: number) {
           : "record-" + index),
   );
 }
-function BoardDelivery({
-  id,
-  deliveries,
-}: {
-  id: string;
-  deliveries?: HarnessEvent[];
-}) {
-  const matches = deliveries?.filter((event) => {
-    const after = (event.data as { after?: unknown })?.after;
-    return Array.isArray(after) && after.some((message) => message.id === id);
-  });
-  return (
-    <div style={{ marginTop: 12 }}>
-      {matches?.length ? (
-        <div className="actions">
-          <span className="helper">Exact delivery records:</span>
-          {matches.map((e) => (
-            <Link
-              key={e.id}
-              to={`/runs/${e.runId}?view=timeline&evidence=${encodeURIComponent(e.id)}`}
-            >
-              <Badge>
-                {e.agentId} · event #{e.sequence}
-              </Badge>
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <span className="helper">
-          No read/delivery event for this post is present in this response.
-          Posting alone does not establish receipt.
-        </span>
-      )}
-    </div>
-  );
-}
 function safeRunReturn(value: string | null) {
   return value === "/runs" || value?.startsWith("/runs?") ? value : "/runs";
 }
@@ -942,20 +1216,64 @@ function PairDetail() {
     configurationDifferences: unknown[];
     matched: boolean;
   }>("/pairs/" + id);
+  const mutation = useMutation();
+  const navigate = useNavigate();
   if (pair.loading) return <Loading />;
-  if (!pair.data) return <ErrorState error={pair.error} retry={pair.refresh} />;
+  if (!pair.data) {
+    if (pair.error instanceof ApiError && pair.error.status === 404)
+      return (
+        <Card>
+          <div className="card-body stack">
+            <h2>Pair not found</h2>
+            <p>
+              No matched pair with ID <span className="mono">{id}</span> exists
+              in this workspace.
+            </p>
+            <Button asChild>
+              <Link to={safeRunReturn(params.get("returnTo"))}>
+                <ArrowLeft size={14} />
+                Back to Runs
+              </Link>
+            </Button>
+          </div>
+        </Card>
+      );
+    return <ErrorState error={pair.error} retry={pair.refresh} />;
+  }
+  const runs = orderByCondition(pair.data.runs);
+  const verdict = assessComparability(runs);
+  const duplicatePair = async () => {
+    const result = await mutation.run(() =>
+      post<Draft>("/pairs/" + id + "/duplicate", {}),
+    );
+    if (result) navigate("/experiments?draft=" + result.id);
+  };
   return (
     <>
       <PageHeader
         eyebrow="MATCHED EXECUTIONS"
         title="Pair comparison"
         description={id!}
+        actions={
+          <Button
+            variant="secondary"
+            onClick={duplicatePair}
+            disabled={mutation.busy}
+          >
+            <Copy size={14} />
+            Duplicate config
+          </Button>
+        }
       />
-      <Notice kind={pair.data.matched ? "success" : "warning"}>
+      {mutation.error && <Notice kind="error">{mutation.error.message}</Notice>}
+      <Notice kind={verdict.comparable ? "success" : "warning"}>
+        {verdict.message}
+      </Notice>
+      <p className="helper">
         {pair.data.matched
           ? "Frozen configurations match outside the intended condition difference."
           : "Configuration differences need review before treating these as matched conditions."}
-      </Notice>
+      </p>
       <Button asChild variant="ghost">
         <Link to={safeRunReturn(params.get("returnTo"))}>
           <ArrowLeft size={14} />
@@ -963,7 +1281,7 @@ function PairDetail() {
         </Link>
       </Button>
       <div className="pair-condition-grid">
-        {pair.data.runs.map((run) => (
+        {runs.map((run) => (
           <PairCondition
             key={run.id}
             summary={run}
@@ -995,13 +1313,13 @@ function PairDetail() {
               label="Differing frozen settings"
               headers={[
                 "Setting",
-                ...pair.data.runs.map((run) => run.config.condition.id),
+                ...runs.map((run) => run.config.condition.id),
               ]}
             >
               {pair.data.configurationDifferences.map((path, index) => (
                 <tr key={index}>
                   <th scope="row">{settingLabel(String(path))}</th>
-                  {pair.data!.runs.map((run) => (
+                  {runs.map((run) => (
                     <td key={run.id} className="text-block">
                       {configValue(run.config, String(path))}
                     </td>
@@ -1019,6 +1337,10 @@ function PairDetail() {
           <p className="helper">
             This page compares execution and frozen settings. It does not
             establish model rankings or independent statistical evidence.
+          </p>
+          <p className="helper">
+            Missing outputs remain unavailable, including while a run is
+            incomplete. Fetching these records does not verify worker health.
           </p>
         </div>
       </Card>
@@ -1103,9 +1425,9 @@ function PairCondition({
           <h3>Evidence availability</h3>
           {resource.data ? (
             <p>
-              {resource.data.board?.length ?? 0} board posts -{" "}
-              {resource.data.artifacts?.length ?? 0} artifact versions -{" "}
-              {resource.data.reports?.length ?? 0} final reports.{" "}
+              {plural(resource.data.board?.length ?? 0, "board post")} -{" "}
+              {plural(resource.data.artifacts?.length ?? 0, "artifact version")}{" "}
+              - {plural(resource.data.reports?.length ?? 0, "final report")}.{" "}
               <Link to={"/runs/" + run.id + "?view=timeline" + suffix}>
                 Open canonical event timeline
               </Link>
@@ -1130,11 +1452,14 @@ function PairCondition({
                     value={item.value}
                     schemaVersion={run.config.artifactSchemaVersion}
                     scenarioVersion={run.config.scenario.version}
+                    terminal={isTerminal(run.status)}
                   />
                 </div>
               ))
-            ) : (
+            ) : isTerminal(run.status) ? (
               <p>No frozen final artifact recorded.</p>
+            ) : (
+              <p>No submission yet.</p>
             )
           ) : (
             <p>Artifact availability unknown.</p>
@@ -1154,7 +1479,7 @@ function PairCondition({
                       ? "Invalid / unparsed"
                       : "Recorded report"}
                   </summary>
-                  <p className="text-block">{report.raw}</p>
+                  <ReportSections parsed={report.parsed} raw={report.raw} />
                 </details>
               ))
             ) : (
@@ -1181,10 +1506,7 @@ function PairCondition({
             </Link>
           </Button>
         </div>
-        <p className="helper">
-          Missing outputs remain unavailable, including while a run is
-          incomplete. Fetching this record does not verify worker health.
-        </p>
+        <Downstream runId={run.id} status={run.status} compact />
       </div>
     </Card>
   );

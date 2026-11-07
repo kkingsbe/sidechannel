@@ -5,6 +5,7 @@ import {
   cleanup,
   fireEvent,
   render,
+  waitFor,
   screen,
   within,
 } from "@testing-library/react";
@@ -207,4 +208,139 @@ it("restores an evaluation cursor page after detail navigation and retains previ
   fireEvent.click(screen.getByRole("button", { name: "Previous" }));
   await screen.findByText("evaluation-second-full-id");
   expect(screen.getByText("Page 2")).toBeTruthy();
+});
+
+const event = (
+  sequence: number,
+  type: string,
+  agentId: string,
+  data: unknown,
+  extra: Record<string, unknown> = {},
+) => ({
+  schemaVersion: 1,
+  id: `event-${sequence}`,
+  runId: "run-1",
+  sequence,
+  type,
+  timestamp: "2026-11-07T12:00:00Z",
+  agentId,
+  round: 1,
+  turn: sequence,
+  data,
+  ...extra,
+});
+function runRoutes(events: ReturnType<typeof event>[], overrides = {}) {
+  const base = {
+    ...run("run-1", "completed", "wording"),
+    configHash: "hash",
+    board: [],
+    ...overrides,
+  };
+  mock((path) => {
+    const url = new URL(path, "http://localhost");
+    const parts = url.pathname.split("/");
+    if (url.pathname === "/runs/run-1" || url.pathname === "/runs/run-1/progress") return base;
+    if (url.pathname === "/runs/run-1/events") {
+      const type = url.searchParams.get("type");
+      const rows = events.filter((e) => !type || e.type === type);
+      return { events: rows, nextCursor: rows.at(-1)?.sequence ?? 0, hasMore: false };
+    }
+    if (parts[3] === "reports")
+      return { items: base.reports, total: base.reports.length, nextOffset: null };
+    if (parts[3] === "outcomes") return [];
+    return { items: [] };
+  });
+}
+const renderRun = (search: string) =>
+  render(
+    <MemoryRouter initialEntries={["/runs/run-1" + search]}>
+      <Routes>
+        <Route path="/runs/*" element={<Runs />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+it("groups private memory by agent with a line diff and collapses unchanged rewrites", async () => {
+  runRoutes([
+    event(1, "memory_updated", "pharmacy", { before: { version: 0, notes: "" }, after: { version: 1, notes: "Line one\nLine two" } }),
+    event(2, "memory_updated", "clinical", { before: { version: 0, notes: "" }, after: { version: 1, notes: "Clinical notes" } }),
+    event(3, "memory_updated", "pharmacy", { before: { version: 1, notes: "Line one\nLine two" }, after: { version: 2, notes: "Line one\nLine two" } }),
+    event(4, "memory_updated", "pharmacy", { before: { version: 2, notes: "Line one\nLine two" }, after: { version: 3, notes: "Line one\nLine three" } }),
+  ]);
+  renderRun("?view=memory");
+  expect((await screen.findAllByText(/Clinical notes/)).length).toBeGreaterThan(0);
+  fireEvent.click(screen.getByRole("tab", { name: /pharmacy/ }));
+  expect(screen.getByText("Unchanged rewrite")).toBeTruthy();
+  const diff = screen.getByRole("group", { name: "Changes in version 3" });
+  expect(within(diff).getByText(/Line two/).closest("div")?.className).toContain("line-diff-removed");
+  expect(within(diff).getByText(/Line three/).closest("div")?.className).toContain("line-diff-added");
+  expect(screen.queryByText(/Clinical notes/)).toBeNull();
+});
+
+it("renders final reports as labelled sections beside recorded event counts", async () => {
+  runRoutes(
+    [
+      event(1, "tool_admitted", "pharmacy", { call: { name: "read_role_data" } }),
+      event(2, "tool_admitted", "pharmacy", { call: { name: "read_role_data" } }),
+      event(3, "board_post", "pharmacy", { after: { id: "m1" } }),
+      event(4, "board_delivery", "pharmacy", { after: [] }),
+    ],
+    {
+      reports: [
+        {
+          agentId: "pharmacy",
+          raw: '{"ownActions":"Read twice.\\nPosted once.","observations":"o","limitations":"l"}',
+          parsed: { ownActions: "Read twice.\nPosted once.", observations: "o", limitations: "l" },
+        },
+      ],
+    },
+  );
+  renderRun("?view=reports");
+  expect(await screen.findByRole("heading", { name: "Own actions" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Limitations" })).toBeTruthy();
+  const strip = await screen.findByLabelText("Recorded for pharmacy");
+  await waitFor(() => expect(within(strip).getByText("Role data reads").nextSibling?.textContent).toBe("2"));
+  expect(within(strip).getByText("Board posts").nextSibling?.textContent).toBe("1");
+});
+
+it("shows run-not-found with a way back and the demo-data note", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: string) =>
+      input.endsWith("/workspace")
+        ? new Response(JSON.stringify({ mode: "demo" }), { status: 200 })
+        : new Response(JSON.stringify({ error: "Run not found" }), { status: 404 }),
+    ),
+  );
+  renderRun("");
+  expect(await screen.findByRole("heading", { name: "Run not found" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: /Back to Runs/ }).getAttribute("href")).toBe("/runs");
+  await screen.findByText(/demo data resets/);
+});
+
+it("leads the pair page with a comparability verdict, reviewed first", async () => {
+  const reviewed = { ...run("reviewed", "failed", "R"), round: 1, turn: 3 };
+  const excluded = { ...run("excluded", "failed", "E"), round: 2, turn: 8 };
+  mock((path) =>
+    path === "/pairs/pair"
+      ? { runs: [excluded, reviewed], matched: true, configurationDifferences: [] }
+      : path === "/runs/reviewed"
+        ? reviewed
+        : path === "/runs/excluded"
+          ? excluded
+          : { items: [] },
+  );
+  render(
+    <MemoryRouter initialEntries={["/runs/pairs/pair"]}>
+      <Routes>
+        <Route path="/runs/*" element={<Runs />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  expect(
+    await screen.findByText(/Not comparable: runs stopped at different points \(reviewed R1\/T3 failed, excluded R2\/T8 failed\)/),
+  ).toBeTruthy();
+  const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+  expect(headings.indexOf("reviewed")).toBeLessThan(headings.indexOf("excluded"));
+  expect(screen.getByRole("button", { name: /Duplicate config/ })).toBeTruthy();
 });
