@@ -113,6 +113,14 @@
     "./healthcare/repository": {
       "types": "./dist/healthcare/repository.d.ts",
       "import": "./dist/healthcare/repository.js"
+    },
+    "./playbook/contracts": {
+      "types": "./dist/playbook/contracts.d.ts",
+      "import": "./dist/playbook/contracts.js"
+    },
+    "./playbook/repository": {
+      "types": "./dist/playbook/repository.d.ts",
+      "import": "./dist/playbook/repository.js"
     }
   }
 }

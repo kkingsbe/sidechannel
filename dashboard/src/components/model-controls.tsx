@@ -2,6 +2,7 @@ import type { ExperimentConfig } from "../lib/types";
 import type { AdaptionModelCatalog } from "@sidechannel/contracts/browser";
 import { useApi } from "../lib/api";
 import { Button, Field, Input, Notice, Select } from "./ui";
+import { PlaybookPicker } from "./playbook-picker";
 
 export function ModelControls({
   config,
@@ -34,15 +35,20 @@ export function ModelControls({
           value={config.model.provider}
           onChange={(event) => {
             const provider = event.target.value;
+            const settings = { ...config.model.settings };
+            delete settings.playbook;
+            delete settings.playbookHash;
+            delete settings.playbookVersion;
             const next = {
               ...config,
               phase:
-                provider === "scripted"
+                provider === "scripted" || provider === "playbook"
                   ? ("development" as const)
                   : ("pilot" as const),
               model: {
                 ...config.model,
                 provider,
+                settings,
                 id: provider === "scripted" ? "healthcare-points-v0.3" : "",
               },
             };
@@ -55,7 +61,10 @@ export function ModelControls({
         >
           <option value="scripted">Scripted healthcare · development</option>
           <option value="adaption">Live Adaption · pilot</option>
-          {!["scripted", "adaption"].includes(config.model.provider) && (
+          <option value="playbook">Uploaded playbook · development</option>
+          {!["scripted", "adaption", "playbook"].includes(
+            config.model.provider,
+          ) && (
             <option value={config.model.provider}>
               {config.model.provider}
             </option>
@@ -104,6 +113,15 @@ export function ModelControls({
               </Button>
             </Notice>
           )}
+        </>
+      ) : config.model.provider === "playbook" ? (
+        <>
+          <p className="helper">
+            Playbook execution replays an uploaded tool-call script through the
+            real scheduler. It validates instrumentation and is never study
+            data.
+          </p>
+          <PlaybookPicker config={config} replace={replace} errors={errors} />
         </>
       ) : (
         <p className="helper">

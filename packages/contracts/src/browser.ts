@@ -7,3 +7,5 @@ export type { MonitorDefinition, MonitorEvaluation, MonitorPreview, MonitorSetti
 
 export type { DatasetCatalogItem, HealthcareEvaluation } from './healthcare/contracts.js';
 export type { AdaptionModelCatalog, TokenBudget, ModelCapacity } from './harness/contracts.js';
+
+export type { PlaybookCatalogItem } from './playbook/contracts.js';

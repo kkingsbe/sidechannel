@@ -34,6 +34,7 @@ import type { Draft, ExperimentConfig, Json, Run } from "../lib/types";
 import { pretty, when } from "../lib/utils";
 import "./Experiments.css";
 import { HealthcarePreset } from "../components/healthcare-preset";
+import { PlaybookPicker } from "../components/playbook-picker";
 import { ModelControls } from "../components/model-controls";
 import { BudgetSummary } from "../components/budget-summary";
 const readableName = (value: string) =>
@@ -774,6 +775,13 @@ export default function Experiments() {
                     "Exact model identifier",
                     "Scripted models are clearly marked as fixtures.",
                   )}
+                  {config.model.provider === "playbook" && (
+                    <PlaybookPicker
+                      config={config}
+                      replace={replace}
+                      errors={validation?.fieldErrors}
+                    />
+                  )}
                 </>
               )}
               <details className="full experiment-details">
@@ -811,7 +819,15 @@ export default function Experiments() {
                       </Field>
                     ))}
                   {Object.keys(config.model.settings)
-                    .filter((key) => !supportedSettings.includes(key))
+                    .filter(
+                      (key) =>
+                        !supportedSettings.includes(key) &&
+                        ![
+                          "playbook",
+                          "playbookHash",
+                          "playbookVersion",
+                        ].includes(key),
+                    )
                     .map((key) => (
                       <Notice key={key} kind="warning">
                         The saved {key} setting is preserved, but its structured

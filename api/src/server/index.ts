@@ -14,6 +14,9 @@ import { configurationSchema, fieldErrors } from '@sidechannel/contracts/server/
 import type { ResearcherRepository, ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
 import type { HealthcareCatalog } from '@sidechannel/contracts/healthcare/repository';
 import { HealthcareService } from '../healthcare/service.js';
+import type { PlaybookCatalog } from '@sidechannel/contracts/playbook/repository';
+import { PLAYBOOK_PROVIDER } from '@sidechannel/contracts/playbook/contracts';
+import { PlaybookService } from '../playbook/service.js';
 import { adaptionModelRoute, validateAdaptionModelSelection } from './adaption-models.js';
 
 export type { Draft } from '@sidechannel/contracts/harness/repository';
@@ -27,6 +30,7 @@ export interface ResearcherServerOptions {
     extensionHandlers?: ResearchRouteHandler[];
     dashboardDirectory?: string;
     healthcareCatalog?: HealthcareCatalog;
+    playbookCatalog?: PlaybookCatalog;
 }
 
 class HttpError extends Error { constructor(public status: number, message: string) { super(message); } }
@@ -60,14 +64,17 @@ function differences(left: unknown, right: unknown, path = ''): string[] {
 
 export function createResearcherServer(repository: ResearcherRepository, options: ResearcherServerOptions = {}): Server {
     const healthcare = options.healthcareCatalog ? new HealthcareService(options.healthcareCatalog) : undefined;
-    const extensionHandlers = [adaptionModelRoute, ...(healthcare ? [healthcare.routes(repository)] : []), ...(options.extensionHandlers ?? [])];
+    const playbooks = options.playbookCatalog ? new PlaybookService(options.playbookCatalog) : undefined;
+    const extensionHandlers = [adaptionModelRoute, ...(healthcare ? [healthcare.routes(repository)] : []), ...(playbooks ? [playbooks.routes()] : []), ...(options.extensionHandlers ?? [])];
     const withBuild = (input: unknown): unknown => input && typeof input === 'object' && !Array.isArray(input) ? { ...input, ...(options.buildMetadata ? { build: options.buildMetadata } : {}) } : input;
     const prepare = async (input: unknown) => {
         let config = withBuild(input);
         try {
             if (healthcare) config = await healthcare.resolveConfiguration(config);
             else if ((config as ExperimentConfig)?.scenario?.version === 'healthcare-points-v0.3') throw new Error('scenario.datasetId: Healthcare catalog is unavailable; bootstrap the datasets');
-        } catch (error) { const message = error instanceof Error ? error.message : 'Dataset resolution failed'; return { config, validation: { valid: false, errors: [message], fieldErrors: { 'scenario.datasetId': message }, fieldIssues: [{ path: 'scenario.datasetId', message }] } }; }
+            if (playbooks) config = await playbooks.resolveConfiguration(config);
+            else if ((config as ExperimentConfig)?.model?.provider === PLAYBOOK_PROVIDER) throw new Error('model.id: Playbook catalog is unavailable');
+        } catch (error) { const message = error instanceof Error ? error.message : 'Dataset resolution failed', path = /^([a-zA-Z][\w.]*): /s.exec(message)?.[1] ?? 'scenario.datasetId'; return { config, validation: { valid: false, errors: [message], fieldErrors: { [path]: message }, fieldIssues: [{ path, message }] } }; }
         const base = validate(config);
         const additional = base.valid ? await validateAdaptionModelSelection(config as ExperimentConfig) : [];
         if (!additional.length) return { config, validation: base };

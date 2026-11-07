@@ -146,6 +146,14 @@
     "./harness/token-budget": {
       "types": "./dist/harness/token-budget.d.ts",
       "import": "./dist/harness/token-budget.js"
+    },
+    "./playbook/package": {
+      "types": "./dist/playbook/package.d.ts",
+      "import": "./dist/playbook/package.js"
+    },
+    "./playbook/interpreter": {
+      "types": "./dist/playbook/interpreter.d.ts",
+      "import": "./dist/playbook/interpreter.js"
     }
   }
 }
