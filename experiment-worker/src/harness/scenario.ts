@@ -3,7 +3,8 @@ import type { Scenario } from '@sidechannel/contracts/harness/server';
 import type { Json } from '@sidechannel/contracts/harness/contracts';
 
 export class ScenarioValidationError extends Error {
-    constructor(message: string, readonly disposition: 'invalid' | 'denied' = 'invalid') { super(message); }
+    /** `details` is returned to the acting agent so it can correct the call. */
+    constructor(message: string, readonly disposition: 'invalid' | 'denied' = 'invalid', readonly details?: string) { super(message); }
 }
 
 export const fixtureScenario: Scenario = {

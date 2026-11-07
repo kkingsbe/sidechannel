@@ -1,4 +1,5 @@
 import type { ExperimentConfig, ModelCapacity, TokenBudget } from '@sidechannel/contracts/harness/contracts';
+import { PLAYBOOK_PROVIDER } from '@sidechannel/contracts/playbook/contracts';
 import type { ModelInput } from '@sidechannel/contracts/harness/server';
 
 const sourceUrl = 'https://docs.adaptionlabs.ai/inference-stacks/models/#configurations';
@@ -37,7 +38,7 @@ export function validateTokenBudget(config: ExperimentConfig): string[] {
         else if (!budget.capacity || (Object.keys(expected) as (keyof ModelCapacity)[]).some(key => budget.capacity![key] !== expected[key])) errors.push('tokenBudget.capacity must match verified metadata for the selected Adaption model; reselect the model');
         if (!/^[a-z0-9][a-z0-9._-]*$/i.test(config.model.id)) errors.push('model.id must be a direct hosted Adaption model ID');
         for (const name of Object.keys(config.model.settings)) if (!['maxOutputTokens', 'temperature'].includes(name)) errors.push(`Unsupported Adaption model setting ${name}`);
-    } else if (config.model.provider !== 'scripted') errors.push('tokenBudget.capacity verification is currently supported for Adaption hosted models only');
+    } else if (!['scripted', PLAYBOOK_PROVIDER].includes(config.model.provider)) errors.push('tokenBudget.capacity verification is currently supported for Adaption hosted models only');
     const capacity = budget.capacity;
     if (capacity && (!Number.isSafeInteger(capacity.tokens) || capacity.tokens < 1)) errors.push('tokenBudget.capacity.tokens must be a positive integer');
     // The input limit covers the measured payload; reserved framing is counted once, separately.

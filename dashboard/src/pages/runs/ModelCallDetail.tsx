@@ -57,7 +57,7 @@ export function ModelCallDetail({ event, events, provider, onNavigate, onOpenTra
   return (
     <div className="tr-detail">
       <div className="tr-detail-head">
-        <strong>Call #{call.sequenceRange[0]} · {index + 1} of {calls.length} on this page</strong>
+        <strong>Call #{call.sequenceRange[0]} · {index + 1} of {calls.length} in the loaded turns</strong>
         <div className="tr-nav">
           <button type="button" className="tr-icon-btn" aria-label="Previous model call" disabled={!prev}
             onClick={() => prev && onNavigate(prev.id, prev.sequence)}><ChevronLeft size={16} aria-hidden="true" /></button>

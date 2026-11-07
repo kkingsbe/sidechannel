@@ -298,13 +298,13 @@ export function TracesPanel({ events, provider, onInspect, focusInvocationId, pa
         </div>
       )}
       <div className="tr-chips">
-        <span className="tr-chip"><strong>{allCalls.length}</strong> {allCalls.length === 1 ? 'call' : 'calls'} on this page</span>
-        <span className="tr-chip tr-chip-reasoning">Reasoning returned on <strong>{returnedCount} of {allCalls.length}</strong> on this page</span>
-        {knownTokens.length > 0 && <span className="tr-chip"><strong>{formatTokens(reasoningTokens)}</strong> reasoning tokens on this page</span>}
+        <span className="tr-chip"><strong>{allCalls.length}</strong> {allCalls.length === 1 ? 'call' : 'calls'} in the loaded turns</span>
+        <span className="tr-chip tr-chip-reasoning">Reasoning returned on <strong>{returnedCount} of {allCalls.length}</strong> in the loaded turns</span>
+        {knownTokens.length > 0 && <span className="tr-chip"><strong>{formatTokens(reasoningTokens)}</strong> reasoning tokens in the loaded turns</span>}
       </div>
       {hiddenCount > 0 && (
         <p className="tr-note-hidden" role="note">
-          Provider hid reasoning on {hiddenCount === allCalls.length ? `all ${allCalls.length}` : `${hiddenCount} of ${allCalls.length}`} call{allCalls.length === 1 ? '' : 's'} on this page.
+          Provider hid reasoning on {hiddenCount === allCalls.length ? `all ${allCalls.length}` : `${hiddenCount} of ${allCalls.length}`} call{allCalls.length === 1 ? '' : 's'} in the loaded turns.
           Reasoning token counts are shown on each call.
         </p>
       )}
@@ -338,7 +338,7 @@ export function TracesPanel({ events, provider, onInspect, focusInvocationId, pa
 
       {calls.length === 0 ? (
         <div className="tr-empty" role="status">
-          {allCalls.length === 0 ? 'No model calls on this page' : 'No calls with reasoning on this page'}
+          {allCalls.length === 0 ? 'No model calls in the loaded turns' : 'No calls with reasoning in the loaded turns'}
         </div>
       ) : (
         groups.map((group, groupIndex) => {

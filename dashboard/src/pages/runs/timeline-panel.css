@@ -331,3 +331,8 @@
   font-style: italic;
   color: var(--muted);
 }
+
+.tl-pending { display: flex; align-items: center; gap: 8px; margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+.tl-pending-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); animation: tl-pending-pulse 1.2s ease-in-out infinite; }
+@keyframes tl-pending-pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .tl-pending-dot { animation: none; } }

@@ -51,6 +51,10 @@
     "./healthcare/catalog": {
       "types": "./dist/healthcare/catalog.d.ts",
       "import": "./dist/healthcare/catalog.js"
+    },
+    "./playbook/catalog": {
+      "types": "./dist/playbook/catalog.d.ts",
+      "import": "./dist/playbook/catalog.js"
     }
   }
 }

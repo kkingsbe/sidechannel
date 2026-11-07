@@ -61,7 +61,7 @@ describe('TracesPanel', () => {
     expect(within(cards[0]).getByText('withheld')).toBeTruthy();
     expect(within(cards[1]).getByText('Posting aggregates.')).toBeTruthy();
     expect(screen.getByText('Round 1 · Turn 1')).toBeTruthy();
-    expect(screen.getByText(/Reasoning returned on/).textContent).toContain('2 of 3 on this page');
+    expect(screen.getByText(/Reasoning returned on/).textContent).toContain('2 of 3 in the loaded turns');
     expect(screen.getByText(/158/)).toBeTruthy();
   });
 
@@ -140,7 +140,7 @@ describe('TracesPanel', () => {
 
   it('shows empty states', () => {
     render(<TracesPanel events={[]} provider="openai" onInspect={vi.fn()} />);
-    expect(screen.getByText('No model calls on this page')).toBeTruthy();
+    expect(screen.getByText('No model calls in the loaded turns')).toBeTruthy();
   });
 });
 
@@ -164,7 +164,7 @@ describe('TracesPanel paging, prose arguments and failures', () => {
     setup();
     expect(screen.getByRole('article', { name: 'Model call #1' })).toBeTruthy();
     expect(screen.getByRole('article', { name: 'Model call #7' })).toBeTruthy();
-    expect(document.querySelector('.tr-chip')!.textContent).toBe('3 calls on this page');
+    expect(document.querySelector('.tr-chip')!.textContent).toBe('3 calls in the loaded turns');
   });
 
   it('keeps the same call label when the call is on a later page', () => {
@@ -188,7 +188,7 @@ describe('TracesPanel paging, prose arguments and failures', () => {
     const a = call('inv-h1', { reasoningTokens: 90, text: 'a' });
     const b = call('inv-h2', { reasoningTokens: 40, text: 'b' });
     render(<TracesPanel events={[...a.all, ...b.all]} provider="openai" onInspect={vi.fn()} />);
-    expect(screen.getAllByText(/Provider hid reasoning on all 2 calls on this page/)).toHaveLength(1);
+    expect(screen.getAllByText(/Provider hid reasoning on all 2 calls in the loaded turns/)).toHaveLength(1);
     expect(screen.queryByText('Reasoning hidden by provider.')).toBeNull();
     expect(screen.getByText(/90 reasoning tokens/)).toBeTruthy();
   });

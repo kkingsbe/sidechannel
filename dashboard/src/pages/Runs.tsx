@@ -46,7 +46,7 @@ import "./runs-oversight.css";
 import { ArtifactView } from "../components/artifact-view";
 import { BudgetSummary } from "../components/budget-summary";
 import { HealthcareResults } from "../components/healthcare-results";
-import { MODEL_CALL_EVENT_TYPES, type PageNav } from "../lib/model-calls";
+import { MODEL_CALL_EVENT_TYPES } from "../lib/model-calls";
 import { TimelinePanel } from "./runs/TimelinePanel";
 import { TracesPanel } from "./runs/TracesPanel";
 import { ReadableValue } from "../components/readable-value";
@@ -69,11 +69,10 @@ import {
   ReportSections,
 } from "../components/run-evidence/report-sections";
 import { DiffView } from "../components/run-evidence/line-diff";
-import {
-  EVENT_PAGE_SIZE,
-  findLatestSequence,
-  useRunEventsByType,
-} from "../components/run-evidence/use-run-events";
+import { useRunEventsByType } from "../components/run-evidence/use-run-events";
+import type { TurnSummary } from "@sidechannel/contracts/browser";
+import { useRunEvents, type EventStart } from "../lib/use-run-events";
+import { RunEventsView, StreamBadge } from "./runs/RunEventsView";
 import { ModelCallDetail } from "./runs/ModelCallDetail";
 type RecordPage<T> = {
   items: T[];
@@ -269,6 +268,8 @@ function RunList() {
     </>
   );
 }
+const ACTIVE_STATUSES = ["queued", "running", "reporting", "stopping"];
+
 function RunDetail() {
   const { id } = useParams();
   const [params, setParams] = useSearchParams();
@@ -286,57 +287,45 @@ function RunDetail() {
     [to, setTo] = useState("");
   // Evidence tabs page by offset in local state; timeline/traces page by event cursor in the URL.
   const [page, setPage] = useState(0);
-  const pageKey = tab === "traces" ? "tracePage" : "timelinePage";
-  const cursorKey = tab === "traces" ? "traceCursors" : "timelineCursors";
-  const urlCursors = (params.get(cursorKey) || "")
-    .split(",")
-    .map(Number)
-    .filter((value) => Number.isInteger(value) && value >= 0);
-  const urlPage = Math.max(0, Number(params.get(pageKey)) || 0);
-  const cursors =
-    urlPage > 0 && urlCursors.length === urlPage + 1 ? urlCursors : [0];
-  const eventPage = cursors.length - 1;
-  const query = new URLSearchParams({
-    limit: "50",
-    after: String(cursors[eventPage] || 0),
-  });
-  const setEventCursors = (next: number[], replace = false) =>
-    setParams(
-      (prev) => {
-        if (next.length <= 1) {
-          prev.delete(pageKey);
-          prev.delete(cursorKey);
-        } else {
-          prev.set(pageKey, String(next.length - 1));
-          prev.set(cursorKey, next.join(","));
-        }
-        return prev;
-      },
-      { replace },
-    );
-  const goToLatest = async (replace = false) => {
-    const latest = await findLatestSequence(id!);
-    const last = Math.max(0, Math.ceil(latest / EVENT_PAGE_SIZE) - 1);
-    setEventCursors(
-      Array.from({ length: last + 1 }, (_, index) => index * EVENT_PAGE_SIZE),
-      replace,
-    );
-  };
-  if (actor) query.set("actor", actor);
-  if (phase) query.set("phase", phase);
-  if (eventType) query.set("type", eventType);
-  if (from) query.set("from", from);
-  if (to) query.set("to", to);
-  const events = useApi<{
-    events: HarnessEvent[];
-    nextCursor: number;
-    hasMore?: boolean;
-  }>(
-    tab === "timeline" || tab === "traces"
-      ? "/runs/" + id + "/events?" + query
-      : null,
-    4000,
+  const eventTabs = tab === "timeline" || tab === "traces";
+  // Guard against the previous run's data during a route change: useApi clears data only after render.
+  const status =
+    run.data?.id === id
+      ? (progress.data?.id === id ? progress.data?.status : undefined) ?? run.data?.status
+      : undefined;
+  const runActive = !!status && ACTIVE_STATUSES.includes(status);
+  // Whether the run was active when this page opened decides the default start, so a run that finishes
+  // while you watch keeps its window instead of jumping back to the first event.
+  const [opened, setOpened] = useState<{ id: string; active: boolean }>();
+  const openedActive = opened?.id === id ? opened?.active : undefined;
+  useEffect(() => {
+    if (id && openedActive === undefined && status) setOpened({ id, active: runActive });
+  }, [id, openedActive, status, runActive]);
+  const at = params.get("at");
+  const start: EventStart =
+    at === "end"
+      ? "latest"
+      : at && Number.isSafeInteger(Number(at)) && Number(at) > 0
+        ? Number(at)
+        : // Active runs open at the newest events; failed or interrupted runs open where they stopped.
+          openedActive || status === "failed" || status === "interrupted"
+          ? "latest"
+          : "first";
+  const follow = runActive && start === "latest" && !to;
+  const runEvents = useRunEvents(
+    id,
+    { actor, phase, type: eventType, from, to },
+    { start, follow, enabled: eventTabs && openedActive !== undefined },
   );
+  const turns = useApi<{ turns: TurnSummary[] }>(
+    eventTabs ? "/runs/" + id + "/turns" : null,
+    follow ? 10000 : 0,
+  );
+  const jumpTo = (target: number | "end") =>
+    setParams((prev) => {
+      prev.set("at", String(target));
+      return prev;
+    });
   const selectedEvent = useApi<HarnessEvent>(
     selected && ["timeline", "traces", "memory"].includes(tab)
       ? "/runs/" + id + "/events/" + encodeURIComponent(selected)
@@ -385,42 +374,7 @@ function RunDetail() {
   );
   useEffect(() => {
     setPage(0);
-  }, [tab, id]);
-  // A filter change invalidates saved cursors (but not the position in a shared link on first load).
-  const filtersSeen = useRef(false);
-  useEffect(() => {
-    if (!filtersSeen.current) {
-      filtersSeen.current = true;
-      return;
-    }
-    setParams(
-      (prev) => {
-        for (const key of ["timelinePage", "timelineCursors", "tracePage", "traceCursors"])
-          prev.delete(key);
-        return prev;
-      },
-      { replace: true },
-    );
-  }, [actor, phase, eventType, from, to]);
-  // A failed run opens on its last page so the failure is visible; once per run and view.
-  const autoJumped = useRef("");
-  const failedRun = ["failed", "interrupted"].includes(
-    run.data?.status ?? "",
-  );
-  const unfiltered = !(actor || phase || eventType || from || to);
-  useEffect(() => {
-    const marker = id + ":" + tab;
-    if (
-      !failedRun ||
-      !unfiltered ||
-      !["timeline", "traces"].includes(tab) ||
-      autoJumped.current === marker
-    )
-      return;
-    autoJumped.current = marker;
-    if (params.has(pageKey) || params.has(cursorKey)) return;
-    void goToLatest(true).catch(() => undefined);
-  }, [failedRun, tab, id, unfiltered]);
+  }, [tab, actor, phase, eventType, from, to, id]);
   const data = run.data
     ? { ...run.data, ...progress.data, config: run.data.config }
     : undefined;
@@ -443,27 +397,19 @@ function RunDetail() {
     ? evidence.data
     : (evidence.data?.items ?? evidence.data?.posts ?? []);
   const event =
-    selectedEvent.data ?? events.data?.events.find((e) => e.id === selected);
+    selectedEvent.data ?? runEvents.events.find((e) => e.id === selected);
   const selectedItem =
     event ??
     selectedRecord.data ??
     items.find((item, index) => evidenceKey(item, index) === selected);
   // Both panels need the whole page: Traces derives tool status from tool lifecycle events.
-  const traceEvents = events.data?.events ?? [];
+  const traceEvents = runEvents.events;
   const focusCall = params.get("call");
   const ordered = [...traceEvents].sort((a, b) => a.sequence - b.sequence);
-  const at = event ? ordered.findIndex((item) => item.id === event.id) : -1;
+  const eventIndex = event ? ordered.findIndex((item) => item.id === event.id) : -1;
   const stepEvent = (delta: number) => {
-    const next = ordered[at + delta];
+    const next = ordered[eventIndex + delta];
     if (next) inspect(next.id, next.sequence);
-  };
-  const hasMoreEvents = !!(
-    events.data?.hasMore ?? events.data?.events.length === EVENT_PAGE_SIZE
-  );
-  const paging: PageNav = {
-    hasPrevious: eventPage > 0,
-    hasNext: hasMoreEvents,
-    ...(isActive ? { onJumpToLatest: () => void goToLatest() } : {}),
   };
   const openTraces = (invocationId: string) => {
     const alreadyThere =
@@ -516,9 +462,7 @@ function RunDetail() {
       );
     return <ErrorState error={run.error} retry={run.refresh} />;
   }
-  const active = ["queued", "running", "reporting", "stopping"].includes(
-    data.status,
-  );
+  const active = ACTIVE_STATUSES.includes(data.status);
   const terminal = isTerminal(data.status);
   const postEvents = new Map(
     (sideEvents.events.board_post ?? []).map((event) => [
@@ -722,18 +666,9 @@ function RunDetail() {
               description={
                 tab === "timeline"
                   ? "Proposed requests, admitted actions, side effects, and results remain distinct."
-                  : "One card per model call on this page: what it reasoned, what it said, and what it proposed."
+                  : "One card per model call in the loaded turns: what it reasoned, what it said, and what it proposed."
               }
-              actions={
-                terminal ? undefined : (
-                  <Badge>
-                    {progress.updatedAt
-                      ? "Live · " +
-                        new Date(progress.updatedAt).toLocaleTimeString()
-                      : "Progress not yet received"}
-                  </Badge>
-                )
-              }
+              actions={<StreamBadge status={runEvents.status} />}
             />
             <div className="filter-bar">
               <Field label="Actor">
@@ -781,45 +716,17 @@ function RunDetail() {
                 />
               </Field>
             </div>
-            {events.error && (
-              <ErrorState error={events.error} retry={events.refresh} />
-            )}
-            {events.loading ? (
-              <Loading />
-            ) : traceEvents.length ? (
-              tab === "timeline" ? (
-                <TimelinePanel
-                  events={traceEvents}
-                  provider={data.config.model.provider}
-                  onInspect={inspect}
-                  onOpenTraces={openTraces}
-                  paging={paging}
-                />
-              ) : (
-                <TracesPanel
-                  events={traceEvents}
-                  provider={data.config.model.provider}
-                  onInspect={inspect}
-                  focusInvocationId={focusCall}
-                  paging={paging}
-                />
-              )
-            ) : (
-              <Empty
-                title="No matching events"
-                description="New recorded evidence will appear here without changing your selected object."
-              />
-            )}
-            <Pager
-              page={eventPage}
-              hasMore={hasMoreEvents}
-              onChange={(next) =>
-                setEventCursors(
-                  next > eventPage
-                    ? [...cursors, events.data?.nextCursor ?? 0]
-                    : cursors.slice(0, next + 1),
-                )
-              }
+            <RunEventsView
+              tab={tab === "timeline" ? "timeline" : "traces"}
+              runEvents={runEvents}
+              follow={follow}
+              turns={turns.data?.turns}
+              start={start}
+              provider={data.config.model.provider}
+              focusCall={focusCall}
+              onInspect={inspect}
+              onOpenTraces={openTraces}
+              onJump={jumpTo}
             />
           </Card>
         ) : tab === "configuration" ? (
@@ -1149,7 +1056,7 @@ function RunDetail() {
             onKeyDown={(keyEvent) => {
               const target = keyEvent.target as HTMLElement;
               if (
-                at < 0 ||
+                eventIndex < 0 ||
                 keyEvent.altKey ||
                 keyEvent.ctrlKey ||
                 keyEvent.metaKey ||
@@ -1163,24 +1070,24 @@ function RunDetail() {
               keyEvent.preventDefault();
             }}
           >
-            {at >= 0 && (
+            {eventIndex >= 0 && (
               <div className="actions drawer-event-nav">
                 <Button
                   variant="secondary"
                   size="sm"
-                  disabled={at === 0}
+                  disabled={eventIndex === 0}
                   onClick={() => stepEvent(-1)}
                 >
                   <ArrowLeft size={13} />
                   Previous event
                 </Button>
                 <span className="helper">
-                  {at + 1} of {ordered.length} on this page · ← → keys
+                  {eventIndex + 1} of {ordered.length} loaded · ← → keys
                 </span>
                 <Button
                   variant="secondary"
                   size="sm"
-                  disabled={at === ordered.length - 1}
+                  disabled={eventIndex === ordered.length - 1}
                   onClick={() => stepEvent(1)}
                 >
                   Next event

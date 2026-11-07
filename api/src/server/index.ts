@@ -14,6 +14,11 @@ import { configurationSchema, fieldErrors } from '@sidechannel/contracts/server/
 import type { ResearcherRepository, ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
 import type { HealthcareCatalog } from '@sidechannel/contracts/healthcare/repository';
 import { HealthcareService } from '../healthcare/service.js';
+import type { PlaybookCatalog } from '@sidechannel/contracts/playbook/repository';
+import { PLAYBOOK_PROVIDER } from '@sidechannel/contracts/playbook/contracts';
+import { PlaybookService } from '../playbook/service.js';
+import { snapBackward, snapForward, TURN_SNAP_SLACK } from '@sidechannel/domain/harness/event-pages';
+import { DEFAULT_EVENT_STREAM_TIMING, streamRunEvents, type EventStreamTiming } from './event-stream.js';
 import { adaptionModelRoute, validateAdaptionModelSelection } from './adaption-models.js';
 
 export type { Draft } from '@sidechannel/contracts/harness/repository';
@@ -26,7 +31,10 @@ export interface ResearcherServerOptions {
     buildMetadata?: ExperimentConfig['build'];
     extensionHandlers?: ResearchRouteHandler[];
     dashboardDirectory?: string;
+    /** Live event stream timing; tests shorten it. */
+    eventStream?: EventStreamTiming;
     healthcareCatalog?: HealthcareCatalog;
+    playbookCatalog?: PlaybookCatalog;
 }
 
 class HttpError extends Error { constructor(public status: number, message: string) { super(message); } }
@@ -60,14 +68,17 @@ function differences(left: unknown, right: unknown, path = ''): string[] {
 
 export function createResearcherServer(repository: ResearcherRepository, options: ResearcherServerOptions = {}): Server {
     const healthcare = options.healthcareCatalog ? new HealthcareService(options.healthcareCatalog) : undefined;
-    const extensionHandlers = [adaptionModelRoute, ...(healthcare ? [healthcare.routes(repository)] : []), ...(options.extensionHandlers ?? [])];
+    const playbooks = options.playbookCatalog ? new PlaybookService(options.playbookCatalog) : undefined;
+    const extensionHandlers = [adaptionModelRoute, ...(healthcare ? [healthcare.routes(repository)] : []), ...(playbooks ? [playbooks.routes()] : []), ...(options.extensionHandlers ?? [])];
     const withBuild = (input: unknown): unknown => input && typeof input === 'object' && !Array.isArray(input) ? { ...input, ...(options.buildMetadata ? { build: options.buildMetadata } : {}) } : input;
     const prepare = async (input: unknown) => {
         let config = withBuild(input);
         try {
             if (healthcare) config = await healthcare.resolveConfiguration(config);
             else if ((config as ExperimentConfig)?.scenario?.version === 'healthcare-points-v0.3') throw new Error('scenario.datasetId: Healthcare catalog is unavailable; bootstrap the datasets');
-        } catch (error) { const message = error instanceof Error ? error.message : 'Dataset resolution failed'; return { config, validation: { valid: false, errors: [message], fieldErrors: { 'scenario.datasetId': message }, fieldIssues: [{ path: 'scenario.datasetId', message }] } }; }
+            if (playbooks) config = await playbooks.resolveConfiguration(config);
+            else if ((config as ExperimentConfig)?.model?.provider === PLAYBOOK_PROVIDER) throw new Error('model.id: Playbook catalog is unavailable');
+        } catch (error) { const message = error instanceof Error ? error.message : 'Dataset resolution failed', path = /^([a-zA-Z][\w.]*): /s.exec(message)?.[1] ?? 'scenario.datasetId'; return { config, validation: { valid: false, errors: [message], fieldErrors: { [path]: message }, fieldIssues: [{ path, message }] } }; }
         const base = validate(config);
         const additional = base.valid ? await validateAdaptionModelSelection(config as ExperimentConfig) : [];
         if (!additional.length) return { config, validation: base };
@@ -172,6 +183,16 @@ export function createResearcherServer(repository: ResearcherRepository, options
                     const configurationDifferences = runs.length === 2 ? differences(runs[0]!.config, runs[1]!.config) : [];
                     return send(200, { pairId, runs: await Promise.all(runs.map(run => repository.getRunSummary(run.id))), configurationDifferences, matched: runs.length === 2 && configurationDifferences.every(path => path.startsWith('condition.')) });
                 }
+                const streamLink = path.match(/^\/runs\/([^/]+)\/events\/stream$/);
+                if (streamLink && method === 'GET') {
+                    const id = decodeURIComponent(streamLink[1]!);
+                    if (!await repository.getRunSummary(id)) throw new HttpError(404, 'Run not found');
+                    if (query.has('to') || query.has('before')) throw new HttpError(400, 'A live stream has no upper sequence bound; use the paged events endpoint');
+                    if (query.has('phase') && !['action', 'report'].includes(query.get('phase')!)) throw new HttpError(400, 'phase must be action or report');
+                    const resume = req.headers['last-event-id'];
+                    const after = cursor(typeof resume === 'string' && resume ? resume : query.get('after'), 0);
+                    return streamRunEvents(res, repository, id, { after, ...(query.get('actor') ? { actor: query.get('actor')! } : {}), ...(query.get('phase') ? { phase: query.get('phase')! } : {}), ...(query.get('type') ? { type: query.get('type')! } : {}), ...(query.has('from') ? { from: cursor(query.get('from'), 0) } : {}) }, options.eventStream ?? DEFAULT_EVENT_STREAM_TIMING);
+                }
                 const eventLink = path.match(/^\/runs\/([^/]+)\/events\/([^/]+)$/);
                 if (eventLink && method === 'GET') {
                     const event = await repository.getEvent(decodeURIComponent(eventLink[1]!), decodeURIComponent(eventLink[2]!));
@@ -184,20 +205,26 @@ export function createResearcherServer(repository: ResearcherRepository, options
                     if (!item) throw new HttpError(404, 'Evidence not found in this run');
                     return send(200, item);
                 }
-                const match = path.match(/^\/runs\/([^/]+)(?:\/(progress|events|export|cancel|board|memory|artifacts|reports))?$/);
+                const match = path.match(/^\/runs\/([^/]+)(?:\/(progress|events|turns|export|cancel|board|memory|artifacts|reports))?$/);
                 if (match) {
                     const id = decodeURIComponent(match[1]!), op = match[2];
                     const summary = await repository.getRunSummary(id); if (!summary) throw new HttpError(404, 'Run not found');
                     if (method === 'POST' && op === 'cancel') return send(202, await repository.requestCancel(id));
                     if (method !== 'GET') throw new HttpError(405, 'Method not allowed');
                     if (op === 'progress') return send(200, { ...summary, observedAt: new Date().toISOString(), executionPhase: summary.status === 'reporting' ? 'report' : 'action', rounds: summary.config.scheduler.rounds });
+                    if (op === 'turns') return send(200, { turns: await repository.listTurns(id) });
                     if (op === 'events' || op === 'memory') {
                         const after = cursor(query.get('after'), 0), limit = cursor(query.get('limit'), 200, 1000); if (!limit) throw new HttpError(400, 'limit must be positive');
                         if (query.has('phase') && !['action', 'report'].includes(query.get('phase')!)) throw new HttpError(400, 'phase must be action or report');
-                        const filter: EventQuery = { after, limit: limit + 1, ...(query.get('actor') ? { actor: query.get('actor')! } : {}), ...(query.get('phase') ? { phase: query.get('phase')! } : {}), ...(query.get('type') ? { type: query.get('type')! } : {}), ...(query.has('from') ? { from: cursor(query.get('from'), 0) } : {}), ...(query.has('to') ? { to: cursor(query.get('to'), 0) } : {}) };
+                        const backward = op === 'events' && query.has('before'), snapped = op === 'events' && query.get('snap') === 'turn';
+                        if (backward && query.has('after')) throw new HttpError(400, 'Use either after or before, not both');
+                        const before = backward ? cursor(query.get('before'), 0) : undefined;
+                        const filter: EventQuery = { after, limit: limit + (snapped ? TURN_SNAP_SLACK : 0) + 1, ...(before === undefined ? {} : { before, order: 'desc' as const }), ...(query.get('actor') ? { actor: query.get('actor')! } : {}), ...(query.get('phase') ? { phase: query.get('phase')! } : {}), ...(query.get('type') ? { type: query.get('type')! } : {}), ...(query.has('from') ? { from: cursor(query.get('from'), 0) } : {}), ...(query.has('to') ? { to: cursor(query.get('to'), 0) } : {}) };
                         if (op === 'memory') { filter.type = query.get('type') ?? 'memory_updated'; filter.offset = cursor(query.get('offset'), 0); }
-                        const rows = await repository.queryEvents(id, filter), events = rows.slice(0, limit);
-                        return send(200, { events, items: events, nextCursor: events.at(-1)?.sequence ?? after, hasMore: rows.length > limit, ...(op === 'memory' ? { nextOffset: rows.length > limit ? (filter.offset ?? 0) + limit : null } : {}) });
+                        const rows = await repository.queryEvents(id, filter);
+                        const page = snapped ? (backward ? snapBackward(rows, limit) : snapForward(rows, limit)) : { events: backward ? rows.slice(0, limit).reverse() : rows.slice(0, limit), hasMore: rows.length > limit };
+                        const events = page.events;
+                        return send(200, { events, items: events, nextCursor: events.at(-1)?.sequence ?? after, ...(before === undefined ? {} : { previousCursor: events[0]?.sequence ?? before }), hasMore: page.hasMore, ...(op === 'memory' ? { nextOffset: rows.length > limit ? (filter.offset ?? 0) + limit : null } : {}) });
                     }
                     if (op === 'artifacts' || op === 'reports' || op === 'board') {
                         const offset = cursor(query.get('offset'), 0), limit = cursor(query.get('limit'), 100, 1000); if (!limit) throw new HttpError(400, 'limit must be positive');

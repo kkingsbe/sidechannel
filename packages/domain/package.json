@@ -91,6 +91,10 @@
       "types": "./dist/harness/config.d.ts",
       "import": "./dist/harness/config.js"
     },
+    "./harness/event-pages": {
+      "types": "./dist/harness/event-pages.d.ts",
+      "import": "./dist/harness/event-pages.js"
+    },
     "./harness/initialization": {
       "types": "./dist/harness/initialization.d.ts",
       "import": "./dist/harness/initialization.js"
@@ -146,6 +150,14 @@
     "./harness/token-budget": {
       "types": "./dist/harness/token-budget.d.ts",
       "import": "./dist/harness/token-budget.js"
+    },
+    "./playbook/package": {
+      "types": "./dist/playbook/package.d.ts",
+      "import": "./dist/playbook/package.js"
+    },
+    "./playbook/interpreter": {
+      "types": "./dist/playbook/interpreter.d.ts",
+      "import": "./dist/playbook/interpreter.js"
     }
   }
 }
