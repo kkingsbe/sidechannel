@@ -70,6 +70,10 @@
       "types": "./dist/analysis/store.d.ts",
       "import": "./dist/analysis/store.js"
     },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "import": "./dist/errors.js"
+    },
     "./harness/contracts": {
       "types": "./dist/harness/contracts.d.ts",
       "import": "./dist/harness/contracts.js"
