@@ -95,6 +95,10 @@
       "types": "./dist/harness/initialization.d.ts",
       "import": "./dist/harness/initialization.js"
     },
+    "./harness/launch": {
+      "types": "./dist/harness/launch.d.ts",
+      "import": "./dist/harness/launch.js"
+    },
     "./harness/provenance": {
       "types": "./dist/harness/provenance.d.ts",
       "import": "./dist/harness/provenance.js"
