@@ -1,17 +1,14 @@
 // @vitest-environment jsdom
 import React from "react";
-import { afterEach, expect, it, vi } from "vitest";
-import {
-  cleanup,
-  fireEvent,
-  screen,
-  within,
-} from "@testing-library/react";
-import { activate, fakeServer, renderWithServer } from "../test/clients";
+import { afterEach, expect, it } from "vitest";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { defaultFixtureConfiguration } from "@sidechannel/contracts/testing";
+import type { MonitorDefinition, MonitorEvaluation } from "@sidechannel/contracts/browser";
+import type { MonitorComparison } from "../lib/types";
+import { activate, fakeClients, fakeServer, renderWithClients, renderWithServer } from "../test/clients";
 import Runs from "./Runs";
 import Oversight from "./Oversight";
-import { defaultFixtureConfiguration } from "@sidechannel/contracts/testing";
 const config = defaultFixtureConfiguration();
 const run = (id: string, status: string, wording: string) => ({
   id,
@@ -23,12 +20,8 @@ const run = (id: string, status: string, wording: string) => ({
   artifacts: [],
   reports: [],
 });
-function mock(handler: (path: string) => unknown) {
-  activate(fakeServer((path: string) => handler(path)));
-}
 afterEach(() => {
   cleanup();
-  vi.unstubAllGlobals();
   localStorage.clear();
 });
 it("aligns exact pair wording and available outputs while retaining a failed condition", async () => {
@@ -37,8 +30,7 @@ it("aligns exact pair wording and available outputs while retaining a failed con
     ...run("excluded", "failed", "Exact excluded wording"),
     failureReason: "Worker failed before reporting",
   };
-  mock((path) =>
-    path === "/pairs/pair"
+  activate(fakeServer((path) => path === "/pairs/pair"
       ? {
           runs: [a, b],
           matched: true,
@@ -54,8 +46,7 @@ it("aligns exact pair wording and available outputs while retaining a failed con
               { agentId: "agent-1", raw: "Exact final report", parsed: {} },
             ],
           }
-        : b,
-  );
+        : b));
   renderWithServer(
     <MemoryRouter
       initialEntries={[
@@ -86,19 +77,16 @@ it("aligns exact pair wording and available outputs while retaining a failed con
   ).toBeTruthy();
 });
 it("defaults oversight to evaluations and keeps setup explicit with visible prerequisites", async () => {
-  mock((path) =>
-    path.startsWith("/monitor-evaluations")
-      ? { items: [], nextCursor: null }
-      : path.startsWith("/runs?")
-        ? { items: [], nextOffset: null }
-        : path.startsWith("/monitor-definitions/history")
-          ? { items: [], nextCursor: null }
-          : { revision: 1 },
-  );
-  const mounted = renderWithServer(
-    <MemoryRouter>
-      <Oversight />
-    </MemoryRouter>,
+  const mounted = renderWithClients(
+    <Routes>
+      <Route path="/*" element={<Oversight />} />
+    </Routes>,
+    {
+      route: "/",
+      clients: fakeClients({
+        monitor: { evaluations: async () => ({ items: [], nextCursor: null }) },
+      }),
+    },
   );
   expect(
     await screen.findByRole("tab", { name: "Evaluation jobs" }),
@@ -110,10 +98,22 @@ it("defaults oversight to evaluations and keeps setup explicit with visible prer
     screen.getByRole("link", { name: "New evaluation" }).getAttribute("href"),
   ).toBe("/oversight/new");
   mounted.unmount();
-  renderWithServer(
-    <MemoryRouter initialEntries={["/?run=source"]}>
-      <Oversight />
-    </MemoryRouter>,
+  renderWithClients(
+    <Routes>
+      <Route path="/*" element={<Oversight />} />
+    </Routes>,
+    {
+      route: "/?run=source",
+      clients: fakeClients({
+        monitor: {
+          history: async () => ({
+            items: [] as MonitorDefinition[],
+            nextCursor: null,
+          }),
+        },
+        runs: { list: async () => ({ items: [], total: 0, nextOffset: null }) },
+      }),
+    },
   );
   expect(await screen.findByText("Enter a monitor provider.")).toBeTruthy();
   expect(screen.getByText("Enter a monitor model.")).toBeTruthy();
@@ -135,44 +135,45 @@ it("restores an evaluation cursor page after detail navigation and retains previ
     status: "completed",
     createdAt: "2026-11-07T12:00:00Z",
     results: [],
-  });
-  mock((path) => {
-    const url = new URL(path, "http://localhost");
-    if (url.pathname === "/monitor-evaluations") {
-      const after = url.searchParams.get("after");
-      return {
-        items: [
-          job(
-            after === "cursor-2"
-              ? "evaluation-third-full-id"
-              : after === "cursor-1"
-                ? "evaluation-second-full-id"
-                : "evaluation-first-full-id",
-          ),
-        ],
-        nextCursor:
-          after === "cursor-2"
-            ? null
-            : after === "cursor-1"
-              ? "cursor-2"
-              : "cursor-1",
-      };
-    }
-    if (url.pathname.endsWith("/comparison")) return { comparisons: [] };
-    if (url.pathname.endsWith("/export")) return { preview: { runs: [] } };
-    if (url.pathname.startsWith("/monitor-evaluations/"))
-      return job("evaluation-third-full-id");
-    if (url.pathname === "/monitor-definitions/history")
-      return { items: [], nextCursor: null };
-    if (url.pathname === "/runs") return { items: [], nextOffset: null };
-    return { revision: 7 };
-  });
-  renderWithServer(
-    <MemoryRouter initialEntries={["/oversight?view=jobs"]}>
-      <Routes>
-        <Route path="/oversight/*" element={<Oversight />} />
-      </Routes>
-    </MemoryRouter>,
+  }) as unknown as MonitorEvaluation;
+  renderWithClients(
+    <Routes>
+      <Route path="/oversight/*" element={<Oversight />} />
+    </Routes>,
+    {
+      route: "/oversight?view=jobs",
+      clients: fakeClients({
+        monitor: {
+          evaluations: async (query) => {
+            const after = query?.after ?? null;
+            return {
+              items: [
+                job(
+                  after === "cursor-2"
+                    ? "evaluation-third-full-id"
+                    : after === "cursor-1"
+                      ? "evaluation-second-full-id"
+                      : "evaluation-first-full-id",
+                ),
+              ],
+              nextCursor:
+                after === "cursor-2"
+                  ? null
+                  : after === "cursor-1"
+                    ? "cursor-2"
+                    : "cursor-1",
+            };
+          },
+          evaluation: async () => job("evaluation-third-full-id"),
+          comparison: async () => ({ comparisons: [] }) as unknown as MonitorComparison,
+          exportEnvelope: async () => ({ preview: { runs: [] } }) as never,
+          history: async () => ({
+            items: [] as MonitorDefinition[],
+            nextCursor: null,
+          }),
+        },
+      }),
+    },
   );
   await screen.findByText("evaluation-first-full-id");
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
@@ -199,3 +200,4 @@ it("restores an evaluation cursor page after detail navigation and retains previ
   await screen.findByText("evaluation-second-full-id");
   expect(screen.getByText("Page 2")).toBeTruthy();
 });
+
