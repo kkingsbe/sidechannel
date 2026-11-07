@@ -1,27 +1,27 @@
 import { randomUUID } from 'node:crypto';
+import { DomainFailure } from '@sidechannel/contracts/errors';
 import { MONITOR_VIEWS, type MonitorPreview, type MonitorSettings } from '@sidechannel/contracts/oversight/contracts';
 import type { MonitorStore } from '@sidechannel/contracts/oversight/blob-store';
 import { buildProjection, digest } from './projections.js';
 import { currentDefinition } from './definition.js';
 import { readEvents, type OversightSource } from './events.js';
-import { OversightError } from './errors.js';
 import { previewInput } from './schemas.js';
 
 export async function createMonitorPreview(repository: OversightSource, store: MonitorStore, input: unknown): Promise<MonitorPreview> {
     const parsed = previewInput.parse(input);
     const definition = await currentDefinition(store);
-    if (definition.revision !== parsed.definitionRevision) throw new OversightError(409, 'Monitor definition changed. Reload before previewing.');
+    if (definition.revision !== parsed.definitionRevision) throw new DomainFailure('conflict', 'Monitor definition changed. Reload before previewing.');
     const settings: MonitorSettings = { model: parsed.model, maxInputChars: parsed.maxInputChars, contextWindowTokens: parsed.contextWindowTokens,
         outputAllowanceTokens: parsed.outputAllowanceTokens, timeoutMs: parsed.timeoutMs };
     settings.model.settings.maxOutputTokens ??= settings.outputAllowanceTokens;
     if (Number(settings.model.settings.maxOutputTokens) > settings.outputAllowanceTokens || settings.outputAllowanceTokens >= settings.contextWindowTokens)
-        throw new OversightError(400, 'Output token setting must fit the output allowance, which must be smaller than the context window.');
-    if (parsed.runIds.length !== new Set(parsed.runIds).size) throw new OversightError(400, 'Select each source run once');
+        throw new DomainFailure('invalid', 'Output token setting must fit the output allowance, which must be smaller than the context window.');
+    if (parsed.runIds.length !== new Set(parsed.runIds).size) throw new DomainFailure('invalid', 'Select each source run once');
     const runs: MonitorPreview['runs'] = [];
     for (const runId of parsed.runIds) {
         const run = await repository.getRun(runId);
-        if (!run) throw new OversightError(404, `Run ${runId} not found`);
-        if (run.status !== 'completed') throw new OversightError(400, `Run ${runId} must be completed before oversight`);
+        if (!run) throw new DomainFailure('not-found', `Run ${runId} not found`);
+        if (run.status !== 'completed') throw new DomainFailure('invalid', `Run ${runId} must be completed before oversight`);
         const events = await readEvents(repository, runId);
         runs.push({ runId, projections: MONITOR_VIEWS.map(view => buildProjection(run, events, view, definition, settings)) });
     }
@@ -36,7 +36,7 @@ export async function createMonitorPreview(repository: OversightSource, store: M
 export async function getMonitorPreview(store: MonitorStore, id: string): Promise<MonitorPreview | null> {
     const blob = await store.getBlob(id);
     if (!blob) return null;
-    if (!blob.complete) throw new OversightError(500, 'Frozen monitor preview part is missing');
-    if (digest(blob.text) !== blob.manifest.contentHash) throw new OversightError(500, 'Frozen monitor preview integrity check failed');
+    if (!blob.complete) throw new DomainFailure('unavailable', 'Frozen monitor preview part is missing');
+    if (digest(blob.text) !== blob.manifest.contentHash) throw new DomainFailure('unavailable', 'Frozen monitor preview integrity check failed');
     return JSON.parse(blob.text) as MonitorPreview;
 }

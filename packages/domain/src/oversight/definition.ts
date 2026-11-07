@@ -1,7 +1,7 @@
 import type { ResearchStore } from '@sidechannel/contracts/analysis/store';
+import { DomainFailure } from '@sidechannel/contracts/errors';
 import type { MonitorDefinition } from '@sidechannel/contracts/oversight/contracts';
 import { allRecords } from '../analysis/store.js';
-import { OversightError } from './errors.js';
 import { definitionInput } from './schemas.js';
 
 export function defaultMonitorDefinition(): MonitorDefinition {
@@ -27,14 +27,14 @@ export async function currentDefinition(store: ResearchStore): Promise<MonitorDe
 
 export async function saveDefinition(store: ResearchStore, input: unknown) {
     const parsed = definitionInput.parse(input);
-    if (new Set(parsed.outcomes.map(o => o.id)).size !== parsed.outcomes.length) throw new OversightError(400, 'Outcome IDs must be unique');
-    if (!parsed.outcomes.some(o => !o.archived)) throw new OversightError(400, 'Enable at least one outcome');
+    if (new Set(parsed.outcomes.map(o => o.id)).size !== parsed.outcomes.length) throw new DomainFailure('invalid', 'Outcome IDs must be unique');
+    if (!parsed.outcomes.some(o => !o.archived)) throw new DomainFailure('invalid', 'Enable at least one outcome');
     const current = await currentDefinition(store);
-    if (current.revision !== parsed.expectedRevision) throw new OversightError(409, 'Monitor definition changed. Reload and reconcile your edits.');
+    if (current.revision !== parsed.expectedRevision) throw new DomainFailure('conflict', 'Monitor definition changed. Reload and reconcile your edits.');
     if (current.outcomes.some(prior => !parsed.outcomes.some(next => next.id === prior.id)))
-        throw new OversightError(400, 'Archive existing outcomes instead of removing their stable IDs.');
+        throw new DomainFailure('invalid', 'Archive existing outcomes instead of removing their stable IDs.');
     const next: MonitorDefinition = { id: `definition:${current.revision + 1}`, schemaVersion: 1, revision: current.revision + 1,
         createdAt: new Date().toISOString(), questions: parsed.questions, outcomes: parsed.outcomes };
-    if (!await store.insert('monitor_definitions', next)) throw new OversightError(409, 'A teammate saved this revision first. Reload and reconcile your edits.');
+    if (!await store.insert('monitor_definitions', next)) throw new DomainFailure('conflict', 'A teammate saved this revision first. Reload and reconcile your edits.');
     return next;
 }

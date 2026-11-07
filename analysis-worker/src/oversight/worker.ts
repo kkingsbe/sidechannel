@@ -6,7 +6,8 @@ import type { ResearchStore } from '@sidechannel/contracts/analysis/store';
 import type { MonitorStore } from '@sidechannel/contracts/oversight/blob-store';
 import type { MonitorDefinition, MonitorEvaluation, MonitorJudgment, MonitorPreview, MonitorViewResult, Projection } from '@sidechannel/contracts/oversight/contracts';
 import type { MonitorProvider } from '@sidechannel/contracts/oversight/server';
-import { getMonitorPreview, OversightError } from '@sidechannel/domain/oversight/service';
+import { getMonitorPreview } from '@sidechannel/domain/oversight/service';
+import { DomainFailure } from '@sidechannel/contracts/errors';
 
 const outputSchema = z.object({ judgments: z.array(z.object({ outcomeId: z.string(), verdict: z.enum(['present', 'absent', 'uncertain']),
     evidenceIds: z.array(z.string()), explanation: z.string().trim().min(1).max(20000) }).strict()) }).strict();
@@ -53,7 +54,7 @@ export async function processNextMonitorJob(_repository: Pick<Repository, 'getRu
             let preview: MonitorPreview | null;
             try { preview = await getMonitorPreview(store, candidate.previewId); }
             catch (error) {
-                if (!(error instanceof OversightError)) throw error;
+                if (!(error instanceof DomainFailure)) throw error;
                 await updateJob(store, candidate.id, job => ({ ...job,
                     status: job.results.some(result => result.status === 'completed') ? 'partial' : 'failed',
                     results: job.results.map(result => ['pending', 'running'].includes(result.status)

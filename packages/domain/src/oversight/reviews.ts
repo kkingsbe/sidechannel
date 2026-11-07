@@ -3,7 +3,7 @@ import { allRecords, hash, timestamp } from '../analysis/store.js';
 import type { ResearchStore } from '@sidechannel/contracts/analysis/store';
 import type { MonitorDefinition } from '@sidechannel/contracts/oversight/contracts';
 import { currentDefinition } from './definition.js';
-import { OversightError } from './errors.js';
+import { DomainFailure } from '@sidechannel/contracts/errors';
 import { readEvents, type OversightSource } from './events.js';
 import type { RunReviewContext, RunOutcomeReview, RunOutcomeAgreement } from '@sidechannel/contracts/oversight/reviews';
 
@@ -18,8 +18,8 @@ export const normalizedReviewer = (value: string) => value.trim().normalize('NFK
 
 async function sourceSnapshot(repository: OversightSource, runId: string) {
     const run = await repository.getRun(runId);
-    if (!run) throw new OversightError(404, 'Run not found');
-    if (!['completed', 'failed', 'cancelled', 'interrupted'].includes(run.status)) throw new OversightError(409, 'Run outcome review requires a terminal source run');
+    if (!run) throw new DomainFailure('not-found', 'Run not found');
+    if (!['completed', 'failed', 'cancelled', 'interrupted'].includes(run.status)) throw new DomainFailure('conflict', 'Run outcome review requires a terminal source run');
     const events = (await readEvents(repository, runId)).sort((a, b) => a.sequence - b.sequence);
     // Include actor reports and artifact/board projections as well as the actual event bytes.
     // A config hash alone cannot identify the evidence that two people reviewed.
@@ -31,7 +31,7 @@ async function sourceSnapshot(repository: OversightSource, runId: string) {
 export async function runReviewContext(repository: OversightSource, store: ResearchStore, runId: string, definitionRevisionId?: string): Promise<RunReviewContext> {
     const source = await sourceSnapshot(repository, runId);
     const definition = definitionRevisionId ? await store.get<MonitorDefinition>('monitor_definitions', definitionRevisionId) : await currentDefinition(store);
-    if (!definition) throw new OversightError(404, 'Monitor definition revision not found');
+    if (!definition) throw new DomainFailure('not-found', 'Monitor definition revision not found');
     return { runId, evidenceRevision: source.evidenceRevision, definition, sourceStatus: source.run.status,
         eventCount: source.events.length, sequenceBoundary: source.events.at(-1)?.sequence ?? 0 };
 }
@@ -59,17 +59,17 @@ function agreement(history: RunOutcomeReview[], evidenceRevision?: string, defin
 
 export async function saveRunOutcomeReview(repository: OversightSource, store: ResearchStore, runId: string, input: unknown): Promise<RunOutcomeReview> {
     const parsed = reviewInput.parse(input), source = await sourceSnapshot(repository, runId);
-    if (parsed.evidenceRevision !== source.evidenceRevision) throw new OversightError(409, 'Source evidence changed; reload review context before judging');
+    if (parsed.evidenceRevision !== source.evidenceRevision) throw new DomainFailure('conflict', 'Source evidence changed; reload review context before judging');
     const definition = await store.get<MonitorDefinition>('monitor_definitions', parsed.definitionRevisionId);
     const outcome = definition?.outcomes.find(item => item.id === parsed.outcomeId && !item.archived);
-    if (!definition || !outcome) throw new OversightError(400, 'Outcome must be enabled in the named immutable definition revision');
+    if (!definition || !outcome) throw new DomainFailure('invalid', 'Outcome must be enabled in the named immutable definition revision');
     const evidenceIds = new Set(source.events.map(event => event.id));
-    if (new Set(parsed.eventIds).size !== parsed.eventIds.length || parsed.eventIds.some(id => !evidenceIds.has(id))) throw new OversightError(400, 'Citations must be unique event IDs from this source run');
-    if (parsed.decision === 'present' && !parsed.eventIds.length) throw new OversightError(400, 'A present outcome requires supporting source event citations');
+    if (new Set(parsed.eventIds).size !== parsed.eventIds.length || parsed.eventIds.some(id => !evidenceIds.has(id))) throw new DomainFailure('invalid', 'Citations must be unique event IDs from this source run');
+    if (parsed.decision === 'present' && !parsed.eventIds.length) throw new DomainFailure('invalid', 'A present outcome requires supporting source event citations');
     const reviewerKey = normalizedReviewer(parsed.reviewer);
     const history = await allRecords<RunOutcomeReview>(store, 'run_outcome_reviews', { runId, outcomeId: parsed.outcomeId, definitionRevisionId: definition.id });
     const previous = latestReviews(history).find(review => review.reviewerKey === reviewerKey);
-    if (previous?.id !== parsed.supersedesId) throw new OversightError(409, previous ? 'Supply supersedesId for your latest review revision' : 'Superseded review does not match this reviewer and outcome');
+    if (previous?.id !== parsed.supersedesId) throw new DomainFailure('conflict', previous ? 'Supply supersedesId for your latest review revision' : 'Superseded review does not match this reviewer and outcome');
     const sequence = history.reduce((max, review) => Math.max(max, review.sequence), 0) + 1;
     const priorAgreement = history.length ? agreement(history) : null;
     // Revising any agreed judgment starts a new confirmation epoch, even if its verdict
@@ -80,7 +80,7 @@ export async function saveRunOutcomeReview(repository: OversightSource, store: R
         sequence, agreementEpoch, outcomeDefinition: structuredClone(outcome) };
     // The immutable sequence key is the concurrency check: competing saves cannot both
     // publish the same next revision. Losing writers reload instead of creating a branch.
-    if (!await store.insert('run_outcome_reviews', review)) throw new OversightError(409, 'A concurrent review was saved; reload history and retry');
+    if (!await store.insert('run_outcome_reviews', review)) throw new DomainFailure('conflict', 'A concurrent review was saved; reload history and retry');
     return review;
 }
 
@@ -99,7 +99,7 @@ function agreementsFrom(rows: RunOutcomeReview[], context: RunReviewContext): Ru
 export async function latestRunOutcomeReview(repository: OversightSource, store: ResearchStore, runId: string, input: { reviewer: string; outcomeId: string; definitionRevisionId: string }) {
     const reviewer = z.string().trim().min(1).max(200).parse(input.reviewer);
     const context = await runReviewContext(repository, store, runId, input.definitionRevisionId);
-    if (!context.definition.outcomes.some(outcome => outcome.id === input.outcomeId)) throw new OversightError(400, 'Unknown outcome in this definition revision');
+    if (!context.definition.outcomes.some(outcome => outcome.id === input.outcomeId)) throw new DomainFailure('invalid', 'Unknown outcome in this definition revision');
     const rows = await allRecords<RunOutcomeReview>(store, 'run_outcome_reviews', { runId, outcomeId: input.outcomeId, definitionRevisionId: input.definitionRevisionId, reviewerKey: normalizedReviewer(reviewer) });
     return rows.sort((a, b) => a.sequence - b.sequence).at(-1) ?? null;
 }
