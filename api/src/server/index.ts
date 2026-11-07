@@ -17,6 +17,7 @@ import { HealthcareService } from '../healthcare/service.js';
 import type { PlaybookCatalog } from '@sidechannel/contracts/playbook/repository';
 import { PLAYBOOK_PROVIDER } from '@sidechannel/contracts/playbook/contracts';
 import { PlaybookService } from '../playbook/service.js';
+import { snapBackward, snapForward, TURN_SNAP_SLACK } from '@sidechannel/domain/harness/event-pages';
 import { adaptionModelRoute, validateAdaptionModelSelection } from './adaption-models.js';
 
 export type { Draft } from '@sidechannel/contracts/harness/repository';
@@ -191,20 +192,26 @@ export function createResearcherServer(repository: ResearcherRepository, options
                     if (!item) throw new HttpError(404, 'Evidence not found in this run');
                     return send(200, item);
                 }
-                const match = path.match(/^\/runs\/([^/]+)(?:\/(progress|events|export|cancel|board|memory|artifacts|reports))?$/);
+                const match = path.match(/^\/runs\/([^/]+)(?:\/(progress|events|turns|export|cancel|board|memory|artifacts|reports))?$/);
                 if (match) {
                     const id = decodeURIComponent(match[1]!), op = match[2];
                     const summary = await repository.getRunSummary(id); if (!summary) throw new HttpError(404, 'Run not found');
                     if (method === 'POST' && op === 'cancel') return send(202, await repository.requestCancel(id));
                     if (method !== 'GET') throw new HttpError(405, 'Method not allowed');
                     if (op === 'progress') return send(200, { ...summary, observedAt: new Date().toISOString(), executionPhase: summary.status === 'reporting' ? 'report' : 'action', rounds: summary.config.scheduler.rounds });
+                    if (op === 'turns') return send(200, { turns: await repository.listTurns(id) });
                     if (op === 'events' || op === 'memory') {
                         const after = cursor(query.get('after'), 0), limit = cursor(query.get('limit'), 200, 1000); if (!limit) throw new HttpError(400, 'limit must be positive');
                         if (query.has('phase') && !['action', 'report'].includes(query.get('phase')!)) throw new HttpError(400, 'phase must be action or report');
-                        const filter: EventQuery = { after, limit: limit + 1, ...(query.get('actor') ? { actor: query.get('actor')! } : {}), ...(query.get('phase') ? { phase: query.get('phase')! } : {}), ...(query.get('type') ? { type: query.get('type')! } : {}), ...(query.has('from') ? { from: cursor(query.get('from'), 0) } : {}), ...(query.has('to') ? { to: cursor(query.get('to'), 0) } : {}) };
+                        const backward = op === 'events' && query.has('before'), snapped = op === 'events' && query.get('snap') === 'turn';
+                        if (backward && query.has('after')) throw new HttpError(400, 'Use either after or before, not both');
+                        const before = backward ? cursor(query.get('before'), 0) : undefined;
+                        const filter: EventQuery = { after, limit: limit + (snapped ? TURN_SNAP_SLACK : 0) + 1, ...(before === undefined ? {} : { before, order: 'desc' as const }), ...(query.get('actor') ? { actor: query.get('actor')! } : {}), ...(query.get('phase') ? { phase: query.get('phase')! } : {}), ...(query.get('type') ? { type: query.get('type')! } : {}), ...(query.has('from') ? { from: cursor(query.get('from'), 0) } : {}), ...(query.has('to') ? { to: cursor(query.get('to'), 0) } : {}) };
                         if (op === 'memory') { filter.type = query.get('type') ?? 'memory_updated'; filter.offset = cursor(query.get('offset'), 0); }
-                        const rows = await repository.queryEvents(id, filter), events = rows.slice(0, limit);
-                        return send(200, { events, items: events, nextCursor: events.at(-1)?.sequence ?? after, hasMore: rows.length > limit, ...(op === 'memory' ? { nextOffset: rows.length > limit ? (filter.offset ?? 0) + limit : null } : {}) });
+                        const rows = await repository.queryEvents(id, filter);
+                        const page = snapped ? (backward ? snapBackward(rows, limit) : snapForward(rows, limit)) : { events: backward ? rows.slice(0, limit).reverse() : rows.slice(0, limit), hasMore: rows.length > limit };
+                        const events = page.events;
+                        return send(200, { events, items: events, nextCursor: events.at(-1)?.sequence ?? after, ...(before === undefined ? {} : { previousCursor: events[0]?.sequence ?? before }), hasMore: page.hasMore, ...(op === 'memory' ? { nextOffset: rows.length > limit ? (filter.offset ?? 0) + limit : null } : {}) });
                     }
                     if (op === 'artifacts' || op === 'reports' || op === 'board') {
                         const offset = cursor(query.get('offset'), 0), limit = cursor(query.get('limit'), 100, 1000); if (!limit) throw new HttpError(400, 'limit must be positive');
