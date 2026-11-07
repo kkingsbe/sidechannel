@@ -3,11 +3,11 @@
 .pair-failure { color: var(--destructive, #b42318); max-width: 36ch; overflow-wrap: anywhere; }
 .launched-experiment { padding: 12px 20px 4px; }
 .launched-experiment h3 { margin: 0 0 2px; }
-.filters-toggle { display: none; }
+.button.filters-toggle { display: none; }
 .filter-fields { display: contents; }
 .run-live-summary { display: contents; }
 @media (max-width: 640px) {
-  .filters-toggle { display: inline-flex; margin: 12px 15px 0; }
+  .button.filters-toggle { display: inline-flex; margin: 12px 15px 0; }
   .filter-bar-collapsible:not(.filters-open) .filter-fields { display: none; }
   .filter-fields { display: flex; flex-wrap: wrap; gap: 12px; width: 100%; }
 }

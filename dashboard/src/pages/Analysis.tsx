@@ -1390,9 +1390,12 @@ function AnalysisDetail() {
               ) : tab === "probability" ? (
                 <div className="card-body" style={{ paddingTop: 20 }}>
                   <p className="helper" style={{ marginBottom: 14 }}>
-                    Points sit at window ends. Segments connect
-                    overlapping-window estimates; they do not measure an
-                    instantaneous signal.
+                    Points sit at window ends on an axis of source steps.
+                    Segments connect overlapping-window estimates; they do not
+                    measure an instantaneous signal. The dashed line is the
+                    highlight threshold, and a dotted “no score” mark breaks
+                    the line where a window has no score. Round boundaries are
+                    not part of the analysis data, so only step ticks are shown.
                   </p>
                   {shown.map((code) => (
                     <ProbabilityPlot
@@ -1748,7 +1751,6 @@ function ProbabilityPlot({
   const x = (end: number) => plotX(end, min, max);
   const y = plotY;
   const path = linePath(windows, code.id, min, max);
-  const hasGap = windows.some((w) => scoreOf(w, code.id) == null);
   return (
     <section style={{ marginBottom: 20 }}>
       <div className="actions" style={{ justifyContent: "space-between" }}>
@@ -1860,15 +1862,6 @@ function ProbabilityPlot({
           );
         })}
       </svg>
-      <p className="helper">
-        Horizontal axis: source steps (tick labels), points at window ends.
-        Dashed line: highlight threshold.
-        {hasGap
-          ? " A vertical dotted \"no score\" mark is a window without a score; the line is broken there."
-          : ""}{" "}
-        Round boundaries are not part of the analysis data, so only step ticks
-        are shown.
-      </p>
     </section>
   );
 }
