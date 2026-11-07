@@ -2,7 +2,7 @@ import * as React from 'react';
 import type { HarnessEvent } from '@sidechannel/contracts/browser';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { JsonView } from '../../components/ui';
-import { OutputText, ReasoningBlock, ToolCallList } from '../../components/model-call';
+import { ModelCallFailure, OutputText, ReasoningBlock, ToolCallList } from '../../components/model-call';
 import { buildModelCalls, formatTokens, type ModelCall } from '../../lib/model-calls';
 import './traces-panel.css';
 
@@ -57,7 +57,7 @@ export function ModelCallDetail({ event, events, provider, onNavigate, onOpenTra
   return (
     <div className="tr-detail">
       <div className="tr-detail-head">
-        <strong>Call {index + 1} of {calls.length}</strong>
+        <strong>Call #{call.sequenceRange[0]} · {index + 1} of {calls.length} on this page</strong>
         <div className="tr-nav">
           <button type="button" className="tr-icon-btn" aria-label="Previous model call" disabled={!prev}
             onClick={() => prev && onNavigate(prev.id, prev.sequence)}><ChevronLeft size={16} aria-hidden="true" /></button>
@@ -89,11 +89,12 @@ export function ModelCallDetail({ event, events, provider, onNavigate, onOpenTra
           <JsonView value={event} open />
         ) : (
           <>
-            <ReasoningBlock call={call} collapsible={false} />
+            <ModelCallFailure call={call} />
+            {!call.failure && <ReasoningBlock call={call} collapsible={false} />}
             {showsReasoningText && sources.length > 0 && (
               <p className="tr-source">source <code>{sources.join(', ')}</code></p>
             )}
-            <OutputText text={call.text} hasToolCalls={call.toolCalls.length > 0} />
+            {!call.failure && <OutputText text={call.text} hasToolCalls={call.toolCalls.length > 0} />}
             <ToolCallList
               calls={call.toolCalls}
               variant="detailed"

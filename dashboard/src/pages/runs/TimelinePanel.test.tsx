@@ -144,6 +144,104 @@ describe('TimelinePanel readable mode', () => {
   });
 });
 
+describe('TimelinePanel readable payloads, failures and paging', () => {
+  const post = 'Publishing my approved priority-points table.\n\nclinical_records contributions\n- C-2AU4J: 10';
+
+  it('gives each row a one-line payload summary instead of restating its title', () => {
+    seq = 0;
+    const events = [
+      ev('board_post', { after: { authorId: 'alpha', sequence: 1, text: post } }, { toolCallId: 'tc-p' }),
+      ev('board_delivery', { after: [{ sequence: 1, text: 'a' }, { sequence: 2, text: 'b' }, { sequence: 3, text: 'c' }] }, { agentId: 'pharmacy' }),
+      ev('memory_updated', { before: { version: 1, notes: 'old' }, after: { version: 2, notes: 'Plan A\nplan b\nplan c\nplan d' } }),
+      ev('turn_ended', { reason: 'explicit_yield', remainingAllowance: 1 }),
+    ];
+    setup(events);
+    expect(screen.getByText('board post')).toBeTruthy();
+    expect(screen.getByText(/alpha posted: Publishing my approved priority-points table\./)).toBeTruthy();
+    expect(screen.getByText('delivered posts #1–#3 to pharmacy')).toBeTruthy();
+    expect(screen.getByText('memory v2 (+3 lines): Plan A')).toBeTruthy();
+    expect(screen.getByText('Ended: yielded turn · 1 action left')).toBeTruthy();
+  });
+
+  it('names a tool result by its tool, not its call id, even when the call is on another page', () => {
+    seq = 0;
+    const events = [
+      ev('tool_admitted', { call: { id: 'chatcmpl-tool-a7056f', name: 'read_artifact', arguments: {} } }, { invocationId: 'inv-9', toolCallId: 'chatcmpl-tool-a7056f' }),
+      ev('tool_result', { result: { ok: true, value: { version: 0, content: '' } }, disposition: 'executed' }, { invocationId: 'inv-9', toolCallId: 'chatcmpl-tool-a7056f' }),
+    ];
+    setup(events);
+    expect(screen.getByText('read_artifact · executed → version 0, empty')).toBeTruthy();
+    expect(screen.queryByText(/chatcmpl-tool-a7056f ·/)).toBeNull();
+  });
+
+  it('renders a timed-out model call as failed with the reason and elapsed time', () => {
+    seq = 0;
+    const inv = { invocationId: 'inv-t' };
+    const events = [
+      ev('turn_started', { allowance: 8 }),
+      ev('model_requested', { phase: 'action', messages: [], tools: [] }, inv),
+    ];
+    seq += 299;
+    events.push(
+      ev('turn_ended', { reason: 'error', error: 'Model request timeout' }),
+      ev('run_terminated', { status: 'failed', reason: 'Model request timeout' }, { agentId: undefined, round: undefined, turn: undefined }),
+    );
+    setup(events);
+    const row = screen.getByText('Failed').closest('li')!;
+    expect(row.className).toContain('tl-row-error');
+    expect(row.textContent).toContain('Model request timeout');
+    expect(row.textContent).toContain('30.0 s');
+    expect(screen.queryByText(/No text output/)).toBeNull();
+    expect(screen.queryByText(/No reasoning recorded/)).toBeNull();
+    const ended = document.querySelector('[data-type="turn_ended"]')!;
+    expect(ended.className).toContain('tl-row-error');
+    expect(document.querySelector('[data-type="run_terminated"]')!.className).toContain('tl-row-error');
+  });
+
+  it('uses an Inspect affordance rather than a play icon', () => {
+    setup();
+    expect(screen.getAllByText('Inspect').length).toBeGreaterThan(0);
+  });
+
+  it('notes hidden reasoning once for the page', () => {
+    seq = 0;
+    const events = [
+      ev('model_requested', { phase: 'action' }, { invocationId: 'h1' }),
+      ev('model_response', { text: 'a', toolCalls: [] }, { invocationId: 'h1' }),
+      ev('model_usage', { source: 'provider', usage: { inputTokens: 1, outputTokens: 1, reasoningTokens: 64 } }, { invocationId: 'h1' }),
+      ev('model_requested', { phase: 'action' }, { invocationId: 'h2' }),
+      ev('model_response', { text: 'b', toolCalls: [] }, { invocationId: 'h2' }),
+      ev('model_usage', { source: 'provider', usage: { inputTokens: 1, outputTokens: 1, reasoningTokens: 32 } }, { invocationId: 'h2' }),
+    ];
+    setup(events);
+    expect(screen.getAllByText(/Provider hid reasoning on all 2 model calls on this page/)).toHaveLength(1);
+    expect(screen.queryByText('Reasoning hidden by provider.')).toBeNull();
+    expect(screen.getByText(/64 reasoning tokens/)).toBeTruthy();
+  });
+
+  it('shows prose tool arguments as text, not JSON, in the call row', () => {
+    seq = 0;
+    const events = [
+      ev('model_requested', { phase: 'action' }, { invocationId: 'p1' }),
+      ev('model_response', { text: '', toolCalls: [{ id: 'tp', name: 'post_board', arguments: { text: post } }] }, { invocationId: 'p1' }),
+    ];
+    setup(events);
+    expect(document.querySelector('.mc-tool-prose')!.textContent).toBe(post);
+    expect(screen.queryByText(/\{"text"/)).toBeNull();
+  });
+
+  it('marks turns cut by a page edge and offers Jump to latest', async () => {
+    seq = 0;
+    const events = [ev('model_requested', { phase: 'action' }, { invocationId: 'c1' })];
+    const onJump = vi.fn();
+    render(<TimelinePanel events={events} provider="adaption" onInspect={vi.fn()} onOpenTraces={vi.fn()} paging={{ hasPrevious: true, hasNext: true, onJumpToLatest: onJump }} />);
+    expect(screen.getByText('Continued from previous page')).toBeTruthy();
+    expect(screen.getByText('Continues on next page')).toBeTruthy();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Jump to latest' }));
+    expect(onJump).toHaveBeenCalled();
+  });
+});
+
 describe('TimelinePanel raw mode', () => {
   it('shows JSON previews and inspects on click', async () => {
     const { user, onInspect } = setup();

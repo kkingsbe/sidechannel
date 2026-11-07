@@ -3,11 +3,14 @@
  * shows reasoning inline. Raw mode reproduces the original one-button-per-event list.
  */
 import * as React from 'react';
-import { ArrowUpRight, CheckCircle2, MessageSquare, Play, Wrench, XCircle } from 'lucide-react';
+import { ArrowUpRight, CheckCircle2, ChevronRight, Circle, MessageSquare, Wrench, XCircle } from 'lucide-react';
 import type { HarnessEvent } from '@sidechannel/contracts/browser';
 import { Badge } from '../../components/ui';
-import { ModelCallMeta, OutputText, ReasoningBlock, ToolCallList } from '../../components/model-call';
-import { MODEL_CALL_EVENT_TYPES, buildModelCalls, summarizeEvent, type ModelCall } from '../../lib/model-calls';
+import { ModelCallFailure, ModelCallMeta, OutputText, ReasoningBlock, ToolCallList } from '../../components/model-call';
+import {
+  MODEL_CALL_EVENT_TYPES, buildModelCalls, buildToolNames, humanizeCode, summarizeEvent,
+  type ModelCall, type PageNav,
+} from '../../lib/model-calls';
 import { cn, pretty } from '../../lib/utils';
 import './timeline-panel.css';
 
@@ -20,6 +23,8 @@ export interface TimelinePanelProps {
   onInspect: (eventId: string, sequence?: number) => void;
   /** Switches to Model & traces focused on that invocation. */
   onOpenTraces: (invocationId: string) => void;
+  /** Position of this page in the run; enables continuation markers and "Jump to latest". */
+  paging?: PageNav;
 }
 
 /* ------------------------------------------------------------ persistence */
@@ -130,20 +135,28 @@ function turnSummary(seg: Segment, callsById: Map<string, ModelCall>): string {
   return parts.join(' · ');
 }
 
-function markerFor(e: HarnessEvent): { Icon: typeof Play; tone: string } {
-  if (FAILURE.test(e.type)) return { Icon: XCircle, tone: 'danger' };
+/** Turn ended with an error, or the run was terminated abnormally. */
+function isErrorEvent(e: HarnessEvent): boolean {
+  const d = isRecord(e.data) ? e.data : {};
+  if (e.type === 'turn_ended') return typeof d.error === 'string' || d.reason === 'error';
+  if (e.type === 'run_terminated') return d.status !== 'completed' && d.status !== 'cancelled';
+  return false;
+}
+
+function markerFor(e: HarnessEvent): { Icon: typeof Circle; tone: string } {
+  if (FAILURE.test(e.type) || isErrorEvent(e)) return { Icon: XCircle, tone: 'danger' };
   if (/board/.test(e.type)) return { Icon: MessageSquare, tone: 'neutral' };
   if (/tool/.test(e.type)) return { Icon: Wrench, tone: 'neutral' };
   if (/complete|success/.test(e.type)) return { Icon: CheckCircle2, tone: 'success' };
-  return { Icon: Play, tone: 'neutral' };
+  return { Icon: Circle, tone: 'neutral' };
 }
 
 const time = (e: HarnessEvent) => new Date(e.timestamp).toLocaleTimeString();
-const typeLabel = (type: string) => type.replaceAll('_', ' ');
+const typeLabel = (type: string) => humanizeCode(type);
 
 /* ---------------------------------------------------------------- component */
 
-export function TimelinePanel({ events, provider, onInspect, onOpenTraces }: TimelinePanelProps) {
+export function TimelinePanel({ events, provider, onInspect, onOpenTraces, paging }: TimelinePanelProps) {
   const [mode, setMode] = usePersisted<'readable' | 'raw'>(KEY_MODE, 'readable', parseMode);
   const [fold, setFold] = usePersisted<boolean>(KEY_FOLD, true, parseBool);
   const [expandAll, setExpandAll] = usePersisted<boolean>(KEY_EXPAND, false, parseBool);
@@ -154,10 +167,9 @@ export function TimelinePanel({ events, provider, onInspect, onOpenTraces }: Tim
   const sorted = React.useMemo(() => [...events].sort((a, b) => a.sequence - b.sequence), [events]);
   const calls = React.useMemo(() => buildModelCalls(sorted, { provider }), [sorted, provider]);
   const callsById = React.useMemo(() => new Map(calls.map(c => [c.invocationId, c])), [calls]);
-  const toolNames = React.useMemo(
-    () => new Map(calls.flatMap(c => c.toolCalls.map(t => [t.id, t.name] as const))),
-    [calls],
-  );
+  const toolNames = React.useMemo(() => buildToolNames(sorted, calls), [sorted, calls]);
+  // Provider-hidden reasoning is noted once for the page instead of on every call.
+  const hiddenCount = calls.filter(c => c.reasoningState === 'hidden').length;
   const callByResponse = React.useMemo(() => {
     const m = new Map<string, ModelCall>();
     for (const c of calls) if (c.response) m.set(c.response.id, c);
@@ -170,15 +182,22 @@ export function TimelinePanel({ events, provider, onInspect, onOpenTraces }: Tim
 
   const renderBody = (call: ModelCall) => (
     <>
-      <ReasoningBlock
-        call={call}
-        collapsible
-        expanded={rowOpen[call.invocationId] ?? expandAll}
-        onToggle={next => setRowOpen(prev => ({ ...prev, [call.invocationId]: next }))}
-        maxHeight={240}
-        onOpenTraces={() => onOpenTraces(call.invocationId)}
-      />
-      <OutputText text={call.text} hasToolCalls={call.toolCalls.length > 0} />
+      {call.failure ? (
+        <ModelCallFailure call={call} />
+      ) : (
+        <>
+          <ReasoningBlock
+            call={call}
+            collapsible
+            expanded={rowOpen[call.invocationId] ?? expandAll}
+            onToggle={next => setRowOpen(prev => ({ ...prev, [call.invocationId]: next }))}
+            maxHeight={240}
+            onOpenTraces={() => onOpenTraces(call.invocationId)}
+            quietHidden
+          />
+          <OutputText text={call.text} hasToolCalls={call.toolCalls.length > 0} />
+        </>
+      )}
       <ToolCallList calls={call.toolCalls} variant="compact" onSelectEvent={inspectById} />
     </>
   );
@@ -187,8 +206,9 @@ export function TimelinePanel({ events, provider, onInspect, onOpenTraces }: Tim
     const { Icon, tone } = markerFor(e);
     const quote = quoteOf(e);
     const bodyCall = e.type === 'model_response' ? callByResponse.get(e.id) : undefined;
+    const errored = isErrorEvent(e);
     return (
-      <li key={e.id} className="tl-row" data-type={e.type}>
+      <li key={e.id} className={cn('tl-row', errored && 'tl-row-error')} data-type={e.type}>
         <span className={cn('tl-marker', `tl-marker-${tone}`)} aria-hidden="true"><Icon size={13} /></span>
         <div className={cn('tl-main', bodyCall && 'tl-main-call')}>
           <div className="tl-head">
@@ -196,8 +216,9 @@ export function TimelinePanel({ events, provider, onInspect, onOpenTraces }: Tim
             <Badge>{e.agentId || 'system'}</Badge>
             <span className="tl-seq">#{e.sequence} · R{e.round ?? '—'} / T{e.turn ?? '—'}</span>
             {FAILURE.test(e.type) && <Badge status="failed">Diagnostic</Badge>}
+            {errored && <Badge status="failed">Error</Badge>}
           </div>
-          {quote ? <blockquote className="tl-quote">{quote}</blockquote> : <p className="tl-summary">{summarizeEvent(e, toolNames)}</p>}
+          {quote ? <blockquote className="tl-quote">{quote}</blockquote> : <p className={cn('tl-summary', errored && 'tl-summary-error')}>{summarizeEvent(e, toolNames)}</p>}
           {bodyCall && renderBody(bodyCall)}
         </div>
         <time className="tl-time">{time(e)}</time>
@@ -209,11 +230,14 @@ export function TimelinePanel({ events, provider, onInspect, onOpenTraces }: Tim
   const renderCallRow = (row: Extract<Row, { kind: 'call' }>) => {
     const { call, anchor, target, range } = row;
     return (
-      <li key={`call-${call.invocationId}`} className="tl-row" data-type="model_call">
-        <span className="tl-marker tl-marker-call" aria-hidden="true"><MessageSquare size={14} /></span>
+      <li key={`call-${call.invocationId}`} className={cn('tl-row', call.failure && 'tl-row-error')} data-type="model_call">
+        <span className={cn('tl-marker', call.failure ? 'tl-marker-danger' : 'tl-marker-call')} aria-hidden="true">
+          {call.failure ? <XCircle size={14} /> : <MessageSquare size={14} />}
+        </span>
         <div className="tl-main tl-main-call">
           <div className="tl-head">
             <strong>model call</strong>
+            {call.failure && <Badge status="failed">Failed</Badge>}
             <Badge>{call.agentId || anchor.agentId || 'system'}</Badge>
             <span className="tl-seq">
               #{range[0] === range[1] ? range[0] : `${range[0]}–${range[1]}`} · R{call.round ?? '—'} / T{call.turn ?? '—'}
@@ -251,10 +275,31 @@ export function TimelinePanel({ events, provider, onInspect, onOpenTraces }: Tim
     </div>
   );
 
+  const pageBar = paging && (paging.hasPrevious || paging.hasNext || sorted.length > 0) ? (
+    <div className="tl-pagebar">
+      <span>
+        {sorted.length > 0 ? `Events #${sorted[0].sequence}–#${sorted[sorted.length - 1].sequence} on this page` : 'No events on this page'}
+        {paging.hasPrevious ? ' · earlier events on previous pages' : ''}
+        {paging.hasNext ? ' · later events on next pages' : ''}
+      </span>
+      {paging.hasNext && paging.onJumpToLatest && (
+        <button type="button" className="tl-jump" onClick={paging.onJumpToLatest}>Jump to latest</button>
+      )}
+    </div>
+  ) : null;
+
+  const hiddenNote = hiddenCount > 0 && (
+    <p className="tl-note" role="note">
+      Provider hid reasoning on {hiddenCount === calls.length ? `all ${calls.length}` : `${hiddenCount} of ${calls.length}`} model call{calls.length === 1 ? '' : 's'} on this page.
+      Reasoning token counts appear on each call.
+    </p>
+  );
+
   if (mode === 'raw') {
     return (
       <div className="tl-panel">
         {toolbar}
+        {pageBar}
         <ol className="tl-raw-list timeline-list">
           {sorted.map(e => {
             const { Icon } = markerFor(e);
@@ -285,9 +330,15 @@ export function TimelinePanel({ events, provider, onInspect, onOpenTraces }: Tim
   return (
     <div className="tl-panel">
       {toolbar}
+      {pageBar}
+      {hiddenNote}
       <ol className="tl-list">
-        {segments.map(seg => {
+        {segments.map((seg, segIndex) => {
           const first = rowEvent(seg.rows[0]);
+          const rowTypes = seg.rows.map(r => rowEvent(r).type);
+          // A turn cut by a page edge lacks its start (top of page) or its end (bottom of page).
+          const continued = segIndex === 0 && !!paging?.hasPrevious && seg.key !== null && !rowTypes.includes('turn_started');
+          const continues = segIndex === segments.length - 1 && !!paging?.hasNext && seg.key !== null && !rowTypes.includes('turn_ended');
           const groupId = `${seg.key ?? 'none'}@${first.id}`;
           const collapsed = seg.key !== null && !!collapsedTurns[groupId];
           return (
@@ -297,6 +348,8 @@ export function TimelinePanel({ events, provider, onInspect, onOpenTraces }: Tim
                   <h3>Round {seg.round ?? '—'} · Turn {seg.turn}</h3>
                   <Badge>{seg.agentId || 'system'}</Badge>
                   <span className="tl-turn-summary">{turnSummary(seg, callsById)}</span>
+                  {continued && <span className="tl-turn-flag">Continued from previous page</span>}
+                  {continues && <span className="tl-turn-flag">Continues on next page</span>}
                   <button
                     type="button"
                     className="tl-turn-toggle"
@@ -319,7 +372,8 @@ export function TimelinePanel({ events, provider, onInspect, onOpenTraces }: Tim
 function OpenButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button type="button" className="tl-open" aria-label={label} title={label} onClick={onClick}>
-      <ArrowUpRight size={14} aria-hidden="true" />
+      <span className="tl-open-text" aria-hidden="true">Inspect</span>
+      <ChevronRight size={14} aria-hidden="true" />
     </button>
   );
 }

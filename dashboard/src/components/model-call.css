@@ -303,3 +303,45 @@
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
+
+/* Prose tool arguments: the post / notes shown as wrapped text, not escaped JSON */
+.mc-tool-prose {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--foreground);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.mc-tools-compact .mc-tool {
+  flex-wrap: wrap;
+}
+.mc-tool-readable {
+  min-width: 0;
+}
+
+/* Failed model call (timeout, run ended in error) */
+.mc-failure {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.mc-failure > svg {
+  flex: none;
+  margin-top: 3px;
+}
+.mc-failure strong {
+  font-weight: 600;
+}
