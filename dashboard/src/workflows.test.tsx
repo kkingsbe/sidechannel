@@ -9,7 +9,7 @@ import { MemoryRouter } from "react-router-dom";
 import Experiments from "./pages/Experiments";
 import Runs from "./pages/Runs";
 import Oversight from "./pages/Oversight";
-import { WindowInspector } from "./pages/Analysis";
+import { WindowInspector } from "./pages/analysis/window-inspector";
 import type { AnalysisJob, WindowDetail } from "./lib/analysis-types";
 import { defaultFixtureConfiguration } from "@sidechannel/contracts/testing";
 import type { Run } from "./lib/types";

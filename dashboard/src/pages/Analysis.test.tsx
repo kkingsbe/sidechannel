@@ -4,7 +4,8 @@ import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { activate, fakeServer, renderWithServer } from "../test/clients";
-import Analysis, { WindowInspector } from "./Analysis";
+import Analysis from "./Analysis";
+import { WindowInspector } from "./analysis/window-inspector";
 import { RecordedEventContent } from "./analysis/RecordedEventContent";
 import type { AnalysisJob, WindowDetail } from "../lib/analysis-types";
 const mocks = vi.hoisted(() => ({
