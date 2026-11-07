@@ -12,7 +12,7 @@ export class HttpError extends Error {
 /** Conventions §3.6 mapping. Unknown failures keep the historical 400 default. */
 const STATUS_BY_KIND: Record<FailureKind, number> = { invalid: 400, 'not-found': 404, conflict: 409, 'too-large': 413, unavailable: 503 };
 
-/** Typed mapping only: no `'status' in error` duck typing and no message inspection. */
+/** Typed mapping only: no duck-typed status property and no message inspection. */
 export function statusOf(error: unknown): number {
     if (error instanceof HttpError) return error.status;
     if (error instanceof DomainFailure) return STATUS_BY_KIND[error.kind];
