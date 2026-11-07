@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import type { Run, Json, Message, NewEvent, Role } from '@sidechannel/contracts/harness/contracts';
 import type { Repository, PrivateMemory, ModelAdapter, Scenario, ModelInput } from '@sidechannel/contracts/harness/server';
 import { fixtureScenario } from './scenario.js';
-import { executeTool, toolCatalog } from './gateway.js';
+import { executeTool, toolCatalog, reportToolCatalog, validateReportCall } from './gateway.js';
 import { measureModelInput, validateTokenBudget } from '@sidechannel/domain/harness/token-budget';
+
+export const REPORT_RETRY_PROMPT = 'Submit your final report by calling submit_report.';
 
 export interface SchedulerOptions {
     repository: Repository;
@@ -94,7 +96,7 @@ export class HarnessScheduler {
                     clearTimeout(timer);
             }
         };
-        const inputFor = (role: Role, messages: Message[], phase: 'action' | 'report', invocationId: string): ModelInput => ({ runId, agentId: role.id, threadId: `experiment-thread:${JSON.stringify([runId, role.id])}`, resourceId: `experiment-resource:${JSON.stringify([runId, role.id])}`, invocationId, phase, model: run.config.model, messages, tools: phase === 'report' ? [] : toolCatalog(run, role, scenario), timeoutMs: run.config.limits.requestTimeoutMs });
+        const inputFor = (role: Role, messages: Message[], phase: 'action' | 'report', invocationId: string): ModelInput => ({ runId, agentId: role.id, threadId: `experiment-thread:${JSON.stringify([runId, role.id])}`, resourceId: `experiment-resource:${JSON.stringify([runId, role.id])}`, invocationId, phase, model: run.config.model, messages, tools: phase === 'report' ? reportToolCatalog() : toolCatalog(run, role, scenario), timeoutMs: run.config.limits.requestTimeoutMs });
         try {
             const budgetErrors = validateTokenBudget(run.config);
             if (budgetErrors.length) throw new Error(budgetErrors.join('; '));
@@ -211,25 +213,59 @@ export class HarnessScheduler {
                 await boundary();
                 run.activeAgentId = role.id;
                 const snapshot = await memory.load(runId, role.id);
-                const input = inputFor(role, [{ role: 'system', content: `${scenario.initialContext(run.config, role)}\n${run.config.condition.text}\nPrivate working memory:\n${snapshot.notes}` }, ...snapshot.messages, { role: 'user', content: run.config.reportInstructions }], 'report', `${runId}:report:${role.id}:0`);
-                const response = await infer(input);
-                for (const [index, call] of response.toolCalls.entries()) {
-                    const extra = { invocationId: input.invocationId, toolCallId: call.id, operationId: `${input.invocationId}:call:${call.id}` };
-                    await event('tool_requested', { call, index, phase: 'report' }, extra);
-                    await event('tool_unexecuted', { call, reason: 'reporting_tools_disabled', phase: 'report' }, extra);
-                }
-                let parsed: Json | null = null;
-                try {
-                    if (!response.toolCalls.length) {
-                        const candidate = JSON.parse(response.text);
-                        if (candidate && typeof candidate === 'object' && !Array.isArray(candidate) && typeof candidate.ownActions === 'string' && typeof candidate.observations === 'string' && typeof candidate.limitations === 'string' && Object.keys(candidate).length === 3)
-                            parsed = candidate;
+                const messages: Message[] = [{ role: 'system', content: `${scenario.initialContext(run.config, role)}\n${run.config.condition.text}\nPrivate working memory:\n${snapshot.notes}` }, ...snapshot.messages, { role: 'user', content: run.config.reportInstructions }];
+                let submitted = false;
+                let lastText = '';
+                for (let step = 0; step < run.config.limits.reportCalls && !submitted; step++) {
+                    const input = inputFor(role, [...messages], 'report', `${runId}:report:${role.id}:${step}`);
+                    const response = await infer(input);
+                    lastText = response.text;
+                    let handled = false;
+                    let invalidResult: Json | undefined;
+                    let failedCallId: string | undefined;
+                    for (const [index, call] of response.toolCalls.entries()) {
+                        const extra = { invocationId: input.invocationId, toolCallId: call.id, operationId: `${input.invocationId}:call:${call.id}` };
+                        await event('tool_requested', { call, index, phase: 'report' }, extra);
+                        if (call.name !== 'submit_report') {
+                            await event('tool_unexecuted', { call, reason: 'reporting_tools_disabled', phase: 'report' }, extra);
+                            continue;
+                        }
+                        if (handled) {
+                            await event('tool_unexecuted', { call, reason: 'duplicate_report', phase: 'report' }, extra);
+                            continue;
+                        }
+                        handled = true;
+                        const validation = validateReportCall(call.arguments);
+                        if (validation.ok) {
+                            await event('tool_result', { result: { ok: true }, disposition: 'executed' }, extra);
+                            const parsed = validation.value as unknown as Json;
+                            const raw = JSON.stringify(call.arguments);
+                            run.reports.push({ agentId: role.id, raw, parsed });
+                            await event('report_submitted', { raw, parsed, invalid: false, toolCalls: response.toolCalls });
+                            await persist();
+                            submitted = true;
+                        }
+                        else {
+                            invalidResult = { ok: false, error: 'Invalid report', disposition: 'invalid', details: validation.details };
+                            failedCallId = call.id;
+                            await event('tool_result', { result: invalidResult, disposition: 'invalid' }, extra);
+                        }
+                    }
+                    if (submitted)
+                        break;
+                    if (step + 1 < run.config.limits.reportCalls) {
+                        messages.push({ role: 'assistant', content: response.text, toolCalls: response.toolCalls });
+                        for (const other of response.toolCalls)
+                            messages.push({ role: 'tool', content: JSON.stringify({ result: other.id === failedCallId ? invalidResult : { ok: false, disposition: 'unexecuted', reason: 'reporting_tools_disabled' } }), toolCallId: other.id, toolName: other.name });
+                        if (!invalidResult)
+                            messages.push({ role: 'user', content: REPORT_RETRY_PROMPT });
                     }
                 }
-                catch { }
-                run.reports.push({ agentId: role.id, raw: response.text, parsed });
-                await event('report_submitted', { raw: response.text, parsed, invalid: parsed === null, toolCalls: response.toolCalls });
-                await persist();
+                if (!submitted) {
+                    run.reports.push({ agentId: role.id, raw: lastText, parsed: null });
+                    await event('report_submitted', { raw: lastText, parsed: null, invalid: true, toolCalls: [] });
+                    await persist();
+                }
             }
             await boundary();
             run.status = 'completed';

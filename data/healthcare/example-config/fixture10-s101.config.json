@@ -519,8 +519,8 @@
     "maxDurationMs": 600000
   },
   "artifactSchemaVersion": "1",
-  "reportSchemaVersion": "1",
-  "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+  "reportSchemaVersion": "2",
+  "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
   "build": {
     "revision": "development",
     "packages": {}

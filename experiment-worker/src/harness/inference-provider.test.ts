@@ -31,7 +31,8 @@ test('token scheduler sends complete Adaption action/report payload and persists
         requests.push(body);
         return Response.json({ id: `resp_${requests.length}`, object: 'response', created_at: 1, status: 'completed', model: body.model, error: null, incomplete_details: null,
             output: requests.length === 1 ? [{ type: 'function_call', id: 'fc_read', call_id: 'read_call', name: 'read_role_data', arguments: '{}', status: 'completed' }]
-                : [{ type: 'message', id: `msg_${requests.length}`, role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: requests.length === 3 ? '{"ownActions":"read","observations":"blue","limitations":"mock"}' : 'Done', annotations: [] }] }],
+                : requests.length === 3 ? [{ type: 'function_call', id: 'fc_report', call_id: 'report_call', name: 'submit_report', arguments: '{"ownActions":"read","observations":"blue","limitations":"mock"}', status: 'completed' }]
+                : [{ type: 'message', id: `msg_${requests.length}`, role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: 'Done', annotations: [] }] }],
             usage: { input_tokens: 9500, output_tokens: 20, total_tokens: 9520, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } } });
     });
     const config = defaultFixtureConfiguration();
@@ -58,7 +59,8 @@ test('token scheduler sends complete Adaption action/report payload and persists
     }
     assert.ok(requests[0].tools.some((tool: any) => tool.name === 'read_role_data' && tool.parameters.type === 'object'));
     assert.ok(requests[1].input.some((item: any) => item.type === 'function_call_output' && item.call_id === 'read_call' && item.output.includes('blue')));
-    assert.equal(requests[2].tools?.length ?? 0, 0);
+    assert.deepEqual(requests[2].tools.map((tool: any) => tool.name), ['submit_report']);
+    assert.deepEqual(result.reports.map(r => r.parsed), [{ ownActions: 'read', observations: 'blue', limitations: 'mock' }]);
     assert.match(JSON.stringify(requests[2].input), /ownActions/);
     const events = await repo.listEvents(run.id);
     const accounting = events.filter(event => event.type === 'context_accounted').map(event => event.data as any);
@@ -95,7 +97,7 @@ test('actual Mastra Adaption route preserves tool proposals, history, reports an
             status: 'completed', model: body.model, error: null, incomplete_details: null,
             output: requests.length === 1
                 ? [{ type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'read_fragment', arguments: '{}', status: 'completed' }]
-                : [{ type: 'message', id: 'msg_1', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: report, annotations: [] }] }],
+                : [{ type: 'function_call', id: 'fc_2', call_id: 'report_1', name: 'submit_report', arguments: report, status: 'completed' }],
             usage: { input_tokens: 20, output_tokens: 10, total_tokens: 30, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } },
         });
     });
@@ -110,15 +112,15 @@ test('actual Mastra Adaption route preserves tool proposals, history, reports an
     assert.equal(action.usage?.inputTokens, 20);
     assert.equal(action.usage?.outputTokens, 10);
     assert.deepEqual(requests[0].tools.map((tool: any) => tool.name), ['read_fragment']);
-    const result = await adapter.complete({ ...input, invocationId: 'second', phase: 'report', messages: [
+    const reportTool = { name: 'submit_report', description: 'Submit report', parameters: { type: 'object', properties: { ownActions: { type: 'string' }, observations: { type: 'string' }, limitations: { type: 'string' } }, required: ['ownActions', 'observations', 'limitations'], additionalProperties: false } };
+    const result = await adapter.complete({ ...input, invocationId: 'second', phase: 'report', tools: [reportTool], messages: [
         ...input.messages, { role: 'assistant', content: action.text, toolCalls: action.toolCalls },
         { role: 'tool', toolName: 'read_fragment', toolCallId: 'call_1', content: '{"marker":"cobalt-seven"}' },
         { role: 'user', content: 'Return your JSON report.' },
     ] });
     assert.equal(requests.length, 2);
-    assert.equal(requests[1].tools?.length ?? 0, 0);
+    assert.deepEqual(requests[1].tools.map((tool: any) => tool.name), ['submit_report']);
     assert.ok(requests[1].input.some((item: any) => item.type === 'function_call_output' && item.call_id === 'call_1' && item.output.includes('cobalt-seven')));
-    assert.deepEqual(JSON.parse(result.text), JSON.parse(report));
-    assert.deepEqual(result.toolCalls, []);
+    assert.deepEqual(result.toolCalls, [{ id: 'report_1', name: 'submit_report', arguments: JSON.parse(report) }]);
     assert.ok(!JSON.stringify(result).includes('synthetic-test-key'));
 });

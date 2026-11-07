@@ -43,7 +43,7 @@ export class MastraModelAdapter implements ModelAdapter {
             if (!supported.has(key)) {
                 throw new Error(`Unsupported model setting ${key}; provider-specific controls must use providerOptions`);
             }
-        const tools = proposalTools(input.phase === 'report' ? [] : input.tools);
+        const tools = proposalTools(input.tools);
         const resolved = this.modelOverride ? { model: this.modelOverride, providerOptions } : resolveInferenceProvider(input.model);
         const agent = registerExperimentAgent(new Agent({ id: `experiment-${JSON.stringify([input.runId, input.agentId])}`, name: input.agentId,
             instructions: '', model: resolved.model, tools, maxRetries: 0 }), tools);

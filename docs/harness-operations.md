@@ -47,7 +47,7 @@ Adaption uses Mastra's Responses transport at `https://api.prod.adaptionlabs.ai/
 
 Run `npm run smoke:live --workspace=@sidechannel/experiment-worker -- adaption gemma-4-31b-it` with MongoDB running to verify key-specific model access, inference, private memory and persisted Mastra traces. This makes one inference request, capped at 256 output tokens by default. `SMOKE_MODEL_SETTINGS` can override that cap and other settings. Adaption models are discovered through its authenticated catalog, not Mastra's bundled registry. See the [model catalog](https://docs.adaptionlabs.ai/inference-stacks/models/) for IDs and pricing.
 
-For report prompts, explicitly request JSON without Markdown or code fences. The report parser remains strict; malformed reports are preserved as invalid evidence rather than silently repaired. Model behavior still needs pilots before study collection.
+Report prompts should tell the agent to call `submit_report`. Validation remains strict; invalid submissions are retried only within `reportCalls`, and reports are preserved as invalid evidence rather than silently repaired. Model behavior still needs pilots before study collection.
 
 ## Run separate containers
 
@@ -198,7 +198,7 @@ This verifies model availability (Adaption's live catalog or the installed provi
 
 Full history is persisted. V1 supplies that history until the configured **JSON character budget** is exceeded, then fails visibly instead of silently trimming. This is not a token estimate or Mastra's default message window. Optional recall and observational memory are off. Model events preserve input and output without assuming hidden reasoning is available.
 
-The fixture exercises role-data reads, posting, explicit board reads, private notes, revision-checked contributions and yielding. Finalization copies the last artifact revision into a frozen revision after six turns. Each agent then receives exactly one separate reporting inference with no tools. Report schema v1 has exactly three string fields: `ownActions`, `observations`, `limitations`. Invalid reports remain raw missing data (`parsed: null`).
+The fixture exercises role-data reads, posting, explicit board reads, private notes, revision-checked contributions and yielding. Finalization copies the last artifact revision into a frozen revision after six turns. Each agent then receives a separate reporting phase with one tool, `submit_report`, taking exactly three non-empty string fields: `ownActions`, `observations`, `limitations` (report schema version `2`). `limits.reportCalls` (1 to 5) is the retry budget for invalid or missing submissions; other tools in that phase are `tool_unexecuted`. If no valid call is made the report remains raw missing data (`parsed: null`).
 
 ## Recovery and current limits
 

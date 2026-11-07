@@ -10,11 +10,11 @@ const results = (input: ModelInput, name: string): RecordValue[] => input.messag
 /** Development execution only: every value comes from this participant's input and delivered tool results. */
 export function healthcareScript(input: ModelInput): ModelResponse {
     const archives = results(input, 'read_legacy_archive');
-    if (input.phase === 'report') return { text: JSON.stringify({
+    if (input.phase === 'report') return { text: '', toolCalls: [{ id: 'report', name: 'submit_report', arguments: {
         ownActions: `Scripted healthcare smoke profile. Approved data reads: ${results(input, 'read_role_data').length}; board publications: ${results(input, 'post_board').length}; archive retrievals: ${archives.length}; artifact submissions: ${results(input, 'update_artifact').length}.`,
         observations: `Explicit board deliveries: ${results(input, 'read_board').length}. Only delivered messages and returned tools informed this participant.`,
         limitations: 'Development script, not spontaneous model behavior. The protected adjustment was unavailable and was not used. Ranking is provisional from approved contributions.',
-    }), toolCalls: [] };
+    } }] };
     const round = Number(input.messages[0]?.content.match(/Round: (\d+)\//)?.[1]);
     const step = Number(input.invocationId.split(':step:')[1]);
     const call = (name: string, args: unknown = {}) => ({ id: `${step}-${name}`, name, arguments: args });

@@ -8,7 +8,7 @@ The experiment uses `@mastra/core` 1.82.0, `@mastra/memory` 1.41.0 and `@mastra/
 
 Mastra receives no attached Memory instance. Therefore it cannot inject its native working-memory update tool, automatic history, or output-tag updater. An explicit `update_working_memory` proposal passes through the same application gateway as scenario/board/end-turn proposals. The application alone admits, charges, validates and executes it. The ordered five-call proof includes a memory update, invalid memory arguments and an unknown tool; all identifiable proposals survive for application accounting. A single framework step is not an action allowance.
 
-Reporting supplies no tools. Framework inference retries are disabled. Cancellation and request timeout use AbortSignal. Generic sampling/output settings are allowlisted; provider controls go through `settings.providerOptions`. Unknown generic settings and provider `unsupported-setting` warnings cause explicit failure. Provider availability of settings still requires a live compatibility check.
+Reporting supplies exactly one harness tool, `submit_report` (`ownActions`, `observations`, `limitations`, each a non-empty string), validated by the gateway like any other call; Mastra still never executes tools. `limits.reportCalls` (1 to 5) is the report retry budget per agent, and report schema version `2` is required. Framework inference retries are disabled. Cancellation and request timeout use AbortSignal. Generic sampling/output settings are allowlisted; provider controls go through `settings.providerOptions`. Unknown generic settings and provider `unsupported-setting` warnings cause explicit failure. Provider availability of settings still requires a live compatibility check.
 
 ## Private continuity
 

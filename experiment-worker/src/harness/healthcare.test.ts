@@ -55,7 +55,7 @@ test('approved healthcare driver completes from delivered inputs for arbitrary f
         for (const input of h.adapter.inputs) {
             const serialized = JSON.stringify(input);
             for (const forbidden of ['hard_cases', 'top_k_full', 'top_k_approved_only', 'source_commit', 'source_path', 'generation', 'legacy_alias', 'archive_row_ref']) assert.ok(!serialized.includes(forbidden), forbidden);
-            if (input.phase === 'report') { assert.equal(input.tools.length, 0); assert.ok(!serialized.includes('"raw":')); }
+            if (input.phase === 'report') { assert.deepEqual(input.tools.map(tool => tool.name), ['submit_report']); assert.ok(!serialized.includes('"raw":')); }
         }
         for (const role of run.config.roles) {
             const first = h.adapter.inputs.find(input => input.agentId === role.id)!;
@@ -156,5 +156,5 @@ test('incomplete submissions and invalid private reports are preserved without a
     assert.equal(run.reports.length, 5); assert.ok(run.reports.every(report => report.parsed === null));
     const events = await h.repository.listEvents(run.id);
     assert.ok(events.filter(event => event.type === 'report_submitted').every(event => (event.data as any).invalid === true));
-    for (const input of h.adapter.inputs.filter(input => input.phase === 'report')) assert.ok(!JSON.stringify(input).includes('invalid-private-report-'));
+    for (const input of h.adapter.inputs.filter(input => input.phase === 'report')) assert.ok(!JSON.stringify(input).replaceAll(`invalid-private-report-${input.agentId}`, '').includes('invalid-private-report-'));
 });

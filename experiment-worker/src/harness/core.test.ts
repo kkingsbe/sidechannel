@@ -25,8 +25,10 @@ class TestMemory implements PrivateMemory {
 async function harness(script: (input: ModelInput, index: number) => ModelResponse | Promise<ModelResponse>, repo = new InMemoryRepository(), mutate?: (c: ReturnType<typeof defaultFixtureConfiguration>) => void) { const draft = defaultFixtureConfiguration(); mutate?.(draft); const run = createQueuedRun(resolveConfiguration(draft), 'test'); await repo.createRun(run); const memory = new TestMemory(); const adapter = new ScriptedAdapter(script); const scheduler = new HarnessScheduler({ repository: repo, memory, adapter }); return { repo, run, memory, adapter, scheduler }; }
 
 const text = () => ({ text: 'done', toolCalls: [] });
+const reportArgs = { ownActions: 'none', observations: 'none', limitations: 'fixture' };
+const reportResponse = (args: unknown = reportArgs, id = 'report'): ModelResponse => ({ text: '', toolCalls: [{ id, name: 'submit_report', arguments: args as never }] });
 
-test('six scheduled turns, text ends once, reports have no tools and own history only', async () => { const h = await harness(input => input.phase === 'report' ? { text: '{"ownActions":"none","observations":"none","limitations":"fixture"}', toolCalls: [] } : text()); const run = await h.scheduler.run(h.run.id); assert.equal(run.status, 'completed'); assert.equal(run.turn, 6); assert.equal(h.adapter.inputs.length, 8); const events = await h.repo.listEvents(run.id); assert.equal(events.filter(e => e.type === 'turn_ended').length, 6); assert.deepEqual(events.filter(e => e.type === 'turn_started').map(e => e.agentId), Array.from({ length: 3 }, () => run.config.scheduler.order).flat()); assert.ok(h.adapter.inputs.filter(i => i.phase === 'report').every(i => i.tools.length === 0)); assert.equal(run.reports.length, 2); assert.equal(run.artifacts.at(-1)?.frozen, true); });
+test('six scheduled turns, text ends once, reports have no tools and own history only', async () => { const h = await harness(input => input.phase === 'report' ? reportResponse() : text()); const run = await h.scheduler.run(h.run.id); assert.equal(run.status, 'completed'); assert.equal(run.turn, 6); assert.equal(h.adapter.inputs.length, 8); const events = await h.repo.listEvents(run.id); assert.equal(events.filter(e => e.type === 'turn_ended').length, 6); assert.deepEqual(events.filter(e => e.type === 'turn_started').map(e => e.agentId), Array.from({ length: 3 }, () => run.config.scheduler.order).flat()); assert.ok(h.adapter.inputs.filter(i => i.phase === 'report').every(i => i.tools.length === 1 && i.tools[0]!.name === 'submit_report')); assert.equal(run.reports.length, 2); assert.equal(run.artifacts.at(-1)?.frozen, true); });
 
 test('all batch proposals recorded before execution; denied invalid unknown charged; exhaustion blocks remainder', async () => { const h = await harness(input => input.phase === 'report' ? text() : { text: '', toolCalls: [{ id: '1', name: 'unknown', arguments: {} }, { id: '2', name: 'post_board', arguments: { text: 42 } }, { id: '3', name: 'read_role_data', arguments: { runId: 'other' } }, { id: '4', name: 'post_board', arguments: { text: 'must not execute' } }, { id: '5', name: 'end_turn', arguments: {} }] }); const run = await h.scheduler.run(h.run.id); assert.equal(run.status, 'completed'); assert.equal(run.board.length, 0); const events = await h.repo.listEvents(run.id); assert.equal(events.filter(e => e.type === 'tool_admitted').length, 18); assert.equal(events.filter(e => e.type === 'tool_unexecuted').length, 12); assert.ok(events.filter(e => e.type === 'turn_ended').every(e => (e.data as any).remainingAllowance === 0)); const requested = events.filter(e => e.turn === 1 && e.type === 'tool_requested'); assert.equal(requested.length, 5); assert.ok(requested.at(-1)!.sequence < events.find(e => e.type === 'tool_admitted')!.sequence); });
 
@@ -154,7 +156,7 @@ test('report proposals are recorded but never execute or leak other reports', as
     assert.equal(run.board.length, 0);
     assert.ok(run.reports.every(r => r.parsed === null));
     for (const input of h.adapter.inputs.filter(i => i.phase === 'report')) {
-        assert.equal(input.tools.length, 0);
+        assert.deepEqual(input.tools.map(t => t.name), ['submit_report']);
         assert.ok(!JSON.stringify(input.messages).includes('secret-report-'));
     }
     assert.equal((await h.repo.listEvents(run.id)).filter(e => e.type === 'tool_unexecuted' && (e.data as any).reason === 'reporting_tools_disabled').length, 2);
@@ -219,4 +221,73 @@ test('cancellation racing terminal save becomes cancelled with no completion eve
     assert.equal(run.status, 'cancelled');
     assert.equal((await h.repo.getRun(run.id))?.status, 'cancelled');
     assert.equal((await h.repo.listEvents(run.id)).filter(e => e.type === 'run_completed').length, 0);
+});
+
+const reportEvents = async (h: Awaited<ReturnType<typeof harness>>, runId: string) => (await h.repo.listEvents(runId)).filter(e => e.invocationId?.includes(':report:'));
+const withReportCalls = (n: number) => (c: ReturnType<typeof defaultFixtureConfiguration>) => { c.limits.reportCalls = n; };
+
+test('valid submit_report produces a parsed report and a valid report_submitted event', async () => {
+    const h = await harness(input => input.phase === 'report' ? reportResponse() : text());
+    const run = await h.scheduler.run(h.run.id);
+    assert.equal(run.status, 'completed');
+    assert.deepEqual(run.reports.map(r => r.parsed), [reportArgs, reportArgs]);
+    assert.equal(run.reports[0]!.raw, JSON.stringify(reportArgs));
+    const events = await h.repo.listEvents(run.id);
+    const submitted = events.filter(e => e.type === 'report_submitted');
+    assert.equal(submitted.length, 2);
+    assert.ok(submitted.every(e => (e.data as any).invalid === false));
+    const results = events.filter(e => e.type === 'tool_result' && e.invocationId?.includes(':report:'));
+    assert.ok(results.every(e => (e.data as any).disposition === 'executed' && (e.data as any).result.ok === true));
+    assert.ok(events.some(e => e.invocationId === `${run.id}:report:${run.config.roles[0]!.id}:0`));
+    assert.equal(run.remainingAllowance !== undefined && run.remainingAllowance < 0, false);
+});
+
+for (const [label, bad] of [['extra key', { ...reportArgs, extra: 'x' }], ['missing field', { ownActions: 'a', observations: 'b' }], ['empty string', { ...reportArgs, limitations: '' }]] as const)
+    test(`invalid submit_report (${label}) is reported invalid and a second inference can succeed`, async () => {
+        const h = await harness(input => input.phase === 'report' ? (input.invocationId.endsWith(':0') ? reportResponse(bad) : reportResponse()) : text(), undefined, withReportCalls(2));
+        const run = await h.scheduler.run(h.run.id);
+        assert.equal(run.status, 'completed');
+        assert.deepEqual(run.reports.map(r => r.parsed), [reportArgs, reportArgs]);
+        const events = await h.repo.listEvents(run.id);
+        const invalid = events.filter(e => e.type === 'tool_result' && e.invocationId?.endsWith(':report:' + (e.agentId ?? '') + ':0') && (e.data as any).disposition === 'invalid');
+        assert.equal(invalid.length, 2);
+        const reportInputs = h.adapter.inputs.filter(i => i.phase === 'report');
+        assert.equal(reportInputs.length, 4);
+        const second = reportInputs.find(i => i.invocationId.endsWith(':1'))!;
+        assert.ok(second.messages.some(m => m.role === 'tool' && m.toolName === 'submit_report' && m.content.includes('Invalid report')));
+        assert.ok(events.filter(e => e.type === 'report_submitted').every(e => (e.data as any).invalid === false));
+    });
+
+test('exhausting reportCalls records a null parsed report and an invalid report_submitted event', async () => {
+    const { REPORT_RETRY_PROMPT } = await import('./scheduler.js');
+    const h = await harness(input => input.phase === 'report' ? { text: `no-tool-${input.invocationId}`, toolCalls: [] } : text(), undefined, withReportCalls(2));
+    const run = await h.scheduler.run(h.run.id);
+    assert.equal(run.status, 'completed');
+    assert.ok(run.reports.every(r => r.parsed === null && r.raw.startsWith('no-tool-') && r.raw.endsWith(':1')));
+    const submitted = (await h.repo.listEvents(run.id)).filter(e => e.type === 'report_submitted');
+    assert.equal(submitted.length, 2);
+    assert.ok(submitted.every(e => (e.data as any).invalid === true && (e.data as any).parsed === null));
+    assert.equal(h.adapter.inputs.filter(i => i.phase === 'report').length, 4);
+    assert.ok(h.adapter.inputs.some(i => i.phase === 'report' && i.messages.at(-1)?.content === REPORT_RETRY_PROMPT));
+});
+
+test('non-report tools and duplicate submit_report calls in the report phase are unexecuted', async () => {
+    const h = await harness(input => input.phase === 'report' ? { text: '', toolCalls: [{ id: 'bad', name: 'post_board', arguments: { text: 'never' } }, ...reportResponse().toolCalls, ...reportResponse(reportArgs, 'again').toolCalls] } : text());
+    const run = await h.scheduler.run(h.run.id);
+    assert.equal(run.board.length, 0);
+    assert.ok(run.reports.every(r => r.parsed !== null));
+    const events = await reportEvents(h, run.id);
+    const unexecuted = events.filter(e => e.type === 'tool_unexecuted');
+    assert.equal(unexecuted.filter(e => (e.data as any).reason === 'reporting_tools_disabled').length, 2);
+    assert.equal(unexecuted.filter(e => (e.data as any).reason === 'duplicate_report').length, 2);
+});
+
+test('reportSchemaVersion 1 and out-of-range reportCalls fail validation', () => {
+    const old = defaultFixtureConfiguration(); old.reportSchemaVersion = '1';
+    const result = validateConfiguration(old);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e: string) => /reportSchemaVersion/.test(e) && /preset/.test(e)));
+    for (const n of [0, 6, 1.5]) { const c = defaultFixtureConfiguration(); c.limits.reportCalls = n; assert.equal(validateConfiguration(c).valid, false); }
+    const ok = defaultFixtureConfiguration(); ok.limits.reportCalls = 5;
+    assert.equal(validateConfiguration(ok).valid, true);
 });
