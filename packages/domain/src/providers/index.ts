@@ -5,6 +5,7 @@ import { genericProvider } from './generic.js';
 export type { HostedModelPolicy, ProviderProfile, ResolvedTransport, TransportModel } from './profile.js';
 export { ADAPTION_MODEL_ENDPOINT, adaptionBaseUrl, adaptionProvider } from './adaption.js';
 export { genericProvider } from './generic.js';
+export { ADAPTION_SETTINGS, GENERIC_SETTINGS, PASSTHROUGH_SETTINGS } from './settings.js';
 
 /** The fixture driver is the generic transport with scripted usage provenance. */
 export const scriptedProvider: ProviderProfile = { ...genericProvider, id: 'scripted', label: 'Scripted driver', usageSource: 'scripted', fixture: true };

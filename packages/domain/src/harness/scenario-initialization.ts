@@ -1,7 +1,7 @@
 import type { ExperimentConfig, Json } from '@sidechannel/contracts/harness/contracts';
 import { initializeFixtureScenario as fixtureInitialize, scenarioDescriptor } from '../scenarios/index.js';
 
-/** The installed fixture-v1 scenario starts with an empty state; tool execution stays in the worker. */
+/** The installed fixture scenario starts with an empty state; tool execution stays in the worker. */
 export const initializeFixtureScenario = fixtureInitialize;
 
 export const isInstalledScenarioVersion = (version: string): boolean => scenarioDescriptor(version) !== undefined;

@@ -25,7 +25,7 @@ export function runtimePlugins(config: Run['config']): { scenario: Scenario; ada
     if (descriptor.scriptedDriverId && profile.fixture && config.model.id !== descriptor.scriptedDriverId)
         throw new Error('Scripted model does not match the selected scenario');
     // Fixture providers always need a scripted driver; scenarios without their own driver keep
-    // the historical fixture behaviour (any scripted model id is accepted for fixture-v1).
+    // the historical fixture behaviour (any scripted model id is accepted for the fixture scenario).
     const driverId = descriptor.scriptedDriverId ?? FIXTURE_SCENARIO_VERSION;
     return { scenario: descriptor.scenario, ...(profile.fixture ? { adapter: new ScriptedAdapter(scriptedDriver(driverId)) } : {}) };
 }
