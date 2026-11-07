@@ -63,8 +63,8 @@ Severity and titles are taken verbatim from the audit report.
 | F5 | high | Dashboard `RunDetail`: 692-line component owns polling, tabs, pagination, evidence, commands | WS6 T6.5 | planned |
 | F6 | high | Dashboard `CodebookPage`: 16 `useState`, 5 `useEffect`, three validation paths | WS6 T6.6 | planned |
 | F7 | high | Dashboard view dispatch is an else-chain with a silent fallback | WS6 T6.8 | planned |
-| F8 | high | Two abstractions, six implementations of data hooks and pagers | WS5 T5.1 | planned |
-| F9 | high | The two data hooks and two pagers are not substitutable | WS5 T5.1/T5.2 | planned |
+| F8 | high | Two abstractions, six implementations of data hooks and pagers | WS5 T5.1 | done (`ce3664c`) — `fetchPageImplementations` 6→1 |
+| F9 | high | The two data hooks and two pagers are not substitutable | WS5 T5.1/T5.2 | hook/pager unification done (`ce3664c`); client substitutability in T5.2 |
 | F10 | high | The dashboard "port" is a URL string; five raw anchors bypass it | WS5 T5.2 | planned |
 | F11 | high | `jev-transport.ts` is a stateful repository, policy layer and route table | WS5 T5.3 | planned |
 | F12 | high | The adapter fabricates contract fields and invents constants | WS5 T5.3 | planned |
@@ -75,8 +75,8 @@ Severity and titles are taken verbatim from the audit report.
 | F17 | medium | App shell owns a domain table and forms an import cycle with the Runs page | WS6 T6.7 | planned |
 | F18 | medium | The two largest pages duplicate cancel, review-history and reviewer-identity code | WS6 T6.7 | planned |
 | F19 | low | Components take whole hook results as props; shared stylesheet imported by the wrong page | WS0 (unused imports) / WS6 T6.7 | planned |
-| P1 | high | `domain/oversight/service.ts` has ten reasons to change, including Mongo storage layout | WS3c T3c.2 | planned |
-| P2 | high | Harness repository file is two adapters, a schema migration and copied domain invariants | WS3c T3c.1 | planned |
+| P1 | high | `domain/oversight/service.ts` has ten reasons to change, including Mongo storage layout | WS3c T3c.2 | done (`cf18026`) |
+| P2 | high | Harness repository file is two adapters, a schema migration and copied domain invariants | WS3c T3c.1 | done (`058a180`) |
 | P3 | high | Closed unions re-encoded as literal arrays and ternaries in 5–8 places | WS7 T7.3 | planned |
 | P4 | medium | "Which Run fields are summary fields" is expressed four times | WS7 T7.2 | planned |
 | P5 | high | The two harness repositories disagree about a missing run | WS1 Task 2 | done (`b169c1c`) |
@@ -85,21 +85,21 @@ Severity and titles are taken verbatim from the audit report.
 | P8 | high | In-memory analysis repository violates the port it implements | WS1 Task 6 | done (`5022462`) |
 | P9 | medium | `ResearchStore` and `HealthcareCatalog` diverge on idempotent writes/integrity filtering | WS1 Task 7 | done (`2ec6118`) — `replace` revision-match semantics pinned; healthcare-catalog byte-level parity remains accepted |
 | P10 | high | Ports fat for narrow consumers, thin for their client; store ports leak a document-store protocol | WS1 (parity) / WS2 T2.1–T2.4 | done (`e172b4a`, `52040ed`, `e46c85c`); see the `JobLifecycleStore` sizing decision below |
-| S1 | high | API server module is transport, router, auth, parser, static host and launch service | WS3a T3a.2–T3a.3 | planned |
-| S2 | critical | `HarnessScheduler.run()` is a 249-line method with thirteen responsibilities | WS3b T3b.2–T3b.6 | planned |
+| S1 | high | API server module is transport, router, auth, parser, static host and launch service | WS3a T3a.2–T3a.3 | done (`29a4a6c`, `4320e5b`) |
+| S2 | critical | `HarnessScheduler.run()` is a 249-line method with thirteen responsibilities | WS3b T3b.2–T3b.6 | done (`69f0653`) — `scheduler.ts` 98 lines, `run()` 74 lines |
 | S3 | high | `HealthcareService` owns resolution, validation, provenance, routing, evaluation — and duplicated the validator | WS3c T3c.4 / WS4 T4.2 | planned (duplication already deleted at baseline; re-duplication guard added) |
 | S4 | medium | Common-tool dispatch is a name if-chain with a duplicated argument allowlist | backlog | deferred (covered functionally by WS3b T3b.4 tool admission; the dispatch table itself is polish) |
 | S5 | high | `ModelAdapter` implementations are not substitutable | WS2 T2.4 (inject the adapter) / WS4 T4.1 (shared transport policy) | partially done: adapters are injected and `createMonitorProvider` requires a `ModelAdapter` (`447239b`); transport-policy unification is WS4 |
 | S6 | medium | Model-usage provenance is untyped and inferred from configuration | WS3b T3b.7 (gated) | deferred: typing `ModelResponse` provenance requires edits in WS2/WS4-owned contracts while keeping recorded `model_usage` payloads byte-identical |
 | S7 | medium | `PrivateMemory` is specified by two signatures only; implementations disagree on semantics | backlog | deferred (no correctness bug observed; typing it is a separate contract change) |
 | S8 | medium | The `Repository` port is too narrow for the worker loop and too wide for the scheduler | WS2 T2.3 | done (`e172b4a`) |
-| S9 | high | `AnalysisWorker` is a lease manager, scheduler, retry-budget accountant and progress ledger | WS3c T3c.3 | planned |
+| S9 | high | `AnalysisWorker` is a lease manager, scheduler, retry-budget accountant and progress ledger | WS3c T3c.3 | done (`7dbf591`) |
 | S10 | medium | Composition leaks into operations: concrete adapter built in a use case, global Mastra runtime mutated | WS2 T2.4 / WS0 T0.2 (orphan starter agent) | done (`447239b`; WS0 deleted the orphan starter agent) |
 | X1 | high | Provider capability and model-settings policy restated in 9 places, already drifted | WS4 T4.1 | planned |
 | X2 | high | Scenario selection by version string repeated across every tier | WS4 T4.2 | planned |
-| X3 | high | Domain layer encodes HTTP status codes; API guesses meaning from error message text | WS3a T3a.5 (mapper) / WS3c T3c.5 (producers) | planned |
-| X4 | high | Three competing route-handler contracts, three body parsers, synthetic `IncomingMessage` | WS3a T3a.4 | planned |
-| X5 | medium | Generic "read every page" logic reimplemented eight times | WS3a T3a.6 | planned |
+| X3 | high | Domain layer encodes HTTP status codes; API guesses meaning from error message text | WS3a T3a.5 (mapper) / WS3c T3c.5 (producers) | review routes done (`b9d7ecf`); producer completion in WS3c T3c.5 |
+| X4 | high | Three competing route-handler contracts, three body parsers, synthetic `IncomingMessage` | WS3a T3a.4 | done (`8f3436c`) |
+| X5 | medium | Generic "read every page" logic reimplemented eight times | WS3a T3a.6 | done (`6b73807`) |
 | X6 | medium | Two canonical-JSON hash families in five copies produce different digests | WS1 Task 1 (de-duplicate, byte-identical) / WS7 T7.4 (canonical, versioned) | de-duplication done (`37085bd`); canonical ordering deferred |
 
 ## Decision log
@@ -141,6 +141,17 @@ decisions made while executing:
 | 2026-11-07 (WS2) | Composition roots: `api/src/main.ts` builds/initializes Mongo analysis+review stores; `createMonitorProvider(adapter)` requires injection; `openTraceRuntime()` returns an injected `TraceRuntime`; `export let mastra` removed. `studio`/`build:studio`/`start:studio` may no longer discover a Mastra instance and are deliberately not fixed | Those targets are developer conveniences, not gates; composition correctness is pinned by `scripts/verify-composition.mjs` | WS2 |
 | 2026-11-07 (WS2) | `scripts/verify-composition.mjs` is part of `npm run verify`; `persistence/harness/repository.ts` is 295 lines (budget 300) after the in-memory worker guard | Pins no concrete adapters in worker/routes, no lazy monitor import, no mutable Mastra global, one zod module in contracts | WS2 |
 | 2026-11-07 (WS2) | The program KPI "≤ 8 members per capability port" is restated as "no capability port exposes storage layout; each is sized to its consumer". `JobLifecycleStore` has 10 cohesive members (reserve/get/list/listAll/claim/heartbeat/updateCounters/finishJob/cancel/retry) and is the documented bound by conventions §3.2 | Splitting the fenced-lease state machine into a second port would recreate the fat-port problem it solves; the audit finding (P10) was about narrow consumers and leaked storage, both closed | WS2 |
+| 2026-11-07 (WS3a) | T3a.4 executed before T3a.3 — routers call `request.body()` and the contract flip is a compile prerequisite; the only task-order deviation | The plan's ordering leaves `npm run check` red between the two tasks; ordering by compile dependency keeps every task green | WS3a |
+| 2026-11-07 (WS3a) | The lazy body reader unifies two message-only strings at unchanged statuses: malformed review POST bodies now say "Expected a JSON object" and the Jev 2 MB cap says "Request exceeds 2 MB"; the accepted "unread malformed body no longer forces 400" delta is pinned in `api/src/server/failures.test.ts` | Statuses and payload shapes are unchanged; only human-readable messages moved to one reader, and the delta the decision log predicted is now tested | WS3a |
+| 2026-11-07 (WS3a) | X3 closed for review routes by typing the 24 `Error` throws in `packages/domain/src/analysis/jev-reviews.ts`; mapped statuses equal the removed regexes. Edge delta: a concurrent review-insert race (store duplicate-key error, formerly regex-mapped to 409) now returns 400 | Untested client edge; typing the store layer is deferred rather than guessed. The statuses for every tested path are unchanged | WS3a |
+| 2026-11-07 (WS3a) | D5.1 one-source-event rule lives in `ReviewService.save` with the refusal message byte-identical to `dashboard/src/lib/jev-transport.ts:36`; WS5 T5.3 deletes the client-side rule with no behaviour change | Rule ownership moves to the server without changing observable behaviour | WS3a |
+| 2026-11-07 (WS3a) | `jev-service.pages()` stays as a delegation wrapper over `iteratePages(fetch, 100)`; the plan's limit test expected three pages for a 4-item store and was corrected to 5 items | Helper semantics unchanged; the plan's fixture arithmetic was wrong, not the code | WS3a |
+| 2026-11-07 (WS3b) | **S6 usage provenance typing (T3b.7) deferred to the post-program backlog.** `ModelResponse.usage` is declared in `packages/contracts/src/harness/server.ts` and produced by `MastraModelAdapter`/`ScriptedAdapter` — all WS2/WS4 files, so an adapter-declared `source` cannot be added as an isolated WS3b change. `model_usage.source` remains derived in `InferenceGateway` (`scripted`/`provider-reported`/`unavailable`) and every recorded payload is unchanged. WS7 input: add `Usage`/`usageSource?` to `ModelResponse`, have adapters declare it, keep both characterization snapshots and recorded payloads byte-identical | The typing requires cross-workstream contract edits for a medium finding; deferring keeps WS3b revertable and evidence untouched | WS3b |
+| 2026-11-07 (WS3b) | The scheduler's structural budget is pinned by a unit test: `scheduler.ts` < 300 lines and `run()` < 150 lines, plus the characterization snapshot gate | Turns the audit's S2 target into a mechanical guard rather than a review promise | WS3b |
+| 2026-11-07 (WS5) | One dashboard read implementation (`lib/clients/query.ts`), one transport (`lib/transport.ts`), path-keyed `useApi`/`usePage`/`useOffsetPage` as thin wrappers; `lib/paging.ts` and all six page-local hook/pager implementations deleted. Legacy `api`/`rawApi`/`post`/`arrayOf` retained until T5.2 so responses stay byte-identical | F8/F9 closed without a big-bang transport switch; pages migrate per-client in T5.2 | WS5 |
+| 2026-11-07 (WS5) | The Runs events tab keeps a page-local `useResourcePage` shim that normalizes `{events, nextCursor, hasMore}` to `Page<T>`; evidence tabs use `useResourceOffsetPage` plus a payload ref so board `reporting`/`deliveries` extras survive. `useApi` now clears data on path change (the F9 delta the hook test pins) | The server's events `nextCursor` is never null (only `hasMore` ends the list), so a naive pager would loop; the shim is the documented seam until the envelope is typed in T5.4 | WS5 |
+| 2026-11-07 (WS5) | Rendered copy is byte-identical, including Codebook's "Load more codebooks", "Previous revisions" and "Next revisions", now driven by `usePage` state | "No UI change" is a program constraint; only the implementation moves | WS5 |
+| 2026-11-07 (WS5) | **Pre-existing finding, preserved:** `datasetExportUrl` targets `/api/analyses/:id/export?dataset=…`, which is not a registered route (the real export is `/api/jev/analyses/:id/export`), so that dashboard link 404s at the baseline. WS5 preserves it and does not fix it | Behaviour preservation outranks opportunistic fixes during the remediation; recorded here for the post-program backlog | WS5 |
 
 ## Verification gates
 
