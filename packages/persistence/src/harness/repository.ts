@@ -24,6 +24,9 @@ function matchesEvent(event: HarnessEvent, query: EventQuery) { return event.seq
 
 function matchesRun(run: Run, q: RunQuery) { return (!q.status || q.status.split(',').includes(run.status)) && (!q.model || run.config.model.id === q.model) && (!q.condition || run.config.condition.id === q.condition) && (!q.scenario || [run.config.scenario.version, run.config.scenario.datasetId].includes(q.scenario)) && (!q.designation || (run.config.model.provider === 'scripted' ? 'fixture' : run.config.phase) === q.designation); }
 
+/** A worker that has not heartbeated for this long is presumed dead and its lease can be taken over. */
+export const WORKER_LEASE_MS = 30_000;
+
 const clone = <T>(value: T): T => structuredClone(value);
 
 const clean = <T>(value: Document | null): T | null => {
@@ -251,23 +254,56 @@ export class MongoRepository implements Repository {
         return (await this.db.collection('events').find(filter).sort({ sequence: 1 }).skip(query.offset ?? 0).limit(query.limit ?? 200).toArray()).map(row => clean<HarnessEvent>(row)!);
     }
     async getEvent(runId: string, id: string) { return clean<HarnessEvent>(await this.db.collection('events').findOne({ runId, id })); }
-    async workerStatus() { const guard = await this.db.collection('worker_guard').findOne({ key: 'single-worker' }, { projection: { _id: 0, startedAt: 1 } }); return { capacity: 1, available: null, status: guard ? 'registered' : 'unknown', ...(guard ? { startedAt: guard.startedAt } : {}), note: 'Worker registration has no heartbeat; current availability is unknown.' }; }
+    /** The current lease with its heartbeat age measured on the database clock; `ageMs` is null for a lease that never heartbeated. */
+    async workerLease(): Promise<{ owner: string; startedAt?: string; heartbeatAt?: string; ageMs: number | null } | null> {
+        const [row] = await this.db.collection('worker_guard').aggregate([
+            { $match: { key: 'single-worker' } },
+            { $project: { _id: 0, owner: 1, startedAt: 1, heartbeatAt: 1, ageMs: { $cond: [{ $eq: [{ $type: '$heartbeatAt' }, 'date'] }, { $subtract: ['$$NOW', '$heartbeatAt'] }, null] } } },
+        ]).toArray();
+        if (!row)
+            return null;
+        return { owner: row.owner, ...(row.startedAt ? { startedAt: row.startedAt } : {}), ...(row.heartbeatAt instanceof Date ? { heartbeatAt: row.heartbeatAt.toISOString() } : {}), ageMs: row.ageMs ?? null };
+    }
+    async workerStatus(leaseMs = WORKER_LEASE_MS) {
+        const lease = await this.workerLease();
+        if (!lease)
+            return { capacity: 1, available: false, status: 'stopped', note: 'No experiment worker holds the lease.' };
+        const live = lease.ageMs !== null && lease.ageMs < leaseMs;
+        return { capacity: 1, available: live, status: live ? 'active' : 'stale', ...(lease.startedAt ? { startedAt: lease.startedAt } : {}), ...(lease.heartbeatAt ? { heartbeatAt: lease.heartbeatAt } : {}),
+            note: live ? `Worker heartbeat ${Math.round(lease.ageMs! / 1000)}s ago.` : 'Worker lease expired; the next worker to start takes it over and interrupts abandoned runs.' };
+    }
     async requestCancel(id: string) {
         await this.db.collection('runs').updateOne({ id, status: { $in: ['queued', 'running', 'reporting', 'stopping'] } }, [{ $set: { cancelRequested: true, status: { $cond: [{ $eq: ['$status', 'queued'] }, 'cancelled', 'stopping'] }, updatedAt: new Date().toISOString() } }]);
         return this.getRun(id);
     }
-    async acquireWorker(owner: string) {
+    /**
+     * Takes the single-worker lease when it is free or its holder stopped heartbeating for `leaseMs`
+     * (measured on the database clock). A lease without `heartbeatAt` predates heartbeats and is stale.
+     */
+    async acquireWorker(owner: string, leaseMs = WORKER_LEASE_MS) {
+        const guard = this.db.collection('worker_guard');
         try {
-            await this.db.collection('worker_guard').insertOne({ key: 'single-worker', owner, startedAt: new Date().toISOString() });
+            await guard.insertOne({ key: 'single-worker', owner, startedAt: new Date().toISOString(), heartbeatAt: new Date() });
+            await guard.updateOne({ key: 'single-worker', owner }, [{ $set: { heartbeatAt: '$$NOW' } }]); // use the database clock
             return true;
         }
         catch (error) {
             if ((error as {
                 code?: number;
-            }).code === 11000)
-                return false;
-            throw error;
+            }).code !== 11000)
+                throw error;
         }
+        // Held: take it over only if its heartbeat expired. The single-document update is atomic, so
+        // of several workers racing for one stale lease exactly one matches.
+        const takeover = await guard.updateOne(
+            { key: 'single-worker', $expr: { $not: [{ $gt: ['$heartbeatAt', { $subtract: ['$$NOW', leaseMs] }] }] } },
+            [{ $set: { owner: { $literal: owner }, startedAt: { $literal: new Date().toISOString() }, heartbeatAt: '$$NOW' } }]);
+        return takeover.modifiedCount === 1;
+    }
+    /** Renews the lease; false means another worker took it over and this one must stop. */
+    async heartbeatWorker(owner: string) {
+        const result = await this.db.collection('worker_guard').updateOne({ key: 'single-worker', owner }, [{ $set: { heartbeatAt: '$$NOW' } }]);
+        return result.matchedCount === 1;
     }
     async releaseWorker(owner: string) { await this.db.collection('worker_guard').deleteOne({ key: 'single-worker', owner }); }
 }

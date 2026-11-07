@@ -3,13 +3,23 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { defaultFixtureConfiguration, resolveConfiguration } from '@sidechannel/domain/harness/config';
 import { createQueuedRun } from '@sidechannel/domain/harness/initialization';
 import { openRuntime } from '../harness/runtime.js';
+import { acquireWorkerLease, workerLeaseMs } from '../harness/worker-lease.js';
 import { buildMetadata } from '@sidechannel/domain/harness/provenance';
 
 const runtime = await openRuntime();
 
 const owner = randomUUID();
 
-if (!await runtime.repository.acquireWorker(owner)) {
+const lease = await acquireWorkerLease(runtime.repository, owner, {
+    leaseMs: workerLeaseMs(),
+    shouldStop: () => true,
+    onLost(reason) {
+        console.error(`Worker lease lost (${reason}); stopping the fixture.`);
+        process.exit(1);
+    },
+});
+
+if (!lease) {
     await runtime.close();
     throw new Error('Stop the worker before running the standalone fixture.');
 }
@@ -36,6 +46,6 @@ try {
         process.exitCode = 1;
 }
 finally {
-    await runtime.repository.releaseWorker(owner);
+    await lease.release();
     await runtime.close();
 }

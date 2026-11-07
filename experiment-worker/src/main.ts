@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { setTimeout } from 'node:timers/promises';
 import { openRuntime } from './harness/runtime.js';
+import { acquireWorkerLease, interruptAbandonedRuns, workerLeaseMs, type WorkerLease } from './harness/worker-lease.js';
+
+const leaseMs = workerLeaseMs();
 
 const runtime = await openRuntime();
 
@@ -9,6 +12,8 @@ const owner = randomUUID();
 let stopping = false;
 
 let activeId: string | undefined;
+
+let lease: WorkerLease | undefined;
 
 async function stop() {
     stopping = true;
@@ -20,10 +25,35 @@ process.on('SIGINT', () => void stop());
 
 process.on('SIGTERM', () => void stop());
 
-if (!await runtime.repository.acquireWorker(owner)) {
-    await runtime.close();
-    throw new Error('A worker owns this database. If its process crashed, use npm run recover only after stopping every worker.');
+// Node exits on these by default without running the finally below. Free the lease first so a
+// restarted worker starts at once; it interrupts whatever run this process left active.
+async function fatal(error: unknown) {
+    console.error('Experiment worker crashed:', error);
+    await Promise.race([lease?.release().catch(() => { }), setTimeout(5_000)]);
+    process.exit(1);
 }
+
+process.on('uncaughtException', error => void fatal(error));
+
+process.on('unhandledRejection', reason => void fatal(reason));
+
+lease = await acquireWorkerLease(runtime.repository, owner, {
+    leaseMs,
+    shouldStop: () => stopping,
+    onLost(reason) {
+        // Another worker may already be executing runs; continuing would mean two writers.
+        console.error(`Worker lease lost (${reason}); exiting without touching further runs.`);
+        process.exit(1);
+    },
+});
+
+if (!lease) {
+    await runtime.close();
+    process.exit(0);
+}
+
+for (const id of await interruptAbandonedRuns(runtime.repository, 'Worker stopped before the run finished; a replacement worker interrupted it (no automatic resume)'))
+    console.log(`${id}: interrupted (abandoned by a previous worker)`);
 
 console.log('Harness worker ready; one run at a time.');
 
@@ -60,6 +90,6 @@ try {
     }
 }
 finally {
-    await runtime.repository.releaseWorker(owner);
+    await lease.release();
     await runtime.close();
 }
