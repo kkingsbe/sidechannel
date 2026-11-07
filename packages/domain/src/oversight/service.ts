@@ -67,13 +67,13 @@ export async function saveDefinition(store: ResearchStore, input: unknown) {
     return next;
 }
 
-export async function readEvents(repository: Repository, runId: string) {
+export async function readEvents(repository: Pick<Repository, 'getRun' | 'listEvents'>, runId: string) {
     const events: HarnessEvent[] = []; let after = 0;
     while (true) { const page = await repository.listEvents(runId, after, 1000); events.push(...page); if (page.length < 1000) break; after = page[page.length - 1]!.sequence; }
     return events;
 }
 
-export async function createMonitorPreview(repository: Repository, store: ResearchStore, input: unknown): Promise<MonitorPreview> {
+export async function createMonitorPreview(repository: Pick<Repository, 'getRun' | 'listEvents'>, store: ResearchStore, input: unknown): Promise<MonitorPreview> {
     const parsed = previewInput.parse(input);
     const definition = await currentDefinition(store);
     if (definition.revision !== parsed.definitionRevision) throw new OversightError(409, 'Monitor definition changed. Reload before previewing.');
@@ -119,7 +119,7 @@ export async function getMonitorPreview(store: ResearchStore, id: string): Promi
     return JSON.parse(serialized) as MonitorPreview;
 }
 
-export async function launchMonitor(repository: Repository, store: ResearchStore, input: unknown): Promise<MonitorEvaluation> {
+export async function launchMonitor(repository: Pick<Repository, 'getRun' | 'listEvents'>, store: ResearchStore, input: unknown): Promise<MonitorEvaluation> {
     const parsed = launchInput.parse(input), id = `monitor-${digest(parsed.idempotencyKey)}`;
     const existing = await store.get<MonitorEvaluation>('monitor_evaluations', id);
     if (existing) {

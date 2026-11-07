@@ -1,7 +1,8 @@
 import type { ExperimentConfig, Run } from '@sidechannel/contracts/harness/contracts';
 import { HEALTHCARE_SCENARIO_VERSION } from '@sidechannel/contracts/healthcare/contracts';
 import type { HealthcareCatalog } from '@sidechannel/contracts/healthcare/repository';
-import type { ResearcherRepository, ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
+import type { Repository } from '@sidechannel/contracts/harness/server';
+import type { ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
 import { createHealthcarePreset } from '@sidechannel/domain/healthcare/preset';
 import { evaluateHealthcareRun, HEALTHCARE_EVALUATOR_VERSION } from '@sidechannel/domain/healthcare/evaluation';
 
@@ -19,7 +20,7 @@ export class HealthcareService {
         config.scenario.datasetSeed = dataset.manifest.provenance.seed;
         return config;
     }
-    async researcherExport(run: Run, repository: ResearcherRepository) {
+    async researcherExport(run: Run, repository: Pick<Repository, 'getRun'>) {
         if (run.config.scenario.version !== HEALTHCARE_SCENARIO_VERSION) return undefined;
         const response = await this.routes(repository)({ method: 'GET', path: `/runs/${encodeURIComponent(run.id)}/evaluation`, query: new URLSearchParams(), body: {} });
         return { scope: 'researcher-only', evaluatorReference: await this.catalog.getReference(run.id), evaluation: response?.data ?? { status: 'unavailable', reason: 'No evaluation available' } };
@@ -30,7 +31,7 @@ export class HealthcareService {
         if (!dataset) throw new Error('Healthcare dataset unavailable');
         await this.catalog.freezeReference({ runId: run.id, datasetId: dataset.item.datasetId, datasetVersion: dataset.item.datasetVersion, packageHash: dataset.item.packageHash, assetsHash: dataset.item.assetsHash, truthHash: dataset.truthHash, scoringVersion: dataset.assets.public.scoring_version, evaluatorVersion: HEALTHCARE_EVALUATOR_VERSION });
     }
-    routes(repository: ResearcherRepository): ResearchRouteHandler {
+    routes(repository: Pick<Repository, 'getRun'>): ResearchRouteHandler {
         return async ({ method, path, query }) => {
             if (method === 'GET' && path === '/datasets') return { status: 200, data: await this.catalog.list() };
             const datasetMatch = path.match(/^\/datasets\/([^/]+)\/(preset|provenance)$/);

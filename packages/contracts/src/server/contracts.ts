@@ -1,5 +1,5 @@
-import type { Repository } from '../harness/server.js';
-import type { Run } from '../harness/contracts.js';
+import type { EventLog, RunQueue, RunStateStore, WorkerGuard } from '../harness/server.js';
+import type { HarnessEvent, Run } from '../harness/contracts.js';
 import type { Draft, DraftMetadata, EventQuery, EvidenceKind, EvidencePage, RunQuery, RunSummary } from '../harness/repository.js';
 
 /** Single-worker registration is a guard, not a heartbeat; availability is always unknown. */
@@ -11,20 +11,39 @@ export interface WorkerStatus {
     note?: string;
 }
 
-export interface ResearcherRepository extends Repository {
+/** Run listing and summary projections consumed by the dashboard's read model. */
+export interface RunQueries {
+    queryRuns(query: RunQuery): Promise<{ items: RunSummary[]; total: number }>;
+    getRunSummary(id: string): Promise<RunSummary | null>;
+    getRunByLaunchKey(launchKey: string): Promise<Run | null>;
+}
+
+/** Editable launch drafts with optimistic revisions. */
+export interface DraftStore {
     saveDraft(id: string, config: unknown, expectedRevision?: number, metadata?: DraftMetadata): Promise<Draft>;
     listDrafts(): Promise<Draft[]>;
     getDraft(id: string): Promise<Draft | null>;
-    requestCancel(id: string): Promise<Run | null>;
-    createPair(runs: Run[]): Promise<Run[]>;
-    queryRuns(query: RunQuery): Promise<{ items: RunSummary[]; total: number }>;
-    queryEvents(id: string, query: EventQuery): ReturnType<Repository['listEvents']>;
-    getEvent(runId: string, eventId: string): Promise<Awaited<ReturnType<Repository['listEvents']>>[number] | null>;
+}
+
+/** Read-only evidence surface: events, summaries and paginated projections. */
+export interface EvidenceReader {
+    queryEvents(id: string, query: EventQuery): Promise<HarnessEvent[]>;
+    getEvent(runId: string, eventId: string): Promise<HarnessEvent | null>;
     getRunSummary(id: string): Promise<RunSummary | null>;
-    getRunByLaunchKey(launchKey: string): Promise<Run | null>;
     getEvidencePage(id: string, kind: EvidenceKind, offset: number, limit: number): Promise<EvidencePage>;
     getEvidenceItem(id: string, kind: EvidenceKind, key: string): Promise<unknown | null>;
+}
+
+/** Single-worker registration state; the guard itself is on the harness `WorkerGuard` port. */
+export interface WorkerSupervisor {
     workerStatus(): Promise<WorkerStatus>;
+}
+
+/**
+ * Composition of the researcher capability slices for the API composition root and contract suites.
+ * Consumers that need one capability take that slice (or a `Pick` of it); nothing needs the whole port.
+ */
+export interface ResearcherRepository extends RunStateStore, EventLog, RunQueue, WorkerGuard, RunQueries, DraftStore, EvidenceReader, WorkerSupervisor {
 }
 
 export interface ResearchRouteRequest { method: string; path: string; query: URLSearchParams; body: Record<string, unknown> }

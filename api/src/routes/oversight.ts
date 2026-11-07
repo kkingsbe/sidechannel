@@ -15,7 +15,7 @@ function limit(query: URLSearchParams) {
     return value;
 }
 
-export function createOversightHandler(repository: Repository, store: ResearchStore) {
+export function createOversightHandler(repository: Pick<Repository, 'getRun' | 'listEvents'>, store: ResearchStore) {
     return async ({ method, path, query, body }: Request): Promise<{ status: number; data: unknown } | null> => {
         const runReviewRoute = path.match(/^\/runs\/([^/]+)\/(reviews(?:\/(?:context|latest|export))?|outcomes)$/);
         if (!path.startsWith('/monitor') && !runReviewRoute) return null;
