@@ -5,7 +5,7 @@ import type { HarnessEvent, NewEvent, Run } from '@sidechannel/contracts/harness
 import type { ResearcherRepository, WorkerStatus } from '@sidechannel/contracts/server/contracts';
 import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, type EvidenceKind, type EvidencePage } from '@sidechannel/contracts/harness/repository';
 import type { WorkerGuard } from '@sidechannel/contracts/harness/server';
-import { summarizeRun } from '@sidechannel/domain/harness/repository';
+import { summaryProjection, toRunSummary, type SummaryRun } from '@sidechannel/domain/harness/repository';
 import { COLLECTIONS, initializeHarnessSchema } from '../schema.js';
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -113,11 +113,11 @@ export class MongoRepository implements ResearcherRepository, WorkerGuard {
         if (query.scenario) filter.$or = [{ 'config.scenario.version': query.scenario }, { 'config.scenario.datasetId': query.scenario }];
         if (query.designation === 'fixture') filter['config.model.provider'] = 'scripted';
         else if (query.designation) { filter['config.phase'] = query.designation; filter['config.model.provider'] = { $ne: 'scripted' }; }
-        const projection = { board: 0, artifacts: 0, reports: 0, operations: 0, scenarioState: 0, 'config.scenario.assets': 0 };
+        const projection = summaryProjection();
         const [rows, total] = await Promise.all([this.db.collection(COLLECTIONS.runs).find(filter, { projection }).sort(query.order === 'queue' ? { createdAt: 1, pairPosition: 1, id: 1 } : { createdAt: -1, id: 1 }).skip(query.offset).limit(query.limit).toArray(), this.db.collection(COLLECTIONS.runs).countDocuments(filter)]);
-        return { items: rows.map(row => summarizeRun(clean<Run>(row)!)), total };
+        return { items: rows.map(row => toRunSummary(clean<SummaryRun>(row)!)), total };
     }
-    async getRunSummary(id: string) { const run = clean<Run>(await this.db.collection(COLLECTIONS.runs).findOne({ id }, { projection: { board: 0, artifacts: 0, reports: 0, operations: 0, scenarioState: 0, 'config.scenario.assets': 0 } })); return run ? summarizeRun(run) : null; }
+    async getRunSummary(id: string) { const run = clean<SummaryRun>(await this.db.collection(COLLECTIONS.runs).findOne({ id }, { projection: summaryProjection() })); return run ? toRunSummary(run) : null; }
     async getEvidencePage(id: string, kind: EvidenceKind, offset: number, limit: number): Promise<EvidencePage> {
         const [row] = await this.db.collection(COLLECTIONS.runs).aggregate<EvidencePage>([{ $match: { id } }, { $project: { _id: 0, items: { $slice: [`$${kind}`, offset, limit] }, total: { $size: `$${kind}` }, ...(kind === 'reports' ? { reporting: { instructions: '$config.reportInstructions', schemaVersion: '$config.reportSchemaVersion' } } : {}) } }]).toArray();
         return row ?? { items: [], total: 0 };

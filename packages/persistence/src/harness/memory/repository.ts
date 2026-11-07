@@ -3,7 +3,7 @@ import { assertMatchedPair, assertSameLaunchConfiguration } from '@sidechannel/d
 import type { HarnessEvent, NewEvent, Run } from '@sidechannel/contracts/harness/contracts';
 import type { ResearcherRepository, WorkerStatus } from '@sidechannel/contracts/server/contracts';
 import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, type EvidenceKind, type EvidencePage } from '@sidechannel/contracts/harness/repository';
-import { summarizeRun } from '@sidechannel/domain/harness/repository';
+import { toRunSummary } from '@sidechannel/domain/harness/repository';
 
 function eventPhase(event: HarnessEvent): string {
     const declared = (event.data as { phase?: string } | null)?.phase;
@@ -84,8 +84,8 @@ export class InMemoryRepository implements ResearcherRepository {
     async saveDraft(id: string, config: unknown, expectedRevision?: number, metadata: DraftMetadata = {}) { const current = this.drafts.get(id); if (current && expectedRevision !== current.revision || !current && expectedRevision !== undefined && expectedRevision !== 0) throw new RepositoryConflict('Draft changed; reload the current revision before saving'); const draft = { ...current, ...clone(metadata), id, config: clone(config), revision: (current?.revision ?? 0) + 1, updatedAt: new Date().toISOString() }; this.drafts.set(id, draft); return clone(draft); }
     async listDrafts() { return clone([...this.drafts.values()]); }
     async getDraft(id: string) { return clone(this.drafts.get(id) ?? null); }
-    async queryRuns(query: RunQuery) { const rows = [...this.runs.values()].reverse().filter(run => matchesRun(run, query)); if (query.order === 'queue') rows.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.pairPosition ?? 0) - (b.pairPosition ?? 0) || a.id.localeCompare(b.id)); return { items: clone(rows.slice(query.offset, query.offset + query.limit).map(summarizeRun)), total: rows.length }; }
-    async getRunSummary(id: string) { const run = this.runs.get(id); return run ? clone(summarizeRun(run)) : null; }
+    async queryRuns(query: RunQuery) { const rows = [...this.runs.values()].reverse().filter(run => matchesRun(run, query)); if (query.order === 'queue') rows.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.pairPosition ?? 0) - (b.pairPosition ?? 0) || a.id.localeCompare(b.id)); return { items: clone(rows.slice(query.offset, query.offset + query.limit).map(toRunSummary)), total: rows.length }; }
+    async getRunSummary(id: string) { const run = this.runs.get(id); return run ? clone(toRunSummary(run)) : null; }
     async getEvidencePage(id: string, kind: EvidenceKind, offset: number, limit: number): Promise<EvidencePage> {
         const run = this.runs.get(id);
         if (!run)
