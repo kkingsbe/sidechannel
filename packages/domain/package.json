@@ -163,6 +163,10 @@
       "types": "./dist/providers/profile.d.ts",
       "import": "./dist/providers/profile.js"
     },
+    "./scenarios": {
+      "types": "./dist/scenarios/index.d.ts",
+      "import": "./dist/scenarios/index.js"
+    },
     "./pagination": {
       "types": "./dist/pagination.d.ts",
       "import": "./dist/pagination.js"
