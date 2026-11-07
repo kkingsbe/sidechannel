@@ -1,8 +1,11 @@
-import type { IncomingMessage } from 'node:http';
 import type { AnalysisRepository } from '@sidechannel/contracts/analysis/jev-repository';
 import { ReviewService } from '@sidechannel/domain/analysis/jev-reviews';
 import type { ReviewContext, ReviewListFilter, ReviewQueueFilter } from '@sidechannel/contracts/analysis/jev-reviews';
 import type { ReviewStore } from '@sidechannel/contracts/analysis/review-repository';
+import type { ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
+
+/** Review bodies stay bounded at 1 MB; core and Jev routes keep the 2 MB default. */
+export const REVIEW_BODY_LIMIT = 1_000_000;
 
 export async function reviewContext(repository: Pick<AnalysisRepository, 'getJob' | 'listWindows' | 'listResults'>, analysisId: string): Promise<ReviewContext> {
     const job = await repository.getJob(analysisId);
@@ -30,41 +33,36 @@ export function createReviewService(repository: Pick<AnalysisRepository, 'getJob
     return window ? { id: window.id, eventIds: window.eventIds, stepIds: window.stepIds, probabilities: {} } : null;
 }); }
 
-async function body(req: IncomingMessage) {
-    const chunks: Buffer[] = []; let bytes = 0;
-    for await (const chunk of req) { const b = Buffer.from(chunk); bytes += b.length; if (bytes > 1_000_000) throw new Error('Review request exceeds 1 MB'); chunks.push(b); }
-    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Expected a JSON object');
-    return parsed as Record<string, unknown>;
-}
-
-export function createReviewRouteHandler(service: ReviewService, repository: Pick<AnalysisRepository, 'getJob'>) {
-    return async (req: IncomingMessage, url: URL) => {
-        const match = url.pathname.match(/^\/api\/analyses\/([^/]+)\/(reviews|review-batches)(?:\/([^/]+))?$/);
+export function createReviewRouteHandler(service: ReviewService, repository: Pick<AnalysisRepository, 'getJob'>): ResearchRouteHandler {
+    return async request => {
+        const { method, path, query } = request;
+        const match = path.match(/^\/analyses\/([^/]+)\/(reviews|review-batches)(?:\/([^/]+))?$/);
         if (!match) return null;
+        // Before this refactor every non-GET body was parsed before routing, so size and syntax
+        // errors outrank existence errors. Read the body first to keep that precedence.
+        const payload = method === 'POST' ? await request.body(REVIEW_BODY_LIMIT) : undefined;
         try {
             const id = decodeURIComponent(match[1]!), op = match[2]!, batchId = match[3] && decodeURIComponent(match[3]);
-            if (!await repository.getJob(id)) return { status: 404, body: { error: 'Analysis not found' } };
-            const after = url.searchParams.get('after') ?? undefined, limit = Number(url.searchParams.get('limit') ?? 100);
+            if (!await repository.getJob(id)) return { status: 404, data: { error: 'Analysis not found' } };
+            const after = query.get('after') ?? undefined, limit = Number(query.get('limit') ?? 100);
             if (op === 'reviews' && !batchId) {
-                if (req.method === 'GET') {
+                if (method === 'GET') {
                     const filter: ReviewListFilter = {};
-                    for (const key of ['windowId', 'reviewer', 'subjectId', 'codeId'] as const) if (url.searchParams.has(key)) filter[key] = url.searchParams.get(key)!;
-                    if (url.searchParams.has('scope')) filter.scope = url.searchParams.get('scope') as ReviewListFilter['scope'];
-                    if (url.searchParams.has('latest')) { const value = url.searchParams.get('latest'); if (value !== 'true' && value !== 'false') throw new Error('latest must be true or false'); filter.latest = value === 'true'; }
-                    return { status: 200, body: await service.list(id, after, limit, filter) };
+                    for (const key of ['windowId', 'reviewer', 'subjectId', 'codeId'] as const) if (query.has(key)) filter[key] = query.get(key)!;
+                    if (query.has('scope')) filter.scope = query.get('scope') as ReviewListFilter['scope'];
+                    if (query.has('latest')) { const value = query.get('latest'); if (value !== 'true' && value !== 'false') throw new Error('latest must be true or false'); filter.latest = value === 'true'; }
+                    return { status: 200, data: await service.list(id, after, limit, filter) };
                 }
-                if (req.method === 'POST') return { status: 201, body: await service.save(id, await body(req)) };
+                if (method === 'POST') return { status: 201, data: await service.save(id, payload!) };
             }
             if (op === 'review-batches') {
-                if (req.method === 'GET') return { status: 200, body: batchId ? await service.getBatch(id, batchId, { after, limit, reviewer: url.searchParams.get('reviewer') || undefined,
-                    filter: (url.searchParams.get('filter') ?? 'all') as ReviewQueueFilter }) : await service.listBatches(id, after, limit) };
-                if (req.method === 'POST' && !batchId) return { status: 201, body: await service.createBatch(id, await body(req)) };
+                if (method === 'GET') return { status: 200, data: batchId ? await service.getBatch(id, batchId, { after, limit, reviewer: query.get('reviewer') || undefined, filter: (query.get('filter') ?? 'all') as ReviewQueueFilter }) : await service.listBatches(id, after, limit) };
+                if (method === 'POST' && !batchId) return { status: 201, data: await service.createBatch(id, payload!) };
             }
-            return { status: 405, body: { error: 'Method not allowed' } };
+            return { status: 405, data: { error: 'Method not allowed' } };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Review request failed';
-            return { status: /conflict|stale/.test(message) ? 409 : /not found/.test(message) ? 404 : 400, body: { error: message } };
+            return { status: /conflict|stale/.test(message) ? 409 : /not found/.test(message) ? 404 : 400, data: { error: message } };
         }
     };
 }

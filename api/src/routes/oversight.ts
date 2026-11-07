@@ -6,8 +6,7 @@ import { cancelMonitor, createMonitorPreview, currentDefinition, getMonitorPrevi
 import { exportRunOutcomeReviews, latestRunOutcomeReview, runOutcomeAgreements, runReviewContext, saveRunOutcomeReview } from '@sidechannel/domain/oversight/reviews';
 import type { RunOutcomeReview } from '@sidechannel/contracts/oversight/reviews';
 import { compareMonitorEvaluation } from '@sidechannel/domain/oversight/comparison';
-
-interface Request { method: string; path: string; query: URLSearchParams; body: unknown; }
+import type { ResearchRouteRequest, ResearchRouteResult } from '@sidechannel/contracts/server/contracts';
 
 function limit(query: URLSearchParams) {
     const value = Number(query.get('limit') ?? 50);
@@ -16,7 +15,9 @@ function limit(query: URLSearchParams) {
 }
 
 export function createOversightHandler(repository: Pick<Repository, 'getRun' | 'listEvents'>, store: ResearchStore) {
-    return async ({ method, path, query, body }: Request): Promise<{ status: number; data: unknown } | null> => {
+    return async (request: ResearchRouteRequest): Promise<ResearchRouteResult | null> => {
+        const { method, path, query } = request;
+        const body = () => request.body();
         const runReviewRoute = path.match(/^\/runs\/([^/]+)\/(reviews(?:\/(?:context|latest|export))?|outcomes)$/);
         if (!path.startsWith('/monitor') && !runReviewRoute) return null;
         try {
@@ -30,7 +31,7 @@ export function createOversightHandler(repository: Pick<Repository, 'getRun' | '
                     return { status: 200, data: await latestRunOutcomeReview(repository, store, runId, { reviewer, outcomeId, definitionRevisionId }) };
                 }
                 if (operation === 'outcomes' && method === 'GET') return { status: 200, data: await runOutcomeAgreements(repository, store, runId) };
-                if (operation === 'reviews' && method === 'POST') return { status: 201, data: await saveRunOutcomeReview(repository, store, runId, body) };
+                if (operation === 'reviews' && method === 'POST') return { status: 201, data: await saveRunOutcomeReview(repository, store, runId, await body()) };
                 if (operation === 'reviews' && method === 'GET') {
                     await runReviewContext(repository, store, runId);
                     const filter: Record<string, string | undefined> = { runId };
@@ -40,14 +41,14 @@ export function createOversightHandler(repository: Pick<Repository, 'getRun' | '
                 throw new OversightError(405, 'Method not allowed');
             }
             if (path === '/monitor-definitions' && method === 'GET') return { status: 200, data: await currentDefinition(store) };
-            if (path === '/monitor-definitions' && method === 'POST') return { status: 201, data: await saveDefinition(store, body) };
+            if (path === '/monitor-definitions' && method === 'POST') return { status: 201, data: await saveDefinition(store, await body()) };
             if (path === '/monitor-definitions/history' && method === 'GET') {
                 await currentDefinition(store);
                 return { status: 200, data: await store.page<MonitorDefinition>('monitor_definitions', {}, query.get('after') ?? '', limit(query)) };
             }
-            if (path === '/monitor/preview' && method === 'POST') return { status: 201, data: await createMonitorPreview(repository, store, body) };
+            if (path === '/monitor/preview' && method === 'POST') return { status: 201, data: await createMonitorPreview(repository, store, await body()) };
             if (path === '/monitor-evaluations' && method === 'GET') return { status: 200, data: await store.page<MonitorEvaluation>('monitor_evaluations', {}, query.get('after') ?? '', limit(query)) };
-            if (path === '/monitor-evaluations' && method === 'POST') return { status: 202, data: await launchMonitor(repository, store, body) };
+            if (path === '/monitor-evaluations' && method === 'POST') return { status: 202, data: await launchMonitor(repository, store, await body()) };
             const match = path.match(/^\/monitor-evaluations\/([^/]+)(?:\/(export|cancel|comparison))?$/);
             if (match) {
                 const id = decodeURIComponent(match[1]!);
@@ -66,7 +67,7 @@ export function createOversightHandler(repository: Pick<Repository, 'getRun' | '
             }
             return { status: 404, data: { error: 'Monitor route not found' } };
         } catch (error) {
-            if (error instanceof OversightError) return { status: error.status, data: { error: error.message } };
+            // The shared boundary maps `OversightError` by its typed status with the identical `{ error }` payload.
             if (error instanceof ZodError) return { status: 400, data: { error: 'Invalid monitor configuration', issues: error.issues } };
             throw error;
         }

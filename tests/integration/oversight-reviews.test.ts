@@ -122,7 +122,7 @@ test('simultaneous saves publish one immutable sequence and reject the competing
 
 test('API exposes independent context, paginated history and outcomes without accepting a finalization override', async () => {
     const f = await fixture(), handler = createOversightHandler(f.repository, f.store), prefix = `/runs/${f.run.id}`;
-    const call = (method: string, suffix: string, body: unknown = {}, query = new URLSearchParams()) => handler({ method, path: prefix + suffix, body, query });
+    const call = (method: string, suffix: string, payload: unknown = {}, query = new URLSearchParams()) => handler({ method, path: prefix + suffix, body: async () => payload as Record<string, unknown>, query });
     assert.equal((await call('GET', '/reviews/context'))!.status, 200);
     assert.equal((await call('POST', '/reviews', { ...f.input, finalized: true }))!.status, 400);
     assert.equal((await call('POST', '/reviews', f.input))!.status, 201);
@@ -133,7 +133,7 @@ test('API exposes independent context, paginated history and outcomes without ac
     assert.equal(next.items.length, 1); assert.notEqual(next.items[0]!.id, page.items[0]!.id);
     const outcomes = (await call('GET', '/outcomes'))!.data as { state: string }[];
     assert.equal(outcomes[0]!.state, 'agreed');
-    assert.equal(await handler({ method: 'GET', path: '/unrelated', body: {}, query: new URLSearchParams() }), null);
+    assert.equal(await handler({ method: 'GET', path: '/unrelated', body: async () => ({}), query: new URLSearchParams() }), null);
 });
 
 test('comparison endpoint joins independent agreed references to monitor abstentions with explicit denominators', async () => {
@@ -149,7 +149,7 @@ test('comparison endpoint joins independent agreed references to monitor abstent
     await processNextMonitorJob(f.repository, f.store, { async evaluate(input) {
         return { output: { judgments: input.definition.outcomes.map(outcome => ({ outcomeId: outcome.id, verdict: 'uncertain', evidenceIds: [], explanation: 'Insufficient supplied evidence.' })) } };
     } }, 'comparison-worker');
-    const response = await handler({ method: 'GET', path: `/monitor-evaluations/${evaluation.id}/comparison`, body: {}, query: new URLSearchParams() });
+    const response = await handler({ method: 'GET', path: `/monitor-evaluations/${evaluation.id}/comparison`, body: async () => ({}), query: new URLSearchParams() });
     assert.equal(response!.status, 200);
     const data = response!.data as { evaluationId: string; definitionRevisionId: string; comparisons: { outcome: { id: string }; metrics: { referencePositive: number; monitorUncertain: number; detectionRate: number | null; falsePositiveRate: number | null }[] }[] };
     assert.equal(data.evaluationId, evaluation.id); assert.equal(data.definitionRevisionId, f.context.definition.id);
@@ -164,7 +164,7 @@ test('latest reviewer identity and complete exports remain correct past one hund
     for (let index = 0; index < 121; index++) previous = await saveRunOutcomeReview(f.repository, f.store, f.run.id, { ...f.input, supersedesId: previous?.id, rationale: `Preserved revision ${index + 1}` });
     const definition = await currentDefinition(f.store);
     await saveDefinition(f.store, { expectedRevision: definition.revision, questions: 'New immutable question version', outcomes: definition.outcomes });
-    const call = (suffix: string, query: Record<string, string> = {}) => handler({ method: 'GET', path: `/runs/${f.run.id}/reviews${suffix}`, body: {}, query: new URLSearchParams(query) });
+    const call = (suffix: string, query: Record<string, string> = {}) => handler({ method: 'GET', path: `/runs/${f.run.id}/reviews${suffix}`, body: async () => ({}), query: new URLSearchParams(query) });
     const historical = await call('/context', { definitionRevisionId: definition.id });
     assert.equal((historical!.data as { definition: { id: string } }).definition.id, definition.id);
     const latest = (await call('/latest', { reviewer: ' ＡＬＩＣＥ ', outcomeId: f.input.outcomeId, definitionRevisionId: definition.id }))!.data as RunOutcomeReview;
@@ -197,7 +197,7 @@ test('comparison includes every selected source run and independently finalized 
     const preview = await createMonitorPreview(f.repository, f.store, { runIds, definitionRevision: 1, model: { provider: 'test', id: 'no-network', settings: {} }, maxInputChars: 1000000, contextWindowTokens: 1000000 });
     const job = await launchMonitor(f.repository, f.store, { previewId: preview.id, previewHash: preview.hash, idempotencyKey: 'multiple-source-comparison' });
     await processNextMonitorJob(f.repository, f.store, { async evaluate(input) { return { output: { judgments: input.definition.outcomes.filter(outcome => !outcome.archived).map(outcome => ({ outcomeId: outcome.id, verdict: 'uncertain', evidenceIds: [], explanation: 'Test fixture without a provider call.' })) } }; } }, 'multi-run-fixture');
-    const response = await createOversightHandler(f.repository, f.store)({ method: 'GET', path: `/monitor-evaluations/${job.id}/comparison`, query: new URLSearchParams(), body: {} });
+    const response = await createOversightHandler(f.repository, f.store)({ method: 'GET', path: `/monitor-evaluations/${job.id}/comparison`, query: new URLSearchParams(), body: async () => ({}) });
     const comparison = response!.data as { comparisons: { rows: { runId: string }[]; metrics: { sourceRuns: number; referencePositive: number; referenceNegative: number; monitorUncertain: number }[] }[] };
     assert.deepEqual(comparison.comparisons[0]!.rows.map(row => row.runId).sort(), [...runIds].sort());
     for (const metric of comparison.comparisons[0]!.metrics) { assert.equal(metric.sourceRuns, 3); assert.equal(metric.referencePositive, 1); assert.equal(metric.referenceNegative, 2); assert.equal(metric.monitorUncertain, 3); }

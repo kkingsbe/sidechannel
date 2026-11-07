@@ -22,7 +22,7 @@ export class HealthcareService {
     }
     async researcherExport(run: Run, repository: Pick<Repository, 'getRun'>) {
         if (run.config.scenario.version !== HEALTHCARE_SCENARIO_VERSION) return undefined;
-        const response = await this.routes(repository)({ method: 'GET', path: `/runs/${encodeURIComponent(run.id)}/evaluation`, query: new URLSearchParams(), body: {} });
+        const response = await this.routes(repository)({ method: 'GET', path: `/runs/${encodeURIComponent(run.id)}/evaluation`, query: new URLSearchParams(), body: async () => ({}) });
         return { scope: 'researcher-only', evaluatorReference: await this.catalog.getReference(run.id), evaluation: response?.data ?? { status: 'unavailable', reason: 'No evaluation available' } };
     }
     async freezeRunReference(run: Run): Promise<void> {

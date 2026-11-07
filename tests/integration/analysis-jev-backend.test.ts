@@ -1,7 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Readable } from 'node:stream';
-import type { IncomingMessage } from 'node:http';
 import { InMemoryRepository } from '@sidechannel/persistence/harness/repository';
 import { defaultFixtureConfiguration } from '@sidechannel/domain/harness/config';
 import { createQueuedRun } from '@sidechannel/domain/harness/initialization';
@@ -180,20 +178,20 @@ test('export contains exact inputs, source and provider requests with Unicode-sa
 
 test('backend validation and routes expose paginated windows and reproducible stream export', async () => {
     const f = await fixture(), handler = createAnalysisRouteHandler(f.service);
-    const req = (method = 'GET', value?: unknown) => Object.assign(Readable.from(value ? [JSON.stringify(value)] : []), { method }) as IncomingMessage;
+    const call = (path: string, method = 'GET', value?: unknown) => { const url = new URL('http://localhost' + path); return handler({ method, path: url.pathname, query: url.searchParams, body: async () => (value as Record<string, unknown>) ?? {} }); };
     await assert.rejects(f.service.preview(f.run.id, { codebookId: f.codebook.id, settings: { window: { size: 0 } } }), AnalysisValidation);
-    await assert.rejects(handler(req(), new URL(`http://localhost/api/analyses/${f.job.id}/windows?limit=0`)), AnalysisValidation);
-    const windows = await handler(req(), new URL(`http://localhost/api/analyses/${f.job.id}/windows?limit=1`)); assert.equal(windows!.status, 200);
-    const exported = await handler(req(), new URL(`http://localhost/api/analyses/${f.job.id}/export`)); assert.equal(exported!.headers!['Content-Type'], 'application/x-ndjson; charset=utf-8');
-    const overview = await handler(req(), new URL('http://localhost/api/analyses?limit=1')); assert.equal((overview!.body as { items: unknown[] }).items.length, 1);
-    const revisions = await handler(req(), new URL(`http://localhost/api/codebooks/${f.codebook.id}/revisions`)); assert.equal((revisions!.body as { items: unknown[] }).items.length, 1);
+    await assert.rejects(call(`/analyses/${f.job.id}/windows?limit=0`), AnalysisValidation);
+    const windows = await call(`/analyses/${f.job.id}/windows?limit=1`); assert.equal(windows!.status, 200);
+    const exported = await call(`/analyses/${f.job.id}/export`); assert.equal(exported!.headers!['Content-Type'], 'application/x-ndjson; charset=utf-8');
+    const overview = await call('/analyses?limit=1'); assert.equal((overview!.data as { items: unknown[] }).items.length, 1);
+    const revisions = await call(`/codebooks/${f.codebook.id}/revisions`); assert.equal((revisions!.data as { items: unknown[] }).items.length, 1);
     const window = (await f.repository.listWindows(f.job.id)).items[0]!;
-    const previewed = await handler(req('POST', { codebookId: f.codebook.id, previewHash: f.preview.previewHash }), new URL(`http://localhost/api/runs/${f.run.id}/analyses/preview/windows/${window.id}`));
-    assert.equal((previewed!.body as { input: { hash: string } }).input.hash, window.inputHash);
+    const previewed = await call(`/runs/${f.run.id}/analyses/preview/windows/${window.id}`, 'POST', { codebookId: f.codebook.id, previewHash: f.preview.previewHash });
+    assert.equal((previewed!.data as { input: { hash: string } }).input.hash, window.inputHash);
     await assert.rejects(f.service.previewWindow(f.run.id, window.id, { codebookId: f.codebook.id, previewHash: 'stale' }), AnalysisConflict);
-    assert.equal(await handler(req('POST'), new URL(`http://localhost/api/analyses/${f.job.id}/cancel/extra`)), null);
-    await assert.rejects(handler(req(), new URL('http://localhost/api/analyses/%ZZ')), AnalysisValidation);
+    assert.equal(await call(`/analyses/${f.job.id}/cancel/extra`, 'POST'), null);
+    await assert.rejects(call('/analyses/%ZZ'), AnalysisValidation);
     await new AnalysisWorker(f.repository, { provider: { classify: async r => response(r) } }).runOnce();
-    const joined = await handler(req(), new URL(`http://localhost/api/analyses/${f.job.id}/windows?withResults=true&limit=1`));
-    const item = (joined!.body as { items: { results: unknown[]; input?: unknown }[] }).items[0]!; assert.equal(item.results.length, 2); assert.equal(item.input, undefined);
+    const joined = await call(`/analyses/${f.job.id}/windows?withResults=true&limit=1`);
+    const item = (joined!.data as { items: { results: unknown[]; input?: unknown }[] }).items[0]!; assert.equal(item.results.length, 2); assert.equal(item.input, undefined);
 });

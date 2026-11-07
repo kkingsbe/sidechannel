@@ -46,7 +46,14 @@ export interface WorkerSupervisor {
 export interface ResearcherRepository extends RunStateStore, EventLog, RunQueue, WorkerGuard, RunQueries, DraftStore, EvidenceReader, WorkerSupervisor {
 }
 
-export interface ResearchRouteRequest { method: string; path: string; query: URLSearchParams; body: Record<string, unknown> }
+export interface ResearchRouteRequest {
+    method: string;
+    /** Path below `/api`, e.g. `/runs/:id/export`; never includes the `/api` prefix. */
+    path: string;
+    query: URLSearchParams;
+    /** Reads and parses the JSON object body once, enforcing `limit` bytes (default 2 MB). The first limit wins. */
+    body(limit?: number): Promise<Record<string, unknown>>;
+}
 
 export interface ResearchRouteResult { status: number; data: unknown; headers?: Record<string, string> }
 

@@ -16,7 +16,7 @@ import { adaptionModelRoute } from './adaption-models.js';
 import { requireSameOrigin, requireToken } from './auth.js';
 import { createConfigurationPipeline } from './configuration.js';
 import { HttpError, sendFailure } from './errors.js';
-import { applySecurityHeaders, cursor, DEFAULT_BODY_LIMIT, draftMetadata, idempotencyKey, positiveLimit, requestBody, send } from './http.js';
+import { applySecurityHeaders, cursor, draftMetadata, idempotencyKey, positiveLimit, requestBody, send } from './http.js';
 import { serveDashboard } from './static.js';
 
 export type { Draft } from '@sidechannel/contracts/harness/repository';
@@ -161,7 +161,7 @@ export function createResearcherServer(repository: ResearcherRepository, options
                     return reply(200, { schemaVersion: 1, scope: 'complete-source-evidence', exportedAt: new Date().toISOString(), run, events, ...(researcherEvaluation ? { researcherEvaluation } : {}) });
                 }
                 for (const handler of extensionHandlers) {
-                    const result = await handler({ method, path, query, body: ['GET', 'HEAD'].includes(method) ? {} : await input(DEFAULT_BODY_LIMIT) });
+                    const result = await handler({ method, path, query, body: input });
                     if (result) {
                         if (result.data && typeof result.data === 'object' && Symbol.asyncIterator in result.data) {
                             res.writeHead(result.status, { 'Content-Type': 'application/x-ndjson; charset=utf-8', ...result.headers });

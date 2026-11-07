@@ -10,7 +10,7 @@ test('the JEV extension is composed from injected ports and never constructs a M
     const reviews = new MemoryReviewStore();
     const source = new InMemoryRepository();
     const handler = createJevExtension(analysis, reviews, source);
-    const response = await handler({ method: 'GET', path: '/jev/codebooks', query: new URLSearchParams(), body: {} });
+    const response = await handler({ method: 'GET', path: '/jev/codebooks', query: new URLSearchParams(), body: async () => ({}) });
     assert.equal(response?.status, 200);
     assert.equal((response?.data as { items: unknown[] }).items.length, 1); // the seeded tentative default
 });
