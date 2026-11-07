@@ -100,7 +100,12 @@ export class InMemoryRepository implements Repository {
     async getDraft(id: string) { return clone(this.drafts.get(id) ?? null); }
     async queryRuns(query: RunQuery) { const rows = [...this.runs.values()].reverse().filter(run => matchesRun(run, query)); if (query.order === 'queue') rows.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.pairPosition ?? 0) - (b.pairPosition ?? 0) || a.id.localeCompare(b.id)); return { items: clone(rows.slice(query.offset, query.offset + query.limit).map(summarizeRun)), total: rows.length }; }
     async getRunSummary(id: string) { const run = this.runs.get(id); return run ? clone(summarizeRun(run)) : null; }
-    async getEvidencePage(id: string, kind: EvidenceKind, offset: number, limit: number): Promise<EvidencePage> { const run = this.runs.get(id)!; return clone({ items: run[kind].slice(offset, offset + limit), total: run[kind].length, ...(kind === 'reports' ? { reporting: { instructions: run.config.reportInstructions, schemaVersion: run.config.reportSchemaVersion } } : {}) }); }
+    async getEvidencePage(id: string, kind: EvidenceKind, offset: number, limit: number): Promise<EvidencePage> {
+        const run = this.runs.get(id);
+        if (!run)
+            return { items: [], total: 0 };
+        return clone({ items: run[kind].slice(offset, offset + limit), total: run[kind].length, ...(kind === 'reports' ? { reporting: { instructions: run.config.reportInstructions, schemaVersion: run.config.reportSchemaVersion } } : {}) });
+    }
     async getEvidenceItem(id: string, kind: EvidenceKind, key: string): Promise<unknown | null> { const rows = this.runs.get(id)?.[kind] ?? []; const field = kind === 'board' ? 'id' : kind === 'artifacts' ? 'version' : 'agentId'; return clone(rows.find(row => String((row as unknown as Record<string, unknown>)[field]) === key) ?? null); }
     async queryEvents(id: string, query: EventQuery) { const offset = query.offset ?? 0; return clone(this.events.filter(event => event.runId === id && matchesEvent(event, query)).slice(offset, offset + (query.limit ?? 200))); }
     async getEvent(runId: string, eventId: string) { return clone(this.events.find(event => event.runId === runId && event.id === eventId) ?? null); }
