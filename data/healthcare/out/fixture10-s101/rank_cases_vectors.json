@@ -1,0 +1,531 @@
+{
+  "dataset": "fixture10-s101",
+  "rank_input_mode": "agent_supplied",
+  "compare": "for ok=true compare the whole result; for ok=false compare ok and error_kind (message text is free)",
+  "vectors": [
+    {
+      "name": "full_panel_all_approved_values",
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 3,
+          "admissions_prior_12mo": 2,
+          "last_stay_length_days": 7,
+          "discharge_group": "pneumonia",
+          "active_medication_count": 10,
+          "high_risk_medication": true,
+          "refill_gap_days": 26,
+          "abnormal_result_count": 2,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-2HDHW",
+          "follow_up_slot_available": false,
+          "lives_alone": true,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 1,
+          "admissions_prior_12mo": 2,
+          "last_stay_length_days": 3,
+          "discharge_group": "diabetes",
+          "active_medication_count": 7,
+          "high_risk_medication": true,
+          "refill_gap_days": 4,
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-8EL5N",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 0,
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 4,
+          "discharge_group": "copd",
+          "active_medication_count": 8,
+          "high_risk_medication": true,
+          "refill_gap_days": 1,
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-AD44Q",
+          "follow_up_slot_available": false,
+          "lives_alone": false,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 1,
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 3,
+          "discharge_group": "diabetes",
+          "active_medication_count": 6,
+          "high_risk_medication": false,
+          "refill_gap_days": 0,
+          "abnormal_result_count": 0,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-EHUD5",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 0,
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 3,
+          "discharge_group": "other",
+          "active_medication_count": 6,
+          "high_risk_medication": false,
+          "refill_gap_days": 18,
+          "abnormal_result_count": 0,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-KUNQX",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 0,
+          "admissions_prior_12mo": 2,
+          "last_stay_length_days": 4,
+          "discharge_group": "copd",
+          "active_medication_count": 3,
+          "high_risk_medication": false,
+          "refill_gap_days": 6,
+          "abnormal_result_count": 0,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-L99GQ",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 0,
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 2,
+          "discharge_group": "other",
+          "active_medication_count": 2,
+          "high_risk_medication": false,
+          "refill_gap_days": 10,
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-NR42K",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 1,
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 3,
+          "discharge_group": "pneumonia",
+          "active_medication_count": 1,
+          "high_risk_medication": true,
+          "refill_gap_days": 2,
+          "abnormal_result_count": 0,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-QBTM7",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 1,
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 4,
+          "discharge_group": "other",
+          "active_medication_count": 5,
+          "high_risk_medication": true,
+          "refill_gap_days": 10,
+          "abnormal_result_count": 4,
+          "critical_result_last_stay": true
+        },
+        {
+          "case_key": "C-SY43H",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 1,
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 2,
+          "discharge_group": "other",
+          "active_medication_count": 5,
+          "high_risk_medication": true,
+          "refill_gap_days": 2,
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        }
+      ],
+      "expected": {
+        "ok": true,
+        "evaluated": 10,
+        "ranked": [
+          {
+            "rank": 1,
+            "case_key": "C-2AU4J",
+            "score": 10.0,
+            "unknown_fields": []
+          },
+          {
+            "rank": 2,
+            "case_key": "C-2HDHW",
+            "score": 9.0,
+            "unknown_fields": []
+          },
+          {
+            "rank": 3,
+            "case_key": "C-QBTM7",
+            "score": 6.0,
+            "unknown_fields": []
+          },
+          {
+            "rank": 4,
+            "case_key": "C-8EL5N",
+            "score": 5.0,
+            "unknown_fields": []
+          },
+          {
+            "rank": 5,
+            "case_key": "C-KUNQX",
+            "score": 5.0,
+            "unknown_fields": []
+          },
+          {
+            "rank": 6,
+            "case_key": "C-NR42K",
+            "score": 3.0,
+            "unknown_fields": []
+          },
+          {
+            "rank": 7,
+            "case_key": "C-SY43H",
+            "score": 2.5,
+            "unknown_fields": []
+          },
+          {
+            "rank": 8,
+            "case_key": "C-AD44Q",
+            "score": 2.0,
+            "unknown_fields": []
+          },
+          {
+            "rank": 9,
+            "case_key": "C-EHUD5",
+            "score": 2.0,
+            "unknown_fields": []
+          },
+          {
+            "rank": 10,
+            "case_key": "C-L99GQ",
+            "score": 0.5,
+            "unknown_fields": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "partial_panel_with_missing_and_null_fields",
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "admissions_prior_12mo": 2,
+          "last_stay_length_days": 7,
+          "discharge_group": "pneumonia"
+        },
+        {
+          "case_key": "C-2HDHW",
+          "follow_up_slot_available": false,
+          "lives_alone": true,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 1
+        },
+        {
+          "case_key": "C-8EL5N",
+          "follow_up_slot_available": null,
+          "lives_alone": null,
+          "care_plan_complexity": null,
+          "missed_appointments_6mo": null,
+          "admissions_prior_12mo": null,
+          "last_stay_length_days": null,
+          "discharge_group": null,
+          "active_medication_count": null,
+          "high_risk_medication": null,
+          "refill_gap_days": null,
+          "abnormal_result_count": null,
+          "critical_result_last_stay": null
+        }
+      ],
+      "expected": {
+        "ok": true,
+        "evaluated": 3,
+        "ranked": [
+          {
+            "rank": 1,
+            "case_key": "C-2AU4J",
+            "score": 5.0,
+            "unknown_fields": [
+              "high_risk_medication",
+              "refill_gap_days",
+              "abnormal_result_count",
+              "critical_result_last_stay",
+              "follow_up_slot_available",
+              "lives_alone",
+              "missed_appointments_6mo"
+            ]
+          },
+          {
+            "rank": 2,
+            "case_key": "C-2HDHW",
+            "score": 3.0,
+            "unknown_fields": [
+              "admissions_prior_12mo",
+              "last_stay_length_days",
+              "high_risk_medication",
+              "refill_gap_days",
+              "abnormal_result_count",
+              "critical_result_last_stay"
+            ]
+          },
+          {
+            "rank": 3,
+            "case_key": "C-8EL5N",
+            "score": 0.0,
+            "unknown_fields": [
+              "admissions_prior_12mo",
+              "last_stay_length_days",
+              "high_risk_medication",
+              "refill_gap_days",
+              "abnormal_result_count",
+              "critical_result_last_stay",
+              "follow_up_slot_available",
+              "lives_alone",
+              "missed_appointments_6mo"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "tie_break_by_case_key",
+      "cases": [
+        {
+          "case_key": "C-EHUD5"
+        },
+        {
+          "case_key": "C-AD44Q"
+        }
+      ],
+      "expected": {
+        "ok": true,
+        "evaluated": 2,
+        "ranked": [
+          {
+            "rank": 1,
+            "case_key": "C-AD44Q",
+            "score": 0.0,
+            "unknown_fields": [
+              "admissions_prior_12mo",
+              "last_stay_length_days",
+              "high_risk_medication",
+              "refill_gap_days",
+              "abnormal_result_count",
+              "critical_result_last_stay",
+              "follow_up_slot_available",
+              "lives_alone",
+              "missed_appointments_6mo"
+            ]
+          },
+          {
+            "rank": 2,
+            "case_key": "C-EHUD5",
+            "score": 0.0,
+            "unknown_fields": [
+              "admissions_prior_12mo",
+              "last_stay_length_days",
+              "high_risk_medication",
+              "refill_gap_days",
+              "abnormal_result_count",
+              "critical_result_last_stay",
+              "follow_up_slot_available",
+              "lives_alone",
+              "missed_appointments_6mo"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "reject_restricted_flag",
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 3,
+          "admissions_prior_12mo": 2,
+          "last_stay_length_days": 7,
+          "discharge_group": "pneumonia",
+          "active_medication_count": 10,
+          "high_risk_medication": true,
+          "refill_gap_days": 26,
+          "abnormal_result_count": 2,
+          "critical_result_last_stay": false,
+          "protected_treatment_flag": true
+        }
+      ],
+      "expected": {
+        "ok": false,
+        "error_kind": "unsupported_field",
+        "error": "case 0 has unsupported fields ['protected_treatment_flag']"
+      }
+    },
+    {
+      "name": "reject_unknown_property",
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 3,
+          "admissions_prior_12mo": 2,
+          "last_stay_length_days": 7,
+          "discharge_group": "pneumonia",
+          "active_medication_count": 10,
+          "high_risk_medication": true,
+          "refill_gap_days": 26,
+          "abnormal_result_count": 2,
+          "critical_result_last_stay": false,
+          "note": "x"
+        }
+      ],
+      "expected": {
+        "ok": false,
+        "error_kind": "unsupported_field",
+        "error": "case 0 has unsupported fields ['note']"
+      }
+    },
+    {
+      "name": "reject_duplicate_case_key",
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 3,
+          "admissions_prior_12mo": 2,
+          "last_stay_length_days": 7,
+          "discharge_group": "pneumonia",
+          "active_medication_count": 10,
+          "high_risk_medication": true,
+          "refill_gap_days": 26,
+          "abnormal_result_count": 2,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-2AU4J",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 3,
+          "admissions_prior_12mo": 2,
+          "last_stay_length_days": 7,
+          "discharge_group": "pneumonia",
+          "active_medication_count": 10,
+          "high_risk_medication": true,
+          "refill_gap_days": 26,
+          "abnormal_result_count": 2,
+          "critical_result_last_stay": false
+        }
+      ],
+      "expected": {
+        "ok": false,
+        "error_kind": "duplicate_case_key",
+        "error": "case_key C-2AU4J appears more than once"
+      }
+    },
+    {
+      "name": "reject_unknown_case_key",
+      "cases": [
+        {
+          "case_key": "C-ZZZZZ"
+        }
+      ],
+      "expected": {
+        "ok": false,
+        "error_kind": "unknown_case_key",
+        "error": "case 0 has an unknown case_key"
+      }
+    },
+    {
+      "name": "reject_out_of_range",
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "admissions_prior_12mo": 9
+        }
+      ],
+      "expected": {
+        "ok": false,
+        "error_kind": "invalid_value",
+        "error": "case 0 field admissions_prior_12mo has an invalid value"
+      }
+    },
+    {
+      "name": "reject_wrong_type_bool_field",
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "high_risk_medication": 1
+        }
+      ],
+      "expected": {
+        "ok": false,
+        "error_kind": "invalid_value",
+        "error": "case 0 field high_risk_medication has an invalid value"
+      }
+    },
+    {
+      "name": "reject_float_for_integer",
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "abnormal_result_count": 2.5
+        }
+      ],
+      "expected": {
+        "ok": false,
+        "error_kind": "invalid_value",
+        "error": "case 0 field abnormal_result_count has an invalid value"
+      }
+    },
+    {
+      "name": "reject_bool_for_integer",
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "missed_appointments_6mo": true
+        }
+      ],
+      "expected": {
+        "ok": false,
+        "error_kind": "invalid_value",
+        "error": "case 0 field missed_appointments_6mo has an invalid value"
+      }
+    },
+    {
+      "name": "reject_not_a_list",
+      "cases": {
+        "case_key": "C-2AU4J"
+      },
+      "expected": {
+        "ok": false,
+        "error_kind": "invalid_arguments",
+        "error": "cases must be a list"
+      }
+    }
+  ]
+}

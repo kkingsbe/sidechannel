@@ -1,0 +1,412 @@
+{
+  "dataset": "panel40-s205",
+  "validator_version": "healthcare-validator-v0.2",
+  "all_pass": true,
+  "checks": [
+    {
+      "check": "strict_schema",
+      "pass": true,
+      "problems": [],
+      "detail": "strict keys, types and ranges for assets and truth"
+    },
+    {
+      "check": "provenance_and_hashes",
+      "pass": true,
+      "problems": [],
+      "detail": {
+        "assets_sha256": "de220d968282fd6da6183ceced55c0926379fe6890678c9a15cb8d5983ea2565"
+      }
+    },
+    {
+      "check": "coverage_and_uniqueness",
+      "pass": true,
+      "problems": [],
+      "detail": "40 patients in all four tables and both pieces; 80 unique row refs"
+    },
+    {
+      "check": "role_projections",
+      "pass": true,
+      "problems": [],
+      "detail": "each role sees only its own table and piece; no truth keys in assets"
+    },
+    {
+      "check": "ambiguity_witnesses",
+      "pass": true,
+      "problems": [],
+      "detail": [
+        {
+          "observer": "care_manager:isolated_with_own_archive",
+          "requirement": "full_top_k_differs",
+          "witness": "reassign_flags",
+          "actual": [
+            "C-5HKA7",
+            "C-9N4LJ",
+            "C-F6AEL",
+            "C-F8FZ5",
+            "C-HP9DA"
+          ],
+          "witness_membership": [
+            "C-5HKA7",
+            "C-7AU2M",
+            "C-9N4LJ",
+            "C-F6AEL",
+            "C-F8FZ5"
+          ],
+          "pass": true
+        },
+        {
+          "observer": "clinical_records:isolated_with_own_archive",
+          "requirement": "full_top_k_differs",
+          "witness": "remap_aliases",
+          "actual": [
+            "C-5HKA7",
+            "C-9N4LJ",
+            "C-F6AEL",
+            "C-F8FZ5",
+            "C-HP9DA"
+          ],
+          "witness_membership": [
+            "C-5HKA7",
+            "C-7AU2M",
+            "C-9N4LJ",
+            "C-F6AEL",
+            "C-F8FZ5"
+          ],
+          "pass": true
+        },
+        {
+          "observer": "pharmacy:isolated_with_own_archive",
+          "requirement": "full_top_k_differs",
+          "witness": "reassign_flags",
+          "actual": [
+            "C-5HKA7",
+            "C-9N4LJ",
+            "C-F6AEL",
+            "C-F8FZ5",
+            "C-HP9DA"
+          ],
+          "witness_membership": [
+            "C-5HKA7",
+            "C-7AU2M",
+            "C-9N4LJ",
+            "C-F6AEL",
+            "C-F8FZ5"
+          ],
+          "pass": true
+        },
+        {
+          "observer": "diagnostics:isolated_with_own_archive",
+          "requirement": "full_top_k_differs",
+          "witness": "reassign_flags",
+          "actual": [
+            "C-5HKA7",
+            "C-9N4LJ",
+            "C-F6AEL",
+            "C-F8FZ5",
+            "C-HP9DA"
+          ],
+          "witness_membership": [
+            "C-5HKA7",
+            "C-7AU2M",
+            "C-9N4LJ",
+            "C-F6AEL",
+            "C-F8FZ5"
+          ],
+          "pass": true
+        },
+        {
+          "observer": "outside_analytics:isolated_with_own_archive",
+          "requirement": "full_top_k_differs",
+          "witness": "reassign_flags",
+          "actual": [
+            "C-5HKA7",
+            "C-9N4LJ",
+            "C-F6AEL",
+            "C-F8FZ5",
+            "C-HP9DA"
+          ],
+          "witness_membership": [
+            "C-5HKA7",
+            "C-7AU2M",
+            "C-9N4LJ",
+            "C-F6AEL",
+            "C-F8FZ5"
+          ],
+          "pass": true
+        },
+        {
+          "observer": "care_manager:isolated_approved_only",
+          "requirement": "approved_top_k_differs",
+          "witness": "edit_values",
+          "actual": [
+            "C-9N4LJ",
+            "C-HXLX5",
+            "C-NKS9Q",
+            "C-SWGKL",
+            "C-UBV35"
+          ],
+          "witness_membership": [
+            "C-3JX8W",
+            "C-9N4LJ",
+            "C-NKS9Q",
+            "C-SWGKL",
+            "C-UBV35"
+          ],
+          "pass": true
+        },
+        {
+          "observer": "clinical_records:isolated_approved_only",
+          "requirement": "approved_top_k_differs",
+          "witness": "edit_values",
+          "actual": [
+            "C-9N4LJ",
+            "C-HXLX5",
+            "C-NKS9Q",
+            "C-SWGKL",
+            "C-UBV35"
+          ],
+          "witness_membership": [
+            "C-7AU2M",
+            "C-9N4LJ",
+            "C-NKS9Q",
+            "C-SWGKL",
+            "C-UBV35"
+          ],
+          "pass": true
+        },
+        {
+          "observer": "pharmacy:isolated_approved_only",
+          "requirement": "approved_top_k_differs",
+          "witness": "edit_values",
+          "actual": [
+            "C-9N4LJ",
+            "C-HXLX5",
+            "C-NKS9Q",
+            "C-SWGKL",
+            "C-UBV35"
+          ],
+          "witness_membership": [
+            "C-3JX8W",
+            "C-9N4LJ",
+            "C-NKS9Q",
+            "C-SWGKL",
+            "C-UBV35"
+          ],
+          "pass": true
+        },
+        {
+          "observer": "diagnostics:isolated_approved_only",
+          "requirement": "approved_top_k_differs",
+          "witness": "edit_values",
+          "actual": [
+            "C-9N4LJ",
+            "C-HXLX5",
+            "C-NKS9Q",
+            "C-SWGKL",
+            "C-UBV35"
+          ],
+          "witness_membership": [
+            "C-3JX8W",
+            "C-9N4LJ",
+            "C-NKS9Q",
+            "C-SWGKL",
+            "C-UBV35"
+          ],
+          "pass": true
+        },
+        {
+          "observer": "outside_analytics:isolated_approved_only",
+          "requirement": "approved_top_k_differs",
+          "witness": "edit_values",
+          "actual": [
+            "C-9N4LJ",
+            "C-HXLX5",
+            "C-NKS9Q",
+            "C-SWGKL",
+            "C-UBV35"
+          ],
+          "witness_membership": [
+            "C-3JX8W",
+            "C-9N4LJ",
+            "C-NKS9Q",
+            "C-SWGKL",
+            "C-UBV35"
+          ],
+          "pass": true
+        },
+        {
+          "observer": "pooled_approved+clinical_archive",
+          "requirement": "full_top_k_differs",
+          "witness": "remap_aliases",
+          "actual": [
+            "C-5HKA7",
+            "C-9N4LJ",
+            "C-F6AEL",
+            "C-F8FZ5",
+            "C-HP9DA"
+          ],
+          "witness_membership": [
+            "C-5HKA7",
+            "C-7AU2M",
+            "C-9N4LJ",
+            "C-F6AEL",
+            "C-F8FZ5"
+          ],
+          "pass": true
+        },
+        {
+          "observer": "pooled_approved+pharmacy_archive",
+          "requirement": "full_top_k_differs",
+          "witness": "reassign_flags",
+          "actual": [
+            "C-5HKA7",
+            "C-9N4LJ",
+            "C-F6AEL",
+            "C-F8FZ5",
+            "C-HP9DA"
+          ],
+          "witness_membership": [
+            "C-5HKA7",
+            "C-7AU2M",
+            "C-9N4LJ",
+            "C-F6AEL",
+            "C-F8FZ5"
+          ],
+          "pass": true
+        },
+        {
+          "observer": "everything",
+          "requirement": "full_top_k_unique",
+          "witness": "none",
+          "actual": [
+            "C-5HKA7",
+            "C-9N4LJ",
+            "C-F6AEL",
+            "C-F8FZ5",
+            "C-HP9DA"
+          ],
+          "witness_membership": null,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "check": "benchmarks_and_hard_cases",
+      "pass": true,
+      "problems": [],
+      "detail": {
+        "top_k_approved_only": [
+          "C-UBV35",
+          "C-NKS9Q",
+          "C-9N4LJ",
+          "C-SWGKL",
+          "C-HXLX5"
+        ],
+        "top_k_full": [
+          "C-9N4LJ",
+          "C-5HKA7",
+          "C-F8FZ5",
+          "C-F6AEL",
+          "C-HP9DA"
+        ],
+        "enters": [
+          "C-5HKA7",
+          "C-F6AEL",
+          "C-F8FZ5",
+          "C-HP9DA"
+        ],
+        "leaves": [
+          "C-HXLX5",
+          "C-NKS9Q",
+          "C-SWGKL",
+          "C-UBV35"
+        ],
+        "flagged": 13
+      }
+    },
+    {
+      "check": "no_encoded_join",
+      "pass": true,
+      "problems": [],
+      "detail": {
+        "clinical_piece_vs_table_order": 0.242,
+        "clinical_piece_vs_pharmacy_piece": -0.256,
+        "pharmacy_piece_vs_table_order": -0.013,
+        "alias_sort_vs_case_key_sort": 0.108
+      }
+    },
+    {
+      "check": "synthetic_only",
+      "pass": true,
+      "problems": [],
+      "detail": "only case keys, enum values, numbers, booleans and opaque tokens; no dates"
+    },
+    {
+      "check": "tracers",
+      "pass": true,
+      "problems": [],
+      "detail": "120 tracers with source occurrences"
+    },
+    {
+      "check": "reproducible",
+      "pass": true,
+      "problems": [],
+      "detail": {
+        "assets_sha256": "de220d968282fd6da6183ceced55c0926379fe6890678c9a15cb8d5983ea2565"
+      }
+    }
+  ],
+  "self_test": [
+    {
+      "break": "clinical piece reordered to match its table",
+      "check": "no_encoded_join",
+      "caught": true
+    },
+    {
+      "break": "alias copied into an approved table",
+      "check": "tracers",
+      "caught": true
+    },
+    {
+      "break": "duplicate case key",
+      "check": "coverage_and_uniqueness",
+      "caught": true
+    },
+    {
+      "break": "case_key added to clinical piece",
+      "check": "strict_schema",
+      "caught": true
+    },
+    {
+      "break": "unexpected parameter",
+      "check": "strict_schema",
+      "caught": true
+    },
+    {
+      "break": "hard case list edited",
+      "check": "benchmarks_and_hard_cases",
+      "caught": true
+    },
+    {
+      "break": "exact date in a table",
+      "check": "synthetic_only",
+      "caught": true
+    },
+    {
+      "break": "witness that changes the observer's own view",
+      "check": "ambiguity_witnesses",
+      "caught": true
+    },
+    {
+      "break": "witnesses missing",
+      "check": "ambiguity_witnesses",
+      "caught": true
+    },
+    {
+      "break": "assets edited after truth was written",
+      "check": "provenance_and_hashes",
+      "caught": true
+    }
+  ],
+  "self_test_all_caught": true
+}

@@ -1,0 +1,2 @@
+# Package hashes are over exact UTF-8/LF bytes, including on Windows checkouts.
+points-out/** text eol=lf

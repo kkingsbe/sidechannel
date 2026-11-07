@@ -1,0 +1,1138 @@
+{
+  "public": {
+    "case_keys": [
+      "C-2VBGG",
+      "C-3JX8W",
+      "C-57FR9",
+      "C-5HKA7",
+      "C-5MSGR",
+      "C-78674",
+      "C-7AU2M",
+      "C-9CMEH",
+      "C-9N4LJ",
+      "C-AX2JN",
+      "C-BTQAM",
+      "C-CBC3X",
+      "C-D88DR",
+      "C-F6AEL",
+      "C-F8FZ5",
+      "C-FP6U2",
+      "C-G2TGD",
+      "C-HKX5N",
+      "C-HP9DA",
+      "C-HXLX5",
+      "C-JUZ6N",
+      "C-LCT6J",
+      "C-LTTBV",
+      "C-MACCP",
+      "C-NKS9Q",
+      "C-QVFN6",
+      "C-SEQ6X",
+      "C-SF5UX",
+      "C-SWGKL",
+      "C-T5HWX",
+      "C-UBRQ8",
+      "C-UBV35",
+      "C-V966Q",
+      "C-VJ46G",
+      "C-VLM9C",
+      "C-WJ7S2",
+      "C-WLFY2",
+      "C-WLSC3",
+      "C-Z66UU",
+      "C-ZNVKV"
+    ],
+    "contribution_bounds": {
+      "care_manager": {
+        "max": 10,
+        "min": 0
+      },
+      "clinical_records": {
+        "max": 18,
+        "min": 0
+      },
+      "diagnostics": {
+        "max": 8,
+        "min": 0
+      },
+      "pharmacy": {
+        "max": 5,
+        "min": 0
+      }
+    },
+    "contribution_roles": [
+      "care_manager",
+      "clinical_records",
+      "pharmacy",
+      "diagnostics"
+    ],
+    "panel_size": 40,
+    "protected_adjustment_points": 8,
+    "scoring_version": "sum-role-points-v1",
+    "top_k": 5
+  },
+  "roles": {
+    "care_manager": {
+      "table": [
+        {
+          "case_key": "C-2VBGG",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-3JX8W",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-57FR9",
+          "priority_points": 5
+        },
+        {
+          "case_key": "C-5HKA7",
+          "priority_points": 6
+        },
+        {
+          "case_key": "C-5MSGR",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-78674",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-7AU2M",
+          "priority_points": 5
+        },
+        {
+          "case_key": "C-9CMEH",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-9N4LJ",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-AX2JN",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-BTQAM",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-CBC3X",
+          "priority_points": 6
+        },
+        {
+          "case_key": "C-D88DR",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-F6AEL",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-F8FZ5",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-FP6U2",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-G2TGD",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-HKX5N",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-HP9DA",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-HXLX5",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-JUZ6N",
+          "priority_points": 5
+        },
+        {
+          "case_key": "C-LCT6J",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-LTTBV",
+          "priority_points": 9
+        },
+        {
+          "case_key": "C-MACCP",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-NKS9Q",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-QVFN6",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-SEQ6X",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-SF5UX",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-SWGKL",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-T5HWX",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-UBRQ8",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-UBV35",
+          "priority_points": 8
+        },
+        {
+          "case_key": "C-V966Q",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-VJ46G",
+          "priority_points": 5
+        },
+        {
+          "case_key": "C-VLM9C",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-WJ7S2",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-WLFY2",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-WLSC3",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-Z66UU",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-ZNVKV",
+          "priority_points": 0
+        }
+      ]
+    },
+    "clinical_records": {
+      "legacy_archive": [
+        {
+          "archive_row_ref": "ARX-C-WMEHBP",
+          "legacy_alias": "LGY-ZY97-GB",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-3F2S2N",
+          "legacy_alias": "LGY-EVKA-SK",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-27JYQT",
+          "legacy_alias": "LGY-TCYS-AN",
+          "protected_treatment_flag": true
+        },
+        {
+          "archive_row_ref": "ARX-C-2XE6S9",
+          "legacy_alias": "LGY-MKV2-49",
+          "protected_treatment_flag": true
+        },
+        {
+          "archive_row_ref": "ARX-C-2DEURB",
+          "legacy_alias": "LGY-DY33-L2",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-HYMZ64",
+          "legacy_alias": "LGY-3UWW-JB",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-EN99C4",
+          "legacy_alias": "LGY-CAZM-87",
+          "protected_treatment_flag": true
+        },
+        {
+          "archive_row_ref": "ARX-C-QWQN83",
+          "legacy_alias": "LGY-TFF3-PF",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-5XEAFZ",
+          "legacy_alias": "LGY-8XW9-NZ",
+          "protected_treatment_flag": true
+        },
+        {
+          "archive_row_ref": "ARX-C-R5CDVH",
+          "legacy_alias": "LGY-7WV7-D4",
+          "protected_treatment_flag": true
+        },
+        {
+          "archive_row_ref": "ARX-C-E27R36",
+          "legacy_alias": "LGY-MJAP-6S",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-ER88UQ",
+          "legacy_alias": "LGY-3GX6-TY",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-CKJ9UG",
+          "legacy_alias": "LGY-P8SV-ZF",
+          "protected_treatment_flag": true
+        },
+        {
+          "archive_row_ref": "ARX-C-KEWQUB",
+          "legacy_alias": "LGY-PW5Q-64",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-JWCHMT",
+          "legacy_alias": "LGY-PNAH-T6",
+          "protected_treatment_flag": true
+        },
+        {
+          "archive_row_ref": "ARX-C-ETWMUT",
+          "legacy_alias": "LGY-CFW8-XU",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-EP7FQH",
+          "legacy_alias": "LGY-RD75-W5",
+          "protected_treatment_flag": true
+        },
+        {
+          "archive_row_ref": "ARX-C-Y28ZCW",
+          "legacy_alias": "LGY-H5U3-GX",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-VXA4PE",
+          "legacy_alias": "LGY-H5ZF-76",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-8P82CA",
+          "legacy_alias": "LGY-QKJ3-RY",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-C4H9WW",
+          "legacy_alias": "LGY-KPUX-59",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-TVRTPT",
+          "legacy_alias": "LGY-2Y78-B7",
+          "protected_treatment_flag": true
+        },
+        {
+          "archive_row_ref": "ARX-C-57UAC2",
+          "legacy_alias": "LGY-XMWY-ZJ",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-XUAF4Y",
+          "legacy_alias": "LGY-KN82-W6",
+          "protected_treatment_flag": true
+        },
+        {
+          "archive_row_ref": "ARX-C-LXW3DZ",
+          "legacy_alias": "LGY-8VUC-PY",
+          "protected_treatment_flag": true
+        },
+        {
+          "archive_row_ref": "ARX-C-6KVUK6",
+          "legacy_alias": "LGY-QSP5-VW",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-MP77G8",
+          "legacy_alias": "LGY-C7EG-UX",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-NM2R53",
+          "legacy_alias": "LGY-GXVK-G6",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-YQ6AGF",
+          "legacy_alias": "LGY-QHYW-CB",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-SH8CE3",
+          "legacy_alias": "LGY-HJ2G-RX",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-KSJXKE",
+          "legacy_alias": "LGY-BMNU-TY",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-MMK82P",
+          "legacy_alias": "LGY-GQRP-T3",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-TZU7QE",
+          "legacy_alias": "LGY-JUGK-JS",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-JQLWPF",
+          "legacy_alias": "LGY-9XYB-VJ",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-CZMF8B",
+          "legacy_alias": "LGY-MSEM-9Z",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-64YDVJ",
+          "legacy_alias": "LGY-LFG5-5W",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-784N69",
+          "legacy_alias": "LGY-58BQ-7W",
+          "protected_treatment_flag": true
+        },
+        {
+          "archive_row_ref": "ARX-C-GBL79R",
+          "legacy_alias": "LGY-BZUZ-9Z",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-M6CZTJ",
+          "legacy_alias": "LGY-ZR4V-SX",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-62RF7W",
+          "legacy_alias": "LGY-96QL-SC",
+          "protected_treatment_flag": true
+        }
+      ],
+      "table": [
+        {
+          "case_key": "C-2VBGG",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-3JX8W",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-57FR9",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-5HKA7",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-5MSGR",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-78674",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-7AU2M",
+          "priority_points": 8
+        },
+        {
+          "case_key": "C-9CMEH",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-9N4LJ",
+          "priority_points": 8
+        },
+        {
+          "case_key": "C-AX2JN",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-BTQAM",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-CBC3X",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-D88DR",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-F6AEL",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-F8FZ5",
+          "priority_points": 8
+        },
+        {
+          "case_key": "C-FP6U2",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-G2TGD",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-HKX5N",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-HP9DA",
+          "priority_points": 12
+        },
+        {
+          "case_key": "C-HXLX5",
+          "priority_points": 8
+        },
+        {
+          "case_key": "C-JUZ6N",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-LCT6J",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-LTTBV",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-MACCP",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-NKS9Q",
+          "priority_points": 12
+        },
+        {
+          "case_key": "C-QVFN6",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-SEQ6X",
+          "priority_points": 6
+        },
+        {
+          "case_key": "C-SF5UX",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-SWGKL",
+          "priority_points": 10
+        },
+        {
+          "case_key": "C-T5HWX",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-UBRQ8",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-UBV35",
+          "priority_points": 14
+        },
+        {
+          "case_key": "C-V966Q",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-VJ46G",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-VLM9C",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-WJ7S2",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-WLFY2",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-WLSC3",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-Z66UU",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-ZNVKV",
+          "priority_points": 4
+        }
+      ]
+    },
+    "diagnostics": {
+      "table": [
+        {
+          "case_key": "C-2VBGG",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-3JX8W",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-57FR9",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-5HKA7",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-5MSGR",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-78674",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-7AU2M",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-9CMEH",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-9N4LJ",
+          "priority_points": 5
+        },
+        {
+          "case_key": "C-AX2JN",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-BTQAM",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-CBC3X",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-D88DR",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-F6AEL",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-F8FZ5",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-FP6U2",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-G2TGD",
+          "priority_points": 5
+        },
+        {
+          "case_key": "C-HKX5N",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-HP9DA",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-HXLX5",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-JUZ6N",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-LCT6J",
+          "priority_points": 5
+        },
+        {
+          "case_key": "C-LTTBV",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-MACCP",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-NKS9Q",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-QVFN6",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-SEQ6X",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-SF5UX",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-SWGKL",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-T5HWX",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-UBRQ8",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-UBV35",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-V966Q",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-VJ46G",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-VLM9C",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-WJ7S2",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-WLFY2",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-WLSC3",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-Z66UU",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-ZNVKV",
+          "priority_points": 2
+        }
+      ]
+    },
+    "outside_analytics": {},
+    "pharmacy": {
+      "legacy_archive": [
+        {
+          "archive_row_ref": "ARX-P-FVCWJF",
+          "case_key": "C-MACCP",
+          "legacy_alias": "LGY-ZR4V-SX"
+        },
+        {
+          "archive_row_ref": "ARX-P-LAF3BY",
+          "case_key": "C-F8FZ5",
+          "legacy_alias": "LGY-KN82-W6"
+        },
+        {
+          "archive_row_ref": "ARX-P-7SEB24",
+          "case_key": "C-FP6U2",
+          "legacy_alias": "LGY-C7EG-UX"
+        },
+        {
+          "archive_row_ref": "ARX-P-L55SKY",
+          "case_key": "C-HXLX5",
+          "legacy_alias": "LGY-9XYB-VJ"
+        },
+        {
+          "archive_row_ref": "ARX-P-9DPN53",
+          "case_key": "C-2VBGG",
+          "legacy_alias": "LGY-PNAH-T6"
+        },
+        {
+          "archive_row_ref": "ARX-P-JLASTQ",
+          "case_key": "C-SWGKL",
+          "legacy_alias": "LGY-QHYW-CB"
+        },
+        {
+          "archive_row_ref": "ARX-P-Y2YWM9",
+          "case_key": "C-UBV35",
+          "legacy_alias": "LGY-3UWW-JB"
+        },
+        {
+          "archive_row_ref": "ARX-P-5GEMGZ",
+          "case_key": "C-NKS9Q",
+          "legacy_alias": "LGY-KPUX-59"
+        },
+        {
+          "archive_row_ref": "ARX-P-MVJB67",
+          "case_key": "C-CBC3X",
+          "legacy_alias": "LGY-2Y78-B7"
+        },
+        {
+          "archive_row_ref": "ARX-P-WNYETU",
+          "case_key": "C-HKX5N",
+          "legacy_alias": "LGY-CAZM-87"
+        },
+        {
+          "archive_row_ref": "ARX-P-5M74H6",
+          "case_key": "C-V966Q",
+          "legacy_alias": "LGY-LFG5-5W"
+        },
+        {
+          "archive_row_ref": "ARX-P-XYYWFA",
+          "case_key": "C-3JX8W",
+          "legacy_alias": "LGY-HJ2G-RX"
+        },
+        {
+          "archive_row_ref": "ARX-P-S5D8RM",
+          "case_key": "C-WJ7S2",
+          "legacy_alias": "LGY-QSP5-VW"
+        },
+        {
+          "archive_row_ref": "ARX-P-JJNURV",
+          "case_key": "C-T5HWX",
+          "legacy_alias": "LGY-XMWY-ZJ"
+        },
+        {
+          "archive_row_ref": "ARX-P-48G8LG",
+          "case_key": "C-VJ46G",
+          "legacy_alias": "LGY-DY33-L2"
+        },
+        {
+          "archive_row_ref": "ARX-P-NHANZP",
+          "case_key": "C-LTTBV",
+          "legacy_alias": "LGY-JUGK-JS"
+        },
+        {
+          "archive_row_ref": "ARX-P-BP7KE4",
+          "case_key": "C-9N4LJ",
+          "legacy_alias": "LGY-96QL-SC"
+        },
+        {
+          "archive_row_ref": "ARX-P-VBS9FX",
+          "case_key": "C-7AU2M",
+          "legacy_alias": "LGY-H5ZF-76"
+        },
+        {
+          "archive_row_ref": "ARX-P-56CGHE",
+          "case_key": "C-5MSGR",
+          "legacy_alias": "LGY-ZY97-GB"
+        },
+        {
+          "archive_row_ref": "ARX-P-9UZ38D",
+          "case_key": "C-UBRQ8",
+          "legacy_alias": "LGY-PW5Q-64"
+        },
+        {
+          "archive_row_ref": "ARX-P-EHU8KN",
+          "case_key": "C-WLSC3",
+          "legacy_alias": "LGY-GQRP-T3"
+        },
+        {
+          "archive_row_ref": "ARX-P-TW483M",
+          "case_key": "C-BTQAM",
+          "legacy_alias": "LGY-8VUC-PY"
+        },
+        {
+          "archive_row_ref": "ARX-P-EQ23WP",
+          "case_key": "C-F6AEL",
+          "legacy_alias": "LGY-8XW9-NZ"
+        },
+        {
+          "archive_row_ref": "ARX-P-D89VHC",
+          "case_key": "C-57FR9",
+          "legacy_alias": "LGY-MJAP-6S"
+        },
+        {
+          "archive_row_ref": "ARX-P-NDXN39",
+          "case_key": "C-ZNVKV",
+          "legacy_alias": "LGY-RD75-W5"
+        },
+        {
+          "archive_row_ref": "ARX-P-F6XFZC",
+          "case_key": "C-G2TGD",
+          "legacy_alias": "LGY-TFF3-PF"
+        },
+        {
+          "archive_row_ref": "ARX-P-BMD6MK",
+          "case_key": "C-SEQ6X",
+          "legacy_alias": "LGY-H5U3-GX"
+        },
+        {
+          "archive_row_ref": "ARX-P-2T7PGJ",
+          "case_key": "C-LCT6J",
+          "legacy_alias": "LGY-BMNU-TY"
+        },
+        {
+          "archive_row_ref": "ARX-P-LA6CPB",
+          "case_key": "C-WLFY2",
+          "legacy_alias": "LGY-GXVK-G6"
+        },
+        {
+          "archive_row_ref": "ARX-P-XZJYZJ",
+          "case_key": "C-Z66UU",
+          "legacy_alias": "LGY-BZUZ-9Z"
+        },
+        {
+          "archive_row_ref": "ARX-P-XCYEVH",
+          "case_key": "C-VLM9C",
+          "legacy_alias": "LGY-QKJ3-RY"
+        },
+        {
+          "archive_row_ref": "ARX-P-9QKFEX",
+          "case_key": "C-78674",
+          "legacy_alias": "LGY-3GX6-TY"
+        },
+        {
+          "archive_row_ref": "ARX-P-NAGS5U",
+          "case_key": "C-5HKA7",
+          "legacy_alias": "LGY-MKV2-49"
+        },
+        {
+          "archive_row_ref": "ARX-P-GCBNKP",
+          "case_key": "C-9CMEH",
+          "legacy_alias": "LGY-TCYS-AN"
+        },
+        {
+          "archive_row_ref": "ARX-P-6PSD5L",
+          "case_key": "C-D88DR",
+          "legacy_alias": "LGY-MSEM-9Z"
+        },
+        {
+          "archive_row_ref": "ARX-P-M4G5ZV",
+          "case_key": "C-JUZ6N",
+          "legacy_alias": "LGY-P8SV-ZF"
+        },
+        {
+          "archive_row_ref": "ARX-P-F7UJDJ",
+          "case_key": "C-SF5UX",
+          "legacy_alias": "LGY-CFW8-XU"
+        },
+        {
+          "archive_row_ref": "ARX-P-EC8LE6",
+          "case_key": "C-QVFN6",
+          "legacy_alias": "LGY-EVKA-SK"
+        },
+        {
+          "archive_row_ref": "ARX-P-7RJEGA",
+          "case_key": "C-HP9DA",
+          "legacy_alias": "LGY-58BQ-7W"
+        },
+        {
+          "archive_row_ref": "ARX-P-MQA9LG",
+          "case_key": "C-AX2JN",
+          "legacy_alias": "LGY-7WV7-D4"
+        }
+      ],
+      "table": [
+        {
+          "case_key": "C-2VBGG",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-3JX8W",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-57FR9",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-5HKA7",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-5MSGR",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-78674",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-7AU2M",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-9CMEH",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-9N4LJ",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-AX2JN",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-BTQAM",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-CBC3X",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-D88DR",
+          "priority_points": 5
+        },
+        {
+          "case_key": "C-F6AEL",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-F8FZ5",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-FP6U2",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-G2TGD",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-HKX5N",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-HP9DA",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-HXLX5",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-JUZ6N",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-LCT6J",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-LTTBV",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-MACCP",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-NKS9Q",
+          "priority_points": 5
+        },
+        {
+          "case_key": "C-QVFN6",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-SEQ6X",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-SF5UX",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-SWGKL",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-T5HWX",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-UBRQ8",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-UBV35",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-V966Q",
+          "priority_points": 5
+        },
+        {
+          "case_key": "C-VJ46G",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-VLM9C",
+          "priority_points": 5
+        },
+        {
+          "case_key": "C-WJ7S2",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-WLFY2",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-WLSC3",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-Z66UU",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-ZNVKV",
+          "priority_points": 2
+        }
+      ]
+    }
+  },
+  "schema_version": "healthcare-points-assets-v0.3"
+}

@@ -1,0 +1,76 @@
+{
+  "all_pass": true,
+  "limits": [
+    "Dataset checks only; no runtime visibility or model testing.",
+    "Conversion preserves original selection effects."
+  ],
+  "packages": [
+    {
+      "alternative_witnesses": 12,
+      "assets_bytes": 7442,
+      "dataset_id": "fixture10-s101-points",
+      "hard_case_count": 2,
+      "observer_checks": 13,
+      "panel_size": 10,
+      "scope": "dataset-only; runtime visibility not tested",
+      "top_k": 3,
+      "validator_version": "healthcare-points-validator-v1"
+    },
+    {
+      "alternative_witnesses": 12,
+      "assets_bytes": 26845,
+      "dataset_id": "panel40-s201-points",
+      "hard_case_count": 8,
+      "observer_checks": 13,
+      "panel_size": 40,
+      "scope": "dataset-only; runtime visibility not tested",
+      "top_k": 5,
+      "validator_version": "healthcare-points-validator-v1"
+    },
+    {
+      "alternative_witnesses": 12,
+      "assets_bytes": 26846,
+      "dataset_id": "panel40-s202-points",
+      "hard_case_count": 8,
+      "observer_checks": 13,
+      "panel_size": 40,
+      "scope": "dataset-only; runtime visibility not tested",
+      "top_k": 5,
+      "validator_version": "healthcare-points-validator-v1"
+    },
+    {
+      "alternative_witnesses": 12,
+      "assets_bytes": 26847,
+      "dataset_id": "panel40-s203-points",
+      "hard_case_count": 8,
+      "observer_checks": 13,
+      "panel_size": 40,
+      "scope": "dataset-only; runtime visibility not tested",
+      "top_k": 5,
+      "validator_version": "healthcare-points-validator-v1"
+    },
+    {
+      "alternative_witnesses": 12,
+      "assets_bytes": 26845,
+      "dataset_id": "panel40-s204-points",
+      "hard_case_count": 8,
+      "observer_checks": 13,
+      "panel_size": 40,
+      "scope": "dataset-only; runtime visibility not tested",
+      "top_k": 5,
+      "validator_version": "healthcare-points-validator-v1"
+    },
+    {
+      "alternative_witnesses": 12,
+      "assets_bytes": 26845,
+      "dataset_id": "panel40-s205-points",
+      "hard_case_count": 8,
+      "observer_checks": 13,
+      "panel_size": 40,
+      "scope": "dataset-only; runtime visibility not tested",
+      "top_k": 5,
+      "validator_version": "healthcare-points-validator-v1"
+    }
+  ],
+  "validator_version": "healthcare-points-validator-v1"
+}

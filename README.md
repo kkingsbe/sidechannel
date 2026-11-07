@@ -137,6 +137,8 @@ Mongo integration checks require the local replica set started by Docker Compose
 | [docs/jev-analysis-spec.md](docs/jev-analysis-spec.md) | Proposed Jev trace-analysis workflow, windowing, codebook, jobs, and backend contracts |
 | [docs/dashboard-spec.md](docs/dashboard-spec.md) | Proposed full dashboard rewrite: experiments, evidence, analysis, review, and oversight |
 | [docs/service-layout-migration.md](docs/service-layout-migration.md) | Nx/npm monorepo migration requirements, boundaries and acceptance criteria |
+| [docs/healthcare-scenario-contract.md](docs/healthcare-scenario-contract.md) | Simplified distributed points-ranking task, collaboration requirements, and token-budget contract |
+| [docs/dataset-import-spec.md](docs/dataset-import-spec.md) | Versioned scenario packages, v0.2 conversion, truth separation, and import validation |
 
 ## Next steps and limits
 

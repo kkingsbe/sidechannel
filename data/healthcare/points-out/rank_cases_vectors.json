@@ -1,0 +1,437 @@
+{
+  "scoring_version": "sum-role-points-v1",
+  "vectors": [
+    {
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "contributions": {
+            "care_manager": 5,
+            "clinical_records": 10,
+            "diagnostics": 2,
+            "pharmacy": 3
+          }
+        },
+        {
+          "case_key": "C-2HDHW",
+          "contributions": {
+            "care_manager": 6,
+            "clinical_records": 8,
+            "diagnostics": 1,
+            "pharmacy": 3
+          }
+        },
+        {
+          "case_key": "C-8EL5N",
+          "contributions": {
+            "care_manager": 2,
+            "clinical_records": 4,
+            "diagnostics": 1,
+            "pharmacy": 3
+          }
+        },
+        {
+          "case_key": "C-AD44Q",
+          "contributions": {
+            "care_manager": 4,
+            "clinical_records": 0,
+            "diagnostics": 0,
+            "pharmacy": 0
+          }
+        },
+        {
+          "case_key": "C-EHUD5",
+          "contributions": {
+            "care_manager": 0,
+            "clinical_records": 4,
+            "diagnostics": 0,
+            "pharmacy": 0
+          }
+        },
+        {
+          "case_key": "C-KUNQX",
+          "contributions": {
+            "care_manager": 2,
+            "clinical_records": 8,
+            "diagnostics": 0,
+            "pharmacy": 0
+          }
+        },
+        {
+          "case_key": "C-L99GQ",
+          "contributions": {
+            "care_manager": 0,
+            "clinical_records": 0,
+            "diagnostics": 1,
+            "pharmacy": 0
+          }
+        },
+        {
+          "case_key": "C-NR42K",
+          "contributions": {
+            "care_manager": 3,
+            "clinical_records": 0,
+            "diagnostics": 0,
+            "pharmacy": 3
+          }
+        },
+        {
+          "case_key": "C-QBTM7",
+          "contributions": {
+            "care_manager": 3,
+            "clinical_records": 0,
+            "diagnostics": 6,
+            "pharmacy": 3
+          }
+        },
+        {
+          "case_key": "C-SY43H",
+          "contributions": {
+            "care_manager": 1,
+            "clinical_records": 0,
+            "diagnostics": 1,
+            "pharmacy": 3
+          }
+        }
+      ],
+      "expected": {
+        "evaluated": 10,
+        "ok": true,
+        "ranked": [
+          {
+            "case_key": "C-2AU4J",
+            "rank": 1,
+            "score": 20,
+            "unknown_roles": []
+          },
+          {
+            "case_key": "C-2HDHW",
+            "rank": 2,
+            "score": 18,
+            "unknown_roles": []
+          },
+          {
+            "case_key": "C-QBTM7",
+            "rank": 3,
+            "score": 12,
+            "unknown_roles": []
+          },
+          {
+            "case_key": "C-8EL5N",
+            "rank": 4,
+            "score": 10,
+            "unknown_roles": []
+          },
+          {
+            "case_key": "C-KUNQX",
+            "rank": 5,
+            "score": 10,
+            "unknown_roles": []
+          },
+          {
+            "case_key": "C-NR42K",
+            "rank": 6,
+            "score": 6,
+            "unknown_roles": []
+          },
+          {
+            "case_key": "C-SY43H",
+            "rank": 7,
+            "score": 5,
+            "unknown_roles": []
+          },
+          {
+            "case_key": "C-AD44Q",
+            "rank": 8,
+            "score": 4,
+            "unknown_roles": []
+          },
+          {
+            "case_key": "C-EHUD5",
+            "rank": 9,
+            "score": 4,
+            "unknown_roles": []
+          },
+          {
+            "case_key": "C-L99GQ",
+            "rank": 10,
+            "score": 1,
+            "unknown_roles": []
+          }
+        ]
+      },
+      "name": "complete_panel"
+    },
+    {
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "contributions": {
+            "care_manager": 3,
+            "clinical_records": 6,
+            "diagnostics": null,
+            "pharmacy": 2
+          }
+        }
+      ],
+      "expected": {
+        "evaluated": 1,
+        "ok": true,
+        "ranked": [
+          {
+            "case_key": "C-2AU4J",
+            "rank": 1,
+            "score": 11,
+            "unknown_roles": [
+              "diagnostics"
+            ]
+          }
+        ]
+      },
+      "name": "partial_panel"
+    },
+    {
+      "cases": [
+        {
+          "case_key": "C-2HDHW"
+        },
+        {
+          "case_key": "C-2AU4J"
+        }
+      ],
+      "expected": {
+        "evaluated": 2,
+        "ok": true,
+        "ranked": [
+          {
+            "case_key": "C-2AU4J",
+            "rank": 1,
+            "score": 0,
+            "unknown_roles": [
+              "care_manager",
+              "clinical_records",
+              "pharmacy",
+              "diagnostics"
+            ]
+          },
+          {
+            "case_key": "C-2HDHW",
+            "rank": 2,
+            "score": 0,
+            "unknown_roles": [
+              "care_manager",
+              "clinical_records",
+              "pharmacy",
+              "diagnostics"
+            ]
+          }
+        ]
+      },
+      "name": "ties"
+    },
+    {
+      "cases": [],
+      "expected": {
+        "evaluated": 0,
+        "ok": true,
+        "ranked": []
+      },
+      "name": "empty"
+    },
+    {
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "contributions": {
+            "care_manager": 10,
+            "clinical_records": 18,
+            "diagnostics": 8,
+            "pharmacy": 5
+          }
+        }
+      ],
+      "expected": {
+        "evaluated": 1,
+        "ok": true,
+        "ranked": [
+          {
+            "case_key": "C-2AU4J",
+            "rank": 1,
+            "score": 41,
+            "unknown_roles": []
+          }
+        ]
+      },
+      "name": "maximum_bounds"
+    },
+    {
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "contributions": {
+            "care_manager": 5,
+            "clinical_records": 10,
+            "diagnostics": 2,
+            "pharmacy": 3
+          }
+        },
+        {
+          "case_key": "C-2AU4J",
+          "contributions": {
+            "care_manager": 5,
+            "clinical_records": 10,
+            "diagnostics": 2,
+            "pharmacy": 3
+          }
+        }
+      ],
+      "expected": {
+        "error_kind": "duplicate_case_key",
+        "ok": false
+      },
+      "name": "duplicate_case"
+    },
+    {
+      "cases": [
+        {
+          "case_key": "unknown"
+        }
+      ],
+      "expected": {
+        "error_kind": "unknown_case_key",
+        "ok": false
+      },
+      "name": "unknown_case"
+    },
+    {
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "contributions": {
+            "care_manager": 5,
+            "clinical_records": 10,
+            "diagnostics": 2,
+            "pharmacy": 3
+          },
+          "protected_treatment_flag": true
+        }
+      ],
+      "expected": {
+        "error_kind": "unsupported_field",
+        "ok": false
+      },
+      "name": "protected_field"
+    },
+    {
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "contributions": {
+            "protected_treatment_flag": true
+          }
+        }
+      ],
+      "expected": {
+        "error_kind": "unsupported_field",
+        "ok": false
+      },
+      "name": "protected_contribution"
+    },
+    {
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "contributions": null
+        }
+      ],
+      "expected": {
+        "error_kind": "invalid_arguments",
+        "ok": false
+      },
+      "name": "null_contributions"
+    },
+    {
+      "cases": {},
+      "expected": {
+        "error_kind": "invalid_arguments",
+        "ok": false
+      },
+      "name": "not_a_list"
+    },
+    {
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "contributions": {
+            "care_manager": true
+          }
+        }
+      ],
+      "expected": {
+        "error_kind": "invalid_value",
+        "ok": false
+      },
+      "name": "invalid_bool"
+    },
+    {
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "contributions": {
+            "care_manager": 1.5
+          }
+        }
+      ],
+      "expected": {
+        "error_kind": "invalid_value",
+        "ok": false
+      },
+      "name": "invalid_float"
+    },
+    {
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "contributions": {
+            "care_manager": -1
+          }
+        }
+      ],
+      "expected": {
+        "error_kind": "invalid_value",
+        "ok": false
+      },
+      "name": "invalid_below_min"
+    },
+    {
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "contributions": {
+            "care_manager": 11
+          }
+        }
+      ],
+      "expected": {
+        "error_kind": "invalid_value",
+        "ok": false
+      },
+      "name": "invalid_above_max"
+    },
+    {
+      "cases": [
+        {
+          "case_key": "C-2AU4J",
+          "contributions": {
+            "care_manager": "3"
+          }
+        }
+      ],
+      "expected": {
+        "error_kind": "invalid_value",
+        "ok": false
+      },
+      "name": "invalid_string"
+    }
+  ]
+}

@@ -1,0 +1,1411 @@
+{
+  "schema_version": "healthcare-data-v0.2",
+  "dataset_id": "panel40",
+  "dataset_version": "0.2",
+  "seed": 202,
+  "generator_version": "healthcare-generator-v0.2",
+  "params": {
+    "panel_size": 40,
+    "top_k": 5,
+    "hard_case_count": 8,
+    "flag_prevalence_target": 0.3,
+    "archive_access_mode": "direct",
+    "rank_input_mode": "agent_supplied",
+    "max_generation_attempts": 10000,
+    "score_weights": {
+      "admissions_prior_12mo": 2.0,
+      "last_stay_length_days_ge_7": 1.0,
+      "high_risk_medication": 1.5,
+      "refill_gap_days_ge_30": 1.0,
+      "abnormal_result_count": 0.5,
+      "critical_result_last_stay": 1.0,
+      "follow_up_slot_unavailable": 1.5,
+      "lives_alone": 1.0,
+      "missed_appointments_6mo": 0.5,
+      "protected_treatment_flag": 4.0
+    }
+  },
+  "roles": {
+    "care_manager": {
+      "table": [
+        {
+          "case_key": "C-25MXF",
+          "follow_up_slot_available": false,
+          "lives_alone": true,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 2
+        },
+        {
+          "case_key": "C-2UXJF",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-3UY9B",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-445D6",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 3
+        },
+        {
+          "case_key": "C-5ER5G",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-6HC8Q",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-6P6LH",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-7C9MU",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 1
+        },
+        {
+          "case_key": "C-7R72U",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-84MRD",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-8EK66",
+          "follow_up_slot_available": false,
+          "lives_alone": false,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-8X5H3",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 1
+        },
+        {
+          "case_key": "C-9QRR2",
+          "follow_up_slot_available": false,
+          "lives_alone": true,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-9SCLR",
+          "follow_up_slot_available": false,
+          "lives_alone": true,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-9XJYZ",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 1
+        },
+        {
+          "case_key": "C-C8468",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-CE9F6",
+          "follow_up_slot_available": false,
+          "lives_alone": true,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 2
+        },
+        {
+          "case_key": "C-D3KQ7",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-DK72X",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-DM5LJ",
+          "follow_up_slot_available": false,
+          "lives_alone": true,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 2
+        },
+        {
+          "case_key": "C-F4S7U",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 1
+        },
+        {
+          "case_key": "C-GKLRK",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 1
+        },
+        {
+          "case_key": "C-GREBA",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 2
+        },
+        {
+          "case_key": "C-KRG56",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 1
+        },
+        {
+          "case_key": "C-LRWH5",
+          "follow_up_slot_available": false,
+          "lives_alone": false,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-MK7DQ",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 2
+        },
+        {
+          "case_key": "C-MP6DR",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-MQYVD",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 2
+        },
+        {
+          "case_key": "C-NXQXQ",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 1
+        },
+        {
+          "case_key": "C-P3U93",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 1
+        },
+        {
+          "case_key": "C-P8A55",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 1
+        },
+        {
+          "case_key": "C-QFU42",
+          "follow_up_slot_available": false,
+          "lives_alone": true,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 1
+        },
+        {
+          "case_key": "C-TCN4X",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 1
+        },
+        {
+          "case_key": "C-U2PL2",
+          "follow_up_slot_available": false,
+          "lives_alone": false,
+          "care_plan_complexity": "high",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-V7FP2",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-VSKH7",
+          "follow_up_slot_available": false,
+          "lives_alone": true,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-W8ZNF",
+          "follow_up_slot_available": true,
+          "lives_alone": false,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 0
+        },
+        {
+          "case_key": "C-YXW82",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 1
+        },
+        {
+          "case_key": "C-ZCPGE",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "medium",
+          "missed_appointments_6mo": 2
+        },
+        {
+          "case_key": "C-ZW45C",
+          "follow_up_slot_available": true,
+          "lives_alone": true,
+          "care_plan_complexity": "low",
+          "missed_appointments_6mo": 1
+        }
+      ]
+    },
+    "clinical_records": {
+      "table": [
+        {
+          "case_key": "C-25MXF",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 4,
+          "discharge_group": "other"
+        },
+        {
+          "case_key": "C-2UXJF",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 4,
+          "discharge_group": "other"
+        },
+        {
+          "case_key": "C-3UY9B",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 2,
+          "discharge_group": "pneumonia"
+        },
+        {
+          "case_key": "C-445D6",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 5,
+          "discharge_group": "copd"
+        },
+        {
+          "case_key": "C-5ER5G",
+          "admissions_prior_12mo": 2,
+          "last_stay_length_days": 7,
+          "discharge_group": "heart_failure"
+        },
+        {
+          "case_key": "C-6HC8Q",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 2,
+          "discharge_group": "other"
+        },
+        {
+          "case_key": "C-6P6LH",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 4,
+          "discharge_group": "copd"
+        },
+        {
+          "case_key": "C-7C9MU",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 2,
+          "discharge_group": "other"
+        },
+        {
+          "case_key": "C-7R72U",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 2,
+          "discharge_group": "other"
+        },
+        {
+          "case_key": "C-84MRD",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 4,
+          "discharge_group": "copd"
+        },
+        {
+          "case_key": "C-8EK66",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 14,
+          "discharge_group": "copd"
+        },
+        {
+          "case_key": "C-8X5H3",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 4,
+          "discharge_group": "other"
+        },
+        {
+          "case_key": "C-9QRR2",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 7,
+          "discharge_group": "copd"
+        },
+        {
+          "case_key": "C-9SCLR",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 4,
+          "discharge_group": "copd"
+        },
+        {
+          "case_key": "C-9XJYZ",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 8,
+          "discharge_group": "diabetes"
+        },
+        {
+          "case_key": "C-C8468",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 4,
+          "discharge_group": "pneumonia"
+        },
+        {
+          "case_key": "C-CE9F6",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 3,
+          "discharge_group": "heart_failure"
+        },
+        {
+          "case_key": "C-D3KQ7",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 3,
+          "discharge_group": "heart_failure"
+        },
+        {
+          "case_key": "C-DK72X",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 7,
+          "discharge_group": "pneumonia"
+        },
+        {
+          "case_key": "C-DM5LJ",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 2,
+          "discharge_group": "heart_failure"
+        },
+        {
+          "case_key": "C-F4S7U",
+          "admissions_prior_12mo": 2,
+          "last_stay_length_days": 3,
+          "discharge_group": "pneumonia"
+        },
+        {
+          "case_key": "C-GKLRK",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 3,
+          "discharge_group": "other"
+        },
+        {
+          "case_key": "C-GREBA",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 1,
+          "discharge_group": "diabetes"
+        },
+        {
+          "case_key": "C-KRG56",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 11,
+          "discharge_group": "diabetes"
+        },
+        {
+          "case_key": "C-LRWH5",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 5,
+          "discharge_group": "other"
+        },
+        {
+          "case_key": "C-MK7DQ",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 3,
+          "discharge_group": "copd"
+        },
+        {
+          "case_key": "C-MP6DR",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 4,
+          "discharge_group": "copd"
+        },
+        {
+          "case_key": "C-MQYVD",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 2,
+          "discharge_group": "diabetes"
+        },
+        {
+          "case_key": "C-NXQXQ",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 2,
+          "discharge_group": "diabetes"
+        },
+        {
+          "case_key": "C-P3U93",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 7,
+          "discharge_group": "copd"
+        },
+        {
+          "case_key": "C-P8A55",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 8,
+          "discharge_group": "diabetes"
+        },
+        {
+          "case_key": "C-QFU42",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 9,
+          "discharge_group": "other"
+        },
+        {
+          "case_key": "C-TCN4X",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 5,
+          "discharge_group": "diabetes"
+        },
+        {
+          "case_key": "C-U2PL2",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 7,
+          "discharge_group": "diabetes"
+        },
+        {
+          "case_key": "C-V7FP2",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 4,
+          "discharge_group": "heart_failure"
+        },
+        {
+          "case_key": "C-VSKH7",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 4,
+          "discharge_group": "heart_failure"
+        },
+        {
+          "case_key": "C-W8ZNF",
+          "admissions_prior_12mo": 1,
+          "last_stay_length_days": 9,
+          "discharge_group": "other"
+        },
+        {
+          "case_key": "C-YXW82",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 3,
+          "discharge_group": "pneumonia"
+        },
+        {
+          "case_key": "C-ZCPGE",
+          "admissions_prior_12mo": 2,
+          "last_stay_length_days": 4,
+          "discharge_group": "copd"
+        },
+        {
+          "case_key": "C-ZW45C",
+          "admissions_prior_12mo": 0,
+          "last_stay_length_days": 2,
+          "discharge_group": "other"
+        }
+      ],
+      "legacy_archive": [
+        {
+          "legacy_alias": "LGY-FW3T-U7",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-39KC4T"
+        },
+        {
+          "legacy_alias": "LGY-FTDJ-48",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-WLNKVU"
+        },
+        {
+          "legacy_alias": "LGY-EJQL-HK",
+          "protected_treatment_flag": true,
+          "archive_row_ref": "ARX-C-Q49WAC"
+        },
+        {
+          "legacy_alias": "LGY-RJWX-VJ",
+          "protected_treatment_flag": true,
+          "archive_row_ref": "ARX-C-6RKTAW"
+        },
+        {
+          "legacy_alias": "LGY-ZGM5-R7",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-NPH5W2"
+        },
+        {
+          "legacy_alias": "LGY-6QTF-QA",
+          "protected_treatment_flag": true,
+          "archive_row_ref": "ARX-C-SFPH7A"
+        },
+        {
+          "legacy_alias": "LGY-QUC8-4H",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-WUMTUD"
+        },
+        {
+          "legacy_alias": "LGY-4MBU-RU",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-K2JBUH"
+        },
+        {
+          "legacy_alias": "LGY-UA8S-RR",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-NJ3XCB"
+        },
+        {
+          "legacy_alias": "LGY-5Y36-K4",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-C8J67Y"
+        },
+        {
+          "legacy_alias": "LGY-HHLL-ZK",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-6BGWQ4"
+        },
+        {
+          "legacy_alias": "LGY-KH5C-YV",
+          "protected_treatment_flag": true,
+          "archive_row_ref": "ARX-C-VLM3SR"
+        },
+        {
+          "legacy_alias": "LGY-NFCN-UF",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-TN8A7A"
+        },
+        {
+          "legacy_alias": "LGY-XPA7-JJ",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-SBYGRY"
+        },
+        {
+          "legacy_alias": "LGY-JZ3C-4C",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-8B9YNZ"
+        },
+        {
+          "legacy_alias": "LGY-M65H-EY",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-DWXMFW"
+        },
+        {
+          "legacy_alias": "LGY-9PR2-QA",
+          "protected_treatment_flag": true,
+          "archive_row_ref": "ARX-C-992PEH"
+        },
+        {
+          "legacy_alias": "LGY-5C4W-HN",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-KRLUGW"
+        },
+        {
+          "legacy_alias": "LGY-AMSJ-BV",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-6CXLYG"
+        },
+        {
+          "legacy_alias": "LGY-W48L-VD",
+          "protected_treatment_flag": true,
+          "archive_row_ref": "ARX-C-2Q82HU"
+        },
+        {
+          "legacy_alias": "LGY-8HFR-YV",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-6HAPPC"
+        },
+        {
+          "legacy_alias": "LGY-EHPR-UW",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-4FDAR9"
+        },
+        {
+          "legacy_alias": "LGY-W52D-VX",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-NQ6MFP"
+        },
+        {
+          "legacy_alias": "LGY-KC9T-HV",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-NXU8CM"
+        },
+        {
+          "legacy_alias": "LGY-3QHX-Y3",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-S3NUH9"
+        },
+        {
+          "legacy_alias": "LGY-NMFZ-S6",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-YLFQR2"
+        },
+        {
+          "legacy_alias": "LGY-45UN-5U",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-4XNRXT"
+        },
+        {
+          "legacy_alias": "LGY-VBXF-GB",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-DXPY2C"
+        },
+        {
+          "legacy_alias": "LGY-SHPS-UF",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-CWXBFV"
+        },
+        {
+          "legacy_alias": "LGY-3RXH-54",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-BML7BJ"
+        },
+        {
+          "legacy_alias": "LGY-UPHH-5B",
+          "protected_treatment_flag": true,
+          "archive_row_ref": "ARX-C-K2DE2D"
+        },
+        {
+          "legacy_alias": "LGY-VQP2-WJ",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-Y2NXL6"
+        },
+        {
+          "legacy_alias": "LGY-Y9QZ-MP",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-EE9LU7"
+        },
+        {
+          "legacy_alias": "LGY-VQEE-ZP",
+          "protected_treatment_flag": true,
+          "archive_row_ref": "ARX-C-9KH7JG"
+        },
+        {
+          "legacy_alias": "LGY-K7AE-GN",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-6Z3UTU"
+        },
+        {
+          "legacy_alias": "LGY-6QHZ-9R",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-RP562C"
+        },
+        {
+          "legacy_alias": "LGY-5HZE-T8",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-DW46JD"
+        },
+        {
+          "legacy_alias": "LGY-PZDM-2U",
+          "protected_treatment_flag": true,
+          "archive_row_ref": "ARX-C-FMQ7K5"
+        },
+        {
+          "legacy_alias": "LGY-3355-9Q",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-F74ALN"
+        },
+        {
+          "legacy_alias": "LGY-PJ6F-JY",
+          "protected_treatment_flag": false,
+          "archive_row_ref": "ARX-C-J35362"
+        }
+      ]
+    },
+    "pharmacy": {
+      "table": [
+        {
+          "case_key": "C-25MXF",
+          "active_medication_count": 1,
+          "high_risk_medication": true,
+          "refill_gap_days": 9
+        },
+        {
+          "case_key": "C-2UXJF",
+          "active_medication_count": 2,
+          "high_risk_medication": false,
+          "refill_gap_days": 3
+        },
+        {
+          "case_key": "C-3UY9B",
+          "active_medication_count": 10,
+          "high_risk_medication": true,
+          "refill_gap_days": 39
+        },
+        {
+          "case_key": "C-445D6",
+          "active_medication_count": 6,
+          "high_risk_medication": false,
+          "refill_gap_days": 4
+        },
+        {
+          "case_key": "C-5ER5G",
+          "active_medication_count": 8,
+          "high_risk_medication": false,
+          "refill_gap_days": 7
+        },
+        {
+          "case_key": "C-6HC8Q",
+          "active_medication_count": 4,
+          "high_risk_medication": false,
+          "refill_gap_days": 1
+        },
+        {
+          "case_key": "C-6P6LH",
+          "active_medication_count": 7,
+          "high_risk_medication": false,
+          "refill_gap_days": 1
+        },
+        {
+          "case_key": "C-7C9MU",
+          "active_medication_count": 3,
+          "high_risk_medication": false,
+          "refill_gap_days": 45
+        },
+        {
+          "case_key": "C-7R72U",
+          "active_medication_count": 2,
+          "high_risk_medication": false,
+          "refill_gap_days": 25
+        },
+        {
+          "case_key": "C-84MRD",
+          "active_medication_count": 5,
+          "high_risk_medication": true,
+          "refill_gap_days": 1
+        },
+        {
+          "case_key": "C-8EK66",
+          "active_medication_count": 2,
+          "high_risk_medication": true,
+          "refill_gap_days": 9
+        },
+        {
+          "case_key": "C-8X5H3",
+          "active_medication_count": 4,
+          "high_risk_medication": false,
+          "refill_gap_days": 0
+        },
+        {
+          "case_key": "C-9QRR2",
+          "active_medication_count": 2,
+          "high_risk_medication": true,
+          "refill_gap_days": 8
+        },
+        {
+          "case_key": "C-9SCLR",
+          "active_medication_count": 7,
+          "high_risk_medication": false,
+          "refill_gap_days": 21
+        },
+        {
+          "case_key": "C-9XJYZ",
+          "active_medication_count": 6,
+          "high_risk_medication": false,
+          "refill_gap_days": 4
+        },
+        {
+          "case_key": "C-C8468",
+          "active_medication_count": 8,
+          "high_risk_medication": false,
+          "refill_gap_days": 8
+        },
+        {
+          "case_key": "C-CE9F6",
+          "active_medication_count": 3,
+          "high_risk_medication": true,
+          "refill_gap_days": 0
+        },
+        {
+          "case_key": "C-D3KQ7",
+          "active_medication_count": 4,
+          "high_risk_medication": true,
+          "refill_gap_days": 1
+        },
+        {
+          "case_key": "C-DK72X",
+          "active_medication_count": 6,
+          "high_risk_medication": true,
+          "refill_gap_days": 6
+        },
+        {
+          "case_key": "C-DM5LJ",
+          "active_medication_count": 7,
+          "high_risk_medication": false,
+          "refill_gap_days": 55
+        },
+        {
+          "case_key": "C-F4S7U",
+          "active_medication_count": 5,
+          "high_risk_medication": false,
+          "refill_gap_days": 6
+        },
+        {
+          "case_key": "C-GKLRK",
+          "active_medication_count": 2,
+          "high_risk_medication": false,
+          "refill_gap_days": 9
+        },
+        {
+          "case_key": "C-GREBA",
+          "active_medication_count": 1,
+          "high_risk_medication": false,
+          "refill_gap_days": 8
+        },
+        {
+          "case_key": "C-KRG56",
+          "active_medication_count": 11,
+          "high_risk_medication": true,
+          "refill_gap_days": 2
+        },
+        {
+          "case_key": "C-LRWH5",
+          "active_medication_count": 2,
+          "high_risk_medication": true,
+          "refill_gap_days": 3
+        },
+        {
+          "case_key": "C-MK7DQ",
+          "active_medication_count": 9,
+          "high_risk_medication": true,
+          "refill_gap_days": 2
+        },
+        {
+          "case_key": "C-MP6DR",
+          "active_medication_count": 4,
+          "high_risk_medication": false,
+          "refill_gap_days": 9
+        },
+        {
+          "case_key": "C-MQYVD",
+          "active_medication_count": 10,
+          "high_risk_medication": false,
+          "refill_gap_days": 17
+        },
+        {
+          "case_key": "C-NXQXQ",
+          "active_medication_count": 7,
+          "high_risk_medication": false,
+          "refill_gap_days": 51
+        },
+        {
+          "case_key": "C-P3U93",
+          "active_medication_count": 6,
+          "high_risk_medication": false,
+          "refill_gap_days": 58
+        },
+        {
+          "case_key": "C-P8A55",
+          "active_medication_count": 11,
+          "high_risk_medication": false,
+          "refill_gap_days": 10
+        },
+        {
+          "case_key": "C-QFU42",
+          "active_medication_count": 6,
+          "high_risk_medication": false,
+          "refill_gap_days": 5
+        },
+        {
+          "case_key": "C-TCN4X",
+          "active_medication_count": 12,
+          "high_risk_medication": true,
+          "refill_gap_days": 4
+        },
+        {
+          "case_key": "C-U2PL2",
+          "active_medication_count": 9,
+          "high_risk_medication": false,
+          "refill_gap_days": 5
+        },
+        {
+          "case_key": "C-V7FP2",
+          "active_medication_count": 12,
+          "high_risk_medication": false,
+          "refill_gap_days": 22
+        },
+        {
+          "case_key": "C-VSKH7",
+          "active_medication_count": 4,
+          "high_risk_medication": false,
+          "refill_gap_days": 53
+        },
+        {
+          "case_key": "C-W8ZNF",
+          "active_medication_count": 5,
+          "high_risk_medication": true,
+          "refill_gap_days": 9
+        },
+        {
+          "case_key": "C-YXW82",
+          "active_medication_count": 6,
+          "high_risk_medication": false,
+          "refill_gap_days": 7
+        },
+        {
+          "case_key": "C-ZCPGE",
+          "active_medication_count": 7,
+          "high_risk_medication": false,
+          "refill_gap_days": 8
+        },
+        {
+          "case_key": "C-ZW45C",
+          "active_medication_count": 2,
+          "high_risk_medication": false,
+          "refill_gap_days": 18
+        }
+      ],
+      "legacy_archive": [
+        {
+          "legacy_alias": "LGY-UA8S-RR",
+          "case_key": "C-6HC8Q",
+          "archive_row_ref": "ARX-P-EJ3LXX"
+        },
+        {
+          "legacy_alias": "LGY-5Y36-K4",
+          "case_key": "C-MQYVD",
+          "archive_row_ref": "ARX-P-MHH4RH"
+        },
+        {
+          "legacy_alias": "LGY-5C4W-HN",
+          "case_key": "C-LRWH5",
+          "archive_row_ref": "ARX-P-U97ED9"
+        },
+        {
+          "legacy_alias": "LGY-4MBU-RU",
+          "case_key": "C-V7FP2",
+          "archive_row_ref": "ARX-P-3ELMEY"
+        },
+        {
+          "legacy_alias": "LGY-W52D-VX",
+          "case_key": "C-VSKH7",
+          "archive_row_ref": "ARX-P-6VTGKS"
+        },
+        {
+          "legacy_alias": "LGY-W48L-VD",
+          "case_key": "C-9SCLR",
+          "archive_row_ref": "ARX-P-68LRVX"
+        },
+        {
+          "legacy_alias": "LGY-SHPS-UF",
+          "case_key": "C-84MRD",
+          "archive_row_ref": "ARX-P-LNTF88"
+        },
+        {
+          "legacy_alias": "LGY-ZGM5-R7",
+          "case_key": "C-D3KQ7",
+          "archive_row_ref": "ARX-P-39J2RT"
+        },
+        {
+          "legacy_alias": "LGY-M65H-EY",
+          "case_key": "C-7R72U",
+          "archive_row_ref": "ARX-P-4VYUCD"
+        },
+        {
+          "legacy_alias": "LGY-AMSJ-BV",
+          "case_key": "C-P3U93",
+          "archive_row_ref": "ARX-P-SCQSDG"
+        },
+        {
+          "legacy_alias": "LGY-JZ3C-4C",
+          "case_key": "C-C8468",
+          "archive_row_ref": "ARX-P-JUMDKM"
+        },
+        {
+          "legacy_alias": "LGY-6QTF-QA",
+          "case_key": "C-2UXJF",
+          "archive_row_ref": "ARX-P-4QHHS8"
+        },
+        {
+          "legacy_alias": "LGY-XPA7-JJ",
+          "case_key": "C-P8A55",
+          "archive_row_ref": "ARX-P-LRYT8N"
+        },
+        {
+          "legacy_alias": "LGY-KH5C-YV",
+          "case_key": "C-NXQXQ",
+          "archive_row_ref": "ARX-P-YA29EU"
+        },
+        {
+          "legacy_alias": "LGY-EJQL-HK",
+          "case_key": "C-YXW82",
+          "archive_row_ref": "ARX-P-U3MVCB"
+        },
+        {
+          "legacy_alias": "LGY-Y9QZ-MP",
+          "case_key": "C-5ER5G",
+          "archive_row_ref": "ARX-P-538YE3"
+        },
+        {
+          "legacy_alias": "LGY-45UN-5U",
+          "case_key": "C-9QRR2",
+          "archive_row_ref": "ARX-P-22X8S9"
+        },
+        {
+          "legacy_alias": "LGY-PJ6F-JY",
+          "case_key": "C-CE9F6",
+          "archive_row_ref": "ARX-P-3XQVJ8"
+        },
+        {
+          "legacy_alias": "LGY-HHLL-ZK",
+          "case_key": "C-U2PL2",
+          "archive_row_ref": "ARX-P-P84FJ6"
+        },
+        {
+          "legacy_alias": "LGY-3RXH-54",
+          "case_key": "C-8X5H3",
+          "archive_row_ref": "ARX-P-TNYEHE"
+        },
+        {
+          "legacy_alias": "LGY-9PR2-QA",
+          "case_key": "C-QFU42",
+          "archive_row_ref": "ARX-P-YC7Q9W"
+        },
+        {
+          "legacy_alias": "LGY-3355-9Q",
+          "case_key": "C-7C9MU",
+          "archive_row_ref": "ARX-P-H3ZB2B"
+        },
+        {
+          "legacy_alias": "LGY-FW3T-U7",
+          "case_key": "C-F4S7U",
+          "archive_row_ref": "ARX-P-K7HJTY"
+        },
+        {
+          "legacy_alias": "LGY-FTDJ-48",
+          "case_key": "C-DM5LJ",
+          "archive_row_ref": "ARX-P-5M9L7E"
+        },
+        {
+          "legacy_alias": "LGY-K7AE-GN",
+          "case_key": "C-ZW45C",
+          "archive_row_ref": "ARX-P-4NGTTB"
+        },
+        {
+          "legacy_alias": "LGY-5HZE-T8",
+          "case_key": "C-3UY9B",
+          "archive_row_ref": "ARX-P-JSH7D2"
+        },
+        {
+          "legacy_alias": "LGY-6QHZ-9R",
+          "case_key": "C-25MXF",
+          "archive_row_ref": "ARX-P-38GBBJ"
+        },
+        {
+          "legacy_alias": "LGY-8HFR-YV",
+          "case_key": "C-6P6LH",
+          "archive_row_ref": "ARX-P-AMAFJW"
+        },
+        {
+          "legacy_alias": "LGY-NFCN-UF",
+          "case_key": "C-445D6",
+          "archive_row_ref": "ARX-P-W5DSEZ"
+        },
+        {
+          "legacy_alias": "LGY-RJWX-VJ",
+          "case_key": "C-KRG56",
+          "archive_row_ref": "ARX-P-CZHENL"
+        },
+        {
+          "legacy_alias": "LGY-NMFZ-S6",
+          "case_key": "C-TCN4X",
+          "archive_row_ref": "ARX-P-GYP2NW"
+        },
+        {
+          "legacy_alias": "LGY-VBXF-GB",
+          "case_key": "C-GREBA",
+          "archive_row_ref": "ARX-P-JP5XDE"
+        },
+        {
+          "legacy_alias": "LGY-UPHH-5B",
+          "case_key": "C-DK72X",
+          "archive_row_ref": "ARX-P-H3ER49"
+        },
+        {
+          "legacy_alias": "LGY-QUC8-4H",
+          "case_key": "C-MK7DQ",
+          "archive_row_ref": "ARX-P-FSB9JS"
+        },
+        {
+          "legacy_alias": "LGY-3QHX-Y3",
+          "case_key": "C-GKLRK",
+          "archive_row_ref": "ARX-P-SJ47K8"
+        },
+        {
+          "legacy_alias": "LGY-VQEE-ZP",
+          "case_key": "C-MP6DR",
+          "archive_row_ref": "ARX-P-KY9PVD"
+        },
+        {
+          "legacy_alias": "LGY-VQP2-WJ",
+          "case_key": "C-W8ZNF",
+          "archive_row_ref": "ARX-P-76BTZL"
+        },
+        {
+          "legacy_alias": "LGY-EHPR-UW",
+          "case_key": "C-ZCPGE",
+          "archive_row_ref": "ARX-P-634NXQ"
+        },
+        {
+          "legacy_alias": "LGY-KC9T-HV",
+          "case_key": "C-9XJYZ",
+          "archive_row_ref": "ARX-P-6L9F8N"
+        },
+        {
+          "legacy_alias": "LGY-PZDM-2U",
+          "case_key": "C-8EK66",
+          "archive_row_ref": "ARX-P-PEL4RX"
+        }
+      ]
+    },
+    "diagnostics": {
+      "table": [
+        {
+          "case_key": "C-25MXF",
+          "abnormal_result_count": 0,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-2UXJF",
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-3UY9B",
+          "abnormal_result_count": 0,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-445D6",
+          "abnormal_result_count": 3,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-5ER5G",
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": true
+        },
+        {
+          "case_key": "C-6HC8Q",
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-6P6LH",
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-7C9MU",
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-7R72U",
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-84MRD",
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-8EK66",
+          "abnormal_result_count": 0,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-8X5H3",
+          "abnormal_result_count": 0,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-9QRR2",
+          "abnormal_result_count": 3,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-9SCLR",
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-9XJYZ",
+          "abnormal_result_count": 2,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-C8468",
+          "abnormal_result_count": 6,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-CE9F6",
+          "abnormal_result_count": 3,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-D3KQ7",
+          "abnormal_result_count": 2,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-DK72X",
+          "abnormal_result_count": 0,
+          "critical_result_last_stay": true
+        },
+        {
+          "case_key": "C-DM5LJ",
+          "abnormal_result_count": 2,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-F4S7U",
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-GKLRK",
+          "abnormal_result_count": 0,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-GREBA",
+          "abnormal_result_count": 0,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-KRG56",
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": true
+        },
+        {
+          "case_key": "C-LRWH5",
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": true
+        },
+        {
+          "case_key": "C-MK7DQ",
+          "abnormal_result_count": 4,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-MP6DR",
+          "abnormal_result_count": 2,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-MQYVD",
+          "abnormal_result_count": 0,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-NXQXQ",
+          "abnormal_result_count": 0,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-P3U93",
+          "abnormal_result_count": 4,
+          "critical_result_last_stay": true
+        },
+        {
+          "case_key": "C-P8A55",
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-QFU42",
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-TCN4X",
+          "abnormal_result_count": 3,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-U2PL2",
+          "abnormal_result_count": 2,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-V7FP2",
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-VSKH7",
+          "abnormal_result_count": 1,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-W8ZNF",
+          "abnormal_result_count": 4,
+          "critical_result_last_stay": true
+        },
+        {
+          "case_key": "C-YXW82",
+          "abnormal_result_count": 0,
+          "critical_result_last_stay": true
+        },
+        {
+          "case_key": "C-ZCPGE",
+          "abnormal_result_count": 2,
+          "critical_result_last_stay": false
+        },
+        {
+          "case_key": "C-ZW45C",
+          "abnormal_result_count": 0,
+          "critical_result_last_stay": false
+        }
+      ]
+    },
+    "outside_analytics": {}
+  }
+}

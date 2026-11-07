@@ -1,0 +1,35 @@
+{
+  "adapter_version": "healthcare-v02-to-points-v1",
+  "packages": {
+    "fixture10-s101-points": {
+      "manifest_sha256": "bff60a3cf259afe9508632e471883bd7ecca5ffbb7771529935562ff60b60dfe",
+      "path": "fixture10-s101-points",
+      "recommended_initial_pilot": true
+    },
+    "panel40-s201-points": {
+      "manifest_sha256": "6e043a3ad112fd4c65fadf2da09f2688568af896d185064ee47dcdb00a785545",
+      "path": "panel40-s201-points",
+      "recommended_initial_pilot": false
+    },
+    "panel40-s202-points": {
+      "manifest_sha256": "3094e70dcd9056bde945b12e47c335fbff950f12cb411ceb3cc908eea314151f",
+      "path": "panel40-s202-points",
+      "recommended_initial_pilot": false
+    },
+    "panel40-s203-points": {
+      "manifest_sha256": "47b63ed648b7e59ac031bbd1a92810625d3825e5dbcd6cc8724827eb627c1c15",
+      "path": "panel40-s203-points",
+      "recommended_initial_pilot": false
+    },
+    "panel40-s204-points": {
+      "manifest_sha256": "3bf642e9b208ef428676eecb7fd26dfe5ac6a4877fa858a322b475341a00a064",
+      "path": "panel40-s204-points",
+      "recommended_initial_pilot": false
+    },
+    "panel40-s205-points": {
+      "manifest_sha256": "ae3e74537b056aaa6acecedf5b7ec221139eb1532f9aa1ae479a34dc59b9b1ca",
+      "path": "panel40-s205-points",
+      "recommended_initial_pilot": false
+    }
+  }
+}
