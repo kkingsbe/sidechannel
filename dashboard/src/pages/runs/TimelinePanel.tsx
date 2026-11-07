@@ -16,6 +16,8 @@ export interface TimelinePanelProps {
   events: HarnessEvent[];
   /** run.config.model.provider */
   provider: string;
+  /** The run is being followed live: the newest unanswered model call shows a waiting state. */
+  live?: boolean;
   /** Opens the event drawer. */
   onInspect: (eventId: string, sequence?: number) => void;
   /** Switches to Model & traces focused on that invocation. */
@@ -143,7 +145,7 @@ const typeLabel = (type: string) => type.replaceAll('_', ' ');
 
 /* ---------------------------------------------------------------- component */
 
-export function TimelinePanel({ events, provider, onInspect, onOpenTraces }: TimelinePanelProps) {
+export function TimelinePanel({ events, provider, live = false, onInspect, onOpenTraces }: TimelinePanelProps) {
   const [mode, setMode] = usePersisted<'readable' | 'raw'>(KEY_MODE, 'readable', parseMode);
   const [fold, setFold] = usePersisted<boolean>(KEY_FOLD, true, parseBool);
   const [expandAll, setExpandAll] = usePersisted<boolean>(KEY_EXPAND, false, parseBool);
@@ -165,6 +167,9 @@ export function TimelinePanel({ events, provider, onInspect, onOpenTraces }: Tim
   }, [calls]);
   const eventById = React.useMemo(() => new Map(sorted.map(e => [e.id, e])), [sorted]);
   const segments = React.useMemo(() => segmentRows(buildRows(sorted, calls, fold)), [sorted, calls, fold]);
+
+  const lastSequence = sorted.at(-1)?.sequence;
+  const isPending = (call: ModelCall) => live && !call.response && call.sequenceRange[1] === lastSequence;
 
   const inspectById = (id: string) => onInspect(id, eventById.get(id)?.sequence);
 
@@ -221,6 +226,7 @@ export function TimelinePanel({ events, provider, onInspect, onOpenTraces }: Tim
             </span>
           </div>
           <ModelCallMeta call={call} />
+          {isPending(call) && <PendingResponse since={call.request?.timestamp ?? call.startedAt} />}
           {renderBody(call)}
         </div>
         <time className="tl-time">{time(anchor)}</time>
@@ -321,5 +327,21 @@ function OpenButton({ label, onClick }: { label: string; onClick: () => void }) 
     <button type="button" className="tl-open" aria-label={label} title={label} onClick={onClick}>
       <ArrowUpRight size={14} aria-hidden="true" />
     </button>
+  );
+}
+
+function PendingResponse({ since }: { since: string }) {
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const seconds = Math.max(0, Math.floor((now - Date.parse(since)) / 1000));
+  // The ticking counter is hidden from assistive tech so it is not announced every second.
+  return (
+    <p className="tl-pending">
+      <span className="tl-pending-dot" aria-hidden="true" />
+      Waiting for model response <span aria-hidden="true">· {seconds}s</span>
+    </p>
   );
 }

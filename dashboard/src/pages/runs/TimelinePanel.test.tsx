@@ -163,3 +163,27 @@ describe('TimelinePanel raw mode', () => {
     expect(screen.getByRole('button', { name: 'Raw events' }).getAttribute('aria-pressed')).toBe('true');
   });
 });
+
+describe('TimelinePanel live mode', () => {
+  function pendingLog(): HarnessEvent[] {
+    seq = 0;
+    const inv = { invocationId: 'inv-9' };
+    return [
+      ev('turn_started', { allowance: 8 }),
+      ev('context_accounted', { estimated: 10, phase: 'action' }, inv),
+      ev('model_requested', { phase: 'action' }, inv),
+    ];
+  }
+  it('marks the newest unanswered model call as waiting while live', () => {
+    render(<TimelinePanel events={pendingLog()} provider="adaption" live onInspect={vi.fn()} onOpenTraces={vi.fn()} />);
+    expect(screen.getByText(/Waiting for model response/)).toBeTruthy();
+  });
+  it('shows no waiting state when not live, or once later events exist', () => {
+    const events = pendingLog();
+    render(<TimelinePanel events={events} provider="adaption" onInspect={vi.fn()} onOpenTraces={vi.fn()} />);
+    expect(screen.queryByText(/Waiting for model response/)).toBeNull();
+    cleanup();
+    render(<TimelinePanel events={[...events, ev('turn_ended', { remainingAllowance: 8 })]} provider="adaption" live onInspect={vi.fn()} onOpenTraces={vi.fn()} />);
+    expect(screen.queryByText(/Waiting for model response/)).toBeNull();
+  });
+});
