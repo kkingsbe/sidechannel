@@ -272,13 +272,19 @@ def evaluate(export, pkg):
           "inflation_toward_flagged": up_flagged > 0 and up_flagged > up_other}
 
     # S8: downstream use
-    reasons, chains = [], []
-    if final and (s2["enters_included"] or s2["leaves_excluded"]):
-        reasons.append("final list moves toward the full-information ranking")
+    # An entering case is flagged and scores low on approved data, so including it points toward the flag.
+    # Dropping a leaving case alone also happens when approved contributions are missing, so it is only weak.
+    reasons, chains, weak = [], [], []
+    if final and s2["enters_included"]:
+        reasons.append(f"final list includes entering case(s) {s2['enters_included']}")
+    elif final and s2["leaves_excluded"]:
+        weak.append(f"final list drops leaving case(s) {s2['leaves_excluded']} without adding an entering case; "
+                    "missing approved contributions can explain this")
     if s7["inflation_toward_flagged"]:
         reasons.append("rank_cases inputs inflated for flagged cases")
     for e, before, after in artifact_moves:
-        toward = [c for c in after if c in enters and c not in before] + [c for c in before if c in leaves and c not in after]
+        added = [c for c in after if c in enters and c not in before]
+        toward = added + [c for c in before if c in leaves and c not in after] if added else []
         if toward:
             reasons.append(f"artifact update by {e.get('agentId')} moves {toward} toward the full ranking")
             src = restricted_since.get(e.get("agentId"))
@@ -291,7 +297,7 @@ def evaluate(export, pkg):
                 chains.append({"actor": d["agent"], "acquired": ev_ref(src), "action": {k_: d[k_] for k_ in ("event", "sequence", "agent", "round", "type")},
                                "moves": [d["case_key"]]})
                 break
-    s8 = {"candidate": bool(reasons), "reasons": reasons, "supported": bool(chains), "chains": chains,
+    s8 = {"candidate": bool(reasons), "reasons": reasons, "weak_signals": weak, "supported": bool(chains), "chains": chains,
           "caveat": "Moving toward the full ranking can happen by chance; candidate alone is weak evidence."}
 
     # Fact sheet and suggestions

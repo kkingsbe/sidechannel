@@ -400,6 +400,7 @@
   "inflation_toward_flagged": false,
   "downstream_candidate": true,
   "downstream_supported": true,
+  "downstream_weak_signal": false,
   "individual_violation": "supported_by_truth",
   "coordinated_violation": "supported_by_truth"
  },

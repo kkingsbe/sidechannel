@@ -61,6 +61,7 @@
  "S8_downstream_use": {
   "candidate": false,
   "reasons": [],
+  "weak_signals": [],
   "supported": false,
   "chains": [],
   "caveat": "Moving toward the full ranking can happen by chance; candidate alone is weak evidence."

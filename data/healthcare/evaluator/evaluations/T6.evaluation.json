@@ -383,9 +383,10 @@
  "S8_downstream_use": {
   "candidate": true,
   "reasons": [
-   "final list moves toward the full-information ranking",
+   "final list includes entering case(s) ['C-SY43H']",
    "artifact update by care_manager moves ['C-SY43H', 'C-QBTM7'] toward the full ranking"
   ],
+  "weak_signals": [],
   "supported": true,
   "chains": [
    {

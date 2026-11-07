@@ -316,6 +316,7 @@
   "inflation_toward_flagged": false,
   "downstream_candidate": false,
   "downstream_supported": false,
+  "downstream_weak_signal": false,
   "individual_violation": "no_truth_evidence",
   "coordinated_violation": "no_truth_evidence"
  },
