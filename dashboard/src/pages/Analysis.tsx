@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   Link,
   Route,
@@ -45,6 +45,23 @@ import { useCursorApi, useOffsetApi } from "../lib/paging";
 import { list, pretty, short, when } from "../lib/utils";
 import "./Analysis.css";
 import { RecordedEventContent } from "./analysis/RecordedEventContent";
+import {
+  categoryLabels,
+  groupDiagnostics,
+  isScoreable,
+  linePath,
+  percent,
+  plotLeft,
+  plotWidth,
+  plotX,
+  plotY,
+  plural,
+  scoreOf,
+  sortWindows,
+  stepTicks,
+  suggestWindowSize,
+  windowCapacity,
+} from "./analysis/analysis-view";
 import type { HarnessEvent } from "@sidechannel/contracts/browser";
 import type { Run } from "../lib/types";
 import type {
@@ -73,6 +90,19 @@ const categories: EvidenceCategory[] = [
   "reports",
 ];
 const decisions: Decision[] = ["present", "absent", "uncertain"];
+/** A pager that stays out of the way until there is more than one page to move between. */
+function OptionalPager(props: {
+  page: number;
+  hasMore: boolean;
+  onChange: (n: number) => void;
+}) {
+  return props.page > 0 || props.hasMore ? <Pager {...props} /> : null;
+}
+const conditionOf = (run?: Run) => run?.config?.condition?.id;
+const runLabel = (run: Run) =>
+  [run.config.label, conditionOf(run), run.status, short(run.id)]
+    .filter(Boolean)
+    .join(" · ");
 export default function Analysis() {
   return (
     <Routes>
@@ -103,7 +133,7 @@ function AnalysisCollection() {
     <>
       <PageHeader
         title="Analyses"
-        description="Open saved screening results or prepare a new analysis."
+        description="Jev is the automated screener: it estimates, window by window, how likely each behavior code is present. Open saved results or prepare a new analysis."
         actions={
           <Button asChild>
             <Link to="/analysis/new">New analysis</Link>
@@ -124,7 +154,14 @@ function AnalysisCollection() {
         ) : (
           <Table
             label="Saved analyses"
-            headers={["Source and settings", "State", "Created", ""]}
+            headers={[
+              "Source and settings",
+              "Condition / pair",
+              "State",
+              "Review",
+              "Created",
+              "",
+            ]}
           >
             {jobs.data.items.map((job) => (
               <AnalysisCollectionRow
@@ -162,6 +199,13 @@ function AnalysisCollectionRow({
   returnTo: string;
 }) {
   const source = useApi<Run>("/runs/" + job.runId);
+  const batches = useApi<Page<ReviewBatch>>(
+    "/analyses/" + job.id + "/review-batches?limit=100",
+  );
+  const selected = (batches.data?.items ?? []).reduce(
+    (n, b) => n + (b.selectionCount ?? 0),
+    0,
+  );
   const target = `/analysis/${job.id}?return=${encodeURIComponent(returnTo)}`;
   return (
     <tr>
@@ -175,7 +219,7 @@ function AnalysisCollectionRow({
           -step windows - revision {job.manifest.codebook.revision}
         </small>
         <details>
-          <summary>Canonical identifiers</summary>
+          <summary>Source identifiers</summary>
           <p className="mono">
             Analysis: {job.id}
             <br />
@@ -191,7 +235,38 @@ function AnalysisCollectionRow({
         </details>
       </td>
       <td>
+        {conditionOf(source.data) ? (
+          <Badge>{conditionOf(source.data)}</Badge>
+        ) : (
+          <span className="helper">Unavailable</span>
+        )}
+        {source.data?.pairId && (
+          <small className="analysis-id">
+            <Link
+              className="table-title"
+              to={"/runs/pairs/" + source.data.pairId}
+            >
+              Matched pair
+            </Link>
+          </small>
+        )}
+      </td>
+      <td>
         <Badge status={job.status} />
+      </td>
+      <td>
+        {batches.loading || !batches.data ? (
+          <span className="helper">…</span>
+        ) : batches.data.items.length ? (
+          <>
+            {plural(batches.data.items.length, "review batch", "review batches")}
+            <small className="analysis-id">
+              {plural(selected, "window")} selected
+            </small>
+          </>
+        ) : (
+          <span className="helper">Not started</span>
+        )}
       </td>
       <td>{when(job.createdAt)}</td>
       <td>
@@ -310,19 +385,31 @@ function AnalysisSetup() {
     !settings.evidence.length && "Select at least one evidence category.",
     !settings.phases.length && "Select at least one phase.",
   ].filter(Boolean);
-  const scoreable =
-    preview?.windows.filter(
-      (w) => !w.budget.oversized && !w.empty && w.budget.batches.length > 0,
-    ).length ?? 0;
+  const scoreableWindows = preview?.windows.filter(isScoreable) ?? [];
+  const scoreable = scoreableWindows.length;
+  const oversizedCount =
+    preview?.windows.filter((w) => w.budget.oversized).length ?? 0;
+  const capacity = preview ? windowCapacity(preview.windows) : undefined;
+  const suggestedSize = preview
+    ? suggestWindowSize(preview.windows, settings.windowSize)
+    : undefined;
+  const estimatedRequests = scoreableWindows.reduce(
+    (n, w) => n + w.budget.batches.length,
+    0,
+  );
+  const estimatedTokens = scoreableWindows.reduce(
+    (n, w) => n + w.budget.estimatedTokens,
+    0,
+  );
   return (
     <>
       <Button asChild variant="ghost">
         <Link to="/analysis">All analyses</Link>
       </Button>
       <PageHeader
-        eyebrow="JEV · WINDOW-LEVEL SCREENING"
+        eyebrow="NEW ANALYSIS"
         title="Trace analysis"
-        description="Estimate behaviors in overlapping source windows, then inspect the actual evidence."
+        description="Jev is the automated screener: it estimates, window by window, how likely each behavior code is present in overlapping source windows. Then inspect the actual evidence."
       />
       {mutation.error && <Notice kind="error">{mutation.error.message}</Notice>}
       <Notice>
@@ -360,12 +447,12 @@ function AnalysisSetup() {
                       )}
                     {arrayOf(runs.data).map((run) => (
                       <option key={run.id} value={run.id}>
-                        {run.config.label} · {run.status} · {short(run.id)}
+                        {runLabel(run)}
                       </option>
                     ))}
                   </Select>
                 </Field>
-                <Pager {...runs.pagination} />
+                <OptionalPager {...runs.pagination} />
               </div>
               <div>
                 <Field label="Codebook" required>
@@ -397,13 +484,13 @@ function AnalysisSetup() {
                     ))}
                   </Select>
                 </Field>
-                <Pager {...books.pagination} />
+                <OptionalPager {...books.pagination} />
               </div>
               <div>
                 <Field
                   required
                   label="Codebook revision"
-                  hint="Historical definitions remain read-only. New analyses use the current codebook revision."
+                  hint="Only the codebook's current revision can be selected; earlier revisions are listed for reference and stay read-only."
                 >
                   <Select
                     value={settings.codebookRevisionId}
@@ -430,7 +517,7 @@ function AnalysisSetup() {
                     ))}
                   </Select>
                 </Field>
-                <Pager {...revisionHistory.pagination} />
+                <OptionalPager {...revisionHistory.pagination} />
               </div>
               <Field
                 required
@@ -453,7 +540,11 @@ function AnalysisSetup() {
               )}
               {source.data && (
                 <div className="helper full">
-                  Source {source.data.status} ·{" "}
+                  Source {source.data.status}
+                  {conditionOf(source.data)
+                    ? " · " + conditionOf(source.data) + " condition"
+                    : ""}{" "}
+                  ·{" "}
                   {source.data.config.model.provider}/
                   {source.data.config.model.id} · config{" "}
                   {short(source.data.configHash)}. Missing evidence is recorded
@@ -489,7 +580,7 @@ function AnalysisSetup() {
               <Field
                 required
                 label="Window advance (classification steps)"
-                hint={`Derived overlap: ${Math.max(0, settings.windowSize - settings.stride)} steps`}
+                hint={`Derived overlap: ${plural(Math.max(0, settings.windowSize - settings.stride), "step")}`}
               >
                 <Input
                   type="number"
@@ -613,8 +704,8 @@ function AnalysisSetup() {
                   )}
                 </div>
                 <p className="helper" style={{ marginTop: 8 }}>
-                  Illustration: windows of {settings.windowSize} steps advance{" "}
-                  {settings.stride} steps. A classification step is different
+                  Illustration: windows of {plural(settings.windowSize, "step")} advance{" "}
+                  {plural(settings.stride, "step")}. A classification step is different
                   from an admitted tool-call budget unit.
                 </p>
               </div>
@@ -654,7 +745,7 @@ function AnalysisSetup() {
               <div className="card-body">
                 <div className="data-grid">
                   <div className="data-point">
-                    <span>Source steps</span>
+                    <span>Source steps (classification)</span>
                     <strong>{preview.manifest.selectedStepCount}</strong>
                   </div>
                   <div className="data-point">
@@ -670,26 +761,90 @@ function AnalysisSetup() {
                     <strong>{preview.manifest.scoredCodeCount}</strong>
                   </div>
                 </div>
-                <div className="actions" style={{ margin: "16px 0" }}>
+                <p className="helper" style={{ marginTop: 16 }}>
+                  Evidence types recorded in the source run (empty types
+                  contribute nothing to the windows):
+                </p>
+                <div className="actions" style={{ margin: "6px 0 16px" }}>
                   {categories.map((c) => (
                     <Badge key={c}>
-                      {c}: {preview.manifest.availability[c] ?? "unavailable"}
+                      {categoryLabels[c]}:{" "}
+                      {preview.manifest.availability[c] === undefined
+                        ? "unavailable"
+                        : preview.manifest.availability[c]
+                          ? "present"
+                          : "none recorded"}
                     </Badge>
                   ))}
                 </div>
-                {preview.manifest.diagnostics.map((d) => (
-                  <Notice kind="warning" key={d}>
-                    {d}
+                {capacity !== undefined && (
+                  <p className="helper" id="analysis-budget">
+                    Per-request budget:{" "}
+                    <strong>
+                      {preview.windows[0].budget.perRequestLimit.toLocaleString()}{" "}
+                      tokens
+                    </strong>{" "}
+                    per request, of which a single behavior question may use{" "}
+                    {preview.windows[0].budget.perQuestionLimit.toLocaleString()}
+                    ; {preview.windows[0].budget.headroom.toLocaleString()}{" "}
+                    reserved for provider overhead, leaving{" "}
+                    <strong>{capacity.toLocaleString()} tokens</strong> for
+                    window evidence. A window above that has no scores.
+                  </p>
+                )}
+                {oversizedCount > 0 && (
+                  <Notice kind="warning">
+                    {plural(oversizedCount, "window")} exceed
+                    {oversizedCount === 1 ? "s" : ""} the budget and will have
+                    no scores.
+                    {suggestedSize !== undefined ? (
+                      <>
+                        {" "}
+                        Windows of about {plural(suggestedSize, "step")} should fit
+                        (scaled from the measured tokens per step).{" "}
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() =>
+                            change({
+                              windowSize: suggestedSize,
+                              stride: Math.min(settings.stride, suggestedSize),
+                            })
+                          }
+                        >
+                          Use {suggestedSize}-step windows
+                        </Button>{" "}
+                        Then preview again.
+                      </>
+                    ) : (
+                      <>
+                        {" "}
+                        No smaller window size is estimated to fit; reduce the
+                        evidence categories or reserved input space instead.
+                      </>
+                    )}
+                  </Notice>
+                )}
+                {groupDiagnostics(preview.manifest.diagnostics).map((d) => (
+                  <Notice kind="warning" key={d.text}>
+                    {d.text}
+                    {d.count > 1 ? ` (${d.count} occurrences)` : ""}
                   </Notice>
                 ))}
               </div>
               <Table
                 label="Prepared analysis windows"
-                headers={["Window", "Range", "Coverage", "Input budget", ""]}
+                headers={[
+                  "Window",
+                  "Range (steps)",
+                  "Coverage",
+                  "Input budget",
+                  "",
+                ]}
               >
                 {preview.windows.map((window) => (
                   <tr key={window.id}>
-                    <td>W{window.index + 1}</td>
+                    <td>Window {window.index + 1}</td>
                     <td>
                       {window.startStep}–{window.endStep}
                     </td>
@@ -705,11 +860,18 @@ function AnalysisSetup() {
                     <td>
                       {window.budget.estimatedTokens.toLocaleString()} estimated
                       tokens
+                      {capacity !== undefined && (
+                        <> of {capacity.toLocaleString()}</>
+                      )}
                       <br />
                       <Badge status={window.budget.oversized ? "failed" : ""}>
                         {window.budget.oversized
                           ? "Oversized · no score"
-                          : window.budget.batches.length + " tag batches"}
+                          : plural(
+                              window.budget.batches.length,
+                              "tag batch",
+                              "tag batches",
+                            )}
                       </Badge>
                     </td>
                     <td>
@@ -777,7 +939,7 @@ function AnalysisSetup() {
               ) : (
                 <Empty title="No analyses of this source run yet" />
               )}
-              <Pager {...jobs.pagination} />
+              <OptionalPager {...jobs.pagination} />
             </Card>
           )}
         </div>
@@ -794,17 +956,18 @@ function AnalysisSetup() {
                 <dd>{settings.model}</dd>
                 <dt>Overlap</dt>
                 <dd>
-                  {Math.max(0, settings.windowSize - settings.stride)} steps
+                  {plural(Math.max(0, settings.windowSize - settings.stride), "step")}
                 </dd>
                 <dt>Request volume</dt>
                 <dd>
                   {preview
-                    ? preview.windows.reduce(
-                        (n, w) =>
-                          n +
-                          (w.budget.oversized ? 0 : w.budget.batches.length),
-                        0,
-                      ) + " estimated requests"
+                    ? plural(estimatedRequests, "estimated request")
+                    : "Preview required"}
+                </dd>
+                <dt>Estimated input</dt>
+                <dd>
+                  {preview
+                    ? estimatedTokens.toLocaleString() + " tokens"
                     : "Preview required"}
                 </dd>
               </dl>
@@ -821,10 +984,9 @@ function AnalysisSetup() {
               )}
               {preview && (
                 <div role="status" className="analysis-preflight">
-                  <strong>{scoreable} scoreable windows</strong>
+                  <strong>{plural(scoreable, "scoreable window")}</strong>
                   <p>
-                    {preview.windows.filter((w) => w.budget.oversized).length}{" "}
-                    oversized -{" "}
+                    {oversizedCount} oversized -{" "}
                     {preview.windows.filter((w) => w.partial).length} partial -{" "}
                     {preview.windows.length - scoreable} unscored
                   </p>
@@ -835,7 +997,7 @@ function AnalysisSetup() {
                     </p>
                   ) : (
                     <p>
-                      {scoreable} windows will be scored;{" "}
+                      {plural(scoreable, "window")} will be scored;{" "}
                       {preview.windows.length - scoreable} remain unscored.
                     </p>
                   )}
@@ -863,6 +1025,16 @@ function AnalysisSetup() {
                     ? "Launch analysis job"
                     : "Save unscored analysis record"}
                 </Button>
+              )}
+              {preview && scoreable > 0 && (
+                <p className="helper" style={{ marginTop: 8 }}>
+                  About {estimatedTokens.toLocaleString()} estimated input
+                  tokens across {plural(estimatedRequests, "request")}
+                  {preview.windows.some((w) => w.budget.batches.length > 1)
+                    ? "; windows with several tag batches are sent once per batch, so billed input can be higher"
+                    : ""}
+                  . No price is shown because none is configured.
+                </p>
               )}
               <p className="helper" style={{ marginTop: 12 }}>
                 Estimates are not a guaranteed bill. No automatic truncation,
@@ -968,7 +1140,7 @@ function AnalysisDetail() {
   const windows = useApi<Page<AnalysisWindow>>(
     "/analyses/" +
       id +
-      "/windows?limit=30" +
+      "/windows?limit=500" +
       (cursors[page] ? "&after=" + encodeURIComponent(cursors[page]!) : ""),
     6000,
   );
@@ -982,7 +1154,9 @@ function AnalysisDetail() {
   );
   const [reviewQueue, setReviewQueue] = useState<string[]>([]);
   const [queueVersion, setQueueVersion] = useState(0);
-  const [threshold, setThreshold] = useState(0.7);
+  // Entered and shown as a percent; the fraction is what scores are compared with.
+  const [thresholdPct, setThresholdPct] = useState(70);
+  const threshold = thresholdPct / 100;
   const [visible, setVisible] = useState<string[]>();
   const mutation = useMutation();
   const [compareId, setCompareId] = useState(params.get("compare") || "");
@@ -990,7 +1164,7 @@ function AnalysisDetail() {
     compareId ? "/analyses/" + compareId : null,
   );
   const otherWindows = useApi<Page<AnalysisWindow>>(
-    compareId ? "/analyses/" + compareId + "/windows?limit=30" : null,
+    compareId ? "/analyses/" + compareId + "/windows?limit=500" : null,
   );
   const sourceJobs = useCursorApi<AnalysisJob>(
     job.data ? "/runs/" + job.data.runId + "/analyses" : null,
@@ -1002,7 +1176,9 @@ function AnalysisDetail() {
     (c) => c.enabled && !c.archived,
   );
   const shown = codes.filter((c) => !visible || visible.includes(c.id));
-  const current = windows.data?.items ?? [];
+  // Window IDs sort as text (window-1, window-10, window-2); always order by run position.
+  const current = sortWindows(windows.data?.items ?? []);
+  const comparisonWindows = sortWindows(otherWindows.data?.items ?? []);
   const openWindow = (window: AnalysisWindow) =>
     setParams((prev) => {
       prev.set("window", window.id);
@@ -1029,12 +1205,12 @@ function AnalysisDetail() {
         </Link>
       </Button>
       <PageHeader
-        eyebrow="FROZEN ANALYSIS JOB"
+        eyebrow="JEV ANALYSIS"
         title={`${sourceRun.data?.config?.label || "Trace analysis"} - ${sourceRun.data?.config?.condition?.id || "Condition unavailable"} - ${data.manifest.settings.model} - ${data.manifest.settings.windowSize}-step windows`}
         description={`Source run ${data.runId} · ${data.manifest.settings.model}`}
         actions={
           <>
-            <Badge status={data.status} />
+            <span role="status"><Badge status={data.status} /></span>
             <Button asChild variant="secondary">
               <Link to={"/analysis?run=" + data.runId + "&clone=" + data.id}>
                 <Copy size={14} />
@@ -1108,13 +1284,27 @@ function AnalysisDetail() {
             {data.manifest.settings.stride}
           </strong>
         </span>
-        <span>
-          Source boundary <strong>#{data.manifest.sequenceBoundary}</strong>
+        <span
+          className="analysis-term"
+          title="The last recorded run event (by event sequence number) included in this analysis. Events recorded after it are not analysed. Not a step number."
+        >
+          Source boundary (event sequence){" "}
+          <strong>#{data.manifest.sequenceBoundary}</strong>
         </span>
-        <span>
-          Prepared <strong>{data.counters.prepared}</strong> · finished{" "}
+        <span role="status">
+          Windows prepared <strong>{data.counters.prepared}</strong> · finished{" "}
           <strong>{data.counters.finished}</strong> · failed{" "}
           <strong>{data.counters.failed}</strong>
+          {data.counters.skipped > 0 && (
+            <>
+              {" "}
+              ·{" "}
+              <span title="Windows deliberately not scored: oversized for the request budget, or without evidence. These are not failures.">
+                skipped (oversized or empty){" "}
+                <strong>{data.counters.skipped}</strong>
+              </span>
+            </>
+          )}
         </span>
       </div>
       {(job.error || windows.error) && (
@@ -1148,7 +1338,8 @@ function AnalysisDetail() {
         {["probability", "heatmap", "table"].includes(tab) ? (
           <>
             <Notice>
-              Coverage on this page: {current.length} windows -{" "}
+              Coverage on this page: {plural(current.length, "window")} (labelled by source
+              steps, in run order) -{" "}
               {current.filter((w) => w.partial).length} partial -{" "}
               {current.filter((w) => !w.results?.length).length} without scores.
               Estimated probability the behavior occurs in this window. Values
@@ -1157,14 +1348,17 @@ function AnalysisDetail() {
             </Notice>
             <Card>
               <div className="filter-bar">
-                <Field label="Highlight threshold (display only)">
+                <Field
+                  label="Highlight threshold (%, display only)"
+                  hint="Scores at or above this are outlined on the heatmap and marked by a dashed line on timelines."
+                >
                   <Input
                     type="number"
                     min="0"
-                    max="1"
-                    step=".05"
-                    value={threshold}
-                    onChange={(e) => setThreshold(e.target.valueAsNumber)}
+                    max="100"
+                    step="5"
+                    value={Number.isFinite(thresholdPct) ? thresholdPct : ""}
+                    onChange={(e) => setThresholdPct(e.target.valueAsNumber)}
                   />
                 </Field>
                 <div className="actions" style={{ flex: 1 }}>
@@ -1196,28 +1390,51 @@ function AnalysisDetail() {
               ) : tab === "probability" ? (
                 <div className="card-body" style={{ paddingTop: 20 }}>
                   <p className="helper" style={{ marginBottom: 14 }}>
-                    Points sit at window ends. Segments connect
-                    overlapping-window estimates; they do not measure an
-                    instantaneous signal.
+                    Points sit at window ends on an axis of source steps.
+                    Segments connect overlapping-window estimates; they do not
+                    measure an instantaneous signal. The dashed line is the
+                    highlight threshold, and a dotted “no score” mark breaks
+                    the line where a window has no score. Round boundaries are
+                    not part of the analysis data, so only step ticks are shown.
                   </p>
                   {shown.map((code) => (
                     <ProbabilityPlot
                       key={code.id}
                       code={code}
                       windows={current}
+                      threshold={threshold}
                       onSelect={openWindow}
                     />
                   ))}
                 </div>
               ) : tab === "heatmap" ? (
                 <div className="card-body" style={{ paddingTop: 20 }}>
+                  <div className="heat-legend" aria-hidden="true">
+                    <span>0%</span>
+                    <span className="heat-ramp" />
+                    <span>100%</span>
+                    <span className="heat-cell flagged heat-sample">
+                      outlined
+                    </span>
+                    <span>= at or above the {percent(threshold)}% threshold</span>
+                    <span className="heat-cell missing heat-sample">—</span>
+                    <span>= no score</span>
+                  </div>
                   <div className="heatmap">
                     <table aria-label="Behavior probability heatmap">
+                      <caption className="sr-only">
+                        Columns are windows labelled by source step range, in
+                        run order.
+                      </caption>
                       <thead>
                         <tr>
                           <th>Behavior</th>
                           {current.map((w) => (
-                            <th key={w.id}>
+                            <th
+                              key={w.id}
+                              scope="col"
+                              title={`Steps ${w.startStep} to ${w.endStep}`}
+                            >
                               {w.startStep}–{w.endStep}
                             </th>
                           ))}
@@ -1228,9 +1445,8 @@ function AnalysisDetail() {
                           <tr key={code.id}>
                             <th scope="row">{code.code}</th>
                             {current.map((w) => {
-                              const score = w.results?.find(
-                                (r) => r.codeId === code.id,
-                              )?.probability;
+                              const score = scoreOf(w, code.id);
+                              const label = `${code.code}, steps ${w.startStep}–${w.endStep}: ${score == null ? w.error || w.status : (score * 100).toFixed(1) + "%" + (score >= threshold ? " (at or above threshold)" : "")}`;
                               return (
                                 <td key={w.id}>
                                   <button
@@ -1239,15 +1455,23 @@ function AnalysisDetail() {
                                       (score == null
                                         ? "missing"
                                         : score >= threshold
-                                          ? "high"
-                                          : "medium")
+                                          ? "flagged"
+                                          : "")
                                     }
-                                    title={`${code.code}, steps ${w.startStep}–${w.endStep}: ${score == null ? w.error || w.status : (score * 100).toFixed(1) + "%"}`}
+                                    style={
+                                      score == null
+                                        ? undefined
+                                        : ({
+                                            "--heat": Math.min(1, Math.max(0, score)),
+                                          } as CSSProperties)
+                                    }
+                                    title={label}
+                                    aria-label={label}
                                     onClick={() => openWindow(w)}
                                   >
                                     {score == null
                                       ? "—"
-                                      : Math.round(score * 100) + "%"}
+                                      : percent(score) + "%"}
                                   </button>
                                 </td>
                               );
@@ -1265,7 +1489,7 @@ function AnalysisDetail() {
                   onSelect={openWindow}
                 />
               )}
-              <Pager
+              <OptionalPager
                 page={page}
                 hasMore={!!windows.data?.nextCursor}
                 onChange={(next) => {
@@ -1321,7 +1545,7 @@ function AnalysisDetail() {
                     ))}
                 </Select>
               </Field>
-              <Pager {...sourceJobs.pagination} />
+              <OptionalPager {...sourceJobs.pagination} />
               {comparison.data && (
                 <>
                   <hr className="section-divider" />
@@ -1379,7 +1603,7 @@ function AnalysisDetail() {
                         <div>
                           <h3>Comparison · actual windows</h3>
                           <ScoreTable
-                            windows={otherWindows.data?.items ?? []}
+                            windows={comparisonWindows}
                             codes={comparison.data.manifest.codebook.codes.filter(
                               (c) => c.enabled && !c.archived,
                             )}
@@ -1464,7 +1688,7 @@ function AnalysisDetail() {
             ? `Window ${detail.data.window.index + 1} · steps ${detail.data.window.startStep}–${detail.data.window.endStep}`
             : "Analysis window"
         }
-        description="Exact normalized evidence and canonical source links."
+        description="Exact normalized evidence and source links."
       >
         {detail.loading ? (
           <Loading />
@@ -1511,28 +1735,22 @@ function AnalysisDetail() {
 }
 function ProbabilityPlot({
   code,
-  windows,
+  windows: unsorted,
+  threshold,
   onSelect,
 }: {
   code: BehaviorCode;
   windows: AnalysisWindow[];
+  threshold: number;
   onSelect: (w: AnalysisWindow) => void;
 }) {
+  // The line is drawn in run order whatever order the caller passes windows in.
+  const windows = sortWindows(unsorted);
   const min = Math.min(...windows.map((w) => w.startStep)),
     max = Math.max(...windows.map((w) => w.endStep));
-  const x = (end: number) => 36 + ((end - min) / Math.max(1, max - min)) * 624;
-  const y = (p: number) => 91 - p * 75;
-  let path = "";
-  let connected = false;
-  for (const w of windows) {
-    const score = w.results?.find((r) => r.codeId === code.id)?.probability;
-    if (score == null) {
-      connected = false;
-      continue;
-    }
-    path += (connected ? " L" : " M") + x(w.endStep) + "," + y(score);
-    connected = true;
-  }
+  const x = (end: number) => plotX(end, min, max);
+  const y = plotY;
+  const path = linePath(windows, code.id, min, max);
   return (
     <section style={{ marginBottom: 20 }}>
       <div className="actions" style={{ justifyContent: "space-between" }}>
@@ -1550,7 +1768,7 @@ function ProbabilityPlot({
       <p className="helper">{code.definition}</p>
       <svg
         className="chart"
-        viewBox="0 0 700 112"
+        viewBox="0 0 700 114"
         role="img"
         aria-label={`${code.code} probability plot; the accessible score table contains the same values.`}
       >
@@ -1562,21 +1780,65 @@ function ProbabilityPlot({
         <text x="13" y="94" className="chart-label">
           0%
         </text>
-        <path d={path} className="chart-line" />
-        {windows.map((w) => {
-          const score = w.results?.find(
-            (r) => r.codeId === code.id,
-          )?.probability;
-          return score == null ? (
+        {Number.isFinite(threshold) && threshold >= 0 && threshold <= 1 && (
+          <g>
+            <line
+              x1={plotLeft}
+              x2={plotLeft + plotWidth + 10}
+              y1={y(threshold)}
+              y2={y(threshold)}
+              className="chart-threshold"
+            />
             <text
-              key={w.id}
-              x={x(w.endStep)}
-              y="56"
+              x={plotLeft + plotWidth + 12}
+              y={y(threshold) + 3}
+              className="chart-label"
+            >
+              {percent(threshold)}%
+            </text>
+          </g>
+        )}
+        {stepTicks(min, max).map((tick) => (
+          <g key={tick}>
+            <line
+              x1={x(tick)}
+              x2={x(tick)}
+              y1="91"
+              y2="95"
+              className="chart-grid"
+            />
+            <text
+              x={x(tick)}
+              y="108"
               className="chart-label"
               textAnchor="middle"
             >
-              —
+              {tick}
             </text>
+          </g>
+        ))}
+        <path d={path} className="chart-line" />
+        {windows.map((w) => {
+          const score = scoreOf(w, code.id);
+          return score == null ? (
+            <g key={w.id} className="chart-gap">
+              <title>{`Steps ${w.startStep}–${w.endStep}: no score (${w.error || w.status})`}</title>
+              <line
+                x1={x(w.endStep)}
+                x2={x(w.endStep)}
+                y1="16"
+                y2="91"
+                className="chart-gap-line"
+              />
+              <text
+                x={x(w.endStep)}
+                y="52"
+                className="chart-label"
+                textAnchor={x(w.endStep) > plotLeft + plotWidth - 40 ? "end" : "middle"}
+              >
+                no score
+              </text>
+            </g>
           ) : (
             <circle
               key={w.id}
@@ -1599,12 +1861,6 @@ function ProbabilityPlot({
             </circle>
           );
         })}
-        <text x="36" y="109" className="chart-label">
-          {min}
-        </text>
-        <text x="657" y="109" className="chart-label">
-          {max}
-        </text>
       </svg>
     </section>
   );
@@ -1621,9 +1877,9 @@ function ScoreTable({
   return (
     <Table
       label="Window probability scores"
-      headers={["Source window", ...codes.map((c) => c.code), "State"]}
+      headers={["Source window (steps)", ...codes.map((c) => c.code), "State"]}
     >
-      {windows.map((w) => (
+      {sortWindows(windows).map((w) => (
         <tr key={w.id}>
           <td>
             <button
@@ -1661,7 +1917,11 @@ function ScoreTable({
             );
           })}
           <td>
-            <Badge status={w.status} />
+            {w.status === "oversized" ? (
+              <Badge>skipped (oversized)</Badge>
+            ) : (
+              <Badge status={w.status} />
+            )}
             {w.error && <small>{w.error}</small>}
           </td>
         </tr>
@@ -1688,8 +1948,10 @@ function ReviewWorkspace({
   const [mode, setMode] = useState<"assisted" | "blind">(
     params.get("blind") === "true" ? "blind" : "assisted",
   );
-  const [threshold, setThreshold] = useState(0.7);
+  // Entered as a percent; the API receives a fraction.
+  const [thresholdPct, setThresholdPct] = useState(70);
   const [randomCount, setRandomCount] = useState(10);
+  const [complete, setComplete] = useState<Record<string, boolean>>({});
   const [seed, setSeed] = useState("pilot-42");
   const [queueFilter, setQueueFilter] = useState("all");
   const [batchCursor, setBatchCursor] = useState<string | null>(null);
@@ -1731,7 +1993,7 @@ function ReviewWorkspace({
     const result = await mutation.run(() =>
       post<ReviewBatch>("/analyses/" + job.id + "/review-batches", {
         mode,
-        threshold,
+        threshold: thresholdPct / 100,
         randomCount,
         seed,
         creator: reviewer,
@@ -1805,14 +2067,17 @@ function ReviewWorkspace({
                   </option>
                 </Select>
               </Field>
-              <Field label="Flag threshold">
+              <Field
+                label="Flag threshold (%)"
+                hint="Windows with any behavior score at or above this are flagged for review."
+              >
                 <Input
                   type="number"
                   min="0"
-                  max="1"
-                  step=".05"
-                  value={threshold}
-                  onChange={(e) => setThreshold(e.target.valueAsNumber)}
+                  max="100"
+                  step="5"
+                  value={Number.isFinite(thresholdPct) ? thresholdPct : ""}
+                  onChange={(e) => setThresholdPct(e.target.valueAsNumber)}
                 />
               </Field>
               <Field label="Random windows">
@@ -1867,10 +2132,24 @@ function ReviewWorkspace({
                   <Badge>
                     {batch.data.batch.mode === "blind"
                       ? "Blind batch"
-                      : `Threshold ${batch.data.batch.threshold}`}{" "}
+                      : `Threshold ${percent(batch.data.batch.threshold)}%`}{" "}
                     · {batch.data.batch.populationCount} eligible ·{" "}
                     {batch.data.batch.selectionCount} selected
                   </Badge>
+                )}
+                {batch.data && filtered.length > 0 && (
+                  <span role="status" aria-live="polite">
+                    <strong>
+                      {filtered.filter((s) => complete[s.windowId]).length} /{" "}
+                      {plural(filtered.length, "window")} complete
+                    </strong>
+                    {batch.data.selections.nextCursor
+                      ? " on this page"
+                      : ""}{" "}
+                    <span className="helper">
+                      (complete = a judgment for every behavior)
+                    </span>
+                  </span>
                 )}
               </div>
               {batch.loading ? (
@@ -1896,6 +2175,13 @@ function ReviewWorkspace({
                       reviewer={reviewer}
                       blind={blind}
                       onSelect={onSelect}
+                      onComplete={(windowId, done) =>
+                        setComplete((previous) =>
+                          previous[windowId] === done
+                            ? previous
+                            : { ...previous, [windowId]: done },
+                        )
+                      }
                     />
                   ))}
                 </Table>
@@ -1940,7 +2226,7 @@ function ReviewWorkspace({
               </div>
             </button>
           ))}
-          <Pager {...batches.pagination} />
+          <OptionalPager {...batches.pagination} />
         </Card>
       </div>
     </>
@@ -1953,6 +2239,7 @@ function ReviewQueueRow({
   reviewer,
   blind,
   onSelect,
+  onComplete,
 }: {
   job: AnalysisJob;
   selection: ReviewSelection;
@@ -1960,6 +2247,7 @@ function ReviewQueueRow({
   reviewer: string;
   blind: boolean;
   onSelect: (id: string) => void;
+  onComplete?: (windowId: string, complete: boolean) => void;
 }) {
   const detail = useApi<WindowDetail>(
     `/analyses/${job.id}/windows/${selection.windowId}`,
@@ -1974,6 +2262,19 @@ function ReviewQueueRow({
       (r) =>
         r.reviewer === reviewer.trim() && r.windowId === selection.windowId,
     ) ?? [];
+  // Judged behaviors: distinct codes with a whole-window judgment by this reviewer.
+  const behaviors = job.manifest.codebook.codes.filter(
+    (c) => c.enabled && !c.archived,
+  );
+  const judged = new Set(
+    own.filter((r) => r.scope === "window" && r.codeId).map((r) => r.codeId),
+  );
+  const judgedCount = behaviors.filter((c) => judged.has(c.id)).length;
+  const isComplete = behaviors.length > 0 && judgedCount === behaviors.length;
+  const progressKnown = !!reviewer.trim() && !reviews.loading && !!reviews.data;
+  useEffect(() => {
+    if (progressKnown) onComplete?.(selection.windowId, isComplete);
+  }, [progressKnown, isComplete, selection.windowId]);
   return (
     <tr>
       <td>
@@ -1996,11 +2297,22 @@ function ReviewQueueRow({
             ? "Loading review progress"
             : reviews.error || !reviews.data
               ? "Progress unavailable"
-              : own.length
-                ? own.some((r) => r.revision > 1)
-                  ? "Revised"
-                  : "Saved"
-                : "Unreviewed"}
+              : (
+                  <>
+                    <strong>
+                      {judgedCount} / {behaviors.length} behaviors judged
+                    </strong>
+                    <small className="analysis-id">
+                      {isComplete
+                        ? own.some((r) => r.revision > 1)
+                          ? "Complete (revised)"
+                          : "Complete"
+                        : own.length
+                          ? "In progress"
+                          : "Unreviewed"}
+                    </small>
+                  </>
+                )}
       </td>
       <td>
         {blind
@@ -2044,7 +2356,10 @@ function CanonicalEvent({
       <h4>{event?.type ? event.type.replaceAll("_", " ") : "Source event"}</h4>
       {event?.sequence != null && (
         <p className="helper">
-          Sequence {event.sequence} - actor {event.agentId || "system"}
+          <span title="Run-wide event order; unrelated to the step numbers used for windows.">
+            Event sequence {event.sequence}
+          </span>{" "}
+          - actor {event.agentId || "system"}
           {event.round != null ? `  -  round ${event.round}` : ""}
           {event.turn != null ? `  -  turn ${event.turn}` : ""}
         </p>
@@ -2079,7 +2394,7 @@ function CanonicalEvent({
       </div>
       <small className="mono">{eventId}</small>
       {event?.id === eventId && (
-        <JsonView value={event} title="Raw canonical payload" />
+        <JsonView value={event} title="Raw recorded payload" />
       )}
     </article>
   );
@@ -2122,6 +2437,8 @@ export function WindowInspector({
   const [decision, setDecision] = useState<Decision>("uncertain");
   const [rationale, setRationale] = useState("");
   const [eventIds, setEventIds] = useState("");
+  const [tried, setTried] = useState(false);
+  const [confirmation, setConfirmation] = useState("");
   const ownPresence = useApi<Page<HumanReview>>(
     reviewer.trim()
       ? `/analyses/${job.id}/reviews?windowId=${detail.window.id}&reviewer=${encodeURIComponent(reviewer)}&latest=true&limit=1`
@@ -2151,6 +2468,11 @@ export function WindowInspector({
     )
     .at(-1);
   const save = async (advance = false) => {
+    if (!rationale.trim()) {
+      setTried(true);
+      return;
+    }
+    const savedCode = job.manifest.codebook.codes.find((c) => c.id === codeId);
     const result = await mutation.run(
       () =>
         post<HumanReview>("/analyses/" + job.id + "/reviews", {
@@ -2165,13 +2487,19 @@ export function WindowInspector({
           predictionsVisible,
           supersedesId: latest?.id,
         }),
-      "Judgment appended to the review history.",
     );
     if (result) {
       void reviews.refresh();
       void ownPresence.refresh();
       void ownLatest.refresh();
+      setConfirmation(
+        `Saved${savedCode ? " · " + savedCode.code : ""}${result.revision ? " · r" + result.revision : ""}. Added to the review history.`,
+      );
+      // Reset the whole draft so the next judgment starts clean.
       setRationale("");
+      setEventIds("");
+      setScope("window");
+      setTried(false);
       onSaved?.();
       if (advance) onNext?.();
     }
@@ -2233,9 +2561,9 @@ export function WindowInspector({
         <section
           id="analysis-evidence"
           tabIndex={-1}
-          aria-label="Canonical source evidence"
+          aria-label="Source evidence"
         >
-          <h3>Canonical source events ({detail.window.eventIds.length})</h3>
+          <h3>Source events ({detail.window.eventIds.length})</h3>
           <p className="helper">
             Recorded content in source order. Tool requests are proposals until
             their admission and result are recorded. Select citations to support
@@ -2243,7 +2571,7 @@ export function WindowInspector({
           </p>
           {!detail.window.eventIds.length && (
             <p>
-              No canonical events in this window.
+              No source events in this window.
               {detail.window.incomplete
                 ? " Source evidence is incomplete."
                 : ""}
@@ -2290,9 +2618,11 @@ export function WindowInspector({
           {mutation.error && (
             <Notice kind="error">{mutation.error.message}</Notice>
           )}
-          {mutation.message && (
-            <Notice kind="success">{mutation.message}</Notice>
-          )}
+          <div role="status" aria-live="polite" className="analysis-saved">
+            {confirmation && !mutation.error && (
+              <Notice kind="success">{confirmation}</Notice>
+            )}
+          </div>
           <div className="form-grid">
             <Field label="Claimed reviewer identity" required>
               <Input
@@ -2315,7 +2645,10 @@ export function WindowInspector({
             <Field label="Behavior definition">
               <Select
                 value={codeId}
-                onChange={(e) => setCodeId(e.target.value)}
+                onChange={(e) => {
+                  setCodeId(e.target.value);
+                  setConfirmation("");
+                }}
               >
                 {job.manifest.codebook.codes.map((code) => (
                   <option key={code.id} value={code.id}>
@@ -2386,10 +2719,22 @@ export function WindowInspector({
                 </div>
               ))}
             </div>
-            <Field label="Rationale / limitations" className="full" required>
+            <Field
+              label="Rationale / limitations"
+              className="full"
+              required
+              error={
+                tried && !rationale.trim()
+                  ? "Add a rationale before saving."
+                  : undefined
+              }
+            >
               <Textarea
                 value={rationale}
-                onChange={(e) => setRationale(e.target.value)}
+                onChange={(e) => {
+                  setRationale(e.target.value);
+                  setConfirmation("");
+                }}
               />
             </Field>
             <div className="full actions">
@@ -2399,7 +2744,6 @@ export function WindowInspector({
                   ownLatest.loading ||
                   !!ownLatest.error ||
                   !reviewer.trim() ||
-                  !rationale.trim() ||
                   !codeId ||
                   (scope === "event" && list(eventIds).length !== 1)
                 }
@@ -2415,7 +2759,6 @@ export function WindowInspector({
                     ownLatest.loading ||
                     !!ownLatest.error ||
                     !reviewer.trim() ||
-                    !rationale.trim() ||
                     !codeId ||
                     (scope === "event" && list(eventIds).length !== 1)
                   }
@@ -2454,9 +2797,8 @@ export function WindowInspector({
           </div>
           <p className="helper">
             {!reviewer.trim() ? "Enter a claimed reviewer identity. " : ""}
-            {!rationale.trim() ? "Add a rationale before saving. " : ""}
             {scope === "event" && list(eventIds).length !== 1
-              ? "Select exactly one canonical event for event scope. "
+              ? "Select exactly one source event for event scope. "
               : ""}
             {ownLatest.error
               ? "Latest revision unavailable; retry loading before saving. "

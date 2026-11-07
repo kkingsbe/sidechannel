@@ -35,6 +35,17 @@ import type {
   CodebookRevision,
   Page,
 } from "../lib/analysis-types";
+function summarizeRevision(revision: CodebookRevision, previous?: CodebookRevision) {
+  if (revision.revision <= 1) return "Initial revision";
+  if (!previous) return revision.codes.length + " definitions (previous revision not loaded)";
+  const before = new Map(previous.codes.map(code => [code.id, JSON.stringify(code)]));
+  const ids = new Set(revision.codes.map(code => code.id));
+  const added = revision.codes.filter(code => !before.has(code.id)).length;
+  const removed = previous.codes.filter(code => !ids.has(code.id)).length;
+  const edited = revision.codes.filter(code => before.has(code.id) && before.get(code.id) !== JSON.stringify(code)).length;
+  const parts = [added && added + " added", edited && edited + " edited", removed && removed + " removed"].filter(Boolean);
+  return parts.length ? "Changed: " + parts.join(", ") : "No definition changes";
+}
 export default function CodebookPage() {
   const [bookCursor, setBookCursor] = useState<string | null>(null);
   const books = useApi<Page<Codebook>>("/codebooks?limit=30" + (bookCursor ? "&after=" + encodeURIComponent(bookCursor) : ""));
@@ -84,7 +95,7 @@ export default function CodebookPage() {
           setCodes(recovered.codes);
           setName(recovered.name);
           setSelected(recovered.codes[0]?.id || "");
-          setDirty(true);
+          touch();
           return;
         }
         if (Array.isArray(recovered.codes) && typeof recovered.name === 'string') setRecovery(recovered);
@@ -108,13 +119,17 @@ export default function CodebookPage() {
         }),
       );
   }, [codes, name, dirty, bookId, formBookId, baseRevision]);
+  const touch = () => {
+    setDirty(true);
+    if (mutation.message) mutation.clear();
+  };
   const edit = (patch: Partial<BehaviorCode>) => {
     setCodes(
       codes.map((code) =>
         code.id === selected ? { ...code, ...patch } : code,
       ),
     );
-    setDirty(true);
+    touch();
   };
   const code = codes.find((code) => code.id === selected);
   const add = () => {
@@ -123,8 +138,8 @@ export default function CodebookPage() {
       ...codes,
       {
         id,
-        code: "NEW_CODE",
-        name: "New behavior",
+        code: "",
+        name: "",
         definition: "",
         inclusionCriteria: [],
         exclusionCriteria: [],
@@ -137,7 +152,7 @@ export default function CodebookPage() {
       },
     ]);
     setSelected(id);
-    setDirty(true);
+    touch();
   };
   const create = async () => {
     const result = await mutation.run(() =>
@@ -190,7 +205,7 @@ export default function CodebookPage() {
       },
     ]);
     setSelected(id);
-    setDirty(true);
+    touch();
   };
   const reorder = (direction: number) => {
     const index = codes.findIndex((c) => c.id === selected),
@@ -199,7 +214,7 @@ export default function CodebookPage() {
     const result = [...codes];
     [result[index], result[next]] = [result[next], result[index]];
     setCodes(result);
-    setDirty(true);
+    touch();
   };
   const duplicateNames = codes
     .filter((c) => !c.archived)
@@ -239,7 +254,7 @@ export default function CodebookPage() {
         }
       />
       <div className="save-status" role="status">
-        {mutation.busy ? 'Saving revision…' : !dirty ? 'No unsaved changes.' : !author.trim() ? 'Enter a revision author to save your changes.' : invalid ? 'Complete the name, display code and definition for every active behavior; display codes must be unique.' : 'Ready to save a new revision. Existing analyses keep their frozen definitions.'}
+        {mutation.busy ? 'Saving revision…' : !dirty ? 'No unsaved changes.' : !author.trim() ? 'Save is disabled until a revision author is entered.' : invalid ? 'Complete the name, display code and definition for every active behavior; display codes must be unique.' : 'Ready to save a new revision. Existing analyses keep their frozen definitions.'}
         {dirty && <p>Save these edits before creating another codebook. Your recovery copy is local to this browser.</p>}
       </div>
       {mutation.error && (
@@ -258,7 +273,7 @@ export default function CodebookPage() {
       {recovery && <Card><CardHeading title="Recover edits from an older revision" description={`Your local edits started at revision ${recovery.baseRevision}. The form below shows the latest saved revision ${baseRevision}. Review both before saving.`}/><div className="card-body"><JsonView value={recovery} title="Preserved local edits"/><JsonView value={current.data?.revision} title="Latest saved definitions"/><Button variant="secondary" onClick={() => {
         const localIds = new Set(recovery.codes.map(code => code.id));
         setCodes([...recovery.codes, ...(current.data?.revision.codes ?? []).filter(code => !localIds.has(code.id))]);
-        setName(recovery.name); setSelected(recovery.codes[0]?.id ?? ''); setDirty(true); setRecovery(undefined);
+        setName(recovery.name); setSelected(recovery.codes[0]?.id ?? ''); touch(); setRecovery(undefined);
       }}>Restore local edits for reconciliation</Button><p className="helper">Restoring does not save. New definitions from the latest revision are retained; inspect changed fields before creating a revision.</p></div></Card>}
       {dirty && (
         <Notice>
@@ -317,7 +332,7 @@ export default function CodebookPage() {
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);
-                  setDirty(true);
+                  touch();
                 }}
               />
             </Field>
@@ -325,6 +340,7 @@ export default function CodebookPage() {
               required
               label="Revision author"
               hint="Claimed identity in this open workspace, not an authenticated account."
+              error={dirty && !author.trim() ? "Enter a revision author to save your changes." : undefined}
             >
               <Input
                 value={author}
@@ -369,8 +385,8 @@ export default function CodebookPage() {
                       style={{ background: item.color }}
                     />
                     <div>
-                      <strong>{item.code}</strong>
-                      <small>{item.name}</small>
+                      <strong>{item.code || "Untitled behavior"}</strong>
+                      <small>{item.name && item.name !== item.code ? item.name : item.definition.split("\n")[0].slice(0, 80) || "No definition yet"}</small>
                     </div>
                     <Badge>
                       {item.archived
@@ -391,7 +407,7 @@ export default function CodebookPage() {
               {code ? (
                 <Card>
                   <CardHeading
-                    title={code.name}
+                    title={code.name || code.code || "New behavior"}
                     description={`Stable internal ID · ${code.id}`}
                     actions={
                       <>
@@ -432,12 +448,14 @@ export default function CodebookPage() {
                     >
                       <Input
                         value={code.code}
+                        placeholder="e.g. PROHIBITED_ROUTE"
                         onChange={(e) => edit({ code: e.target.value })}
                       />
                     </Field>
                     <Field required label="Display name">
                       <Input
                         value={code.name}
+                        placeholder="e.g. Proposes a prohibited route"
                         onChange={(e) => edit({ name: e.target.value })}
                       />
                     </Field>
@@ -509,7 +527,7 @@ export default function CodebookPage() {
                       behavior label alone does not establish a violation or
                       misconduct.
                     </Notice>
-                    <div className="full editor-save-bar"><span>{dirty ? 'Unsaved changes' : 'Saved revision'}{mutation.error ? ' · Save failed; edits retained' : ''}</span><Button onClick={save} disabled={mutation.busy || current.loading || formBookId !== bookId || !dirty || invalid || !author.trim()}>Save codebook edits</Button></div>
+                    <div className="full editor-save-bar"><span>{dirty ? 'Unsaved changes' : 'Saved revision'}{mutation.error ? ' · Save failed; edits retained' : ''}</span>{dirty && !author.trim() && <span className="field-error">Add a revision author above to enable saving.</span>}<Button onClick={save} disabled={mutation.busy || current.loading || formBookId !== bookId || !dirty || invalid || !author.trim()}>Save codebook edits</Button></div>
                   </div>
                 </Card>
               ) : (
@@ -523,6 +541,7 @@ export default function CodebookPage() {
         open={history}
         onOpenChange={setHistory}
         title="Codebook revision history"
+        eyebrow="Codebook"
         description="Immutable definitions used by past and future analyses."
       >
         {revisions.loading ? (
@@ -530,7 +549,7 @@ export default function CodebookPage() {
         ) : revisions.error ? (
           <ErrorState error={revisions.error} retry={revisions.refresh} />
         ) : (
-          revisions.data?.items.map((revision) => (
+          revisions.data?.items.map((revision, index, all) => (
             <button
               key={revision.id}
               className="list-button"
@@ -538,12 +557,13 @@ export default function CodebookPage() {
             >
               <div>
                 <strong>
-                  Revision {revision.revision} · {revision.name}
+                  Revision {revision.revision}{revision.name ? " · " + revision.name : ""}
                 </strong>
                 <small>
                   {when(revision.createdAt)} · {revision.author} ·{" "}
                   {revision.codes.length} definitions
                 </small>
+                <small>{summarizeRevision(revision, all.find(other => other.revision === revision.revision - 1))}</small>
               </div>
             </button>
           ))

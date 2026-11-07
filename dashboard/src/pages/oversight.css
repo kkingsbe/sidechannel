@@ -1,0 +1,59 @@
+.oversight-preview-summary {
+  margin-top: 12px;
+}
+.oversight-oversize-warning {
+  border: 1px solid var(--warning, #b7791f);
+  background: color-mix(in srgb, var(--warning, #b7791f) 12%, transparent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 10px;
+}
+.oversight-oversize-warning p {
+  margin: 6px 0 8px;
+  font-size: 0.85em;
+}
+.oversight-source-title {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.oversight-pair-link {
+  font-size: 0.85em;
+}
+.oversight-pair-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.9em;
+}
+.oversight-save-error {
+  flex-basis: 100%;
+  margin: 6px 0 0;
+  color: var(--danger, #c53030);
+}
+.oversight-citation-picker {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+.oversight-citation-list {
+  max-height: 260px;
+  overflow: auto;
+}
+.oversight-citation-row {
+  display: grid;
+  grid-template-columns: auto 4.5em 9em 8em 1fr;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 2px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.oversight-citation-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

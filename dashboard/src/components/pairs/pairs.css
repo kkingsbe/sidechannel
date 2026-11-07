@@ -1,0 +1,21 @@
+.pair-cell { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+.pair-cell small { display: block; }
+.pair-failure { color: var(--destructive, #b42318); max-width: 36ch; overflow-wrap: anywhere; }
+.launched-experiment { padding: 12px 20px 4px; }
+.launched-experiment h3 { margin: 0 0 2px; }
+.button.filters-toggle { display: none; }
+.filter-fields { display: contents; }
+.run-live-summary { display: contents; }
+@media (max-width: 640px) {
+  .button.filters-toggle { display: inline-flex; margin: 12px 15px 0; }
+  .filter-bar-collapsible:not(.filters-open) .filter-fields { display: none; }
+  .filter-fields { display: flex; flex-wrap: wrap; gap: 12px; width: 100%; }
+}
+@media (max-width: 600px) {
+  .responsive-rows .table-scroll { overflow-x: visible; }
+  .responsive-rows table, .responsive-rows tbody, .responsive-rows tr, .responsive-rows td { display: block; width: 100%; }
+  .responsive-rows thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .responsive-rows tr { border: 1px solid var(--border); border-radius: 8px; margin: 10px 0; padding: 6px 12px; }
+  .responsive-rows td { border: 0; padding: 6px 0; }
+  .responsive-rows td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+}
