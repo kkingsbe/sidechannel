@@ -36,6 +36,10 @@ export interface AnalysisAttempt {
 
 export interface PageOptions { after?: string; limit?: number; windowId?: string; }
 
+export type CodebookArchiveFilter = 'exclude' | 'include' | 'only';
+
+export interface CodebookFilter { archived?: CodebookArchiveFilter; }
+
 export interface Page<T> { items: T[]; nextCursor: string | null; }
 
 export class AnalysisConflict extends Error { readonly status = 409; }
@@ -49,7 +53,8 @@ export class AnalysisPayloadTooLarge extends Error { readonly status = 413; }
 export interface Lease { jobId: string; owner: string; fence: number; }
 
 export interface AnalysisRepository {
-    listCodebooks(page?: PageOptions): Promise<Page<Codebook>>;
+    listCodebooks(page?: PageOptions, filter?: CodebookFilter): Promise<Page<Codebook>>;
+    setCodebookArchived(id: string, expectedRevisionId: string, archive: { archivedAt: string; archivedBy: string } | null): Promise<Codebook>;
     getCodebook(id: string): Promise<Codebook | null>;
     getRevision(id: string, revisionId: string): Promise<CodebookRevision | null>;
     listRevisions(codebookId: string, page?: PageOptions): Promise<Page<CodebookRevision>>;

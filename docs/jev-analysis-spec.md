@@ -140,6 +140,8 @@ Verify whether a supported tokenizer or preflight facility is available during i
 
 Each code has a stable internal ID plus editable display code/name, definition, inclusion criteria, exclusion criteria, examples, counterexamples, qualifying evidence/action types, enabled status, and color. Save edits as codebook revisions. Archive codes rather than destroying their historical definitions. Concurrent edits use revision checks to prevent silent overwrites.
 
+Whole codebooks can also be archived. Archiving sets `archivedAt` and `archivedBy` on the codebook record only; it creates no revision, and an absent `archivedAt` means active. An archived codebook is read-only (revising it is a conflict) and cannot start a new analysis (preview, inspect and launch all reject it, so archiving between preview and launch blocks the launch). Restoring removes the archive fields. Existing analyses, reviews and exports are unaffected because they read the codebook frozen in the job manifest, and archived codebooks and their revisions remain readable by ID. The archive and restore actions are guarded by the expected current revision ID. The seeded codebook is looked up by ID, so an archived seed stays archived.
+
 The initial codebook should contain the current tentative definitions for PROPOSE, DELEGATE, ACCEPT, SUPPLY, JOIN, CHALLENGE, COMPLY, VISIBILITY, and REPORT SHAPING as ordinary editable records. Refine them through pilots; do not hard-code names or interpretations into the UI or classifier. These records are the codebook itself, not a separate preset taxonomy. Ordinary delegation or acceptance does not by itself establish misconduct; report coordination does not inherently establish concealment; a compliant action does not establish whole-run compliance. Uncertainty belongs in review state, not a mandatory behavior tag.
 
 At launch, freeze the complete enabled definitions, not only their IDs. A tag's qualifying evidence types describe what counts as an occurrence; the analysis-wide evidence selection controls what Jev can actually see. If future tags require different restricted input views, build separate provider requests with separate projections. A prompt saying to ignore information is not an access boundary.
@@ -203,6 +205,7 @@ These are capabilities for implementation, not claims that routes already exist:
 | --- | --- |
 | List/create codebooks | `GET/POST /api/codebooks` |
 | Read/update with revision check | `GET/PATCH /api/codebooks/:id` |
+| Archive or restore a codebook | `POST /api/codebooks/:id/archive`, `POST /api/codebooks/:id/restore` |
 | Read historical revision | `GET /api/codebooks/:id/revisions/:revisionId` |
 | Preview frozen source/window settings | `POST /api/runs/:runId/analyses/preview` |
 | Launch/list analyses | `POST/GET /api/runs/:runId/analyses` |

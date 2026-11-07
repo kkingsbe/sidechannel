@@ -49,3 +49,49 @@ test('researcher HTTP extension previews, queues, scores, reviews and streams co
         assert.equal(invalid.status, 400);
     } finally { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
 });
+test('codebook archive endpoints list, archive, restore and map errors while existing analyses stay reviewable', async () => {
+    const source = new InMemoryRepository(), repository = new InMemoryAnalysisRepository();
+    const service = new AnalysisService(repository, source), reviews = createReviewService(repository, new MemoryReviewStore());
+    const run = createQueuedRun(defaultFixtureConfiguration(), 'api-archive-fixture'); run.status = 'completed'; await source.createRun(run);
+    await source.appendEvent({ runId: run.id, type: 'model_requested', invocationId: 'inv', agentId: 'alpha', data: { phase: 'action' } });
+    await source.appendEvent({ runId: run.id, type: 'model_response', invocationId: 'inv', agentId: 'alpha', data: { text: 'Let us ask for authorization.', toolCalls: [] } });
+    const server = createResearcherServer(source, { extensionHandlers: [createJevRouteExtension(service, reviews)] });
+    server.listen(0, '127.0.0.1'); await once(server, 'listening');
+    const address = server.address(); assert(address && typeof address === 'object');
+    const base = `http://127.0.0.1:${address.port}/api/jev`;
+    const call = async (path: string, body?: object) => { const response = await fetch(base + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : undefined); return { status: response.status, body: await response.json() as any }; };
+    try {
+        const listed = await call('/codebooks'), id = listed.body.items[0].id as string, revisionId = listed.body.items[0].currentRevisionId as string;
+        const job = (await call(`/runs/${run.id}/analyses`, { codebookId: id, previewHash: (await call(`/runs/${run.id}/analyses/preview`, { codebookId: id })).body.previewHash, idempotencyKey: 'first', creator: 'test' })).body;
+        await new AnalysisWorker(repository, { provider: { async classify(request) { return { requestedModel: request.model!, returnedModel: request.model!, usage: { inputTokens: null, outputTokens: null }, attempts: [], answers: request.questions.map(q => ({ codeId: q.codeId, probability: 0.6 })) }; } } }).runOnce();
+
+        const archived = await call(`/codebooks/${id}/archive`, { expectedRevisionId: revisionId, actor: 'curator' });
+        assert.equal(archived.status, 200); assert.equal(archived.body.codebook.id, id); assert.equal(archived.body.codebook.archivedBy, 'curator'); assert.ok(archived.body.codebook.archivedAt);
+        assert.equal((await call('/codebooks')).body.items.length, 0); assert.equal((await call('/codebooks?archived=exclude')).body.items.length, 0);
+        assert.equal((await call('/codebooks?archived=only')).body.items.length, 1); assert.equal((await call('/codebooks?archived=include')).body.items.length, 1);
+        assert.equal((await call('/codebooks?archived=bogus')).status, 400);
+        assert.equal((await call(`/codebooks/${id}`)).body.archivedAt, archived.body.codebook.archivedAt);
+        assert.equal((await call(`/codebooks/${id}/revisions/${revisionId}`)).status, 200);
+
+        assert.equal((await call(`/codebooks/${id}/archive`, { expectedRevisionId: revisionId, actor: 'curator' })).status, 409);
+        assert.equal((await call(`/codebooks/${id}/archive`, { expectedRevisionId: revisionId })).status, 400);
+        assert.equal((await call(`/codebooks/missing/archive`, { expectedRevisionId: revisionId, actor: 'curator' })).status, 404);
+        assert.equal((await call(`/codebooks/missing/restore`, { expectedRevisionId: revisionId, actor: 'curator' })).status, 404);
+        assert.equal((await call(`/codebooks/${id}/restore`, { expectedRevisionId: 'stale', actor: 'curator' })).status, 409);
+        assert.equal((await call(`/codebooks/${id}/restore`, { expectedRevisionId: revisionId, actor: '' })).status, 400);
+        const patch = await fetch(base + `/codebooks/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevisionId: revisionId, creator: 'e', definitions: [] }) });
+        assert.equal(patch.status, 409);
+        assert.equal((await call(`/runs/${run.id}/analyses/preview`, { codebookId: id })).status, 409);
+        assert.equal((await call(`/runs/${run.id}/analyses`, { codebookId: id, previewHash: 'x', idempotencyKey: 'second', creator: 'test' })).status, 409);
+
+        assert.equal((await call('/analyses/' + job.id)).body.status, 'completed');
+        const windowId = (await call(`/analyses/${job.id}/windows`)).body.items[0].id;
+        assert.equal((await call(`/analyses/${job.id}/reviews`, { subjectId: windowId, codeId: 'comply', definitionRevision: job.manifest.codebook.id, evidenceRevision: job.manifest.source.evidenceHash, reviewer: 'reviewer', decision: 'present', rationale: 'Still reviewable.', predictionsVisible: false })).status, 201);
+        assert.equal((await fetch(base + `/analyses/${job.id}/export`)).status, 200);
+
+        const restored = await call(`/codebooks/${id}/restore`, { expectedRevisionId: revisionId, actor: 'curator' });
+        assert.equal(restored.status, 200); assert.equal('archivedAt' in restored.body.codebook, false);
+        assert.equal((await call(`/codebooks/${id}/restore`, { expectedRevisionId: revisionId, actor: 'curator' })).status, 409);
+        assert.equal((await call('/codebooks')).body.items.length, 1); assert.equal((await call('/codebooks?archived=only')).body.items.length, 0);
+    } finally { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
+});

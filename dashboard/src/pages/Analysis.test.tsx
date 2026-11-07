@@ -474,3 +474,30 @@ it("carries the saved analyses cursor into the detail return link", async () => 
     encodeURIComponent("/analysis?cursor=second-page"),
   );
 });
+it("blocks preview and explains how to recover when the selected codebook is archived", async () => {
+  const base = mocks.request.getMockImplementation()!;
+  const run = { id: "source-run", status: "completed", configHash: "hash", config: { label: "Study", model: { provider: "demo", id: "test" } } };
+  const activeBooks = { items: [{ id: "other", name: "Active book", currentRevisionId: "other-rev", archived: false }], nextCursor: null };
+  const cloned = { ...job, manifest: { ...job.manifest, settings: { ...job.manifest.settings, codebookId: "book", codebookRevisionId: "revision", phases: ["action"], evidence: ["assistant"], creator: "Reviewer A" } } };
+  const retired = { codebook: { id: "book", name: "Retired book", archived: true, archivedAt: "2026-11-08T00:00:00Z" }, revision: { id: "revision", revision: 1, codes: [code] } };
+  mocks.request.mockImplementation((path: string | null) => {
+    if (path?.startsWith("/runs?")) return { items: [], nextCursor: null };
+    if (path === "/runs/source-run") return run;
+    if (path?.startsWith("/codebooks?")) return activeBooks;
+    if (path === "/analyses/analysis-a") return cloned;
+    if (path === "/codebooks/book") return retired;
+    return base(path);
+  });
+  localStorage.setItem("sidechannel-reviewer", "Reviewer A");
+  render(
+    <MemoryRouter initialEntries={["/new?run=source-run&clone=analysis-a"]}>
+      <Analysis />
+    </MemoryRouter>,
+  );
+  const message = "This codebook is archived. Restore it on the Codebook page to start a new analysis.";
+  expect((await screen.findAllByText(new RegExp(message.replace(/\./g, "\\.")))).length).toBeGreaterThan(0);
+  expect(screen.getByRole("link", { name: /Codebook page/ }).getAttribute("href")).toBe("/codebook");
+  expect((screen.getByRole("button", { name: "Preview analysis" }) as HTMLButtonElement).disabled).toBe(true);
+  await userEvent.setup().click(screen.getByRole("button", { name: "Preview analysis" }));
+  expect(mocks.post).not.toHaveBeenCalled();
+});

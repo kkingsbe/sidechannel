@@ -72,3 +72,35 @@ test('Mongo analysis preserves frozen inputs, fences recovered workers, deduplic
         assert.equal((await repository.listResults(a.id)).items.length, 9);
     } finally { await source.db.dropDatabase(); await source.close(); }
 });
+test('Mongo codebook archive filters, paginates, guards on revision and keeps archived seeds archived', async () => {
+    const dbName = 'sidechannel_jev_test_' + randomUUID().replaceAll('-', '');
+    const source = await MongoRepository.connect(process.env.TEST_MONGODB_URI ?? 'mongodb://127.0.0.1:27018/?directConnection=true&replicaSet=rs0', dbName);
+    try {
+        const repository = new MongoAnalysisRepository(source.client, source.db); await repository.initialize();
+        const service = new AnalysisService(repository, source), seed = await service.seedCodebook();
+        const definitions = (await repository.getRevision(seed.id, seed.currentRevisionId))!.definitions.slice(0, 1);
+        const { codebook: other } = await service.createCodebook({ name: 'Other', creator: 'test', definitions });
+        const ids = async (archived?: 'exclude' | 'include' | 'only') => (await repository.listCodebooks(undefined, archived ? { archived } : undefined)).items.map(b => b.id).sort();
+        const { codebook } = await service.archiveCodebook(other.id, { expectedRevisionId: other.currentRevisionId, actor: 'curator' });
+        assert.equal(codebook.archivedBy, 'curator');
+        assert.deepEqual(await ids(), [seed.id]); assert.deepEqual(await ids('only'), [other.id]); assert.deepEqual(await ids('include'), [seed.id, other.id].sort());
+        const walked: string[] = []; let after: string | undefined;
+        do { const p = await repository.listCodebooks({ limit: 1, after }, { archived: 'include' }); walked.push(...p.items.map(b => b.id)); after = p.nextCursor ?? undefined; } while (after);
+        assert.deepEqual(walked, [seed.id, other.id].sort());
+        await assert.rejects(service.archiveCodebook(other.id, { expectedRevisionId: other.currentRevisionId, actor: 'curator' }), /already archived/);
+        await assert.rejects(service.reviseCodebook(other.id, { creator: 'e', definitions, expectedRevisionId: other.currentRevisionId }), /archived/);
+        await assert.rejects(repository.setCodebookArchived(seed.id, 'stale', { archivedAt: new Date().toISOString(), archivedBy: 'x' }), /revision changed/);
+        await assert.rejects(repository.setCodebookArchived('missing', 'x', null), /not found/);
+        const restored = (await service.restoreCodebook(other.id, { expectedRevisionId: other.currentRevisionId, actor: 'curator' })).codebook;
+        assert.equal('archivedAt' in restored, false); assert.deepEqual(await ids('only'), []);
+        await service.archiveCodebook(seed.id, { expectedRevisionId: seed.currentRevisionId, actor: 'curator' });
+        assert.ok((await service.seedCodebook()).archivedAt); assert.deepEqual(await ids('only'), [seed.id]);
+        const { codebook: race } = await service.createCodebook({ name: 'Race', creator: 'test', definitions });
+        const stale = (await repository.getCodebook(race.id))!;
+        await service.archiveCodebook(race.id, { expectedRevisionId: race.currentRevisionId, actor: 'curator' });
+        const lateRevision = { id: randomUUID(), codebookId: race.id, revision: 2, createdAt: new Date().toISOString(), createdBy: 'late', definitions };
+        await assert.rejects(repository.saveCodebook({ ...stale, currentRevisionId: lateRevision.id }, lateRevision, race.currentRevisionId), /revision changed/);
+        await assert.rejects(repository.setCodebookArchived(race.id, race.currentRevisionId, { archivedAt: new Date().toISOString(), archivedBy: 'second' }), /revision changed/);
+        const kept = (await repository.getCodebook(race.id))!; assert.equal(kept.archivedBy, 'curator'); assert.equal(kept.currentRevisionId, race.currentRevisionId);
+    } finally { await source.db.dropDatabase(); await source.close(); }
+});
