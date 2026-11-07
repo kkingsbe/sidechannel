@@ -1,18 +1,16 @@
 import { Readable } from 'node:stream';
 import type { IncomingMessage } from 'node:http';
-import type { MongoRepository } from '@sidechannel/persistence/harness/repository';
+import type { AnalysisRepository } from '@sidechannel/contracts/analysis/jev-repository';
+import type { ReviewStore } from '@sidechannel/contracts/analysis/review-repository';
+import type { Repository } from '@sidechannel/contracts/harness/server';
 import type { ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
-import { MongoAnalysisRepository } from '@sidechannel/persistence/analysis/jev-repository';
 import { AnalysisService } from '@sidechannel/domain/analysis/jev-service';
 import { createAnalysisRouteHandler } from './jev-routes.js';
-import { MongoReviewStore } from '@sidechannel/persistence/analysis/review-repository';
 import { createReviewRouteHandler, createReviewService } from './review-routes.js';
 
-/** Canonical JEV API, separate from experiment and oversight routes. */
-export async function createJevExtension(source: MongoRepository): Promise<ResearchRouteHandler> {
-    const repository = new MongoAnalysisRepository(source.client, source.db); await repository.initialize();
-    const reviewStore = new MongoReviewStore(source.db); await reviewStore.initialize();
-    return createJevRouteExtension(new AnalysisService(repository, source), createReviewService(repository, reviewStore));
+/** Canonical JEV API. Repositories arrive fully initialized from the composition root. */
+export function createJevExtension(repository: AnalysisRepository, reviews: ReviewStore, source: Pick<Repository, 'getRun' | 'listEvents'>): ResearchRouteHandler {
+    return createJevRouteExtension(new AnalysisService(repository, source), createReviewService(repository, reviews));
 }
 
 export function createJevRouteExtension(service: AnalysisService, reviews: ReturnType<typeof createReviewService>): ResearchRouteHandler {

@@ -9,20 +9,20 @@ const runtime = await openRuntime();
 
 const owner = randomUUID();
 
-if (!await runtime.repository.acquireWorker(owner)) {
+if (!await runtime.guard.acquireWorker(owner)) {
     await runtime.close();
     throw new Error('Stop the worker before running the standalone fixture.');
 }
 
 try {
     const config = resolveConfiguration({ ...defaultFixtureConfiguration(), build: await buildMetadata() });
-    const queued = await runtime.repository.createRun(createQueuedRun(config, `fixture-${randomUUID()}`));
+    const queued = await runtime.queue.createRun(createQueuedRun(config, `fixture-${randomUUID()}`));
     const run = await runtime.scheduler(queued).run(queued.id);
     await runtime.flush();
     const events = [];
     let cursor = 0;
     while (true) {
-        const page = await runtime.repository.listEvents(run.id, cursor, 1000);
+        const page = await runtime.events.listEvents(run.id, cursor, 1000);
         events.push(...page);
         if (page.length < 1000)
             break;
@@ -36,6 +36,6 @@ try {
         process.exitCode = 1;
 }
 finally {
-    await runtime.repository.releaseWorker(owner);
+    await runtime.guard.releaseWorker(owner);
     await runtime.close();
 }

@@ -6,6 +6,7 @@ import { createMonitorProvider } from './oversight/provider.js';
 import { processNextMonitorJob } from './oversight/worker.js';
 import { MongoAnalysisRepository } from '@sidechannel/persistence/analysis/jev-repository';
 import { AnalysisWorker } from './jev/jev-worker.js';
+import { MonitorModelAdapter } from './oversight/model-adapter.js';
 
 const repository = await MongoRepository.connect(process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27018/?directConnection=true&replicaSet=rs0', process.env.MONGODB_DB_NAME ?? 'sidechannel');
 
@@ -19,7 +20,7 @@ const canonicalWorker = new AnalysisWorker(canonicalRepository);
 
 const canonicalStopping = new AbortController();
 
-const monitor = createMonitorProvider();
+const monitor = createMonitorProvider(new MonitorModelAdapter());
  const owner = randomUUID();
  let stopping = false;
 

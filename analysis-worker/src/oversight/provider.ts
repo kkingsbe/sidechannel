@@ -3,10 +3,10 @@ import type { MonitorProvider } from '@sidechannel/contracts/oversight/server';
 import { monitorInstructions } from '@sidechannel/domain/oversight/projections';
 
 /** A new stateless invocation for every view; no tools, memory, other judgments or Jev. */
-export function createMonitorProvider(adapter?: ModelAdapter): MonitorProvider {
+export function createMonitorProvider(adapter: ModelAdapter): MonitorProvider {
     return {
         async evaluate({ evaluationId, projection, definition, settings }) {
-            const transport = adapter ?? new (await import("./model-adapter.js")).MonitorModelAdapter();
+            const transport = adapter;
             const identity = `${evaluationId}:${projection.runId}:${projection.view}`;
             const result = await transport.complete({ runId: evaluationId, agentId: `monitor-${projection.view}`, invocationId: identity,
                 threadId: identity, resourceId: identity, phase: 'report', model: settings.model, tools: [], timeoutMs: settings.timeoutMs,

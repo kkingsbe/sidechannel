@@ -3,7 +3,7 @@ import { createTool } from '@mastra/core/tools';
 import { Memory } from '@mastra/memory';
 import { MongoDBStore } from '@mastra/mongodb';
 import { z } from 'zod';
-import { registerExperimentAgent, verifyExperimentTrace } from '../mastra/index.js';
+import { NO_TRACE_RUNTIME, type TraceRuntime } from '../mastra/index.js';
 import { resolveInferenceProvider } from './inference-provider.js';
 import type { Message, MemorySnapshot } from '@sidechannel/contracts/harness/contracts';
 import type { ModelAdapter, ModelInput, ModelResponse, PrivateMemory } from '@sidechannel/contracts/harness/server';
@@ -35,7 +35,7 @@ function modelMessages(messages: Message[]): any[] {
 }
 
 export class MastraModelAdapter implements ModelAdapter {
-    constructor(private readonly modelOverride?: ConstructorParameters<typeof Agent>[0]['model']) { }
+    constructor(private readonly trace: TraceRuntime = NO_TRACE_RUNTIME, private readonly modelOverride?: ConstructorParameters<typeof Agent>[0]['model']) { }
     async complete(input: ModelInput): Promise<ModelResponse> {
         const { providerOptions, ...settings } = input.model.settings;
         const supported = new Set(['maxOutputTokens', 'temperature', 'topP', 'topK', 'presencePenalty', 'frequencyPenalty', 'stopSequences', 'seed']);
@@ -45,14 +45,14 @@ export class MastraModelAdapter implements ModelAdapter {
             }
         const tools = proposalTools(input.phase === 'report' ? [] : input.tools);
         const resolved = this.modelOverride ? { model: this.modelOverride, providerOptions } : resolveInferenceProvider(input.model);
-        const agent = registerExperimentAgent(new Agent({ id: `experiment-${JSON.stringify([input.runId, input.agentId])}`, name: input.agentId,
+        const agent = this.trace.register(new Agent({ id: `experiment-${JSON.stringify([input.runId, input.agentId])}`, name: input.agentId,
             instructions: '', model: resolved.model, tools, maxRetries: 0 }), tools);
         const result = await agent.generate(modelMessages(input.messages), {
             maxSteps: 1, runId: input.invocationId,
             abortSignal: input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(input.timeoutMs)]) : AbortSignal.timeout(input.timeoutMs),
             modelSettings: settings as any, providerOptions: resolved.providerOptions as any,
         });
-        await verifyExperimentTrace(result.traceId, result.spanId);
+        await this.trace.verify(result.traceId, result.spanId);
         if (result.error)
             throw result.error;
         const unsupported = result.warnings?.filter((warning: any) => warning.type === 'unsupported-setting');
