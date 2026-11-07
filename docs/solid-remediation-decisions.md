@@ -178,3 +178,37 @@ event types/order, report parsing, final artifact), dashboard smoke
 Definition of done for the program is in the
 [program plan §9](superpowers/plans/2026-11-07-solid-remediation-program.md)
 and is tracked there; this file only records decisions made while executing it.
+
+## WS4 → WS6 dashboard hand-off (2026-11-07)
+
+Two read endpoints, both `GET`, both credential-free, both stable for one release:
+
+`GET /api/providers` → `{ providers: { id, label, settings: string[], fixture: boolean }[] }`
+`GET /api/scenarios` → `{ scenarios: { version, label, fixture, artifactSchemaVersion, presentation: { title, tabs: string[], hasDatasetPreset: boolean } }[] }`
+
+Types: `ProviderMetadata`, `ProviderCatalogResponse`, `ScenarioMetadata`, `ScenarioCatalogResponse`, `ScenarioPresentationMetadata` in `@sidechannel/contracts/server/metadata`, re-exported from `@sidechannel/contracts/browser` (`tabs` is readonly in the DTO; the serialized JSON is a normal array). Field-by-field consumption (WS6 owns every edit below; WS4 ships none of them):
+
+| Dashboard site (measured at WS4 HEAD) | Today | Replace with |
+| --- | --- | --- |
+| `components/model-controls.tsx:56-57` hardcoded `<option value="scripted">` / `adaption` | two literals | `providers.map(p => <option value={p.id}>{p.label}</option>)`; keep the "preserve unknown provider" fallback at `:58-62` unchanged |
+| `components/model-controls.tsx:40-41` phase auto-switch on `provider === "scripted"` | provider name check | `providers.find(p => p.id === provider)?.fixture ? "development" : "pilot"` |
+| `components/model-controls.tsx:46-48` `id: provider === "scripted" ? "healthcare-points-v0.3" : ""` | scenario literal | leave `model.id` blank until a dataset preset is applied; the healthcare default comes from the selected scenario (`scenarios.find(s => s.presentation.hasDatasetPreset)`) |
+| `components/model-controls.tsx:65` and `:109-113` scripted helper copy | shown for non-adaption | shown when the selected provider has `fixture: true` |
+| `components/model-controls.tsx:16` `useApi("/models/adaption")` | provider literal in the path | keep for non-fixture providers until a per-provider catalog path exists (open question 1); WS4 does not add one |
+| `components/budget-summary.tsx:23` `config.model.provider === "scripted"` → "Scripted driver — no provider context" | provider name check | `providers.find(p => p.id === config.model.provider)?.fixture` |
+| `pages/Experiments.tsx:71-79` `supportedSettings` literal | 7-key literal | `providers.find(p => p.id === config.model.provider)?.settings ?? []` (falls back to the union for unknown providers) |
+| `pages/Experiments.tsx:61-70` `tools` literal | 8 fixture tool names | `scenarios.find(s => s.version === config.scenario.version)?.toolNames` — **requires** `toolNames` in the payload; see open question 2 |
+| `pages/Experiments.tsx:652,689` `config.scenario.version !== "healthcare-points-v0.3"` | version check | `!descriptor.presentation.hasDatasetPreset` using the descriptor for `config.scenario.version` |
+| `pages/Experiments.tsx:761` `=== "healthcare-points-v0.3" ? <ModelControls/> : …` | version check | `descriptor.presentation.hasDatasetPreset` |
+| `pages/Experiments.tsx:1038` raw `config.scenario.version` label | raw version | `descriptor.label` (fall back to the raw version when unknown) |
+| `pages/Runs.tsx:463` conditional `results` tab | version check | `descriptor.presentation.tabs` — render the tab strip from the array, appending the `results` tab only when present |
+| `App.tsx:30` `run.config?.model?.provider === 'scripted'` fixture badge | provider name check | `providers.find(p => p.id === run.config?.model?.provider)?.fixture` |
+| `components/healthcare-preset.tsx:19` `scenario.version === "healthcare-points-v0.3"` | version check | `descriptor.presentation.hasDatasetPreset` (the preset form only renders when a dataset preset exists) |
+| `components/artifact-view.tsx:7` `"healthcare-points-v0.3": HealthcareArtifact` map | version key | `descriptor.artifactSchemaVersion`, i.e. key the renderer map by artifact schema version instead of scenario version |
+| `lib/types.ts` re-exports | n/a | re-export `ProviderMetadata`, `ScenarioMetadata`, `ScenarioPresentationMetadata` from `@sidechannel/contracts/browser` |
+
+**Not in the payloads, and therefore not yet expressible (WS6 must keep a literal or ask for a contract change):**
+
+1. Which path serves a provider's live model catalog. WS6 keeps the `/models/adaption` call for non-fixture providers. Adding `modelCatalogPath?: string` to `ProviderMetadata` is additive and the recommended follow-up (WS6 + a contract change, one PR).
+2. `toolNames` is present on the domain descriptor but **not** in `scenarioCatalog()`, because the conventions-pinned payload is `{ version, label, fixture, artifactSchemaVersion, presentation }`. If WS6 needs the tool list for the roles editor, the additive fix is `presentation.toolNames` (single PR across contracts + domain + dashboard).
+3. Per-scenario dataset identifiers. `presentation.hasDatasetPreset` tells the form whether a dataset preset exists; the actual list still comes from `GET /api/datasets`.
