@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import type { Run, Json, Message, NewEvent, Role } from '@sidechannel/contracts/harness/contracts';
-import type { EventLog, RunStateStore, PrivateMemory, ModelAdapter, Scenario, ModelInput } from '@sidechannel/contracts/harness/server';
+import type { Run, Json, Message } from '@sidechannel/contracts/harness/contracts';
+import type { EventLog, RunStateStore, PrivateMemory, ModelAdapter, Scenario } from '@sidechannel/contracts/harness/server';
 import { fixtureScenario } from './scenario.js';
-import { executeTool, toolCatalog } from './gateway.js';
-import { measureModelInput, validateTokenBudget } from '@sidechannel/domain/harness/token-budget';
+import { executeTool } from './gateway.js';
+import { validateTokenBudget } from '@sidechannel/domain/harness/token-budget';
 import { EventRecorder } from './event-recorder.js';
+import { InferenceGateway, modelInputFor } from './inference-gateway.js';
 import { RunTermination } from './termination.js';
 
 export interface SchedulerOptions {
@@ -40,37 +41,7 @@ export class HarnessScheduler {
             if (Date.now() - started > run.config.limits.maxDurationMs)
                 throw new Error('Run duration cap exceeded');
         };
-        const infer = async (input: ModelInput) => {
-            await boundary();
-            const accounting = measureModelInput(input, run.config);
-            await recorder.emit('context_accounted', { phase: input.phase, ...accounting }, { invocationId: input.invocationId });
-            if (accounting.exceeds) {
-                await recorder.emit('context_limit_exceeded', { phase: input.phase, ...accounting }, { invocationId: input.invocationId });
-                throw new Error(`${input.phase} context budget exceeded (${accounting.unit}); no silent trimming`);
-            }
-            await recorder.emit('model_requested', input, { invocationId: input.invocationId });
-            input.timeoutMs = Math.max(1, Math.min(input.timeoutMs, run.config.limits.maxDurationMs - (Date.now() - started)));
-            const controller = new AbortController();
-            let timer: ReturnType<typeof setTimeout> | undefined;
-            try {
-                const response = await Promise.race([adapter.complete({ ...input, signal: controller.signal }), new Promise<never>((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new Error('Model request timeout')); }, input.timeoutMs); })]);
-                if (!response || typeof response.text !== 'string' || !Array.isArray(response.toolCalls))
-                    throw new Error('Unparseable model response');
-                await recorder.emit('model_response', response, { invocationId: input.invocationId });
-                await recorder.emit('model_usage', { phase: input.phase, provider: input.model.provider,
-                    source: response.usage ? (input.model.provider === 'scripted' ? 'scripted' : 'provider-reported') : 'unavailable',
-                    usage: response.usage ?? null, inputAccounting: accounting }, { invocationId: input.invocationId });
-                for (const [k, v] of Object.entries(response.usage ?? {}))
-                    if (typeof v === 'number' && Number.isFinite(v))
-                        run.usage[k] = (run.usage[k] ?? 0) + v;
-                return response;
-            }
-            finally {
-                if (timer)
-                    clearTimeout(timer);
-            }
-        };
-        const inputFor = (role: Role, messages: Message[], phase: 'action' | 'report', invocationId: string): ModelInput => ({ runId, agentId: role.id, threadId: `experiment-thread:${JSON.stringify([runId, role.id])}`, resourceId: `experiment-resource:${JSON.stringify([runId, role.id])}`, invocationId, phase, model: run.config.model, messages, tools: phase === 'report' ? [] : toolCatalog(run, role, scenario), timeoutMs: run.config.limits.requestTimeoutMs });
+        const gateway = new InferenceGateway({ runId, run, adapter, recorder, checkpoint: boundary, startedAt: started });
         try {
             const budgetErrors = validateTokenBudget(run.config);
             if (budgetErrors.length) throw new Error(budgetErrors.join('; '));
@@ -94,7 +65,7 @@ export class HarnessScheduler {
                     for (let step = 0; step < run.config.limits.maxModelStepsPerTurn && !ended; step++) {
                         const messages: Message[] = [{ role: 'system', content: `${scenario.initialContext(run.config, role)}\n${run.config.condition.text}\nPrivate working memory (agent-authored):\n${snapshot.notes}\nRound: ${run.round}/${run.config.scheduler.rounds}; order position: ${run.config.scheduler.order.indexOf(agentId) + 1}/${run.config.scheduler.order.length}; turn: ${run.turn}; remaining tool allowance: ${run.remainingAllowance}` }, ...snapshot.messages, { role: 'user', content: 'Continue your scheduled turn.' }];
                         const invocationId = `${runId}:turn:${run.turn}:step:${step}`;
-                        const response = await infer(inputFor(role, messages, 'action', invocationId));
+                        const response = await gateway.infer(modelInputFor(run, runId, scenario, role, messages, 'action', invocationId));
                         snapshot.messages.push({ role: 'assistant', content: response.text, toolCalls: response.toolCalls });
                         if (!response.toolCalls.length) {
                             ended = true;
@@ -187,8 +158,8 @@ export class HarnessScheduler {
                 await boundary();
                 run.activeAgentId = role.id;
                 const snapshot = await memory.load(runId, role.id);
-                const input = inputFor(role, [{ role: 'system', content: `${scenario.initialContext(run.config, role)}\n${run.config.condition.text}\nPrivate working memory:\n${snapshot.notes}` }, ...snapshot.messages, { role: 'user', content: run.config.reportInstructions }], 'report', `${runId}:report:${role.id}:0`);
-                const response = await infer(input);
+                const input = modelInputFor(run, runId, scenario, role, [{ role: 'system', content: `${scenario.initialContext(run.config, role)}\n${run.config.condition.text}\nPrivate working memory:\n${snapshot.notes}` }, ...snapshot.messages, { role: 'user', content: run.config.reportInstructions }], 'report', `${runId}:report:${role.id}:0`);
+                const response = await gateway.infer(input);
                 for (const [index, call] of response.toolCalls.entries()) {
                     const extra = { invocationId: input.invocationId, toolCallId: call.id, operationId: `${input.invocationId}:call:${call.id}` };
                     await recorder.emit('tool_requested', { call, index, phase: 'report' }, extra);
