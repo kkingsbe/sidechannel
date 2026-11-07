@@ -4,6 +4,7 @@ import type { EventLog, RunStateStore, PrivateMemory, ModelAdapter, Scenario, Mo
 import { fixtureScenario } from './scenario.js';
 import { executeTool, toolCatalog } from './gateway.js';
 import { measureModelInput, validateTokenBudget } from '@sidechannel/domain/harness/token-budget';
+import { EventRecorder } from './event-recorder.js';
 
 export interface SchedulerOptions {
     runState: RunStateStore;
@@ -18,15 +19,6 @@ export class HarnessScheduler {
     async run(runId: string): Promise<Run> {
         const { runState, events, adapter } = this.options;
         const underlyingMemory = this.options.memory;
-        const memory: PrivateMemory = { load: (r, a) => underlyingMemory.load(r, a), save: async (r, a, v) => {
-                try {
-                    await underlyingMemory.save(r, a, v);
-                }
-                catch (e) {
-                    evidenceFailed = true;
-                    throw e;
-                }
-            } };
         const scenario = this.options.scenario ?? fixtureScenario;
         if (!await runState.claimRun(runId, randomUUID())) {
             const existing = await runState.getRun(runId);
@@ -36,27 +28,9 @@ export class HarnessScheduler {
         }
         const run = (await runState.getRun(runId))!;
         const started = Date.now();
-        let evidenceFailed = false;
+        const recorder = new EventRecorder({ run, runId, runState, events });
+        const memory: PrivateMemory = { load: (r, a) => underlyingMemory.load(r, a), save: (r, a, v) => recorder.guard(() => underlyingMemory.save(r, a, v)) };
         let activeTurn = false;
-        const event = async (type: string, data: unknown, extra: Partial<NewEvent> = {}) => {
-            try {
-                return await events.appendEvent({ runId, type, data, agentId: run.activeAgentId, round: run.round, turn: run.turn, ...extra });
-            }
-            catch (e) {
-                evidenceFailed = true;
-                throw e;
-            }
-        };
-        const persist = async () => {
-            run.updatedAt = new Date().toISOString();
-            try {
-                await runState.saveRun(run);
-            }
-            catch (e) {
-                evidenceFailed = true;
-                throw e;
-            }
-        };
         const boundary = async () => {
             if ((await runState.getRun(runId))?.cancelRequested) {
                 run.cancelRequested = true;
@@ -68,12 +42,12 @@ export class HarnessScheduler {
         const infer = async (input: ModelInput) => {
             await boundary();
             const accounting = measureModelInput(input, run.config);
-            await event('context_accounted', { phase: input.phase, ...accounting }, { invocationId: input.invocationId });
+            await recorder.emit('context_accounted', { phase: input.phase, ...accounting }, { invocationId: input.invocationId });
             if (accounting.exceeds) {
-                await event('context_limit_exceeded', { phase: input.phase, ...accounting }, { invocationId: input.invocationId });
+                await recorder.emit('context_limit_exceeded', { phase: input.phase, ...accounting }, { invocationId: input.invocationId });
                 throw new Error(`${input.phase} context budget exceeded (${accounting.unit}); no silent trimming`);
             }
-            await event('model_requested', input, { invocationId: input.invocationId });
+            await recorder.emit('model_requested', input, { invocationId: input.invocationId });
             input.timeoutMs = Math.max(1, Math.min(input.timeoutMs, run.config.limits.maxDurationMs - (Date.now() - started)));
             const controller = new AbortController();
             let timer: ReturnType<typeof setTimeout> | undefined;
@@ -81,8 +55,8 @@ export class HarnessScheduler {
                 const response = await Promise.race([adapter.complete({ ...input, signal: controller.signal }), new Promise<never>((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new Error('Model request timeout')); }, input.timeoutMs); })]);
                 if (!response || typeof response.text !== 'string' || !Array.isArray(response.toolCalls))
                     throw new Error('Unparseable model response');
-                await event('model_response', response, { invocationId: input.invocationId });
-                await event('model_usage', { phase: input.phase, provider: input.model.provider,
+                await recorder.emit('model_response', response, { invocationId: input.invocationId });
+                await recorder.emit('model_usage', { phase: input.phase, provider: input.model.provider,
                     source: response.usage ? (input.model.provider === 'scripted' ? 'scripted' : 'provider-reported') : 'unavailable',
                     usage: response.usage ?? null, inputAccounting: accounting }, { invocationId: input.invocationId });
                 for (const [k, v] of Object.entries(response.usage ?? {}))
@@ -100,8 +74,8 @@ export class HarnessScheduler {
             const budgetErrors = validateTokenBudget(run.config);
             if (budgetErrors.length) throw new Error(budgetErrors.join('; '));
             run.status = 'running';
-            await event('run_started', { config: run.config });
-            await persist();
+            await recorder.emit('run_started', { config: run.config });
+            await recorder.persist();
             for (let round = 1; round <= run.config.scheduler.rounds; round++)
                 for (const agentId of run.config.scheduler.order) {
                     await boundary();
@@ -111,8 +85,8 @@ export class HarnessScheduler {
                     run.activeAgentId = agentId;
                     run.remainingAllowance = run.config.scheduler.toolCallsPerTurn;
                     activeTurn = true;
-                    await event('turn_started', { allowance: run.remainingAllowance, turnId: `${runId}:turn:${run.turn}`, orderPosition: run.config.scheduler.order.indexOf(agentId), round });
-                    await persist();
+                    await recorder.emit('turn_started', { allowance: run.remainingAllowance, turnId: `${runId}:turn:${run.turn}`, orderPosition: run.config.scheduler.order.indexOf(agentId), round });
+                    await recorder.persist();
                     const snapshot = await memory.load(runId, agentId);
                     let ended = false;
                     let reason = 'model_step_limit';
@@ -127,14 +101,14 @@ export class HarnessScheduler {
                         }
                         for (let index = 0; index < response.toolCalls.length; index++) {
                             const call = response.toolCalls[index]!;
-                            await event('tool_requested', { call, index }, { invocationId, toolCallId: call.id, operationId: `${runId}:turn:${run.turn}:call:${call.id}` });
+                            await recorder.emit('tool_requested', { call, index }, { invocationId, toolCallId: call.id, operationId: `${runId}:turn:${run.turn}:call:${call.id}` });
                         }
                         try {
                             await boundary();
                         }
                         catch (error) {
                             for (const call of response.toolCalls)
-                                await event('tool_unexecuted', { call, reason: error instanceof Error ? error.message : String(error) }, { invocationId, toolCallId: call.id, operationId: `${runId}:turn:${run.turn}:call:${call.id}` });
+                                await recorder.emit('tool_unexecuted', { call, reason: error instanceof Error ? error.message : String(error) }, { invocationId, toolCallId: call.id, operationId: `${runId}:turn:${run.turn}:call:${call.id}` });
                             throw error;
                         }
                         for (const [callIndex, call] of response.toolCalls.entries()) {
@@ -144,34 +118,34 @@ export class HarnessScheduler {
                                 let result: Json;
                                 if (ended || run.remainingAllowance! <= 0) {
                                     result = { ok: false, disposition: 'unexecuted', reason };
-                                    await event('tool_unexecuted', { call, reason }, { invocationId, toolCallId: call.id, operationId });
+                                    await recorder.emit('tool_unexecuted', { call, reason }, { invocationId, toolCallId: call.id, operationId });
                                 }
                                 else {
                                     await boundary();
                                     run.remainingAllowance!--;
                                     admitted = true;
-                                    await event('tool_admitted', { call, remainingAllowance: run.remainingAllowance }, { invocationId, toolCallId: call.id, operationId });
+                                    await recorder.emit('tool_admitted', { call, remainingAllowance: run.remainingAllowance }, { invocationId, toolCallId: call.id, operationId });
                                     const fingerprint = JSON.stringify({ name: call.name, arguments: call.arguments });
                                     const previous = run.operations[operationId];
                                     if (previous && previous.fingerprint !== fingerprint)
                                         throw new Error('Ambiguous operation identity reuse');
                                     if (previous) {
                                         result = previous.result;
-                                        await event('tool_deduplicated', { result }, { operationId, toolCallId: call.id });
+                                        await recorder.emit('tool_deduplicated', { result }, { operationId, toolCallId: call.id });
                                     }
                                     else {
                                         const outcome = await executeTool(run, role, scenario, memory, snapshot, { runId, agentId, operationId }, call.name, call.arguments);
                                         result = outcome.result;
                                         run.operations[operationId] = { fingerprint, result };
-                                        await persist();
+                                        await recorder.persist();
                                         if (outcome.changed)
-                                            await event(outcome.changed, { before: outcome.before, after: outcome.after }, { operationId, toolCallId: call.id });
+                                            await recorder.emit(outcome.changed, { before: outcome.before, after: outcome.after }, { operationId, toolCallId: call.id });
                                         if (outcome.yielded) {
                                             ended = true;
                                             reason = 'explicit_yield';
                                         }
                                     }
-                                    await event('tool_result', { result, disposition: (result as {
+                                    await recorder.emit('tool_result', { result, disposition: (result as {
                                             disposition?: string;
                                         }).disposition ?? ((result as {
                                             ok?: boolean;
@@ -184,11 +158,11 @@ export class HarnessScheduler {
                                 snapshot.messages.push({ role: 'tool', content: JSON.stringify({ result, remainingAllowance: run.remainingAllowance }), toolCallId: call.id, toolName: call.name });
                             }
                             catch (error) {
-                                if (!evidenceFailed) {
+                                if (!recorder.evidenceFailed) {
                                     const failure = error instanceof Error ? error.message : String(error);
-                                    await event(admitted ? 'tool_failed' : 'tool_unexecuted', { call, reason: failure }, { invocationId, toolCallId: call.id, operationId: `${runId}:turn:${run.turn}:call:${call.id}` });
+                                    await recorder.emit(admitted ? 'tool_failed' : 'tool_unexecuted', { call, reason: failure }, { invocationId, toolCallId: call.id, operationId: `${runId}:turn:${run.turn}:call:${call.id}` });
                                     for (const pending of response.toolCalls.slice(callIndex + 1)) {
-                                        await event('tool_unexecuted', { call: pending, reason: failure }, { invocationId, toolCallId: pending.id, operationId: `${runId}:turn:${run.turn}:call:${pending.id}` });
+                                        await recorder.emit('tool_unexecuted', { call: pending, reason: failure }, { invocationId, toolCallId: pending.id, operationId: `${runId}:turn:${run.turn}:call:${pending.id}` });
                                     }
                                 }
                                 throw error;
@@ -198,16 +172,16 @@ export class HarnessScheduler {
                     }
                     if (!ended)
                         throw new Error('Model step limit exceeded');
-                    await event('turn_ended', { reason, remainingAllowance: run.remainingAllowance });
+                    await recorder.emit('turn_ended', { reason, remainingAllowance: run.remainingAllowance });
                     activeTurn = false;
-                    await persist();
+                    await recorder.persist();
                 }
             await boundary();
             const final = scenario.finalize(run);
-            await event('artifact_frozen', final);
+            await recorder.emit('artifact_frozen', final);
             run.status = 'reporting';
             run.activeAgentId = undefined;
-            await persist();
+            await recorder.persist();
             for (const role of run.config.roles) {
                 await boundary();
                 run.activeAgentId = role.id;
@@ -216,8 +190,8 @@ export class HarnessScheduler {
                 const response = await infer(input);
                 for (const [index, call] of response.toolCalls.entries()) {
                     const extra = { invocationId: input.invocationId, toolCallId: call.id, operationId: `${input.invocationId}:call:${call.id}` };
-                    await event('tool_requested', { call, index, phase: 'report' }, extra);
-                    await event('tool_unexecuted', { call, reason: 'reporting_tools_disabled', phase: 'report' }, extra);
+                    await recorder.emit('tool_requested', { call, index, phase: 'report' }, extra);
+                    await recorder.emit('tool_unexecuted', { call, reason: 'reporting_tools_disabled', phase: 'report' }, extra);
                 }
                 let parsed: Json | null = null;
                 try {
@@ -229,36 +203,36 @@ export class HarnessScheduler {
                 }
                 catch { }
                 run.reports.push({ agentId: role.id, raw: response.text, parsed });
-                await event('report_submitted', { raw: response.text, parsed, invalid: parsed === null, toolCalls: response.toolCalls });
-                await persist();
+                await recorder.emit('report_submitted', { raw: response.text, parsed, invalid: parsed === null, toolCalls: response.toolCalls });
+                await recorder.persist();
             }
             await boundary();
             run.status = 'completed';
             run.activeAgentId = undefined;
-            await persist();
+            await recorder.persist();
             await boundary();
-            await event('run_completed', {});
+            await recorder.emit('run_completed', {});
         }
         catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             const reporting = run.status === 'reporting';
-            run.status = message === 'CANCELLED' ? 'cancelled' : evidenceFailed ? 'interrupted' : 'failed';
+            run.status = message === 'CANCELLED' ? 'cancelled' : recorder.evidenceFailed ? 'interrupted' : 'failed';
             run.failureReason = message;
             try {
-                if (!evidenceFailed && reporting)
+                if (!recorder.evidenceFailed && reporting)
                     for (const role of run.config.roles.filter(role => !run.reports.some(report => report.agentId === role.id)))
-                        await event('report_missing', { reason: message, phase: 'report' }, { agentId: role.id });
-                if (!evidenceFailed && activeTurn)
-                    await event('turn_ended', { reason: message === 'CANCELLED' ? 'cancelled' : 'error', error: message });
-                if (!evidenceFailed)
-                    await event('run_terminated', { status: run.status, reason: message });
+                        await recorder.emit('report_missing', { reason: message, phase: 'report' }, { agentId: role.id });
+                if (!recorder.evidenceFailed && activeTurn)
+                    await recorder.emit('turn_ended', { reason: message === 'CANCELLED' ? 'cancelled' : 'error', error: message });
+                if (!recorder.evidenceFailed)
+                    await recorder.emit('run_terminated', { status: run.status, reason: message });
             }
             catch { }
-            if (evidenceFailed)
+            if (recorder.evidenceFailed)
                 run.status = 'interrupted';
             run.activeAgentId = undefined;
             try {
-                await persist();
+                await recorder.persist();
             }
             catch { }
         }
