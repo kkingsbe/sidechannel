@@ -10,8 +10,6 @@ export const RequesterProvider = ({ value, children }: { value: Requester; child
     createElement(RequesterContext.Provider, { value }, children);
 export const useRequester = (): Requester => useContext(RequesterContext);
 
-/** Legacy envelope sniffing kept until WS5 T5.4 types every response. */
-export const arrayOf = <T,>(value: T[] | { items?: T[]; runs?: T[]; jobs?: T[]; evaluations?: T[] } | undefined): T[] => Array.isArray(value) ? value : value?.items ?? value?.runs ?? value?.jobs ?? value?.evaluations ?? [];
 
 export interface PageRequestOptions { interval?: number }
 

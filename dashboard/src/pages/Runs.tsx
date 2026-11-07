@@ -40,8 +40,10 @@ import {
   Table,
   Tabs,
 } from "../components/ui";
-import { arrayOf, useApi, useMutation } from "../lib/api";
+import { useApi, useMutation } from "../lib/api";
 import { useClients } from "../lib/clients/context";
+import type { RunProgress } from "../lib/contracts";
+import { mergeProgress } from "../lib/contracts";
 import {
   useResourceOffsetPage,
   useResourcePage,
@@ -91,7 +93,7 @@ function RunList() {
     limit: 25,
     offset,
   }), { interval: 5000 });
-  const items = arrayOf(runs.data);
+  const items = runs.data?.items ?? [];
   const filter = (key: string, value: string) => {
     setParams((previous) => {
       value ? previous.set(key, value) : previous.delete(key);
@@ -222,7 +224,7 @@ function RunDetail() {
   const seq = params.get("seq");
   const clients = useClients();
   const run = useApi<Run>(clients.runs.paths.get(id!));
-  const progress = useApi<Partial<Run>>(clients.runs.paths.progress(id!), {
+  const progress = useApi<RunProgress>(clients.runs.paths.progress(id!), {
     interval: 3500,
   });
   const mutation = useMutation();
@@ -286,9 +288,7 @@ function RunDetail() {
     evidencePayload.current?.path === evidencePath
       ? evidencePayload.current.payload
       : undefined;
-  const data = run.data
-    ? { ...run.data, ...progress.data, config: run.data.config }
-    : undefined;
+  const data = run.data ? mergeProgress(run.data, progress.data) : undefined;
   const setTab = (view: string) => {
     setParams((prev) => {
       prev.set("view", view);

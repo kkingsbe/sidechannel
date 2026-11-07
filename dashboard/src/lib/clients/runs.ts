@@ -2,6 +2,7 @@ import type { BoardMessage, HarnessEvent, Run } from '@sidechannel/contracts/bro
 import type { Requester } from '../transport';
 import { withQuery } from '../transport';
 import type { Draft } from '../types';
+import type { RunProgress } from '../contracts';
 
 /** Dashboard-owned evidence envelopes (typed per tab in T5.4). */
 export interface RecordPage<T> {
@@ -38,7 +39,7 @@ export interface RunsClient {
     paths: typeof runPaths;
     list(query?: RunListQuery): Promise<RecordPage<Run>>;
     get(id: string): Promise<Run>;
-    progress(id: string): Promise<Partial<Run> & { observedAt: string }>;
+    progress(id: string): Promise<RunProgress>;
     events(id: string, query?: RunEventQuery): Promise<Page<HarnessEvent>>;
     event(id: string, eventId: string): Promise<HarnessEvent>;
     evidence(id: string, kind: EvidenceKind, query: EvidenceQuery): Promise<RecordPage<unknown>>;
