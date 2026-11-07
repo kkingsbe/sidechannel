@@ -110,6 +110,10 @@
       "types": "./dist/server/config-schema.d.ts",
       "import": "./dist/server/config-schema.js"
     },
+    "./server/metadata": {
+      "types": "./dist/server/metadata.d.ts",
+      "import": "./dist/server/metadata.js"
+    },
     "./server/contracts": {
       "types": "./dist/server/contracts.d.ts",
       "import": "./dist/server/contracts.js"

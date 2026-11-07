@@ -13,6 +13,7 @@ import { createLaunchService } from './launch.js';
 import { createConfigRouter } from './routers/config.js';
 import { createDraftsRouter } from './routers/drafts.js';
 import { createOverviewRouter } from './routers/overview.js';
+import { createMetadataRouter } from './routers/metadata.js';
 import { createPairsRouter } from './routers/pairs.js';
 import { createRunsRouter } from './routers/runs.js';
 import { createWorkspaceRouter } from './routers/workspace.js';
@@ -42,6 +43,7 @@ export function createResearcherServer(repository: ResearcherRepository, options
         createRunsRouter({ repository, pipeline: configuration, launch, healthcare }),
         createPairsRouter({ repository, pipeline: configuration, launch }),
         createOverviewRouter(repository),
+        createMetadataRouter(),
         adaptionModelRoute,
         ...(healthcare ? [healthcare.routes(repository)] : []),
         ...(options.extensionHandlers ?? []),
