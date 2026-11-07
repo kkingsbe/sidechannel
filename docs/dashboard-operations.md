@@ -45,7 +45,7 @@ Closing or reloading the dashboard does not cancel work. Experiment cancellation
 
 Reports, audit metadata, board evidence and full trace are progressively broader views. Audit metadata uses explicit fields, excluding arbitrary nested payloads and error text. Full trace includes recorded private memory and explicitly supported observable reasoning parts. It never claims access to unrecorded hidden reasoning. Research labels, answer-key containers, Jev predictions and other monitor outputs are not input sources.
 
-The fixture's artifact renderer is generic. A healthcare-specific evaluator is not supplied by this dashboard; scenario ground truth belongs to a separate researcher evaluation implementation.
+The healthcare artifact renderer shows ranked entries and frozen versions. Its separate researcher evaluation reports structural completion and approved/full-information ranking utility; those results and ground truth are excluded from Jev and oversight inputs.
 
 ## Exports and shared links
 
@@ -71,4 +71,6 @@ Routine tests use deterministic fixtures and injected provider transports, with 
 
 For an interactive acceptance workspace, run `npm run smoke:dashboard --workspace=@sidechannel/integration` and open `http://127.0.0.1:4311`. It seeds an in-memory matched fixture pair, simulated analyses and oversight judgments. Every result is illustrative, explicitly marked scripted, and never a research finding. Restarting this smoke server resets its disposable data; it does not access MongoDB or a model provider.
 
-Root workspace commands delegate to Nx for dependency-ordered builds and checks. Host services load root `.env`, then the existing `agent/.env` compatibility file, then the service `.env`; process variables take precedence. Compose uses its explicitly selected `--env-file .env.compose` instead. See [harness operations](harness-operations.md) for per-service credentials, optional Studio, manual recovery, existing-volume reuse and deployment cutover. Do not start a replacement experiment worker while an old worker still owns the database.
+Root workspace commands delegate to Nx for dependency-ordered builds and checks. Host services load root `.env`, then the existing `agent/.env` compatibility file, then the service `.env`; process variables take precedence. Compose uses its explicitly selected `--env-file .env.compose` instead. See [harness operations](harness-operations.md) for per-service credentials, optional Studio, manual recovery, existing-volume reuse and deployment cutover. A replacement experiment worker waits until the old worker's lease is released or expires; it never runs alongside it.
+
+The current local deployment uses project `agent` and explicitly loads root `.env` for service preparation: `docker compose --env-file .env -p agent ...`. Use the environment file actually populated for the deployment; `.env.compose` is an alternative, not an automatically loaded file. Starting the missing analysis worker only requires `docker compose --env-file .env -p agent up -d --no-deps analysis-worker`; do not recreate the experiment worker or MongoDB for this operation. See [current live-service preparation](live-services-readiness.md).

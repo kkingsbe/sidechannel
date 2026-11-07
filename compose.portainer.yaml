@@ -1,6 +1,7 @@
 # Paste into Portainer's stack Web editor (Docker Standalone, Linux AMD64).
 # Set credentials in the stack's Environment variables, not in this file.
 # CLOUDFLARE_TUNNEL_TOKEN is required for the included tunnel connector.
+# UPDATER_ADMIN_PASSWORD is required: the image updater (WUD 9) will not start without an admin account.
 # IMAGE_TAG defaults to latest; use a shared version or sha-<full-commit> to pin.
 # This creates a new stack-scoped database volume; it does not migrate local data.
 # Application images are polled every five minutes; updates can cancel active runs.
@@ -46,6 +47,8 @@ services:
       HARNESS_PORT: "4310"
       DASHBOARD_DIST_DIR: /app/dashboard/dist
       RESEARCHER_TOKEN: ${RESEARCHER_TOKEN:-}
+      # Server-side hosted-model discovery for the launch form; never sent to the browser.
+      ADAPTION_API_KEY: ${ADAPTION_API_KEY:-}
     ports:
       - "${DASHBOARD_BIND_ADDRESS:-0.0.0.0}:${DASHBOARD_PORT:-4310}:4310"
     networks:
@@ -66,8 +69,9 @@ services:
       <<: *database
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ADAPTION_API_KEY: ${ADAPTION_API_KEY:-}
-    # A crashed experiment worker requires manual ownership recovery.
-    restart: "no"
+    # Safe to restart: a dead worker's lease expires (WORKER_LEASE_MS, default 30s) and the
+    # restarted worker marks the run it abandoned interrupted. Runs are never resumed.
+    restart: unless-stopped
     stop_grace_period: 2m
 
   analysis-worker:
@@ -107,6 +111,9 @@ services:
       WUD_TRIGGER_DOCKER_SIDECHANNEL_INCLUDEBYDEFAULT: "false"
       WUD_TRIGGER_DOCKER_SIDECHANNEL_AUTO: ${AUTO_UPDATE_ENABLED:-true}
       WUD_TRIGGER_DOCKER_SIDECHANNEL_PRUNE: "false"
+      # WUD 9 refuses to start without an administrator account, even with no UI port published.
+      WUD_AUTH_ADMIN_USER: ${UPDATER_ADMIN_USER:-admin}
+      WUD_AUTH_ADMIN_PASSWORD: ${UPDATER_ADMIN_PASSWORD:?Set UPDATER_ADMIN_PASSWORD in Portainer stack environment variables}
       # For private packages, uncomment these and set both in Portainer.
       # Portainer's registry credentials are not inherited by this container.
       # WUD_REGISTRY_GHCR_PRIVATE_USERNAME: ${GHCR_USERNAME}

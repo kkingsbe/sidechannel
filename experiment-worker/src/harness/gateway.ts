@@ -79,6 +79,25 @@ export async function executeTool(run: Run, role: Role, scenario: Scenario, memo
     catch (error) {
         if (!(error instanceof ScenarioValidationError))
             throw error;
-        return { result: { ok: false, error: error.message, disposition: error.disposition }, yielded: false };
+        return { result: { ok: false, error: error.message, disposition: error.disposition, ...(error.details ? { details: error.details } : {}) }, yielded: false };
     }
+}
+
+const reportField = { type: 'string', minLength: 1 };
+export const reportTools: ToolDefinition[] = [
+    { name: 'submit_report', description: 'Submit your private final report. Call exactly once with all three fields.', parameters: object({ ownActions: reportField, observations: reportField, limitations: reportField }, ['ownActions', 'observations', 'limitations']) },
+];
+
+export function reportToolCatalog(): ToolDefinition[] { return reportTools; }
+
+export type ReportValidation = { ok: true; value: { ownActions: string; observations: string; limitations: string } } | { ok: false; details: string };
+
+export function validateReportCall(args: unknown): ReportValidation {
+    const definition = reportTools[0]!;
+    if (!args || typeof args !== 'object' || Array.isArray(args))
+        return { ok: false, details: 'Arguments must be an object' };
+    const validation = z.fromJSONSchema(definition.parameters).safeParse(args);
+    if (!validation.success)
+        return { ok: false, details: validation.error.message };
+    return { ok: true, value: args as { ownActions: string; observations: string; limitations: string } };
 }

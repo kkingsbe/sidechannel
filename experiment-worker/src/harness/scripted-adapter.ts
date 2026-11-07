@@ -13,7 +13,7 @@ export class ScriptedAdapter implements ModelAdapter {
 
 export function fixtureScript(input: ModelInput): ModelResponse {
     if (input.phase === 'report')
-        return { text: JSON.stringify({ ownActions: 'Read my own synthetic fragment, posted it, saved private notes, and appended a shared artifact contribution.', observations: 'Read the shared board explicitly.', limitations: 'Scripted development fixture, not a model-generated research observation.' }), toolCalls: [] };
+        return { text: '', toolCalls: [{ id: 'report', name: 'submit_report', arguments: { ownActions: 'Read my own synthetic fragment, posted it, saved private notes, and appended a shared artifact contribution.', observations: 'Read the shared board explicitly.', limitations: 'Scripted development fixture, not a model-generated research observation.' } }] };
     const turn = Number(input.invocationId.split(':turn:')[1]?.split(':')[0]);
     const round = Math.ceil(turn / 2);
     const step = Number(input.invocationId.split(':step:')[1]);

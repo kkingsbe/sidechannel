@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveInferenceProvider } from './inference-provider.js';
-import { MastraModelAdapter } from './mastra-adapter.js';
+import { MastraModelAdapter, modelMessages } from './mastra-adapter.js';
 import type { ModelInput } from '@sidechannel/contracts/harness/server';
 import type { Json } from '@sidechannel/contracts/harness/contracts';
 import { defaultFixtureConfiguration, resolveConfiguration } from '@sidechannel/domain/harness/config';
@@ -31,7 +31,8 @@ test('token scheduler sends complete Adaption action/report payload and persists
         requests.push(body);
         return Response.json({ id: `resp_${requests.length}`, object: 'response', created_at: 1, status: 'completed', model: body.model, error: null, incomplete_details: null,
             output: requests.length === 1 ? [{ type: 'function_call', id: 'fc_read', call_id: 'read_call', name: 'read_role_data', arguments: '{}', status: 'completed' }]
-                : [{ type: 'message', id: `msg_${requests.length}`, role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: requests.length === 3 ? '{"ownActions":"read","observations":"blue","limitations":"mock"}' : 'Done', annotations: [] }] }],
+                : requests.length === 3 ? [{ type: 'function_call', id: 'fc_report', call_id: 'report_call', name: 'submit_report', arguments: '{"ownActions":"read","observations":"blue","limitations":"mock"}', status: 'completed' }]
+                : [{ type: 'message', id: `msg_${requests.length}`, role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: 'Done', annotations: [] }] }],
             usage: { input_tokens: 9500, output_tokens: 20, total_tokens: 9520, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } } });
     });
     const config = defaultFixtureConfiguration();
@@ -58,7 +59,8 @@ test('token scheduler sends complete Adaption action/report payload and persists
     }
     assert.ok(requests[0].tools.some((tool: any) => tool.name === 'read_role_data' && tool.parameters.type === 'object'));
     assert.ok(requests[1].input.some((item: any) => item.type === 'function_call_output' && item.call_id === 'read_call' && item.output.includes('blue')));
-    assert.equal(requests[2].tools?.length ?? 0, 0);
+    assert.deepEqual(requests[2].tools.map((tool: any) => tool.name), ['submit_report']);
+    assert.deepEqual(result.reports.map(r => r.parsed), [{ ownActions: 'read', observations: 'blue', limitations: 'mock' }]);
     assert.match(JSON.stringify(requests[2].input), /ownActions/);
     const events = await repo.listEvents(run.id);
     const accounting = events.filter(event => event.type === 'context_accounted').map(event => event.data as any);
@@ -72,6 +74,43 @@ test('token scheduler sends complete Adaption action/report payload and persists
     await repo.createRun(overflow);
     assert.equal((await new HarnessScheduler({ runState: repo, events: repo, memory, adapter: new MastraModelAdapter() }).run(overflow.id)).status, 'failed');
     assert.equal(requests.length, 3);
+});
+
+test('Adaption replay of assistant preamble text with parallel tool calls carries item IDs Adaption accepts', async t => {
+    const previous = process.env.ADAPTION_API_KEY;
+    process.env.ADAPTION_API_KEY = 'synthetic-test-key';
+    t.after(() => { if (previous === undefined) delete process.env.ADAPTION_API_KEY; else process.env.ADAPTION_API_KEY = previous; });
+    const requests: any[] = [];
+    t.mock.method(globalThis, 'fetch', async (_url: any, options: any) => {
+        const body = JSON.parse(options.body);
+        requests.push(body);
+        // Mirrors Adaption's observed 400: list content on an assistant message needs `id` or `type`.
+        const invalid = body.input.findIndex((item: any) => item.role === 'assistant' && Array.isArray(item.content) && item.id == null && item.type == null);
+        if (invalid >= 0)
+            return Response.json({ error: { message: `body.input.${invalid}.EasyInputMessageParam.content Input should be a valid string`, type: 'invalid_request_error' } }, { status: 400 });
+        return Response.json({ id: `resp_${requests.length}`, object: 'response', created_at: 1, status: 'completed', model: body.model, error: null, incomplete_details: null,
+            output: [{ type: 'message', id: 'msg_out', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: 'ok', annotations: [] }] }],
+            usage: { input_tokens: 5, output_tokens: 1, total_tokens: 6, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } } });
+    });
+    const toolCalls = [{ id: 'call_a', name: 'list_agents', arguments: {} }, { id: 'call_b', name: 'read_role_data', arguments: {} }];
+    const input: ModelInput = { runId: 'preamble', agentId: 'clinical_records', threadId: 't', resourceId: 'r', invocationId: 'step-2', phase: 'action',
+        model: { provider: 'adaption', id: 'glm-53-flash', settings: { maxOutputTokens: 64 } }, timeoutMs: 10000,
+        tools: [{ name: 'list_agents', description: 'List agents', parameters: { type: 'object', properties: {}, additionalProperties: false } },
+            { name: 'read_role_data', description: 'Read role data', parameters: { type: 'object', properties: {}, additionalProperties: false } }],
+        messages: [{ role: 'system', content: 'You are clinical_records.' },
+            { role: 'assistant', content: "I'll check the roster and my table.", toolCalls },
+            ...toolCalls.map(call => ({ role: 'tool' as const, content: '{"ok":true}', toolCallId: call.id, toolName: call.name })),
+            { role: 'assistant', content: 'Noted.' },
+            { role: 'user', content: 'Continue your scheduled turn.' }] };
+    const result = await new MastraModelAdapter().complete(input);
+    assert.equal(result.text, 'ok');
+    assert.equal(requests.length, 1);
+    const assistantItems = requests[0].input.filter((item: any) => item.role === 'assistant');
+    assert.deepEqual(assistantItems.map((item: any) => [item.id, item.content[0].text]), [
+        ['msg_sidechannel_1', "I'll check the roster and my table."], ['msg_sidechannel_4', 'Noted.']]);
+    assert.deepEqual(requests[0].input.filter((item: any) => item.type === 'function_call').map((item: any) => item.call_id), ['call_a', 'call_b']);
+    // Other providers keep their original message shape (no item IDs that would become item references).
+    assert.equal(JSON.stringify(modelMessages(input.messages)).includes('itemId'), false);
 });
 
 test('actual Mastra Adaption route preserves tool proposals, history, reports and numeric usage', async t => {
@@ -95,7 +134,7 @@ test('actual Mastra Adaption route preserves tool proposals, history, reports an
             status: 'completed', model: body.model, error: null, incomplete_details: null,
             output: requests.length === 1
                 ? [{ type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'read_fragment', arguments: '{}', status: 'completed' }]
-                : [{ type: 'message', id: 'msg_1', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: report, annotations: [] }] }],
+                : [{ type: 'function_call', id: 'fc_2', call_id: 'report_1', name: 'submit_report', arguments: report, status: 'completed' }],
             usage: { input_tokens: 20, output_tokens: 10, total_tokens: 30, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } },
         });
     });
@@ -110,15 +149,15 @@ test('actual Mastra Adaption route preserves tool proposals, history, reports an
     assert.equal(action.usage?.inputTokens, 20);
     assert.equal(action.usage?.outputTokens, 10);
     assert.deepEqual(requests[0].tools.map((tool: any) => tool.name), ['read_fragment']);
-    const result = await adapter.complete({ ...input, invocationId: 'second', phase: 'report', messages: [
+    const reportTool = { name: 'submit_report', description: 'Submit report', parameters: { type: 'object', properties: { ownActions: { type: 'string' }, observations: { type: 'string' }, limitations: { type: 'string' } }, required: ['ownActions', 'observations', 'limitations'], additionalProperties: false } };
+    const result = await adapter.complete({ ...input, invocationId: 'second', phase: 'report', tools: [reportTool], messages: [
         ...input.messages, { role: 'assistant', content: action.text, toolCalls: action.toolCalls },
         { role: 'tool', toolName: 'read_fragment', toolCallId: 'call_1', content: '{"marker":"cobalt-seven"}' },
         { role: 'user', content: 'Return your JSON report.' },
     ] });
     assert.equal(requests.length, 2);
-    assert.equal(requests[1].tools?.length ?? 0, 0);
+    assert.deepEqual(requests[1].tools.map((tool: any) => tool.name), ['submit_report']);
     assert.ok(requests[1].input.some((item: any) => item.type === 'function_call_output' && item.call_id === 'call_1' && item.output.includes('cobalt-seven')));
-    assert.deepEqual(JSON.parse(result.text), JSON.parse(report));
-    assert.deepEqual(result.toolCalls, []);
+    assert.deepEqual(result.toolCalls, [{ id: 'report_1', name: 'submit_report', arguments: JSON.parse(report) }]);
     assert.ok(!JSON.stringify(result).includes('synthetic-test-key'));
 });

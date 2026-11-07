@@ -1,0 +1,484 @@
+/* Model & traces panel and model-call drawer view. Tokens only; dark mode via the .dark class tokens. */
+
+.tr-root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.tr-root mark {
+  scroll-margin-top: 140px;
+  scroll-margin-bottom: 80px;
+}
+
+.tr-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+}
+.tr-chip {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  color: var(--foreground);
+}
+.tr-chip-reasoning {
+  background: var(--reasoning-bg);
+  border-color: var(--reasoning-border);
+  color: var(--reasoning);
+}
+
+/* Toolbar */
+.tr-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+.tr-find {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.tr-find label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.tr-find-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 4px 0 10px;
+  background: var(--background);
+  color: var(--muted);
+}
+.tr-find-box:focus-within {
+  border-color: var(--ring);
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.tr-find-box input {
+  font: inherit;
+  font-size: 13px;
+  color: var(--foreground);
+  border: 0;
+  outline: none;
+  background: transparent;
+  padding: 8px 0;
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+}
+.tr-count {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  padding: 0 4px;
+}
+.tr-icon-btn {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+}
+.tr-icon-btn:hover:not(:disabled) {
+  background: var(--subtle);
+  color: var(--foreground);
+}
+.tr-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.tr-check {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 32px;
+  color: var(--foreground);
+  font-size: 13px;
+  cursor: pointer;
+}
+.tr-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+}
+
+/* Focus rings */
+.tr-icon-btn:focus-visible,
+.tr-link:focus-visible,
+.tr-disclosure:focus-visible,
+.tr-tab:focus-visible,
+.tr-btn:focus-visible,
+.tr-check input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Group header */
+.tr-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  min-width: 0;
+}
+.tr-group h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tr-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.tr-group-count {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Card */
+.tr-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  min-width: 0;
+  scroll-margin-top: 140px;
+}
+.tr-card[data-focused="true"] {
+  border: 2px solid var(--primary);
+}
+.tr-card-head {
+  padding: 12px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--subtle);
+}
+.tr-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.tr-card-title h4 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+.tr-phase {
+  font-size: 12px;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-weight: 500;
+}
+.tr-phase-action {
+  background: var(--accent);
+  color: var(--primary);
+}
+.tr-phase-report {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.tr-muted {
+  font-size: 12px;
+  color: var(--muted);
+}
+.tr-match-pill {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--foreground);
+  background: var(--find-match);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.tr-parsed-pill {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--primary);
+  background: var(--accent);
+  border-radius: 999px;
+  padding: 1px 8px;
+  align-self: flex-start;
+}
+.tr-card-head .mc-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tr-strip {
+  padding: 12px 20px 0;
+}
+.tr-body {
+  display: flex;
+  flex-wrap: wrap;
+}
+.tr-col {
+  flex: 1 1 360px;
+  min-width: 0;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.tr-col-reasoning {
+  background: var(--reasoning-bg);
+}
+.tr-col-reasoning .mc-reasoning {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.tr-col pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.tr-col .mc-output-text,
+.tr-col .mc-reasoning-text {
+  overflow-wrap: anywhere;
+}
+.tr-card-foot {
+  padding: 6px 12px 6px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--subtle);
+  font-size: 12px;
+}
+.tr-disclosure {
+  font: inherit;
+  font-size: 12px;
+  color: var(--foreground);
+  background: transparent;
+  border: 0;
+  padding: 6px 0;
+  min-height: 32px;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.tr-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.tr-link {
+  font: inherit;
+  font-size: 12px;
+  color: var(--primary);
+  background: transparent;
+  border: 0;
+  min-height: 32px;
+  padding: 0 6px;
+  cursor: pointer;
+  text-decoration: underline;
+  border-radius: 6px;
+}
+.tr-input-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--subtle);
+  background: var(--background);
+}
+.tr-input-list li {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  min-width: 0;
+}
+.tr-role {
+  flex: none;
+  min-width: 64px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.tr-msg {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+}
+
+.tr-empty {
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* ---- Model call drawer view ---- */
+.tr-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.tr-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tr-detail-head strong {
+  font-size: 13px;
+}
+.tr-nav {
+  display: inline-flex;
+  gap: 6px;
+}
+.tr-nav .tr-icon-btn {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+}
+.tr-tabs {
+  display: inline-flex;
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  background: var(--subtle);
+  font-size: 13px;
+}
+.tr-tab {
+  font: inherit;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 14px;
+  min-height: 32px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.tr-tab[aria-selected="true"] {
+  background: var(--card);
+  color: var(--foreground);
+  font-weight: 600;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+.tr-source {
+  margin: 0;
+  font-size: 12px;
+  color: var(--reasoning-muted);
+}
+.tr-source code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+.tr-section-label {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.tr-usage {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.tr-tile {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  min-width: 0;
+}
+.tr-tile dt {
+  font-size: 11px;
+  color: var(--muted);
+}
+.tr-tile dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.tr-tile-reasoning {
+  background: var(--reasoning-bg);
+  border-color: var(--reasoning-border);
+}
+.tr-tile-reasoning dt {
+  color: var(--reasoning-muted);
+}
+.tr-tile-reasoning dd {
+  color: var(--reasoning);
+}
+.tr-linked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+.tr-note {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--foreground);
+  background: var(--accent);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0;
+}
+.tr-btn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  border-radius: 8px;
+  padding: 6px 14px;
+  min-height: 36px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.tr-btn:hover {
+  background: var(--subtle);
+}
+
+/* .card clips with overflow:hidden, which disables position:sticky for the find toolbar; clip keeps the rounded corners without creating a scroll container. */
+.card:has(.tr-toolbar) {
+  overflow: clip;
+}

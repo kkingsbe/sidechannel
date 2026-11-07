@@ -1,0 +1,305 @@
+/* Model call components: reasoning, output text, tool calls. Tokens only; works in light + dark. */
+
+.mc-mark {
+  background: var(--find-match);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+.mc-mark-active {
+  outline: 2px solid var(--reasoning);
+  outline-offset: 0;
+}
+
+.mc-icon-btn,
+.mc-text-btn,
+.mc-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--reasoning);
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.mc-icon-btn {
+  padding: 4px;
+}
+.mc-text-btn {
+  padding: 4px 6px;
+}
+.mc-link-btn {
+  padding: 0;
+  text-decoration: underline;
+  font-size: inherit;
+}
+.mc-icon-btn:hover,
+.mc-text-btn:hover {
+  background: var(--reasoning-border);
+}
+.mc-icon-btn:focus-visible,
+.mc-text-btn:focus-visible,
+.mc-link-btn:focus-visible,
+.mc-pill-btn:focus-visible,
+.mc-scroll:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Reasoning */
+.mc-reasoning {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--reasoning-border);
+  background: var(--reasoning-bg);
+  border-radius: 10px;
+}
+.mc-reasoning-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mc-reasoning-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--reasoning);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.mc-reasoning-meta {
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--reasoning-muted);
+}
+.mc-reasoning-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.mc-reasoning-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mc-reasoning-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--reasoning-fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mc-clamp .mc-reasoning-text:not(:first-child) {
+  display: none;
+}
+.mc-clamp .mc-reasoning-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mc-scroll {
+  overflow-y: auto;
+}
+.mc-reasoning-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--reasoning-muted);
+}
+
+/* Dashed notices for text-less states */
+.mc-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--foreground);
+  border: 1px dashed var(--border);
+}
+.mc-notice > svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--muted);
+}
+.mc-notice strong {
+  font-weight: 600;
+}
+.mc-notice-scripted {
+  border: 0;
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.mc-notice-scripted > svg {
+  color: inherit;
+}
+.mc-notice-hidden {
+  border-color: var(--reasoning-border);
+  background: var(--reasoning-bg);
+}
+.mc-notice-hidden > svg {
+  color: var(--reasoning);
+}
+.mc-notice .mc-link-btn {
+  color: var(--reasoning);
+}
+
+/* Output text */
+.mc-output {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mc-output-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.mc-output-text,
+.mc-output-empty {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.mc-output-text {
+  color: var(--foreground);
+  white-space: pre-wrap;
+}
+.mc-output-empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Tool calls */
+.mc-tools {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+}
+.mc-tools-compact {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.mc-tools-detailed {
+  flex-direction: column;
+}
+.mc-tool {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.mc-tools-detailed .mc-tool {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 8px;
+}
+.mc-tool-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 8px;
+  background: var(--subtle);
+  color: var(--foreground);
+  border-radius: 6px;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mc-chip svg {
+  flex: none;
+  color: var(--muted);
+}
+.mc-tool-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.mc-tool-args {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--subtle);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mc-tool-reason {
+  color: var(--muted);
+  font-size: 12px;
+}
+.mc-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  background: var(--subtle);
+  color: var(--muted);
+}
+.mc-pill-ok {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.mc-pill-warn {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.mc-pill-bad {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.mc-pill-btn {
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+}
+.mc-pill-btn:hover {
+  filter: brightness(0.95);
+}
+
+/* Meta line */
+.mc-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}

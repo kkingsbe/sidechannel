@@ -66,8 +66,9 @@ services:
       <<: *database
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ADAPTION_API_KEY: ${ADAPTION_API_KEY:-}
-    # Never automatically restart a worker after a crash: ownership needs recovery.
-    restart: "no"
+    # Safe to restart: a dead worker's lease expires (WORKER_LEASE_MS, default 30s) and the
+    # restarted worker marks the run it abandoned interrupted. Runs are never resumed.
+    restart: unless-stopped
     stop_grace_period: 2m
   analysis-worker:
     <<: *app

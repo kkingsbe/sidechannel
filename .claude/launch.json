@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dashboard",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:local", "--prefix", "dashboard"],
+      "port": 5173
+    },
+    {
+      "name": "smoke-dashboard",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "smoke:dashboard", "--workspace=@sidechannel/integration"],
+      "port": 4311
+    }
+  ]
+}
