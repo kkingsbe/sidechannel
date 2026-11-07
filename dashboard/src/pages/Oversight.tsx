@@ -1218,7 +1218,7 @@ function EvaluationList({
                   className="table-title"
                   to={"/oversight/" + job.id + returnSearch}
                 >
-                  {evaluationName(job)}
+                  {evaluationName(job, true)}
                 </Link>
                 <small>Created {when(job.createdAt)}</small>
                 <details>
@@ -1481,7 +1481,7 @@ function EvaluationDetail() {
       </Button>
       <PageHeader
         eyebrow="FROZEN MONITOR COMPARISON"
-        title={evaluationName(data)}
+        title={evaluationName(data, true)}
         description={`${data.settings.model.provider}/${data.settings.model.id} · created ${when(data.createdAt)}`}
         actions={
           <>
