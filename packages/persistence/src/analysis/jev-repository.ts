@@ -36,7 +36,7 @@ export class InMemoryAnalysisRepository implements AnalysisRepository {
         if (existing) { if (existing.launchHash !== job.launchHash) throw new AnalysisConflict('Idempotency key already used with different configuration'); return { job: copy(existing), created: false }; }
         this.jobs.set(job.id, copy(job)); return { job: copy(job), created: true };
     }
-    async readyJob(id: string) { const j = this.jobs.get(id)!; if (!j.ready) { j.ready = true; j.status = j.cancelRequested ? 'cancelled' : 'queued'; } }
+    async readyJob(id: string) { const job = this.jobs.get(id); if (job && !job.ready) { job.ready = true; job.status = job.cancelRequested ? 'cancelled' : 'queued'; } }
     async getJob(id: string) { return copy(this.jobs.get(id) ?? null); }
     async listJobs(runId: string, p?: PageOptions) { return pageOf([...this.jobs.values()].filter(j => j.runId === runId), p); }
     async listAllJobs(p?: PageOptions) { return pageOf([...this.jobs.values()], p); }
@@ -53,11 +53,11 @@ export class InMemoryAnalysisRepository implements AnalysisRepository {
     }
     async heartbeat(l: Lease, now: string, leaseMs: number) { const j = this.jobs.get(l.jobId); if (!live(j, l)) return false; j!.lease!.expiresAt = new Date(Date.parse(now) + leaseMs).toISOString(); return true; }
     async updateCounters(l: Lease, counters: JobCounters, usage?: JobUsage) { const j = this.jobs.get(l.jobId); if (!live(j, l)) return false; j!.counters = copy(counters); if (usage) j!.usage = copy(usage); return true; }
-    async updateWindow(l: Lease, id: string, patch: Partial<Pick<WindowRecord, 'status' | 'diagnostics'>>) { if (!live(this.jobs.get(l.jobId), l)) return false; Object.assign(this.windows.get(l.jobId + ':' + id)!, copy(patch)); return true; }
-    async startAttempt(l: Lease, a: AnalysisAttempt) { if (!live(this.jobs.get(l.jobId), l)) return false; bounded(a); this.attempts.set(a.id, copy(a)); return true; }
-    async finishAttempt(l: Lease, a: AnalysisAttempt, results: AnalysisResult[]) { if (!live(this.jobs.get(l.jobId), l)) return false; this.attempts.set(a.id, copy(a)); for (const r of results) { const key = r.jobId + ':' + r.windowId + ':' + r.codeId; if (!this.results.has(key)) this.results.set(key, copy(r)); } return true; }
+    async updateWindow(l: Lease, id: string, patch: Partial<Pick<WindowRecord, 'status' | 'diagnostics'>>) { if (!live(this.jobs.get(l.jobId), l)) return false; const window = this.windows.get(l.jobId + ':' + id); if (window) Object.assign(window, copy(patch)); return true; }
+    async startAttempt(l: Lease, a: AnalysisAttempt) { bounded(a); if (!live(this.jobs.get(l.jobId), l)) return false; this.attempts.set(a.id, copy(a)); return true; }
+    async finishAttempt(l: Lease, a: AnalysisAttempt, results: AnalysisResult[]) { bounded(a); if (!live(this.jobs.get(l.jobId), l)) return false; this.attempts.set(a.id, copy(a)); for (const r of results) { const key = r.jobId + ':' + r.windowId + ':' + r.codeId; if (!this.results.has(key)) this.results.set(key, copy(r)); } return true; }
     async listResults(jobId: string, p: PageOptions = {}) { return pageOf([...this.results.values()].filter(r => r.jobId === jobId && (!p.windowId || r.windowId === p.windowId)), p); }
-    async resultsForWindows(jobId: string, ids: string[]) { if (ids.length > 500) throw new AnalysisValidation('Window result join is limited to 500 windows'); const selected = new Set(ids); return copy([...this.results.values()].filter(r => r.jobId === jobId && selected.has(r.windowId))); }
+    async resultsForWindows(jobId: string, ids: string[]) { if (ids.length > 500) throw new AnalysisValidation('Window result join is limited to 500 windows'); const selected = new Set(ids); return copy([...this.results.values()].filter(r => r.jobId === jobId && selected.has(r.windowId)).slice(0, 50_000)); }
     async listAttempts(jobId: string, p: PageOptions = {}) { return pageOf([...this.attempts.values()].filter(a => a.jobId === jobId && (!p.windowId || a.windowId === p.windowId)), p); }
     async finishJob(l: Lease, status: JobStatus, counters: JobCounters, error?: string, usage?: JobUsage) { const j = this.jobs.get(l.jobId); if (!live(j, l)) return false; j!.status = j!.cancelRequested ? 'cancelled' : status; j!.counters = copy(counters); j!.updatedAt = new Date().toISOString(); if (usage) j!.usage = copy(usage); if (error) j!.error = error; delete j!.lease; return true; }
     async cancel(id: string) { const j = this.jobs.get(id); if (j && ['preparing', 'queued', 'running'].includes(j.status)) { j.cancelRequested = true; if (j.status !== 'running') j.status = 'cancelled'; } return this.getJob(id); }
