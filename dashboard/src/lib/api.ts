@@ -1,30 +1,15 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { jevTransport } from './jev-transport';
 import { useResource, useResourceOffsetPage, useResourcePage } from './clients/query';
 import type { OffsetPage, Page } from './contracts';
 import { ApiError, request, withQuery, type Requester } from './transport';
 
 export { ApiError };
 
-/**
- * Legacy boundary kept until the typed clients land (WS5 T5.2): it adapts canonical Jev
- * records for the path-keyed hooks. The network call itself lives only in `lib/transport.ts`.
- * The hooks read through the injected requester, whose default is this adapting boundary,
- * so T5.1 keeps every page response identical; T5.2 replaces the default with the client set.
- */
-export const rawApi = request;
-export async function api<T>(path: string, options?: RequestInit): Promise<T> {
-    const adapted = await jevTransport<T>(path, options, rawApi);
-    return adapted ? adapted.value : rawApi<T>(path, options);
-}
-const legacyApi: Requester = api;
-
-const RequesterContext = createContext<Requester>(legacyApi);
+const RequesterContext = createContext<Requester>(request);
 export const RequesterProvider = ({ value, children }: { value: Requester; children: ReactNode }) =>
     createElement(RequesterContext.Provider, { value }, children);
 export const useRequester = (): Requester => useContext(RequesterContext);
 
-export const post = <T,>(path: string, body: unknown) => api<T>(path, { method: 'POST', body: JSON.stringify(body) });
 /** Legacy envelope sniffing kept until WS5 T5.4 types every response. */
 export const arrayOf = <T,>(value: T[] | { items?: T[]; runs?: T[]; jobs?: T[]; evaluations?: T[] } | undefined): T[] => Array.isArray(value) ? value : value?.items ?? value?.runs ?? value?.jobs ?? value?.evaluations ?? [];
 

@@ -29,7 +29,8 @@ import {
   Select,
   Textarea,
 } from "../components/ui";
-import { api, post, useApi, useMutation } from "../lib/api";
+import { useApi, useMutation } from "../lib/api";
+import { useClients } from "../lib/clients/context";
 import type { Draft, ExperimentConfig, Json, Run } from "../lib/types";
 import { pretty, when } from "../lib/utils";
 import "./Experiments.css";
@@ -158,10 +159,11 @@ function setAt(
   return next;
 }
 export default function Experiments() {
-  const defaults = useApi<ExperimentConfig>("/config/default");
-  const drafts = useApi<Draft[]>("/drafts");
+  const clients = useClients();
+  const defaults = useApi<ExperimentConfig>(clients.workspace.paths.defaults());
+  const drafts = useApi<Draft[]>(clients.workspace.paths.drafts());
   const schema = useApi<{ fields: { path: string; required: boolean }[] }>(
-    "/config/schema",
+    clients.workspace.paths.schema(),
   );
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -215,7 +217,7 @@ export default function Experiments() {
   useEffect(() => {
     if (!params.get("draft")) return;
     setDraftError(undefined);
-    void api<Draft>("/drafts/" + encodeURIComponent(params.get("draft")!))
+    void clients.workspace.draft(params.get("draft")!)
       .then((data) => {
         setConfig(data.config);
         setDraft(data);
@@ -289,7 +291,7 @@ export default function Experiments() {
   const save = async () => {
     const result = await mutation.run(
       () =>
-        post<Draft>("/drafts", {
+        clients.workspace.saveDraft({
           id: draft?.id,
           revision: draft?.revision,
           config,
@@ -309,7 +311,7 @@ export default function Experiments() {
   };
   const validate = async () => {
     const result = await mutation.run(() =>
-      post<Validation>("/config/validate", { config }),
+      clients.workspace.validate(config!),
     );
     if (result) {
       setValidation(result);
@@ -327,7 +329,7 @@ export default function Experiments() {
   };
   const launch = async () => {
     const result = await mutation.run(() =>
-      post<Run[]>("/pairs", {
+      clients.runs.createPair({
         config,
         idempotencyKey: launchKey.current,
         pairingSeed: config?.scheduler?.seed,
@@ -363,7 +365,7 @@ export default function Experiments() {
   const duplicate = async () => {
     if (!draft) return;
     const result = await mutation.run(() =>
-      post<Draft>("/drafts/" + draft.id + "/duplicate", {}),
+      clients.workspace.duplicateDraft(draft.id),
     );
     if (result) {
       setConfig(result.config);

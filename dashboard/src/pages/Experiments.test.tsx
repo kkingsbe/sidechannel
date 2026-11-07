@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
+import { activate, fakeServer, renderWithServer } from "../test/clients";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { defaultFixtureConfiguration } from "@sidechannel/contracts/testing";
@@ -9,7 +10,7 @@ import Experiments from "./Experiments";
 const config = defaultFixtureConfiguration();
 let submitted: { config: typeof config } | undefined;
 function renderAt(path: string) {
-  return render(
+  return renderWithServer(
     <MemoryRouter initialEntries={[path]}>
       <Experiments />
     </MemoryRouter>,
@@ -18,28 +19,22 @@ function renderAt(path: string) {
 beforeEach(() => {
   localStorage.clear();
   submitted = undefined;
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: string, options?: RequestInit) => {
-      const path = input.replace(/^\/api/, "");
-      let data: unknown;
-      if (path === "/config/default") data = config;
-      else if (path === "/config/schema") data = { fields: [] };
-      else if (path === "/drafts")
-        data = [{ id: "shared", config, revision: 2 }];
-      else if (path === "/config/validate") {
+  activate(fakeServer((path, options) => {
+      if (path === "/config/default") return config;
+      if (path === "/config/schema") return { fields: [] };
+      if (path === "/drafts") return [{ id: "shared", config, revision: 2 }];
+      if (path === "/config/validate") {
         submitted = JSON.parse(String(options?.body));
-        data = {
+        return {
           valid: false,
           errors: ["Fix memory"],
           fieldErrors: {
             "memory.contextBudget": "Use a positive memory budget",
           },
         };
-      } else throw new Error(path);
-      return new Response(JSON.stringify(data), { status: 200 });
-    }),
-  );
+      }
+      throw new Error(path);
+  }));
 });
 afterEach(() => {
   cleanup();

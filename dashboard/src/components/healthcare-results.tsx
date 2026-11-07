@@ -1,11 +1,13 @@
 import type { HealthcareEvaluation } from "@sidechannel/contracts/browser";
 import { useApi } from "../lib/api";
+import { useClients } from "../lib/clients/context";
 import { Card, CardHeading, ErrorState, Loading, Notice, Table } from "./ui";
 
 export function HealthcareResults({ runId }: { runId: string }) {
+  const clients = useClients();
   const results = useApi<
     HealthcareEvaluation | { status: string; reason?: string }
-  >("/runs/" + encodeURIComponent(runId) + "/evaluation", { interval: 4000 });
+  >(clients.runs.paths.evaluation(runId), { interval: 4000 });
   if (results.loading) return <Loading />;
   if (results.error)
     return <ErrorState error={results.error} retry={results.refresh} />;

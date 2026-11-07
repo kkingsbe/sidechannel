@@ -4,10 +4,10 @@ import { afterEach, expect, it, vi } from "vitest";
 import {
   cleanup,
   fireEvent,
-  render,
   screen,
   within,
 } from "@testing-library/react";
+import { activate, fakeServer, renderWithServer } from "../test/clients";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import Runs from "./Runs";
 import Oversight from "./Oversight";
@@ -24,16 +24,7 @@ const run = (id: string, status: string, wording: string) => ({
   reports: [],
 });
 function mock(handler: (path: string) => unknown) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(
-      async (input: string) =>
-        new Response(JSON.stringify(handler(input.replace(/^\/api/, ""))), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-    ),
-  );
+  activate(fakeServer((path: string) => handler(path)));
 }
 afterEach(() => {
   cleanup();
@@ -65,7 +56,7 @@ it("aligns exact pair wording and available outputs while retaining a failed con
           }
         : b,
   );
-  render(
+  renderWithServer(
     <MemoryRouter
       initialEntries={[
         "/runs/pairs/pair?returnTo=%2Fruns%3Fstatus%3Dfailed%26offset%3D25",
@@ -104,7 +95,7 @@ it("defaults oversight to evaluations and keeps setup explicit with visible prer
           ? { items: [], nextCursor: null }
           : { revision: 1 },
   );
-  const mounted = render(
+  const mounted = renderWithServer(
     <MemoryRouter>
       <Oversight />
     </MemoryRouter>,
@@ -119,7 +110,7 @@ it("defaults oversight to evaluations and keeps setup explicit with visible prer
     screen.getByRole("link", { name: "New evaluation" }).getAttribute("href"),
   ).toBe("/oversight/new");
   mounted.unmount();
-  render(
+  renderWithServer(
     <MemoryRouter initialEntries={["/?run=source"]}>
       <Oversight />
     </MemoryRouter>,
@@ -176,7 +167,7 @@ it("restores an evaluation cursor page after detail navigation and retains previ
     if (url.pathname === "/runs") return { items: [], nextOffset: null };
     return { revision: 7 };
   });
-  render(
+  renderWithServer(
     <MemoryRouter initialEntries={["/oversight?view=jobs"]}>
       <Routes>
         <Route path="/oversight/*" element={<Oversight />} />

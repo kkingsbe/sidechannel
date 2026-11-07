@@ -39,12 +39,13 @@ import {
   Textarea,
 } from "../components/ui";
 import {
-  post,
   useApi,
   useMutation,
   useOffsetPage,
   usePage,
+  usePageRequest,
 } from "../lib/api";
+import { useClients } from "../lib/clients/context";
 import { list, pretty, short, when } from "../lib/utils";
 import "./Analysis.css";
 import { RecordedEventContent } from "./analysis/RecordedEventContent";
@@ -94,8 +95,9 @@ function AnalysisEntry() {
   );
 }
 function AnalysisCollection() {
+  const clients = useClients();
   const [params] = useSearchParams();
-  const jobs = usePage<AnalysisJob>("/analyses", {
+  const jobs = usePage<AnalysisJob>(clients.analyses.paths.list(), {
     interval: 5000,
     cursorKey: "cursor",
     limit: 30,
@@ -153,7 +155,8 @@ function AnalysisCollectionRow({
   job: AnalysisJob;
   returnTo: string;
 }) {
-  const source = useApi<Run>("/runs/" + job.runId);
+  const clients = useClients();
+  const source = useApi<Run>(clients.runs.paths.get(job.runId));
   const target = `/analysis/${job.id}?return=${encodeURIComponent(returnTo)}`;
   return (
     <tr>
@@ -198,12 +201,13 @@ function AnalysisSetup() {
   const [params, setParams] = useSearchParams();
   const runId = params.get("run") || "";
   const clone = params.get("clone");
-  const runs = useOffsetPage<Run>("/runs?summary=true", { pageSize: 50 });
-  const source = useApi<Run>(runId ? "/runs/" + runId : null);
-  const books = usePage<Codebook>("/codebooks", { limit: 30 });
-  const cloned = useApi<AnalysisJob>(clone ? "/analyses/" + clone : null);
+  const clients = useClients();
+  const runs = useOffsetPage<Run>(clients.runs.paths.list({ summary: true }), { pageSize: 50 });
+  const source = useApi<Run>(runId ? clients.runs.paths.get(runId) : null);
+  const books = usePage<Codebook>(clients.codebooks.paths.list(), { limit: 30 });
+  const cloned = useApi<AnalysisJob>(clone ? clients.analyses.paths.job(clone) : null);
   const jobs = usePage<AnalysisJob>(
-    runId ? "/runs/" + runId + "/analyses" : null,
+    runId ? clients.analyses.paths.runJobs(runId) : null,
     { interval: 5000, limit: 30 },
   );
   const [settings, setSettings] = useState<AnalysisSettings>({
@@ -220,11 +224,11 @@ function AnalysisSetup() {
     creator: localStorage.getItem("sidechannel-reviewer") || "",
   });
   const revision = useApi<{ codebook: Codebook; revision: CodebookRevision }>(
-    settings.codebookId ? "/codebooks/" + settings.codebookId : null,
+    settings.codebookId ? clients.codebooks.paths.get(settings.codebookId) : null,
   );
   const revisionHistory = usePage<CodebookRevision>(
     settings.codebookId
-      ? "/codebooks/" + settings.codebookId + "/revisions"
+      ? clients.codebooks.paths.revisions(settings.codebookId)
       : null,
     { limit: 30 },
   );
@@ -270,17 +274,14 @@ function AnalysisSetup() {
   const launch = async () => {
     if (!preview) return;
     const result = await mutation.run(() =>
-      post<AnalysisJob>("/runs/" + runId + "/analyses", {
-        ...settings,
-        previewToken: preview.previewToken,
-      }),
+      clients.analyses.launch(runId, settings, preview.previewToken),
     );
     if (result) navigate("/analysis/" + result.id);
   };
   const doPreview = async () => {
     const generation = settingsGeneration.current;
     const result = await mutation.run(() =>
-      post<AnalysisPreview>("/runs/" + runId + "/analyses/preview", settings),
+      clients.analyses.preview(runId, settings),
     );
     if (result && generation === settingsGeneration.current) setPreview(result);
   };
@@ -929,13 +930,9 @@ function PreviewWindowInput({
   token?: string;
   windowId: string;
 }) {
-  const state = useApi<{ state: string }>(
-    token
-      ? "/analysis-previews/" +
-          encodeURIComponent(token) +
-          "/windows/" +
-          windowId
-      : null,
+  const clients = useClients();
+  const state = usePageRequest<{ state: string }>(
+    token ? () => clients.analyses.previewWindow(token, windowId) : null,
   );
   return state.loading ? (
     <Loading />
@@ -953,18 +950,19 @@ function AnalysisDetail() {
   const [params, setParams] = useSearchParams();
   const tab = params.get("view") || "heatmap";
   const windowId = params.get("window");
-  const job = useApi<AnalysisJob>("/analyses/" + id, { interval: 4000 });
-  const sourceRun = useApi<Run>(job.data ? "/runs/" + job.data.runId : null);
-  const windows = usePage<AnalysisWindow>("/analyses/" + id + "/windows", {
+  const clients = useClients();
+  const job = useApi<AnalysisJob>(clients.analyses.paths.job(id!), { interval: 4000 });
+  const sourceRun = useApi<Run>(job.data ? clients.runs.paths.get(job.data.runId) : null);
+  const windows = usePage<AnalysisWindow>(clients.analyses.paths.windows(id!), {
     interval: 6000,
     limit: 30,
   });
   const detail = useApi<WindowDetail>(
-    windowId ? "/analyses/" + id + "/windows/" + windowId : null,
+    windowId ? clients.analyses.paths.window(id!, windowId) : null,
   );
   const persistedBatch = useApi<{ batch: ReviewBatch }>(
     params.get("batch")
-      ? `/analyses/${id}/review-batches/${params.get("batch")}?limit=1`
+      ? clients.analyses.paths.batch(id!, params.get("batch")!, { limit: 1 })
       : null,
   );
   const [reviewQueue, setReviewQueue] = useState<string[]>([]);
@@ -974,13 +972,13 @@ function AnalysisDetail() {
   const mutation = useMutation();
   const [compareId, setCompareId] = useState(params.get("compare") || "");
   const comparison = useApi<AnalysisJob>(
-    compareId ? "/analyses/" + compareId : null,
+    compareId ? clients.analyses.paths.job(compareId) : null,
   );
   const otherWindows = useApi<Page<AnalysisWindow>>(
-    compareId ? "/analyses/" + compareId + "/windows?limit=30" : null,
+    compareId ? clients.analyses.paths.windows(compareId, { limit: 30 }) : null,
   );
   const sourceJobs = usePage<AnalysisJob>(
-    job.data ? "/runs/" + job.data.runId + "/analyses" : null,
+    job.data ? clients.analyses.paths.runJobs(job.data.runId) : null,
     { limit: 30 },
   );
   if (job.loading) return <Loading />;
@@ -1030,7 +1028,7 @@ function AnalysisDetail() {
               </Link>
             </Button>
             <Button asChild variant="secondary">
-              <a href={"/api/jev/analyses/" + id + "/export"} download>
+              <a href={clients.analyses.exportUrl(id!)} download>
                 <Download size={14} />
                 Full analysis export
               </a>
@@ -1045,9 +1043,7 @@ function AnalysisDetail() {
                       "Cancel remaining analysis work? Successful scores and their evidence remain saved.",
                     )
                   ) {
-                    await mutation.run(() =>
-                      post("/analyses/" + id + "/cancel", {}),
-                    );
+                    await mutation.run(() => clients.analyses.cancel(id!));
                     void job.refresh();
                   }
                 }}
@@ -1062,7 +1058,7 @@ function AnalysisDetail() {
                 disabled={mutation.busy}
                 onClick={async () => {
                   await mutation.run(
-                    () => post("/analyses/" + id + "/retry", {}),
+                    () => clients.analyses.retry(id!),
                     "Retry requested for missing results.",
                   );
                   void job.refresh();
@@ -1409,7 +1405,7 @@ function AnalysisDetail() {
                 {["analysis"].map((dataset) => (
                   <Button key={dataset} asChild variant="secondary" size="sm">
                     <a
-                      href={`/api/analyses/${id}/export?dataset=${dataset}&limit=100`}
+                      href={clients.analyses.datasetExportUrl(id!, dataset)}
                       download
                     >
                       Complete linked datasets
@@ -1674,8 +1670,9 @@ function ReviewWorkspace({
   const [seed, setSeed] = useState("pilot-42");
   const [queueFilter, setQueueFilter] = useState("all");
   const [batchCursor, setBatchCursor] = useState<string | null>(null);
+  const clients = useClients();
   const batches = usePage<ReviewBatch>(
-    "/analyses/" + job.id + "/review-batches",
+    clients.analyses.paths.batches(job.id),
     { limit: 30 },
   );
   const batch = useApi<{
@@ -1683,15 +1680,12 @@ function ReviewWorkspace({
     selections: Page<ReviewSelection>;
   }>(
     batchId
-      ? "/analyses/" +
-          job.id +
-          "/review-batches/" +
-          batchId +
-          "?limit=30&reviewer=" +
-          encodeURIComponent(reviewer) +
-          "&filter=" +
-          encodeURIComponent(queueFilter) +
-          (batchCursor ? "&after=" + encodeURIComponent(batchCursor) : "")
+      ? clients.analyses.paths.batch(job.id, batchId, {
+          limit: 30,
+          reviewer,
+          filter: queueFilter,
+          after: batchCursor ?? undefined,
+        })
       : null,
   );
   const refreshBatch = useRef(batch.refresh);
@@ -1711,7 +1705,7 @@ function ReviewWorkspace({
     : mode === "blind";
   const create = async () => {
     const result = await mutation.run(() =>
-      post<ReviewBatch>("/analyses/" + job.id + "/review-batches", {
+      clients.analyses.createBatch(job.id, {
         mode,
         threshold,
         randomCount,
@@ -1943,12 +1937,13 @@ function ReviewQueueRow({
   blind: boolean;
   onSelect: (id: string) => void;
 }) {
+  const clients = useClients();
   const detail = useApi<WindowDetail>(
-    `/analyses/${job.id}/windows/${selection.windowId}`,
+    clients.analyses.paths.window(job.id, selection.windowId),
   );
   const reviews = useApi<Page<HumanReview>>(
     reviewer.trim()
-      ? `/analyses/${job.id}/reviews?windowId=${selection.windowId}&reviewer=${encodeURIComponent(reviewer)}&latest=true&limit=30`
+      ? clients.analyses.paths.reviews(job.id, { windowId: selection.windowId, reviewer, latest: "true", limit: 30 })
       : null,
   );
   const own =
@@ -2017,8 +2012,9 @@ function CanonicalEvent({
   onToggle: () => void;
   onAnnotate: () => void;
 }) {
+  const clients = useClients();
   const source = useApi<HarnessEvent>(
-    supplied ? null : `/runs/${runId}/events/${encodeURIComponent(eventId)}`,
+    supplied ? null : clients.runs.paths.event(runId, eventId),
   );
   const event = supplied ?? source.data;
   return (
@@ -2084,11 +2080,9 @@ export function WindowInspector({
   const [reviewer, setReviewer] = useState(
     () => localStorage.getItem("sidechannel-reviewer") || "",
   );
+  const clients = useClients();
   const reviews = usePage<HumanReview>(
-    "/analyses/" +
-      job.id +
-      "/reviews?windowId=" +
-      detail.window.id,
+    clients.analyses.paths.reviews(job.id, { windowId: detail.window.id }),
     { interval: 4000, limit: 30 },
   );
   const [scope, setScope] = useState<"window" | "event">("window");
@@ -2100,13 +2094,13 @@ export function WindowInspector({
   const [eventIds, setEventIds] = useState("");
   const ownPresence = useApi<Page<HumanReview>>(
     reviewer.trim()
-      ? `/analyses/${job.id}/reviews?windowId=${detail.window.id}&reviewer=${encodeURIComponent(reviewer)}&latest=true&limit=1`
+      ? clients.analyses.paths.reviews(job.id, { windowId: detail.window.id, reviewer, latest: "true", limit: 1 })
       : null,
   );
   const subjectId = scope === "window" ? detail.window.id : list(eventIds)[0];
   const ownLatest = useApi<Page<HumanReview>>(
     reviewer.trim() && subjectId
-      ? `/analyses/${job.id}/reviews?windowId=${detail.window.id}&subjectId=${encodeURIComponent(subjectId)}&scope=${scope}&codeId=${encodeURIComponent(codeId)}&reviewer=${encodeURIComponent(reviewer)}&latest=true&limit=1`
+      ? clients.analyses.paths.reviews(job.id, { windowId: detail.window.id, subjectId, scope, codeId, reviewer, latest: "true", limit: 1 })
       : null,
   );
   const mutation = useMutation();
@@ -2129,7 +2123,7 @@ export function WindowInspector({
   const save = async (advance = false) => {
     const result = await mutation.run(
       () =>
-        post<HumanReview>("/analyses/" + job.id + "/reviews", {
+        clients.analyses.saveReview(job.id, {
           reviewer,
           scope,
           windowId: detail.window.id,

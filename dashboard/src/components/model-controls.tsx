@@ -1,6 +1,7 @@
 import type { ExperimentConfig } from "../lib/types";
 import type { AdaptionModelCatalog } from "@sidechannel/contracts/browser";
 import { useApi } from "../lib/api";
+import { useClients } from "../lib/clients/context";
 import { Button, Field, Input, Notice, Select } from "./ui";
 
 export function ModelControls({
@@ -12,8 +13,9 @@ export function ModelControls({
   replace: (config: ExperimentConfig) => void;
   errors?: Record<string, string>;
 }) {
+  const clients = useClients();
   const models = useApi<AdaptionModelCatalog>(
-    config.model.provider === "adaption" ? "/models/adaption" : null,
+    config.model.provider === "adaption" ? clients.workspace.paths.adaptionModels() : null,
   );
   const budget = config.tokenBudget;
   const selectModel = (id: string) => {

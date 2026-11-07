@@ -40,18 +40,13 @@ import {
   Table,
   Tabs,
 } from "../components/ui";
-import {
-  arrayOf,
-  post,
-  useApi,
-  useMutation,
-  useRequester,
-} from "../lib/api";
+import { arrayOf, useApi, useMutation } from "../lib/api";
+import { useClients } from "../lib/clients/context";
 import {
   useResourceOffsetPage,
   useResourcePage,
 } from "../lib/clients/query";
-import { withQuery } from "../lib/transport";
+import type { EvidenceKind } from "../lib/clients/runs";
 import type {
   ArtifactVersion,
   Draft,
@@ -83,12 +78,19 @@ export default function Runs() {
   );
 }
 function RunList() {
+  const clients = useClients();
   const [params, setParams] = useSearchParams();
   const offset = Number(params.get("offset") || 0);
-  const query = new URLSearchParams(params);
-  query.set("summary", "true");
-  query.set("limit", "25");
-  const runs = useApi<RecordPage<Run>>("/runs?" + query, { interval: 5000 });
+  const runs = useApi<RecordPage<Run>>(clients.runs.paths.list({
+    status: params.get("status") || undefined,
+    model: params.get("model") || undefined,
+    condition: params.get("condition") || undefined,
+    scenario: params.get("scenario") || undefined,
+    designation: params.get("designation") || undefined,
+    summary: true,
+    limit: 25,
+    offset,
+  }), { interval: 5000 });
   const items = arrayOf(runs.data);
   const filter = (key: string, value: string) => {
     setParams((previous) => {
@@ -218,13 +220,13 @@ function RunDetail() {
   const tab = params.get("view") || "timeline";
   const selected = params.get("evidence");
   const seq = params.get("seq");
-  const run = useApi<Run>("/runs/" + id);
-  const progress = useApi<Partial<Run>>("/runs/" + id + "/progress", {
+  const clients = useClients();
+  const run = useApi<Run>(clients.runs.paths.get(id!));
+  const progress = useApi<Partial<Run>>(clients.runs.paths.progress(id!), {
     interval: 3500,
   });
   const mutation = useMutation();
   const navigate = useNavigate();
-  const requester = useRequester();
   const [actor, setActor] = useState(""),
     [phase, setPhase] = useState(""),
     [eventType, setEventType] = useState(""),
@@ -233,51 +235,29 @@ function RunDetail() {
   const eventKey = [id, actor, phase, eventType, from, to].join("|");
   const events = useResourcePage<HarnessEvent>(
     tab === "timeline" || tab === "traces" ? eventKey : null,
-    async cursor => {
-      const payload = await requester<{
-        events?: HarnessEvent[];
-        items: HarnessEvent[];
-        nextCursor: number;
-        hasMore?: boolean;
-      }>(
-        withQuery("/runs/" + id + "/events", {
-          limit: 50,
-          after: cursor ?? 0,
-          actor,
-          phase,
-          type: eventType,
-          from,
-          to,
-        }),
-      );
-      const rows = payload.events ?? payload.items;
-      const hasMore = payload.hasMore ?? rows.length === 50;
-      return {
-        items: rows,
-        nextCursor: hasMore ? String(payload.nextCursor) : null,
-      };
-    },
+    async cursor => clients.runs.events(id!, {
+      limit: 50,
+      after: cursor ?? undefined,
+      ...(actor ? { actor } : {}),
+      ...(phase ? { phase } : {}),
+      ...(eventType ? { type: eventType } : {}),
+      ...(from ? { from } : {}),
+      ...(to ? { to } : {}),
+    }),
     { interval: 4000 },
   );
   const selectedEvent = useApi<HarnessEvent>(
     selected && ["timeline", "traces", "memory"].includes(tab)
-      ? "/runs/" + id + "/events/" + encodeURIComponent(selected)
+      ? clients.runs.paths.event(id!, selected)
       : null,
   );
   const selectedRecord = useApi<unknown>(
     selected && ["board", "artifacts", "reports"].includes(tab)
-      ? "/runs/" +
-          id +
-          "/" +
-          tab +
-          "/" +
-          encodeURIComponent(
-            tab === "artifacts"
-              ? selected.replace("version-", "")
-              : tab === "reports"
-                ? selected.replace("agent-", "")
-                : selected,
-          )
+      ? clients.runs.paths.evidenceItem(id!, tab as EvidenceKind, tab === "artifacts"
+          ? selected.replace("version-", "")
+          : tab === "reports"
+            ? selected.replace("agent-", "")
+            : selected)
       : null,
   );
   const evidencePath = ["board", "artifacts", "memory", "reports"].includes(tab)
@@ -290,9 +270,9 @@ function RunDetail() {
   const evidence = useResourceOffsetPage<unknown>(
     evidencePath,
     async offset => {
-      const payload = await requester<RecordPage<unknown>>(
-        withQuery(evidencePath!, { limit: 30, offset }),
-      );
+      const payload = tab === "board"
+        ? await clients.runs.board(id!, { limit: 30, offset }) as RecordPage<unknown>
+        : await clients.runs.evidence(id!, tab as EvidenceKind, { limit: 30, offset });
       evidencePayload.current = { path: evidencePath!, payload };
       return {
         items: payload.items ?? [],
@@ -346,14 +326,14 @@ function RunDetail() {
     )
       return;
     await mutation.run(
-      () => post("/runs/" + id + "/cancel", {}),
+      () => clients.runs.cancel(id!),
       "Cancellation requested. Waiting for the worker to reach a safe boundary.",
     );
     void progress.refresh();
   };
   const duplicate = async () => {
     const result = await mutation.run(() =>
-      post<Draft>("/runs/" + id + "/duplicate", {}),
+      clients.runs.duplicate(id!),
     );
     if (result) navigate("/experiments?draft=" + result.id);
   };
@@ -385,7 +365,7 @@ function RunDetail() {
               Duplicate config
             </Button>
             <Button variant="secondary" asChild>
-              <a href={"/api/runs/" + id + "/export"} download>
+              <a href={clients.runs.exportUrl(id!)} download>
                 <Download size={14} />
                 Source export
               </a>
@@ -958,13 +938,14 @@ function safeRunReturn(value: string | null) {
   return value === "/runs" || value?.startsWith("/runs?") ? value : "/runs";
 }
 function PairDetail() {
+  const clients = useClients();
   const [params] = useSearchParams();
   const { id } = useParams();
   const pair = useApi<{
     runs: Run[];
     configurationDifferences: unknown[];
     matched: boolean;
-  }>("/pairs/" + id);
+  }>(clients.runs.paths.pair(id!));
   if (pair.loading) return <Loading />;
   if (!pair.data) return <ErrorState error={pair.error} retry={pair.refresh} />;
   return (
@@ -1085,7 +1066,8 @@ function PairCondition({
   summary: Run;
   returnTo: string;
 }) {
-  const resource = useApi<Run>("/runs/" + summary.id, { interval: 5000 });
+  const clients = useClients();
+  const resource = useApi<Run>(clients.runs.paths.get(summary.id), { interval: 5000 });
   const run = resource.data || summary;
   const suffix = "&returnTo=" + encodeURIComponent(returnTo);
   const finals = resource.data?.artifacts?.filter((item) => item.frozen) || [];

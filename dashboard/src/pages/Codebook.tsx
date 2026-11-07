@@ -26,7 +26,8 @@ import {
   Select,
   Textarea,
 } from "../components/ui";
-import { api, post, useApi, useMutation, usePage } from "../lib/api";
+import { useApi, useMutation, usePage } from "../lib/api";
+import { useClients } from "../lib/clients/context";
 import { ProseListEditor } from "../components/prose-list-editor";
 import { list, when } from "../lib/utils";
 import type {
@@ -35,11 +36,12 @@ import type {
   CodebookRevision,
 } from "../lib/analysis-types";
 export default function CodebookPage() {
-  const books = usePage<Codebook>("/codebooks", { limit: 30 });
+  const clients = useClients();
+  const books = usePage<Codebook>(clients.codebooks.paths.list(), { limit: 30 });
   const [bookOptions, setBookOptions] = useState<Codebook[]>([]);
   const [bookId, setBookId] = useState("");
   const current = useApi<{ codebook: Codebook; revision: CodebookRevision }>(
-    bookId ? "/codebooks/" + bookId : null,
+    bookId ? clients.codebooks.paths.get(bookId) : null,
   );
   const [codes, setCodes] = useState<BehaviorCode[]>([]);
   const [selected, setSelected] = useState("");
@@ -54,7 +56,7 @@ export default function CodebookPage() {
   const [baseRevision, setBaseRevision] = useState(0);
   const [recovery, setRecovery] = useState<{name:string;codes:BehaviorCode[];baseRevision:number}>();
   const revisions = usePage<CodebookRevision>(
-    history && bookId ? "/codebooks/" + bookId + "/revisions" : null,
+    history && bookId ? clients.codebooks.paths.revisions(bookId) : null,
     { limit: 30 },
   );
   const [historyRevision, setHistoryRevision] = useState<CodebookRevision>();
@@ -138,7 +140,7 @@ export default function CodebookPage() {
   };
   const create = async () => {
     const result = await mutation.run(() =>
-      post<{ codebook: Codebook; revision: CodebookRevision }>("/codebooks", {
+      clients.codebooks.create({
         name: "Study codebook",
         author: author || "Researcher",
       }),
@@ -153,18 +155,12 @@ export default function CodebookPage() {
     if (!current.data || formBookId !== bookId || !baseRevisionId) return;
     const result = await mutation.run(
       () =>
-        api<{ codebook: Codebook; revision: CodebookRevision }>(
-          "/codebooks/" + bookId,
-          {
-            method: "PATCH",
-            body: JSON.stringify({
-              expectedRevisionId: baseRevisionId,
-              name,
-              codes: codes.map(code=>({...code,...Object.fromEntries((['inclusionCriteria','exclusionCriteria','examples','counterexamples','qualifyingEvidenceTypes'] as const).map(key=>[key,code[key].map(value=>value.trim()).filter(Boolean)]))})),
-              author,
-            }),
-          },
-        ),
+        clients.codebooks.revise(bookId, {
+          expectedRevisionId: baseRevisionId,
+          name,
+          codes: codes.map(code=>({...code,...Object.fromEntries((['inclusionCriteria','exclusionCriteria','examples','counterexamples','qualifyingEvidenceTypes'] as const).map(key=>[key,code[key].map(value=>value.trim()).filter(Boolean)]))})),
+          author,
+        }),
       "New immutable codebook revision saved. Existing analyses keep their frozen definitions.",
     );
     if (result) {

@@ -41,7 +41,8 @@ import {
   Tabs,
   Textarea,
 } from "../components/ui";
-import { post, useApi, useMutation, useOffsetPage, usePage } from "../lib/api";
+import { useApi, useMutation, useOffsetPage, usePage } from "../lib/api";
+import { useClients } from "../lib/clients/context";
 import type { Run } from "../lib/types";
 import type {
   MonitorDefinition,
@@ -81,23 +82,25 @@ export default function Oversight() {
 }
 function OversightSetup({ creating = false }: { creating?: boolean }) {
   const [params, setParams] = useSearchParams();
+  const clients = useClients();
   const tab =
     params.get("view") || (creating || params.has("run") ? "setup" : "jobs");
-  const current = useApi<MonitorDefinition>("/monitor-definitions");
-  const history = usePage<MonitorDefinition>("/monitor-definitions/history", {
+  const current = useApi<MonitorDefinition>(clients.monitor.paths.definition());
+  const history = usePage<MonitorDefinition>(clients.monitor.paths.history(), {
     limit: 25,
   });
-  const runs = useOffsetPage<Run>("/runs?summary=true&status=completed", {
-    pageSize: 25,
-  });
+  const runs = useOffsetPage<Run>(
+    clients.runs.paths.list({ summary: true, status: "completed" }),
+    { pageSize: 25 },
+  );
   const referenceRuns = useOffsetPage<Run>(
     tab === "references"
-      ? "/runs?summary=true&status=completed,failed,cancelled,interrupted"
+      ? clients.runs.paths.list({ summary: true, status: "completed,failed,cancelled,interrupted" })
       : null,
     { pageSize: 25 },
   );
   const [referenceRunId, setReferenceRunId] = useState(params.get("run") || "");
-  const jobs = usePage<MonitorEvaluation>("/monitor-evaluations", {
+  const jobs = usePage<MonitorEvaluation>(clients.monitor.paths.evaluations(), {
     interval: 5000,
     cursorKey: "jobCursor",
     limit: 25,
@@ -142,7 +145,7 @@ function OversightSetup({ creating = false }: { creating?: boolean }) {
   ].filter(Boolean) as string[];
   const doPreview = async () => {
     const result = await mutation.run(() =>
-      post<MonitorPreview>("/monitor/preview", {
+      clients.monitor.preview({
         runIds: selected,
         definitionRevision,
         ...settings,
@@ -153,7 +156,7 @@ function OversightSetup({ creating = false }: { creating?: boolean }) {
   const launch = async () => {
     if (!preview) return;
     const result = await mutation.run(() =>
-      post<MonitorEvaluation>("/monitor-evaluations", {
+      clients.monitor.launch({
         previewId: preview.id,
         previewHash: preview.hash,
         idempotencyKey: launchKey.current,
@@ -672,8 +675,9 @@ function DefinitionEditor({
   const [selected, setSelected] = useState("");
   const [dirty, setDirty] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const clients = useClients();
   const history = usePage<MonitorDefinition>(
-    showHistory ? "/monitor-definitions/history" : null,
+    showHistory ? clients.monitor.paths.history() : null,
     { limit: 25 },
   );
   const [historical, setHistorical] = useState<MonitorDefinition>();
@@ -720,10 +724,9 @@ function DefinitionEditor({
   const save = async () => {
     const result = await mutation.run(
       () =>
-        post<MonitorDefinition>("/monitor-definitions", {
+        clients.monitor.saveDefinition({
+          ...draft,
           expectedRevision: draft.revision,
-          questions: draft.questions,
-          outcomes: draft.outcomes,
         }),
       "Immutable monitor definition revision saved. Existing evaluation snapshots are unchanged.",
     );
@@ -1112,18 +1115,19 @@ function ProjectionInspector({ projection }: { projection: Projection }) {
 function EvaluationDetail() {
   const [params] = useSearchParams();
   const { id } = useParams();
+  const clients = useClients();
   const evaluation = useApi<MonitorEvaluation>(
-    "/monitor-evaluations/" + id,
+    clients.monitor.paths.evaluation(id!),
     { interval: 4000 },
   );
   const comparison = useApi<MonitorComparison>(
-    "/monitor-evaluations/" + id + "/comparison",
+    clients.monitor.paths.comparison(id!),
     { interval: 5000 },
   );
   const provenance = useApi<{
     evaluation: MonitorEvaluation;
     preview: MonitorPreview;
-  }>("/monitor-evaluations/" + id + "/export");
+  }>(clients.monitor.paths.exportEnvelope(id!));
   const [projection, setProjection] = useState<Projection>();
   const [resultSelection, setResultSelection] = useState<{
     runId: string;
@@ -1161,7 +1165,7 @@ function EvaluationDetail() {
           <>
             <Badge status={data.status} />
             <Button asChild variant="secondary">
-              <a href={"/api/monitor-evaluations/" + id + "/export"} download>
+              <a href={clients.monitor.exportUrl(id!)} download>
                 <Download size={14} />
                 Monitor export
               </a>
@@ -1176,9 +1180,7 @@ function EvaluationDetail() {
                       "Cancel remaining monitor calls? Completed view results remain available.",
                     )
                   ) {
-                    await mutation.run(() =>
-                      post("/monitor-evaluations/" + id + "/cancel", {}),
-                    );
+                    await mutation.run(() => clients.monitor.cancel(id!));
                     void evaluation.refresh();
                   }
                 }}
@@ -1500,24 +1502,20 @@ function RunReferenceEditor({
   const [definitionRevisionId, setDefinitionRevisionId] = useState(
     initialDefinitionRevisionId || "",
   );
+  const clients = useClients();
   const definitionHistory = usePage<MonitorDefinition>(
-    "/monitor-definitions/history",
+    clients.monitor.paths.history(),
     { limit: 25 },
   );
   const context = useApi<RunReviewContext>(
-    "/runs/" +
-      runId +
-      "/reviews/context" +
-      (definitionRevisionId
-        ? "?definitionRevisionId=" + encodeURIComponent(definitionRevisionId)
-        : ""),
+    clients.reviews.paths.context(runId, definitionRevisionId || undefined),
   );
-  const reviews = usePage<RunOutcomeReview>("/runs/" + runId + "/reviews", {
-    interval: 5000,
-    limit: 25,
-  });
+  const reviews = usePage<RunOutcomeReview>(
+    clients.reviews.paths.list(runId),
+    { interval: 5000, limit: 25 },
+  );
   const agreements = useApi<RunOutcomeAgreement[]>(
-    "/runs/" + runId + "/outcomes",
+    clients.reviews.paths.outcomes(runId),
     { interval: 5000 },
   );
   const [reviewer, setReviewer] = useState(
@@ -1528,14 +1526,14 @@ function RunReferenceEditor({
   const [rationale, setRationale] = useState("");
   const [evidence, setEvidence] = useState("");
   const mutation = useMutation();
-  const latestQuery = new URLSearchParams({
+  const latestQuery = {
     reviewer: reviewer.trim().normalize("NFKC").toLocaleLowerCase("en-US"),
     outcomeId,
     definitionRevisionId: context.data?.definition.id || "",
-  });
+  };
   const latest = useApi<RunOutcomeReview | null>(
     context.data && reviewer.trim() && outcomeId
-      ? "/runs/" + runId + "/reviews/latest?" + latestQuery
+      ? clients.reviews.paths.latest(runId, latestQuery)
       : null,
     { interval: 5000 },
   );
@@ -1555,7 +1553,7 @@ function RunReferenceEditor({
   const save = async () => {
     const result = await mutation.run(
       () =>
-        post<RunOutcomeReview>("/runs/" + runId + "/reviews", {
+        clients.reviews.save(runId, {
           reviewer,
           outcomeId,
           definitionRevisionId: data.definition.id,
@@ -1587,12 +1585,7 @@ function RunReferenceEditor({
             <Button asChild variant="secondary" size="sm">
               <a
                 download
-                href={
-                  "/api/runs/" +
-                  runId +
-                  "/reviews/export?definitionRevisionId=" +
-                  encodeURIComponent(data.definition.id)
-                }
+                href={clients.reviews.exportUrl(runId, data.definition.id)}
               >
                 <Download size={14} />
                 Reference export

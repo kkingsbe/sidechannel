@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
+import { activate, fakeServer, renderWithServer } from "../test/clients";
 import Analysis, { WindowInspector } from "./Analysis";
 import { RecordedEventContent } from "./analysis/RecordedEventContent";
 import type { AnalysisJob, WindowDetail } from "../lib/analysis-types";
@@ -11,74 +12,6 @@ const mocks = vi.hoisted(() => ({
   post: vi.fn(),
   batch: { id: "blind-batch", mode: "blind" },
 }));
-vi.mock("../lib/api", async () => {
-  const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
-  const { useSearchParams } = await import("react-router-dom");
-  return {
-    ...actual,
-    useApi: (path: string | null) => ({
-      data: mocks.request(path),
-      loading: false,
-      error: undefined,
-      refresh: vi.fn(),
-      updatedAt: undefined,
-    }),
-    usePage: (path: string | null, options?: { cursorKey?: string; limit?: number }) => {
-      const [params, setParams] = useSearchParams();
-      const saved = options?.cursorKey ? ["", ...params.getAll(options.cursorKey)] : [""];
-      const page = saved.length - 1;
-      const cursor = saved[page];
-      const requestPath = path == null
-        ? null
-        : path + (path.includes("?") ? "&" : "?") + "limit=" + (options?.limit ?? 30) + (cursor ? "&after=" + encodeURIComponent(cursor) : "");
-      const data = requestPath == null ? undefined : mocks.request(requestPath);
-      const nextCursor = data?.nextCursor ?? null;
-      return {
-        data: data?.items ?? [],
-        nextCursor,
-        page,
-        hasMore: !!nextCursor,
-        loading: false,
-        error: undefined,
-        onChange: (next: number) => {
-          const cursorKey = options?.cursorKey;
-          if (!cursorKey || next === page) return;
-          if (next > page && !nextCursor) return;
-          const chain = next > page ? [...saved.slice(1), nextCursor] : saved.slice(1, next + 1);
-          setParams((previous) => {
-            previous.delete(cursorKey);
-            chain.forEach((value: string) => previous.append(cursorKey, value));
-            return previous;
-          });
-        },
-        refresh: vi.fn(),
-      };
-    },
-    useOffsetPage: (path: string | null) => ({
-      data: (path == null ? undefined : mocks.request(path))?.items ?? [],
-      total: 0,
-      page: 0,
-      hasMore: false,
-      loading: false,
-      error: undefined,
-      onChange: vi.fn(),
-      refresh: vi.fn(),
-    }),
-    useMutation: () => ({
-      busy: false,
-      error: undefined,
-      message: "",
-      run: async (action: () => Promise<unknown>) => {
-        try {
-          return await action();
-        } catch {
-          return undefined;
-        }
-      },
-    }),
-    post: (...args: unknown[]) => mocks.post(...args),
-  };
-});
 const code = {
   id: "visibility",
   code: "VISIBILITY",
@@ -121,6 +54,13 @@ const detail = {
 beforeEach(() => {
   localStorage.clear();
   mocks.post.mockResolvedValue({ id: "saved" });
+  activate(fakeServer((path) => mocks.request(path)), {
+    analyses: {
+      saveReview: (id: string, input: unknown) => mocks.post("/analyses/" + id + "/reviews", input),
+      preview: () => mocks.post(),
+      launch: () => mocks.post(),
+    },
+  });
   mocks.request.mockImplementation((path: string | null) => {
     if (!path) return undefined;
     if (path === "/analyses/analysis-a") return job;
@@ -138,7 +78,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 it("derives initial blinding from persisted batch mode even when the shared link omits blind=true", async () => {
-  render(
+  renderWithServer(
     <MemoryRouter
       initialEntries={[
         "/analysis-a?view=review&batch=blind-batch&window=window-a",
@@ -152,7 +92,7 @@ it("derives initial blinding from persisted batch mode even when the shared link
 });
 it("fails closed when a path change temporarily retains metadata for a different assisted batch", async () => {
   mocks.batch = { id: "old-assisted-batch", mode: "assisted" };
-  render(
+  renderWithServer(
     <MemoryRouter
       initialEntries={[
         "/analysis-a?view=review&batch=new-blind-batch&window=window-a",
@@ -201,7 +141,7 @@ it("revises the exact event subject rather than borrowing another event review r
       };
     return { items: [], nextCursor: null };
   });
-  render(
+  renderWithServer(
     <MemoryRouter>
       <WindowInspector detail={detail} job={job} blind={false} />
     </MemoryRouter>,
@@ -230,7 +170,7 @@ it("revises the exact event subject rather than borrowing another event review r
 it("selects multiple exact citations and preserves the draft when a save fails", async () => {
   localStorage.setItem("sidechannel-reviewer", "Reviewer A");
   const next = vi.fn();
-  render(
+  renderWithServer(
     <MemoryRouter>
       <WindowInspector detail={detail} job={job} blind onNext={next} />
     </MemoryRouter>,
@@ -280,7 +220,7 @@ it("renders canonical recorded text first and retains real zero probabilities", 
       results: [{ codeId: code.id, probability: 0 }],
     },
   } as WindowDetail;
-  render(
+  renderWithServer(
     <MemoryRouter>
       <WindowInspector detail={withEvents} job={job} blind={false} />
     </MemoryRouter>,
@@ -294,7 +234,7 @@ it("renders canonical recorded text first and retains real zero probabilities", 
   expect(raw?.open).toBe(false);
 });
 it("opens saved analyses as a collection and exposes a separate creation route", () => {
-  render(
+  renderWithServer(
     <MemoryRouter initialEntries={["/"]}>
       <Analysis />
     </MemoryRouter>,
@@ -344,7 +284,7 @@ it("explains preview prerequisites and distinguishes unscored records while inva
       },
     ],
   });
-  render(
+  renderWithServer(
     <MemoryRouter initialEntries={["/new?run=source-run"]}>
       <Analysis />
     </MemoryRouter>,
@@ -401,7 +341,7 @@ it("keeps later queue pages and filters after saving and advancing to the next i
     }
     return base(path);
   });
-  render(
+  renderWithServer(
     <MemoryRouter
       initialEntries={["/analysis-a?view=review&batch=blind-batch"]}
     >
@@ -409,7 +349,7 @@ it("keeps later queue pages and filters after saving and advancing to the next i
     </MemoryRouter>,
   );
   const user = userEvent.setup();
-  await user.selectOptions(screen.getByLabelText("Queue filter"), "uncertain");
+  await user.selectOptions(await screen.findByLabelText("Queue filter"), "uncertain");
   await user.click(screen.getByRole("button", { name: "Next selections" }));
   expect(screen.getByText(/Window 2 .* steps 5.*16/)).toBeTruthy();
   expect(screen.queryByText("flagged")).toBeNull();
@@ -444,7 +384,7 @@ it("keeps later queue pages and filters after saving and advancing to the next i
 });
 
 it("puts exact model messages ahead of technical input schemas", () => {
-  render(
+  renderWithServer(
     <RecordedEventContent
       type="model_requested"
       data={{
@@ -468,7 +408,7 @@ it("puts exact model messages ahead of technical input schemas", () => {
     screen.queryByText(/Schema internals|Tool schema noise|metadata-id/),
   ).toBeNull();
 });
-it("does not claim an item is unreviewed before a reviewer is identified", () => {
+it("does not claim an item is unreviewed before a reviewer is identified", async () => {
   const base = mocks.request.getMockImplementation()!;
   mocks.request.mockImplementation((path: string | null) =>
     path?.includes("/review-batches/blind-batch")
@@ -481,14 +421,14 @@ it("does not claim an item is unreviewed before a reviewer is identified", () =>
         }
       : base(path),
   );
-  render(
+  renderWithServer(
     <MemoryRouter
       initialEntries={["/analysis-a?view=review&batch=blind-batch"]}
     >
       <Analysis />
     </MemoryRouter>,
   );
-  expect(screen.getByText("Enter reviewer identity")).toBeTruthy();
+  expect(await screen.findByText("Enter reviewer identity")).toBeTruthy();
   expect(screen.queryByText("Unreviewed", { selector: "td" })).toBeNull();
   expect(screen.queryByText("flagged")).toBeNull();
 });
@@ -507,7 +447,7 @@ it("carries the saved analyses cursor into the detail return link", async () => 
       };
     return base(path);
   });
-  render(
+  renderWithServer(
     <MemoryRouter initialEntries={["/"]}>
       <Analysis />
     </MemoryRouter>,

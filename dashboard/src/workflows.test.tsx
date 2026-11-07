@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
+import { activate, fakeServer, renderWithServer } from "./test/clients";
+let lastCalls: { path: string }[] = [];
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import Experiments from "./pages/Experiments";
@@ -31,16 +33,13 @@ const run: Run = {
 };
 type Handler = (path: string, options?: RequestInit) => unknown;
 function mockApi(handler: Handler) {
-  return vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: string, options?: RequestInit) => {
-      const value = handler(input.replace(/^\/api/, ""), options);
-      return new Response(JSON.stringify(value), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    }),
-  );
+  const server = fakeServer((path, options) => {
+    if (path.startsWith("/analyses")) return { items: [], nextCursor: null };
+    return handler(path, options);
+  });
+  lastCalls = server.calls;
+  activate(server);
+  return server;
 }
 function setupConfig(extra: Handler = () => undefined) {
   mockApi((path, options) => {
@@ -83,7 +82,7 @@ describe("experiment form workflow", () => {
         ];
       }
     });
-    render(
+    renderWithServer(
       <MemoryRouter initialEntries={["/experiments/new"]}>
         <Experiments />
       </MemoryRouter>,
@@ -117,7 +116,7 @@ describe("experiment form workflow", () => {
           }
         : undefined,
     );
-    render(
+    renderWithServer(
       <MemoryRouter initialEntries={["/experiments?draft=incomplete"]}>
         <Experiments />
       </MemoryRouter>,
@@ -155,7 +154,7 @@ describe("canonical evidence inspection", () => {
       if (path === "/runs/run-1/board/message-1") return message;
       throw new Error("Unexpected route " + path);
     });
-    render(
+    renderWithServer(
       <MemoryRouter initialEntries={["/run-1?view=board"]}>
         <Runs />
       </MemoryRouter>,
@@ -168,11 +167,7 @@ describe("canonical evidence inspection", () => {
     expect(dialog.textContent).toContain("message-1");
     expect(dialog.textContent).toContain("board evidence");
     expect(dialog.querySelector("img")).toBeNull();
-    expect(
-      (fetch as ReturnType<typeof vi.fn>).mock.calls.some((call) =>
-        String(call[0]).includes("/events"),
-      ),
-    ).toBe(false);
+    expect(lastCalls.some((call) => call.path.includes("/events"))).toBe(false);
   });
 });
 describe("independent human run outcomes", () => {
@@ -232,7 +227,7 @@ describe("independent human run outcomes", () => {
       }
       throw new Error("Unexpected route " + path);
     });
-    render(
+    renderWithServer(
       <MemoryRouter initialEntries={["/?view=references&run=run-1"]}>
         <Oversight />
       </MemoryRouter>,
@@ -331,7 +326,7 @@ describe("blinded evidence inspection", () => {
       },
       sourceEventIds: ["canonical-event-1"],
     } as WindowDetail;
-    render(
+    renderWithServer(
       <MemoryRouter>
         <WindowInspector detail={detail} job={job} blind />
       </MemoryRouter>,

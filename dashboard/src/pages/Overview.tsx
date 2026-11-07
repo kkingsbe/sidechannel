@@ -1,7 +1,8 @@
 import { NavLink } from 'react-router-dom';
 import { Activity, ArrowUpRight, BookOpen, FlaskConical, ShieldCheck } from 'lucide-react';
 import { Badge, Button, Card, CardHeading, Empty, ErrorState, Loading, PageHeader, Table } from '../components/ui';
-import { useApi, arrayOf } from '../lib/api';
+import { useApi } from '../lib/api';
+import { useClients } from '../lib/clients/context';
 import type { Run, Draft } from '../lib/types';
 import { short, when } from '../lib/utils';
 import { RunTable } from '../App';
@@ -15,7 +16,7 @@ interface Job {
   manifest?: { settings?: { model?: string; windowSize?: number; stride?: number } };
 }
 function ResearchJobs({ title, path, destination }: { title: string; path: string; destination: string }) {
-  const jobs = useApi<{ items: Job[]; nextCursor: string | null }>(path, { interval: 5000 }), rows = arrayOf(jobs.data);
+  const jobs = useApi<{ items: Job[]; nextCursor: string | null }>(path, { interval: 5000 }), rows = jobs.data?.items ?? [];
   return <Card><CardHeading title={title} actions={<Button asChild variant="ghost" size="sm"><NavLink to={destination}>View all <ArrowUpRight size={15} /></NavLink></Button>} />
     {jobs.loading ? <Loading /> : jobs.error && !jobs.data ? <ErrorState error={jobs.error} retry={jobs.refresh} /> : !rows.length ? <Empty title={`No ${title.toLowerCase()} yet`} description="Start from a source run when you are ready." /> :
       <Table label={title} headers={['Job / source', 'Status', 'Updated']}>
@@ -26,9 +27,10 @@ function ResearchJobs({ title, path, destination }: { title: string; path: strin
   </Card>;
 }
 export default function Overview() {
-  const overview = useApi<OverviewData>('/overview', { interval: 5000 }), runs = useApi<{ items: Run[] }>('/runs?summary=true&limit=8', { interval: 5000 });
-  const drafts = useApi<Draft[]>('/drafts');
-  const counts = overview.data?.counts, data = arrayOf(runs.data);
+  const clients = useClients();
+  const overview = useApi<OverviewData>(clients.workspace.paths.overview(), { interval: 5000 }), runs = useApi<{ items: Run[] }>(clients.runs.paths.list({ summary: true, limit: 8 }), { interval: 5000 });
+  const drafts = useApi<Draft[]>(clients.workspace.paths.drafts());
+  const counts = overview.data?.counts, data = runs.data?.items ?? [];
   const count = (...states: string[]) => counts ? states.reduce((sum, state) => sum + (counts[state] ?? 0), 0) : null;
   const stats = [
     { label: 'Active runs', value: count('running', 'reporting', 'stopping'), states: 'running,reporting,stopping', detail: 'Inspect execution progress', icon: Activity },
@@ -47,7 +49,7 @@ export default function Overview() {
         {runs.loading ? <Loading /> : runs.error && !runs.data ? <ErrorState error={runs.error} retry={runs.refresh} /> : data.length ? <RunTable runs={data} /> : <Empty title="Your first experiment starts here" description="Create a draft, validate its configuration, and launch a matched pair."><Button asChild><NavLink to="/experiments/new">Create experiment</NavLink></Button></Empty>}
         <div className="card-foot">{runs.error ? `Updates unavailable · last refreshed ${runs.updatedAt ? new Date(runs.updatedAt).toLocaleTimeString() : 'unknown'}` : runs.updatedAt ? `Evidence refreshed at ${new Date(runs.updatedAt).toLocaleTimeString()}` : 'Connecting to researcher API'}{runs.error && <Button size="sm" variant="secondary" onClick={runs.refresh}>Retry</Button>}</div>
       </Card>
-      <div className="form-grid"><ResearchJobs title="Analyses" path="/analyses?limit=6" destination="/analysis" /><ResearchJobs title="Monitor evaluations" path="/monitor-evaluations?limit=6" destination="/oversight" /></div>
+      <div className="form-grid"><ResearchJobs title="Analyses" path={clients.analyses.paths.list({ limit: 6 })} destination="/analysis" /><ResearchJobs title="Monitor evaluations" path={clients.monitor.paths.evaluations({ limit: 6 })} destination="/oversight" /></div>
       <Card><CardHeading title="Services & freshness" /><div className="card-body service-summary"><div><strong>Researcher API</strong><p>{overview.error ? 'Updates unavailable' : overview.data ? 'Connected' : 'Connecting'}{overview.updatedAt && ` · last success ${new Date(overview.updatedAt).toLocaleTimeString()}`}</p></div><div><strong>Experiment worker</strong>{overview.error && <p>Stale reading - last observed {overview.updatedAt ? new Date(overview.updatedAt).toLocaleTimeString() : 'unknown'}. Retry the API update to check availability.</p>}<p>{overview.data?.worker.available === true ? 'Available' : overview.data?.worker.available === false ? 'Unavailable' : 'Availability unknown'} · capacity {overview.data?.worker.capacity ?? 'unknown'}</p><p>{overview.data?.worker.note ?? 'API connectivity does not establish worker availability.'}</p></div></div></Card>
       <details className="card onboarding"><summary>Getting started with the research workflow</summary><div className="workflow-list">{[
         { n: '01', title: 'Configure a matched pair', text: 'Choose the task, agents, and model; review both conditions.', to: '/experiments/new' },
