@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { activate, fakeServer, renderWithServer } from "../test/clients";
@@ -350,8 +350,10 @@ it("keeps later queue pages and filters after saving and advancing to the next i
   );
   const user = userEvent.setup();
   await user.selectOptions(await screen.findByLabelText("Queue filter"), "uncertain");
+  await screen.findByText(/Window 1 /);
+  await waitFor(() => expect(mocks.request.mock.calls.some(call => String(call[0]).includes("filter=uncertain"))).toBe(true));
   await user.click(screen.getByRole("button", { name: "Next selections" }));
-  expect(screen.getByText(/Window 2 .* steps 5.*16/)).toBeTruthy();
+  await waitFor(() => expect(screen.getByText(/Window 2 .* steps 5.*16/)).toBeTruthy());
   expect(screen.queryByText("flagged")).toBeNull();
   await user.click(
     screen.getAllByRole("button", { name: "Review evidence" })[0],

@@ -67,19 +67,13 @@ export function createAnalysesClient(request: Requester, session: JevSession): A
         reviews: (id, query) => request(analysisPaths.reviews(id, query)),
         saveReview: async (id, input) => {
             const source = await jobFor(request, session, id);
-            if (input.scope === 'event' && (!Array.isArray(input.eventIds) || input.eventIds.length !== 1))
-                throw new Error('Event annotations require exactly one source event. Save separate annotations for additional events.');
-            const previous = input.supersedesId ? session.review(input.supersedesId) : undefined;
-            if (input.supersedesId && !previous) throw new Error('The review revision is unavailable. Reload the review history before revising it.');
             const subjectId = input.scope === 'event' ? input.eventIds[0] : input.windowId;
-            if (previous && (previous.subjectId !== subjectId || previous.scope !== input.scope || previous.codeId !== input.codeId || previous.reviewer !== input.reviewer))
-                throw new Error('The previous review does not match this reviewer, code and evidence subject.');
             return post(analysisPaths.review(id), {
                 scope: input.scope, subjectId, codeId: input.codeId,
                 definitionRevision: source.manifest.codebook.id, evidenceRevision: source.manifest.source.evidenceHash,
                 reviewer: input.reviewer, decision: input.decision, rationale: input.rationale,
                 eventIds: input.eventIds, stepIds: input.stepIds, predictionsVisible: input.predictionsVisible,
-                expectedRevision: previous?.revision ?? 0,
+                expectedRevision: input.supersedes?.revision ?? 0,
             });
         },
         batches: id => request(analysisPaths.batches(id)),

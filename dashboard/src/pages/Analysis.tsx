@@ -46,6 +46,7 @@ import {
   usePageRequest,
 } from "../lib/api";
 import { useClients } from "../lib/clients/context";
+import { NEW_ANALYSIS_DEFAULTS } from "../lib/adapters/defaults";
 import { list, pretty, short, when } from "../lib/utils";
 import "./Analysis.css";
 import { RecordedEventContent } from "./analysis/RecordedEventContent";
@@ -213,14 +214,14 @@ function AnalysisSetup() {
   const [settings, setSettings] = useState<AnalysisSettings>({
     codebookId: "",
     codebookRevisionId: "",
-    model: "jev-1.14.0",
-    windowSize: 12,
-    stride: 4,
+    model: NEW_ANALYSIS_DEFAULTS.model,
+    windowSize: NEW_ANALYSIS_DEFAULTS.windowSize,
+    stride: NEW_ANALYSIS_DEFAULTS.stride,
     phases: ["action", "report"],
     evidence: [...categories],
-    headroom: 2000,
-    timeoutMs: 60000,
-    maxAttempts: 2,
+    headroom: NEW_ANALYSIS_DEFAULTS.headroom,
+    timeoutMs: NEW_ANALYSIS_DEFAULTS.timeoutMs,
+    maxAttempts: NEW_ANALYSIS_DEFAULTS.maxAttempts,
     creator: localStorage.getItem("sidechannel-reviewer") || "",
   });
   const revision = useApi<{ codebook: Codebook; revision: CodebookRevision }>(
@@ -1949,7 +1950,8 @@ function ReviewQueueRow({
   const own =
     reviews.data?.items.filter(
       (r) =>
-        r.reviewer === reviewer.trim() && r.windowId === selection.windowId,
+        r.reviewer === reviewer.trim() &&
+        (r.subjectId === selection.windowId || r.windowId === selection.windowId),
     ) ?? [];
   return (
     <tr>
@@ -2106,7 +2108,10 @@ export function WindowInspector({
   const mutation = useMutation();
   const ownReviews =
     ownPresence.data?.items.filter(
-      (r) => r.reviewer === reviewer.trim() && r.windowId === detail.window.id,
+      (r) =>
+        r.reviewer === reviewer.trim() &&
+        (r.subjectId === detail.window.id ||
+          detail.window.eventIds.includes(r.subjectId ?? "")),
     ) || [];
   const predictionsVisible = !blind || ownReviews.length > 0;
   const latest = ownLatest.data?.items
@@ -2134,6 +2139,7 @@ export function WindowInspector({
           stepIds: scope === "window" ? detail.window.stepIds : [],
           predictionsVisible,
           supersedesId: latest?.id,
+          supersedes: latest,
         }),
       "Judgment appended to the review history.",
     );

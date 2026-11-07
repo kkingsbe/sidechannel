@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { createClients } from '../clients/context';
-import { createJevRequester, createJevSession, translate } from './jev';
-import { batch, job, previewPayload, review, revision, serializedWindow, windowRecord } from '../../test/jev-fixtures';
+import { createJevRequester, createJevSession, toBatch, toCanonicalSettings, toCodebook, toJob, toSettings, translate } from './jev';
+import { batch, book, job, previewPayload, review, revision, serializedWindow, windowRecord } from '../../test/jev-fixtures';
 
 function stub(...responses: unknown[]) {
     const calls: { path: string; options?: RequestInit; body?: any }[] = [];
@@ -84,6 +84,23 @@ describe('jev adapter', () => {
         const request = async (path: string) => { throw new Error('Must not translate ' + path); };
         const jev = createJevRequester(request);
         await expect(jev('/runs/source/outcomes')).rejects.toThrow('Must not translate /runs/source/outcomes');
+    });
+
+    it('never invents revision, archived or limit values and freezes what the server returned', () => {
+        const canonicalJob = job();
+        expect(toJob(canonicalJob)).not.toHaveProperty('revision');
+        expect(toBatch(batch())).not.toHaveProperty('revision');
+        expect(toBatch(batch())).not.toHaveProperty('creator');
+        expect(toCodebook(book(revision()))).not.toHaveProperty('archived');
+        const settings = toSettings(canonicalJob.manifest.settings, canonicalJob.manifest.codebook, 'Researcher');
+        expect(settings).not.toHaveProperty('resolvedSettings');
+        expect(settings.frozen!.evidence.toolResults).toBe(false);
+        expect(settings.frozen!.inputLimits.singleQuestionTokens).toBe(30000);
+        expect(Object.keys(settings.frozen!).sort()).toEqual(['concurrency', 'evidence', 'inputLimits', 'longContext', 'retryBaseMs']);
+        const fresh = { codebookId: 'b', codebookRevisionId: 'v', model: 'jev-1.14.0', windowSize: 7, stride: 2, phases: ['report' as const], evidence: ['memory' as const, 'assistant' as const], headroom: 1234, timeoutMs: 23456, maxAttempts: 2, creator: 'Claimed' };
+        const canonical = toCanonicalSettings(fresh);
+        expect(canonical.inputLimits).toMatchObject({ singleQuestionTokens: 32000, combinedQuestionTokens: 64000, maxBodyBytes: 33554432, headroomTokens: 1234 });
+        expect(Object.entries(canonical.evidence!).filter(([, on]) => on).map(([key]) => key).sort()).toEqual(['assistantText', 'privateMemory']);
     });
 
     it('keeps every resolved setting when previewing a duplicated analysis', async () => {
