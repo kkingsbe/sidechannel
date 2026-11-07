@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { ACTIVE_RUN_STATUSES } from "@sidechannel/contracts/browser";
 import { useCommand } from "../../components/use-command";
 import { useClients } from "../../lib/clients/context";
 import { useResource } from "../../lib/clients/query";
@@ -16,7 +17,7 @@ export function useRunRecord(id: string | undefined) {
   const run = useResource<Run>(id ? `run:${id}` : null, () => clients.runs.get(id!));
   const progress = useResource<RunProgress>(id ? `run:${id}:progress` : null, () => clients.runs.progress(id!), { interval: 3500 });
   const data = run.data ? mergeProgress(run.data, progress.data) : undefined;
-  const active = !!data && ["queued", "running", "reporting", "stopping"].includes(data.status);
+  const active = !!data && ACTIVE_RUN_STATUSES.includes(data.status);
   const cancel = async () => {
     if (
       !window.confirm(

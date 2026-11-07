@@ -1,11 +1,12 @@
 import { Badge, Drawer, JsonView, Notice } from "../../components/ui";
-import type { MonitorPreview, Projection } from "@sidechannel/contracts/browser";
+import type { MonitorPreview, Projection, Verdict } from "@sidechannel/contracts/browser";
+import { reviewDecisionMeta } from "../../lib/status";
 import { ProjectionInspector } from "./projection-inspector";
 import type { ResultSelection } from "./verdict-matrix";
 import { viewNames } from "./views";
 
 type Judgment = {
-  verdict: string;
+  verdict: Verdict;
   explanation: string;
   evidenceIds: string[];
 };
@@ -34,7 +35,7 @@ export function VerdictDrawer({
     >
       {judgment && (
         <>
-          <Badge status={judgment.verdict} />
+          <Badge tone={reviewDecisionMeta[judgment.verdict].tone}>{reviewDecisionMeta[judgment.verdict].label}</Badge>
           <p className="text-block" style={{ margin: "14px 0" }}>
             {judgment.explanation}
           </p>
@@ -45,7 +46,7 @@ export function VerdictDrawer({
               return (
                 <div key={evidenceId} style={{ marginTop: 10 }}>
                   <span className="mono">{evidenceId}</span>
-                  <Badge status={valid ? "completed" : "failed"}>
+                  <Badge tone={valid ? "success" : "danger"}>
                     {valid
                       ? "In supplied projection"
                       : "Unsupported / not verified"}

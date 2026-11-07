@@ -15,6 +15,7 @@ import { CancelJobButton } from "../../components/cancel-job-button";
 import { useClients } from "../../lib/clients/context";
 import { useResource } from "../../lib/clients/query";
 import type { ReviewBatch } from "../../lib/analysis-types";
+import { jobStatusMeta } from "../../lib/status";
 import { WindowInspector } from "./window-inspector";
 import { useAnalysisJob } from "./use-analysis-job";
 import { useAnalysisWindows } from "./use-analysis-windows";
@@ -71,7 +72,7 @@ export function AnalysisDetail() {
         description={`Source run ${data.runId} · ${data.manifest.settings.model}`}
         actions={
           <>
-            <Badge status={data.status} />
+            <Badge tone={jobStatusMeta[data.status].tone}>{jobStatusMeta[data.status].label}</Badge>
             <Button asChild variant="secondary">
               <Link to={"/analysis?run=" + data.runId + "&clone=" + data.id}>
                 <Copy size={14} />
@@ -93,7 +94,7 @@ export function AnalysisDetail() {
               requestedLabel="Cancellation requested"
               onCancel={job.cancel}
             />
-            {["partial", "failed", "cancelled"].includes(data.status) && (
+            {jobStatusMeta[data.status].retryOffered && (
               <Button
                 variant="secondary"
                 disabled={job.command.busy}

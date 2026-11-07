@@ -8,6 +8,7 @@ import type {
   Projection,
 } from "@sidechannel/contracts/browser";
 import type { MonitorComparison } from "../../lib/types";
+import { agreementMeta, monitorStatusMeta } from "../../lib/status";
 import { viewNames, views } from "./views";
 
 export interface ResultSelection {
@@ -74,9 +75,11 @@ export function VerdictMatrix({
                       <small>{outcome.definition}</small>
                     </td>
                     <td>
-                      <Badge status={reference?.state}>
-                        {reference?.state || "Unreviewed"}
-                      </Badge>
+                      {reference ? (
+                        <Badge tone={agreementMeta[reference.state].tone}>{agreementMeta[reference.state].label}</Badge>
+                      ) : (
+                        <Badge>Unreviewed</Badge>
+                      )}
                       {reference?.decision && (
                         <small>{reference.decision}</small>
                       )}
@@ -95,9 +98,11 @@ export function VerdictMatrix({
                       );
                       return (
                         <td key={view}>
-                          <Badge status={result?.status}>
-                            {result?.status || "Pending"}
-                          </Badge>
+                          {result ? (
+                            <Badge tone={monitorStatusMeta[result.status].tone}>{monitorStatusMeta[result.status].label}</Badge>
+                          ) : (
+                            <Badge>Pending</Badge>
+                          )}
                           {item && (
                             <div style={{ marginTop: 7 }}>
                               <Button

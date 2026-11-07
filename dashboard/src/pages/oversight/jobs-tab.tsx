@@ -14,6 +14,7 @@ import {
 import { useClients } from "../../lib/clients/context";
 import { useResourcePage } from "../../lib/clients/query";
 import type { MonitorEvaluation } from "@sidechannel/contracts/browser";
+import { monitorStatusMeta } from "../../lib/status";
 import { when } from "../../lib/utils";
 import { evaluationName } from "./evaluation-detail";
 
@@ -76,7 +77,7 @@ export function JobsTab(): ReactElement {
                 {job.runIds.length} runs · revision {job.definition.revision}
               </td>
               <td>
-                <Badge status={job.status} />
+                <Badge tone={monitorStatusMeta[job.status].tone}>{monitorStatusMeta[job.status].label}</Badge>
               </td>
               <td>{when(job.createdAt)}</td>
               <td>

@@ -1,4 +1,5 @@
 import { Badge, ErrorState, Pager } from "../../components/ui";
+import { reviewDecisionMeta } from "../../lib/status";
 import { short, when } from "../../lib/utils";
 import type { RunOutcomeReview } from "../../lib/types";
 
@@ -37,7 +38,7 @@ export function ReferenceHistory({
           >
             <div className="actions">
               <strong>{review.reviewer}</strong>
-              <Badge status={review.decision} />
+              <Badge tone={reviewDecisionMeta[review.decision].tone}>{reviewDecisionMeta[review.decision].label}</Badge>
               <span className="helper">
                 {review.outcomeDefinition.name} · {review.definitionRevisionId}{" "}
                 · r{review.revision} · {when(review.createdAt)}

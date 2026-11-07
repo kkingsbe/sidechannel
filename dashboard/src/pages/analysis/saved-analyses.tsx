@@ -1,6 +1,7 @@
 import { Badge, Button, Card, CardHeading, Empty, ErrorState, Loading, Pager, Table } from "../../components/ui";
 import { Link } from "react-router-dom";
 import type { AnalysisJob } from "../../lib/analysis-types";
+import { jobStatusMeta } from "../../lib/status";
 import { short, when } from "../../lib/utils";
 import type { AnalysisSetupState } from "./analysis-setup";
 
@@ -45,7 +46,7 @@ export function SavedAnalyses({ state }: { state: AnalysisSetupState }) {
                         {job.manifest.settings.stride}
                       </td>
                       <td>
-                        <Badge status={job.status} />
+                        <Badge tone={jobStatusMeta[job.status].tone}>{jobStatusMeta[job.status].label}</Badge>
                       </td>
                       <td>{when(job.createdAt)}</td>
                       <td>

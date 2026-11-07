@@ -43,7 +43,7 @@ it("analysis renders not-found for an unknown view", async () => {
 it("runs renders not-found for an unknown evidence view", async () => {
   renderWithClients(<Runs />, {
     route: "/run-1?view=typo",
-    clients: fakeClients({ runs: { get: async () => run as never, progress: async () => ({}) as never } }),
+    clients: fakeClients({ runs: { get: async () => run as never, progress: async () => ({ id: run.id, status: "completed", round: 1, turn: 1, updatedAt: run.updatedAt, observedAt: run.updatedAt, executionPhase: "action", rounds: 1 }) as never } }),
   });
   expect(await screen.findByText("This view does not exist")).toBeTruthy();
 });

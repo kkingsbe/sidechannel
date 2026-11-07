@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { AnalysisJob, AnalysisSettings } from "../../lib/analysis-types";
 import { NEW_ANALYSIS_DEFAULTS } from "../../lib/adapters/defaults";
+import { analysisSourceReady } from "../../lib/status";
 
 const categories: AnalysisSettings["evidence"] = [
   "assistant",
@@ -41,7 +42,7 @@ export function useAnalysisDraft(input: {
   const prerequisites = [
     !input.runId && "Select a source run.",
     input.sourceStatus &&
-      !["completed", "failed", "cancelled"].includes(input.sourceStatus) &&
+      !analysisSourceReady(input.sourceStatus) &&
       "Wait for the source run to finish before previewing.",
     !settings.codebookRevisionId && "Select a codebook revision.",
     !settings.creator.trim() && "Enter a researcher / creator identity.",

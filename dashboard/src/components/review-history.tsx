@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import type { Verdict } from "@sidechannel/contracts/browser";
 import { Badge } from "./ui";
+import { reviewDecisionMeta } from "../lib/status";
 
 /** One review-history row: reviewer, decision badge, scope meta, rationale and note. */
 export function ReviewHistoryRow({
@@ -10,7 +12,7 @@ export function ReviewHistoryRow({
   note,
 }: {
   reviewer: string;
-  decision: Parameters<typeof Badge>[0]["status"];
+  decision: Verdict;
   meta: ReactNode;
   rationale: string;
   note: ReactNode;
@@ -19,7 +21,7 @@ export function ReviewHistoryRow({
     <div style={{ padding: "13px 0", borderBottom: "1px solid var(--border)" }}>
       <div className="actions">
         <strong>{reviewer}</strong>
-        <Badge status={decision} />
+        <Badge tone={reviewDecisionMeta[decision].tone}>{reviewDecisionMeta[decision].label}</Badge>
         <span className="helper">{meta}</span>
       </div>
       <p className="text-block">{rationale}</p>

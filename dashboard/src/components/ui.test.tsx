@@ -3,10 +3,23 @@ import React, { useState } from 'react';
 import { afterEach, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Drawer, Field, Input, Tabs } from './ui';
+import { Badge, Drawer, EventIcon, Field, Input, Tabs } from './ui';
 import { ProseListEditor } from './prose-list-editor';
 
 afterEach(cleanup);
+
+it('takes a semantic tone instead of a domain status', () => {
+  render(<><Badge tone="success">Done</Badge><Badge tone="danger">Broken</Badge><Badge>Plain</Badge></>);
+  const [done, broken, plain] = screen.getAllByText(/Done|Broken|Plain/);
+  expect(done!.className).toContain('badge-success');
+  expect(broken!.className).toContain('badge-danger');
+  expect(plain!.className).not.toMatch(/badge-(success|warning|danger)/);
+});
+
+it('renders one icon per event icon name', () => {
+  const { container } = render(<><EventIcon name="error" /><EventIcon name="board" /><EventIcon name="tool" /><EventIcon name="success" /><EventIcon name="default" /></>);
+  expect(container.querySelectorAll('svg')).toHaveLength(5);
+});
 
 it('moves keyboard focus and selection together and labels the active panel', async () => {
   function Views() {

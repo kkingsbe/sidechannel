@@ -4,6 +4,7 @@ import { Badge, Button, Card, CardHeading, Empty, ErrorState, Loading, PageHeade
 import { useApi } from '../lib/api';
 import { useClients } from '../lib/clients/context';
 import type { Run, Draft } from '../lib/types';
+import { jobStatusMetaFor, overviewCards } from '../lib/status';
 import { short, when } from '../lib/utils';
 import { RunTable } from '../components/run-table';
 
@@ -20,7 +21,7 @@ function ResearchJobs({ title, path, destination }: { title: string; path: strin
   return <Card><CardHeading title={title} actions={<Button asChild variant="ghost" size="sm"><NavLink to={destination}>View all <ArrowUpRight size={15} /></NavLink></Button>} />
     {jobs.loading ? <Loading /> : jobs.error && !jobs.data ? <ErrorState error={jobs.error} retry={jobs.refresh} /> : !rows.length ? <Empty title={`No ${title.toLowerCase()} yet`} description="Start from a source run when you are ready." /> :
       <Table label={title} headers={['Job / source', 'Status', 'Updated']}>
-        {rows.map(job => <tr key={job.id}><td><NavLink className="table-title" to={`${destination}/${job.id}`}>{job.manifest?.settings?.model ? `${job.manifest.settings.model} · ${job.manifest.settings.windowSize} step windows` : `Evaluation · ${job.runIds?.length ?? 0} source runs`}</NavLink><small>{job.runId ? <NavLink className="text-link" to={`/runs/${job.runId}`}>Source run {short(job.runId)}</NavLink> : short(job.id)}</small></td><td><Badge status={job.status} /></td><td className="muted">{when(job.updatedAt || job.createdAt)}</td></tr>)}
+        {rows.map(job => <tr key={job.id}><td><NavLink className="table-title" to={`${destination}/${job.id}`}>{job.manifest?.settings?.model ? `${job.manifest.settings.model} · ${job.manifest.settings.windowSize} step windows` : `Evaluation · ${job.runIds?.length ?? 0} source runs`}</NavLink><small>{job.runId ? <NavLink className="text-link" to={`/runs/${job.runId}`}>Source run {short(job.runId)}</NavLink> : short(job.id)}</small></td><td>{(() => { const meta = jobStatusMetaFor(job.status); return <Badge tone={meta.tone}>{meta.label}</Badge>; })()}</td><td className="muted">{when(job.updatedAt || job.createdAt)}</td></tr>)}
       </Table>}
     {jobs.error && jobs.data && <div className="card-foot" role="status">Updates unavailable · last refreshed {jobs.updatedAt ? new Date(jobs.updatedAt).toLocaleTimeString() : 'unknown'}<Button variant="secondary" size="sm" onClick={jobs.refresh}>Retry</Button></div>}
     {jobs.data?.nextCursor && <div className="card-foot">Showing the latest page. Open the collection for more jobs.</div>}
@@ -32,14 +33,9 @@ export default function Overview() {
   const drafts = useApi<Draft[]>(clients.workspace.paths.drafts());
   const counts = overview.data?.counts, data = runs.data?.items ?? [];
   const count = (...states: string[]) => counts ? states.reduce((sum, state) => sum + (counts[state] ?? 0), 0) : null;
-  const stats = [
-    { label: 'Active runs', value: count('running', 'reporting', 'stopping'), states: 'running,reporting,stopping', detail: 'Inspect execution progress', icon: Activity },
-    { label: 'Queued runs', value: count('queued'), states: 'queued', detail: 'Awaiting the experiment worker', icon: FlaskConical },
-    { label: 'Completed runs', value: count('completed'), states: 'completed', detail: 'Open recorded evidence', icon: BookOpen },
-    { label: 'Needs attention', value: count('failed', 'interrupted'), states: 'failed,interrupted', detail: 'Inspect failure or interruption', icon: ShieldCheck },
-  ];
+  const cards = overviewCards.map((card, index) => ({ ...card, value: count(...card.statuses), query: card.statuses.join(','), icon: [Activity, FlaskConical, BookOpen, ShieldCheck][index]! }));
   return <><PageHeader eyebrow="THE RESEARCH DESK" title="Workspace overview" description="Resume research, inspect evidence, and follow independent jobs." actions={<Button asChild><NavLink to="/experiments/new"><FlaskConical size={16} aria-hidden="true" />New experiment</NavLink></Button>} />
-    <div className="stat-grid compact-stats">{stats.map(({ label, value, detail, states, icon: Icon }) => <NavLink className="card stat-card" to={`/runs?status=${encodeURIComponent(states)}`} key={label}><div>{label}<Icon size={18} aria-hidden="true" /></div><strong>{value ?? '—'}</strong><p>{detail}{overview.error && ' · stale'}</p></NavLink>)}</div>
+    <div className="stat-grid compact-stats">{cards.map(({ label, value, detail, query, icon: Icon }) => <NavLink className="card stat-card" to={`/runs?status=${encodeURIComponent(query)}`} key={label}><div>{label}<Icon size={18} aria-hidden="true" /></div><strong>{value ?? '—'}</strong><p>{detail}{overview.error && ' · stale'}</p></NavLink>)}</div>
     {overview.error && <ErrorState error={overview.error} retry={overview.refresh} />}
     {!!drafts.data?.length && <div className="resume-strip"><strong>{drafts.data.length} saved experiment {drafts.data.length === 1 ? 'draft' : 'drafts'}</strong><NavLink className="text-link" to="/experiments">Resume a draft <ArrowUpRight size={14} /></NavLink></div>}
     <div className="stack overview-operational">

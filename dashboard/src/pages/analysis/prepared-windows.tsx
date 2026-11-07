@@ -67,7 +67,7 @@ export function PreparedWindows({ state }: { state: AnalysisSetupState }) {
                       {window.budget.estimatedTokens.toLocaleString()} estimated
                       tokens
                       <br />
-                      <Badge status={window.budget.oversized ? "failed" : ""}>
+                      <Badge tone={window.budget.oversized ? "warning" : "neutral"}>
                         {window.budget.oversized
                           ? "Oversized · no score"
                           : window.budget.batches.length + " tag batches"}

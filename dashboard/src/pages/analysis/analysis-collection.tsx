@@ -4,6 +4,7 @@ import { useApi, usePage } from "../../lib/api";
 import { useClients } from "../../lib/clients/context";
 import type { AnalysisJob } from "../../lib/analysis-types";
 import type { Run } from "../../lib/types";
+import { jobStatusMeta } from "../../lib/status";
 import { when } from "../../lib/utils";
 
 export function AnalysisCollection() {
@@ -98,7 +99,7 @@ export function AnalysisCollectionRow({
         </details>
       </td>
       <td>
-        <Badge status={job.status} />
+        <Badge tone={jobStatusMeta[job.status].tone}>{jobStatusMeta[job.status].label}</Badge>
       </td>
       <td>{when(job.createdAt)}</td>
       <td>

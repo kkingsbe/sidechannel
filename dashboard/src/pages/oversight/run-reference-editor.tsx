@@ -18,6 +18,7 @@ import {
   Textarea,
 } from "../../components/ui";
 import { useClients } from "../../lib/clients/context";
+import { agreementMeta } from "../../lib/status";
 import { short, when } from "../../lib/utils";
 import { ReferenceHistory } from "./reference-history";
 import { useMonitorDefinitionHistory } from "./use-monitor-definition";
@@ -249,9 +250,11 @@ export function RunReferenceEditor({
               <tr key={outcome.id}>
                 <td>{outcome.name}</td>
                 <td>
-                  <Badge status={agreement?.state}>
-                    {agreement?.state || "Unreviewed"}
-                  </Badge>
+                  {agreement ? (
+                    <Badge tone={agreementMeta[agreement.state].tone}>{agreementMeta[agreement.state].label}</Badge>
+                  ) : (
+                    <Badge>Unreviewed</Badge>
+                  )}
                 </td>
                 <td>{agreement?.decision || "Unresolved"}</td>
                 <td>

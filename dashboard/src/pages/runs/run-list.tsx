@@ -13,9 +13,11 @@ import {
   Select,
 } from "../../components/ui";
 import { RunTable } from "../../components/run-table";
+import { RUN_STATUSES } from "@sidechannel/contracts/browser";
 import { useClients } from "../../lib/clients/context";
 import { useResource } from "../../lib/clients/query";
 import type { RecordPage } from "../../lib/clients/runs";
+import { runListGroups } from "../../lib/status";
 import type { Run } from "../../lib/types";
 
 export function RunList() {
@@ -59,9 +61,10 @@ export function RunList() {
           <Field label="Execution state">
             <Select value={params.get("status") || ""} onChange={(e) => filter("status", e.target.value)}>
               <option value="">All states</option>
-              <option value="running,reporting,stopping">Active runs</option>
-              <option value="failed,interrupted">Needs attention</option>
-              {["queued", "running", "reporting", "stopping", "completed", "failed", "cancelled", "interrupted"].map((v) => (
+              {runListGroups.map((group) => (
+                <option key={group.label} value={group.statuses.join(",")}>{group.label}</option>
+              ))}
+              {RUN_STATUSES.map((v) => (
                 <option key={v}>{v}</option>
               ))}
             </Select>

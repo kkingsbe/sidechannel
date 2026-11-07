@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
 import { Badge, Button, Table } from "./ui";
 import type { Run } from "../lib/types";
+import { runStatusMeta } from "../lib/status";
 import { short, when } from "../lib/utils";
 
 /** The run summary table shared by Overview and Runs; no page owns it. */
@@ -48,7 +49,7 @@ export function RunTable({
             <small>{run.config?.model?.provider}</small>
           </td>
           <td>
-            <Badge status={run.status} />
+            <Badge tone={runStatusMeta[run.status].tone}>{runStatusMeta[run.status].label}</Badge>
           </td>
           <td>
             {run.round ?? 0} / {run.config?.scheduler?.rounds ?? "?"} rounds

@@ -2,8 +2,9 @@ import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
-import { X, AlertCircle, Inbox, LoaderCircle } from "lucide-react";
+import { X, XCircle, MessageSquare, Wrench, CheckCircle2, Play, AlertCircle, Inbox, LoaderCircle, type LucideIcon } from "lucide-react";
 import { cn, pretty } from "../lib/utils";
+import type { IconName, Tone } from "../lib/status";
 import { WorkspaceTitleContext } from "../lib/workspace-context";
 const buttonVariants = cva("button", {
   variants: {
@@ -55,36 +56,32 @@ export function CardHeading({
     </div>
   );
 }
+const toneClass: Record<Tone, string> = {
+  neutral: "",
+  info: "",
+  success: "badge-success",
+  warning: "badge-warning",
+  danger: "badge-danger",
+};
 export function Badge({
+  tone = "neutral",
   children,
-  status = "",
 }: {
+  tone?: Tone;
   children?: React.ReactNode;
-  status?: string;
 }) {
-  return (
-    <span
-      className={cn(
-        "badge",
-        ["completed", "agreed", "present", "success"].includes(status)
-          ? "badge-success"
-          : ["failed", "disagreement", "error"].includes(status)
-            ? "badge-danger"
-            : [
-                  "running",
-                  "reporting",
-                  "queued",
-                  "provisional",
-                  "partial",
-                  "uncertain",
-                ].includes(status)
-              ? "badge-warning"
-              : "",
-      )}
-    >
-      {children ?? status}
-    </span>
-  );
+  return <span className={cn("badge", toneClass[tone])}>{children}</span>;
+}
+const eventIcon: Record<IconName, LucideIcon> = {
+  error: XCircle,
+  board: MessageSquare,
+  tool: Wrench,
+  success: CheckCircle2,
+  default: Play,
+};
+export function EventIcon({ name, size = 13 }: { name: IconName; size?: number }) {
+  const Icon = eventIcon[name];
+  return <Icon size={size} aria-hidden="true" />;
 }
 export function Field({
   label,

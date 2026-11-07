@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Badge, Button, Card, CardHeading, Table } from "../../components/ui";
 import { short } from "../../lib/utils";
 import type { MonitorPreview, Projection } from "@sidechannel/contracts/browser";
+import { monitorStatusMeta } from "../../lib/status";
 import { viewNames } from "./views";
 
 export function ProjectionPreview({
@@ -53,10 +54,8 @@ export function ProjectionPreview({
                 </small>
               </td>
               <td>
-                <Badge
-                  status={p.status === "oversized" ? "failed" : "completed"}
-                >
-                  {p.status}
+                <Badge tone={monitorStatusMeta[p.status].tone}>
+                  {monitorStatusMeta[p.status].label}
                 </Badge>
                 {p.reason && <small>{p.reason}</small>}
               </td>

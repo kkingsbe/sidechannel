@@ -2,6 +2,7 @@ import { useCommand } from "../../components/use-command";
 import { useClients } from "../../lib/clients/context";
 import { useResource } from "../../lib/clients/query";
 import type { AnalysisJob } from "../../lib/analysis-types";
+import { jobStatusMeta } from "../../lib/status";
 import type { Run } from "../../lib/types";
 
 /** Frozen analysis job, its source run and the cancel/retry commands. */
@@ -29,8 +30,7 @@ export function useAnalysisJob(id: string | undefined) {
     );
     void job.refresh();
   };
-  const active =
-    !!job.data && ["queued", "preparing", "running"].includes(job.data.status);
+  const active = !!job.data && jobStatusMeta[job.data.status].active;
   return {
     job: job.data as AnalysisJob | undefined,
     sourceRun: sourceRun.data as Run | undefined,

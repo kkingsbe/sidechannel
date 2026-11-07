@@ -22,6 +22,7 @@ import type {
   Projection,
 } from "@sidechannel/contracts/browser";
 import type { MonitorComparison } from "../../lib/types";
+import { monitorStatusMeta } from "../../lib/status";
 import { short, when } from "../../lib/utils";
 import { DetectionMetrics } from "./detection-metrics";
 import { ProjectionInspector } from "./projection-inspector";
@@ -91,14 +92,14 @@ export function EvaluationDetail(): ReactElement {
         description={`${data.settings.model.provider}/${data.settings.model.id} · created ${when(data.createdAt)}`}
         actions={
           <>
-            <Badge status={data.status} />
+            <Badge tone={monitorStatusMeta[data.status].tone}>{monitorStatusMeta[data.status].label}</Badge>
             <Button asChild variant="secondary">
               <a href={clients.monitor.exportUrl(id!)} download>
                 <Download size={14} />
                 Monitor export
               </a>
             </Button>
-            {["queued", "running"].includes(data.status) && (
+            {monitorStatusMeta[data.status].active && (
               <Button
                 variant="destructive"
                 disabled={command.busy || data.cancelRequested}

@@ -1,5 +1,6 @@
 import { Badge, Table } from "../../components/ui";
 import type { AnalysisWindow, BehaviorCode } from "../../lib/analysis-types";
+import { windowStatusMeta } from "../../lib/status";
 
 export function ScoreTable({
   windows,
@@ -53,7 +54,7 @@ export function ScoreTable({
             );
           })}
           <td>
-            <Badge status={w.status} />
+            <Badge tone={windowStatusMeta[w.status].tone}>{windowStatusMeta[w.status].label}</Badge>
             {w.error && <small>{w.error}</small>}
           </td>
         </tr>

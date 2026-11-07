@@ -1,12 +1,5 @@
 import { Link } from "react-router-dom";
-import {
-  ArrowUpRight,
-  CheckCircle2,
-  MessageSquare,
-  Play,
-  Wrench,
-  XCircle,
-} from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import {
   Badge,
   Button,
@@ -14,6 +7,7 @@ import {
   CardHeading,
   Empty,
   ErrorState,
+  EventIcon,
   Field,
   Input,
   JsonView,
@@ -27,6 +21,7 @@ import { BudgetSummary } from "../../components/budget-summary";
 import { HealthcareResults } from "../../components/healthcare-results";
 import type { ArtifactVersion } from "../../lib/types";
 import type { BoardPage, ReportPage } from "../../lib/contracts";
+import { eventMeta } from "../../lib/status";
 import { pretty, when } from "../../lib/utils";
 import { BoardDelivery } from "./board-delivery";
 import { evidenceKey } from "./evidence-key";
@@ -88,28 +83,20 @@ export function EventsPanel({ kind }: { kind: "timeline" | "traces" }) {
       ) : events.traceEvents.length ? (
         <div className="timeline-list">
           {events.traceEvents.map((e) => {
-            const Icon = /denied|error|fail/.test(e.type)
-              ? XCircle
-              : /board/.test(e.type)
-                ? MessageSquare
-                : /tool/.test(e.type)
-                  ? Wrench
-                  : /complete|success/.test(e.type)
-                    ? CheckCircle2
-                    : Play;
+            const meta = eventMeta(e);
             return (
               <button className="timeline-row" key={e.id} onClick={() => inspect(e.id, e.sequence)}>
                 <span className="timeline-marker">
-                  <Icon size={13} aria-hidden="true" />
+                  <EventIcon name={meta.icon} />
                 </span>
                 <div className="timeline-main">
                   <div>
-                    <strong>{e.type.replaceAll("_", " ")}</strong>
+                    <strong>{meta.label}</strong>
                     <Badge>{e.agentId || "system"}</Badge>
                     <span className="helper">
                       #{e.sequence} · R{e.round ?? "—"} / T{e.turn ?? "—"}
                     </span>
-                    {/denied|error|fail/.test(e.type) && <Badge status="failed">Diagnostic</Badge>}
+                    {meta.tone === "danger" && <Badge tone="danger">Diagnostic</Badge>}
                   </div>
                   <p>{pretty(e.data).slice(0, 190)}</p>
                 </div>
@@ -215,7 +202,7 @@ export function EvidencePanel({ kind }: { kind: "board" | "artifacts" | "memory"
                   </div>
                   <div className="actions">
                     {object.frozen === true && <Badge>Frozen final</Badge>}
-                    {kind === "reports" && object.parsed === null && <Badge status="failed">Invalid / unparsed</Badge>}
+                    {kind === "reports" && object.parsed === null && <Badge tone="danger">Invalid / unparsed</Badge>}
                     <Button
                       variant="secondary"
                       size="sm"

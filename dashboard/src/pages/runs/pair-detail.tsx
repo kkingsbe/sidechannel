@@ -17,6 +17,7 @@ import { useClients } from "../../lib/clients/context";
 import { useScenarios } from "../../lib/descriptors";
 import { useResource } from "../../lib/clients/query";
 import type { Run } from "../../lib/types";
+import { runStatusMeta } from "../../lib/status";
 import { when } from "../../lib/utils";
 import { safeRunReturn } from "./run-detail";
 import { configValue, settingLabel } from "./pair-settings";
@@ -30,7 +31,7 @@ export function PairCondition({ summary, returnTo }: { summary: Run; returnTo: s
   const finals = resource.data?.artifacts?.filter((item) => item.frozen) || [];
   return (
     <Card>
-      <CardHeading title={run.config.condition.id} actions={<Badge status={run.status} />} />
+      <CardHeading title={run.config.condition.id} actions={<Badge tone={runStatusMeta[run.status].tone}>{runStatusMeta[run.status].label}</Badge>} />
       <div className="card-body stack">
         <div>
           <h3>Exact condition wording</h3>

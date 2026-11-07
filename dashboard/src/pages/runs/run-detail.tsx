@@ -15,6 +15,7 @@ import { CancelJobButton } from "../../components/cancel-job-button";
 import { ViewPanel } from "../../components/view-registry";
 import { useClients } from "../../lib/clients/context";
 import { useProviders, useScenarios } from "../../lib/descriptors";
+import { runStatusMeta } from "../../lib/status";
 import { short, when } from "../../lib/utils";
 import { useRunRecord } from "./use-run-record";
 import { useRunSelection } from "./use-run-evidence";
@@ -68,7 +69,7 @@ export function RunDetail() {
         description={id!}
         actions={
           <>
-            <Badge status={data.status} />
+            <Badge tone={runStatusMeta[data.status].tone}>{runStatusMeta[data.status].label}</Badge>
             <Button variant="secondary" onClick={record.duplicate} disabled={record.command.busy}>
               <Copy size={14} />
               Duplicate config
