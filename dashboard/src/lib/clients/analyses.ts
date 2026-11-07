@@ -1,4 +1,4 @@
-import type { AnalysisJob, AnalysisPreview, AnalysisSettings, AnalysisWindow, HumanReview, Page, ReviewBatch, ReviewInput, ReviewSelection, WindowDetail } from '../analysis-types';
+import type { AnalysisJob, AnalysisPreview, AnalysisSettings, AnalysisWindow, HumanReview, Page, ReviewBatch, ReviewSelection, WindowDetail, WindowReviewInput } from '../analysis-types';
 import { canonical, jobFor, type JevSession } from '../adapters/jev';
 import type { Requester } from '../transport';
 import { withQuery } from '../transport';
@@ -32,7 +32,7 @@ export interface AnalysesClient {
     cancel(id: string): Promise<AnalysisJob>;
     retry(id: string): Promise<AnalysisJob>;
     reviews(id: string, query: Record<string, string | number | undefined>): Promise<Page<HumanReview>>;
-    saveReview(id: string, input: ReviewInput): Promise<HumanReview>;
+    saveReview(id: string, input: WindowReviewInput): Promise<HumanReview>;
     batches(id: string): Promise<Page<ReviewBatch>>;
     batch(id: string, batchId: string, query: Record<string, string | number | undefined>): Promise<{ batch: ReviewBatch; selections: Page<ReviewSelection> }>;
     createBatch(id: string, input: unknown): Promise<ReviewBatch>;

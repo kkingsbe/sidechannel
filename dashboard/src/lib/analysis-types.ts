@@ -25,8 +25,22 @@ export interface AnalysisResult { analysisId: string; windowId: string; codeId: 
 export interface AnalysisManifest { schemaVersion: 1; runId: string; configHash: string; sourceStatus: RunStatus; sequenceBoundary: number; evidenceHash: string; normalizerVersion: string; serializationVersion: string; questionTemplateVersion: string; adapterVersion: string; sdkVersion: string; codebook: CodebookRevision; settings: AnalysisSettings; settingsHash: string; staticContext: { task?: string; policy?: string; version: string }; staticContextHash: string; diagnostics: string[]; availability: Record<EvidenceCategory, number>; selectedStepCount?: number; windowCount: number; scoredCodeCount: number; partialWindowCount?: number }
 export interface AnalysisPreview { previewToken: string; manifest: AnalysisManifest; windows: Pick<AnalysisWindow, 'id' | 'index' | 'startStep' | 'endStep' | 'partial' | 'incomplete' | 'empty' | 'budget'>[] }
 export interface AnalysisJob extends Identified { runId: string; manifest: AnalysisManifest; status: 'queued' | 'preparing' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled'; cancelRequested: boolean; counters: { prepared: number; submitted: number; finished: number; failed: number; skipped: number; answers: number }; updatedAt: string; error?: string }
-export interface ReviewInput { reviewer: string; scope: 'window' | 'event' | 'run'; windowId?: string; codeId?: string; outcomeId?: string; definitionRevisionId?: string; evidenceRevision?: string; decision: Decision; rationale: string; eventIds: string[]; stepIds: string[]; predictionsVisible: boolean; supersedesId?: string; supersedes?: HumanReview }
-export interface HumanReview extends Identified, ReviewInput { revision: number; analysisId: string; runId: string; subjectId?: string; windowId?: string; definitionRevisionId: string }
+/** Fields both review domains share. */
+export interface ReviewDraft {
+    reviewer: string; decision: Decision; rationale: string;
+    eventIds: string[]; stepIds: string[]; predictionsVisible: boolean;
+}
+/** A window/event annotation inside a frozen analysis. The server derives subjectId from eventIds[0] for event scope. */
+export interface WindowReviewInput extends ReviewDraft {
+    scope: 'window' | 'event';
+    windowId: string;
+    codeId: string;
+    supersedes?: HumanReview;
+}
+export interface HumanReview extends Identified, ReviewDraft {
+    revision: number; analysisId: string; runId: string; subjectId?: string; windowId?: string;
+    scope: 'window' | 'event'; codeId: string; definitionRevisionId: string; supersedesId?: string;
+}
 export interface ReviewBatchInput { mode: 'assisted' | 'blind'; threshold?: number; randomCount?: number; seed?: string; creator?: string; manualWindowIds?: string[] }
 export interface ReviewBatch extends Identified { analysisId: string; mode: 'assisted' | 'blind'; threshold?: number; populationCount: number; selectionCount: number; codebookRevisionId: string }
 export interface ReviewSelection { id: string; windowId: string; reasons?: string[] }

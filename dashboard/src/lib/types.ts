@@ -1,6 +1,7 @@
 export type {
   ExperimentConfig,
   Run,
+  RunSummary,
   HarnessEvent,
   ArtifactVersion,
   Json,
@@ -17,6 +18,10 @@ import type {
   OutcomeDefinition,
   Verdict,
 } from "@sidechannel/contracts/browser";
+export interface OutcomeReviewInput {
+  reviewer: string; outcomeId: string; definitionRevisionId: string; evidenceRevision: string;
+  decision: Verdict; rationale: string; eventIds: string[]; supersedesId?: string;
+}
 export interface RunReviewContext {
   runId: string;
   evidenceRevision: string;

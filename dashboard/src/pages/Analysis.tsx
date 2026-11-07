@@ -2138,7 +2138,6 @@ export function WindowInspector({
           eventIds: list(eventIds),
           stepIds: scope === "window" ? detail.window.stepIds : [],
           predictionsVisible,
-          supersedesId: latest?.id,
           supersedes: latest,
         }),
       "Judgment appended to the review history.",

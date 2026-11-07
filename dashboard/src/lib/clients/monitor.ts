@@ -1,4 +1,4 @@
-import type { MonitorComparison, RunOutcomeAgreement, RunOutcomeReview, RunReviewContext } from '../types';
+import type { MonitorComparison, OutcomeReviewInput, RunOutcomeAgreement, RunOutcomeReview, RunReviewContext } from '../types';
 import type { MonitorDefinition, MonitorEvaluation, MonitorPreview, MonitorSettings } from '@sidechannel/contracts/browser';
 import type { Requester } from '../transport';
 import { withQuery } from '../transport';
@@ -55,7 +55,7 @@ export interface ReviewsClient {
     context(runId: string, definitionRevisionId?: string): Promise<RunReviewContext>;
     latest(runId: string, query: { reviewer: string; outcomeId: string; definitionRevisionId: string }): Promise<RunOutcomeReview | null>;
     outcomes(runId: string): Promise<RunOutcomeAgreement[]>;
-    save(runId: string, input: Record<string, unknown>): Promise<RunOutcomeReview>;
+    save(runId: string, input: OutcomeReviewInput): Promise<RunOutcomeReview>;
     exportUrl(runId: string, definitionRevisionId: string): string;
 }
 

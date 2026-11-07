@@ -162,7 +162,7 @@ it("revises the exact event subject rather than borrowing another event review r
     expect.objectContaining({
       scope: "event",
       eventIds: ["event-b"],
-      supersedesId: "event-b-review",
+      supersedes: expect.objectContaining({ id: "event-b-review" }),
     }),
   );
 });
