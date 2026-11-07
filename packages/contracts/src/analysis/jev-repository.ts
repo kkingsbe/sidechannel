@@ -1,3 +1,4 @@
+import type { ProviderUsage } from './jev-provider.js';
 import type { AnalysisConfiguration, AnalysisWindow, Codebook, CodebookRevision, Diagnostic, EvidenceAvailability, SourceSnapshot } from './evidence-contracts.js';
 
 export type JobStatus = 'preparing' | 'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled';
@@ -31,7 +32,7 @@ export interface AnalysisResult { id: string; jobId: string; windowId: string; c
 export interface AnalysisAttempt {
     id: string; jobId: string; windowId: string; codeIds: string[]; requestRef: string; startedAt: string;
     finishedAt?: string; status: 'running' | 'succeeded' | 'failed'; responseRef?: string; error?: string;
-    requestedModel: string; returnedModel?: string | null; usage?: unknown;
+    requestedModel: string; returnedModel?: string | null; usage?: ProviderUsage;
 }
 
 export interface PageOptions { after?: string; limit?: number; windowId?: string; }

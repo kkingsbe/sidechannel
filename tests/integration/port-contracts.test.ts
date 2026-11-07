@@ -3,11 +3,13 @@ import test from 'node:test';
 import { harnessRepositoryContract } from './contracts/harness-repository.js';
 import { analysisRepositoryContract } from './contracts/analysis-repository.js';
 import { researchStoreContract } from './contracts/research-store.js';
+import { assertTypedStores } from './contracts/typed-store.js';
 import { queuedRun, analysisJob } from './contracts/fixtures.js';
 import type { AnalysisWorkerStore } from '@sidechannel/contracts/analysis/jev-repository';
 import type { DraftStore, EvidenceReader, RunQueries, WorkerSupervisor } from '@sidechannel/contracts/server/contracts';
 import { InMemoryRepository } from '@sidechannel/persistence/harness/repository';
 import { InMemoryAnalysisRepository } from '@sidechannel/persistence/analysis/jev-repository';
+import { MemoryReviewStore } from '@sidechannel/persistence/analysis/review-repository';
 import { InMemoryResearchStore } from '@sidechannel/persistence/analysis/store';
 
 harnessRepositoryContract({
@@ -59,4 +61,8 @@ test('the analysis worker port does not require codebook operations', async () =
     await repository.reserveJob(analysisJob('slice-job'));
     assert.equal((await workerStore.getJob('slice-job'))!.id, 'slice-job');
     assert.ok(!('readyJob' in workerStore));
+});
+
+test('memory stores are usable through the typed ports', async () => {
+    await assertTypedStores(new InMemoryResearchStore(), new MemoryReviewStore());
 });

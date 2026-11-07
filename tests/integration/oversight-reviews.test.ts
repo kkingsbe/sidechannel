@@ -5,7 +5,7 @@ import { defaultFixtureConfiguration } from '@sidechannel/domain/harness/config'
 import { createQueuedRun } from '@sidechannel/domain/harness/initialization';
 import { InMemoryResearchStore } from '@sidechannel/persistence/analysis/store';
 import { allRecords } from '@sidechannel/domain/analysis/store';
-import type { ResearchRecord } from '@sidechannel/contracts/analysis/store';
+import type { ResearchCollection, ResearchRecord } from '@sidechannel/contracts/analysis/store';
 import { createOversightHandler } from '../../api/src/routes/oversight.js';
 import { createMonitorPreview, currentDefinition, launchMonitor, saveDefinition } from '@sidechannel/domain/oversight/service';
 import { runOutcomeAgreements, runReviewContext, saveRunOutcomeReview } from '@sidechannel/domain/oversight/reviews';
@@ -44,7 +44,7 @@ test('independent run reviews require two people and editing an agreed label req
     const history = await allRecords<RunOutcomeReview>(f.store, 'run_outcome_reviews', { runId: f.run.id });
     assert.equal(history.length, 4);
     assert.equal(history.find(review => review.id === alice.id)!.revision, 1);
-    assert.equal((await f.store.page('analysis_jobs')).items.length, 0, 'run references never require a Jev analysis');
+    assert.equal((await f.store.page('analysis_jobs' as ResearchCollection)).items.length, 0, 'run references never require a Jev analysis');
 });
 
 test('disagreement remains visible in history and agreed uncertainty stays a distinct reference outcome', async () => {
@@ -104,7 +104,7 @@ test('simultaneous saves publish one immutable sequence and reject the competing
     class ConcurrentStore extends InMemoryResearchStore {
         private arrived = 0; private resume!: () => void;
         private barrier = new Promise<void>(resolve => { this.resume = resolve; });
-        override async insert<T extends ResearchRecord>(collection: string, record: T) {
+        override async insert<T extends ResearchRecord>(collection: ResearchCollection, record: T) {
             if (collection === 'run_outcome_reviews') { this.arrived++; if (this.arrived === 2) this.resume(); await this.barrier; }
             return super.insert(collection, record);
         }

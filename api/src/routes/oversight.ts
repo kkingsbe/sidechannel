@@ -33,8 +33,8 @@ export function createOversightHandler(repository: Pick<Repository, 'getRun' | '
                 if (operation === 'reviews' && method === 'POST') return { status: 201, data: await saveRunOutcomeReview(repository, store, runId, body) };
                 if (operation === 'reviews' && method === 'GET') {
                     await runReviewContext(repository, store, runId);
-                    const filter: Record<string, unknown> = { runId };
-                    for (const key of ['outcomeId', 'definitionRevisionId'] as const) if (query.has(key)) filter[key] = query.get(key);
+                    const filter: Record<string, string | undefined> = { runId };
+                    for (const key of ['outcomeId', 'definitionRevisionId'] as const) if (query.has(key)) filter[key] = query.get(key) ?? undefined;
                     return { status: 200, data: await store.page<RunOutcomeReview>('run_outcome_reviews', filter, query.get('after') ?? '', limit(query)) };
                 }
                 throw new OversightError(405, 'Method not allowed');

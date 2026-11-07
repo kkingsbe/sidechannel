@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { AnalysisRepository } from '@sidechannel/contracts/analysis/jev-repository';
+import type { AnalysisAttempt, AnalysisRepository } from '@sidechannel/contracts/analysis/jev-repository';
 import { analysisAttempt, analysisJob, analysisWindow } from './fixtures.js';
 
 export interface AnalysisRepositoryHarness {
@@ -52,7 +52,7 @@ export function analysisRepositoryContract(harness: AnalysisRepositoryHarness): 
         await repository.reserveJob(analysisJob('job-3'));
         const claimed = await repository.claim('owner-b', now(), 30_000);
         const lease = claimed!.lease;
-        const oversized = { ...analysisAttempt('job-3'), usage: { blob: 'x'.repeat(1_048_577) } };
+        const oversized = { ...analysisAttempt('job-3'), usage: { blob: 'x'.repeat(1_048_577) } as unknown as AnalysisAttempt['usage'] };
         await assert.rejects(repository.startAttempt(lease, oversized), /exceeds 1 MiB/);
         await assert.rejects(repository.finishAttempt(lease, oversized, []), /exceeds 1 MiB/);
         const small = analysisAttempt('job-3');

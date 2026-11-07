@@ -117,7 +117,7 @@ export class AnalysisWorker {
         for await (const attempt of pages(p => this.repository.listAttempts(id, p))) {
             const response = attempt.responseRef ? await this.repository.readArtifact<{ attempts?: { usage?: { inputTokens?: unknown; outputTokens?: unknown } }[]; usage?: { inputTokens?: unknown; outputTokens?: unknown } }>(attempt.responseRef) : undefined;
             // The top-level usage repeats the final internal attempt. Count internal records exclusively when supplied.
-            const records = response?.attempts?.length ? response.attempts : [{ usage: response?.usage ?? attempt.usage as { inputTokens?: unknown; outputTokens?: unknown } | undefined }];
+            const records = response?.attempts?.length ? response.attempts : [{ usage: response?.usage ?? attempt.usage }];
             for (const record of records) {
                 total.providerAttempts++; const input = record.usage?.inputTokens, output = record.usage?.outputTokens;
                 const knownInput = typeof input === 'number' && Number.isFinite(input) && input >= 0, knownOutput = typeof output === 'number' && Number.isFinite(output) && output >= 0;

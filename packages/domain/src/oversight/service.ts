@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { HarnessEvent } from '@sidechannel/contracts/harness/contracts';
 import type { Repository } from '@sidechannel/contracts/harness/server';
 import { allRecords } from '../analysis/store.js';
-import type { ResearchStore } from '@sidechannel/contracts/analysis/store';
+import { previewPartKey, type ResearchStore } from '@sidechannel/contracts/analysis/store';
 import { MONITOR_VIEWS, type MonitorDefinition, type MonitorEvaluation, type MonitorPreview, type MonitorSettings } from '@sidechannel/contracts/oversight/contracts';
 import { buildProjection, digest } from './projections.js';
 
@@ -98,7 +98,7 @@ export async function createMonitorPreview(repository: Pick<Repository, 'getRun'
     const serialized = JSON.stringify(preview), chunkSize = 250000;
     const partCount = Math.ceil(serialized.length / chunkSize);
     for (let index = 0; index < partCount; index++) await store.insert('monitor_preview_parts', {
-        id: `${preview.id}:${index}`, revision: 1, createdAt: preview.createdAt,
+        id: previewPartKey(preview.id, index), revision: 1, createdAt: preview.createdAt,
         text: serialized.slice(index * chunkSize, (index + 1) * chunkSize),
     });
     await store.insert('monitor_previews', { id: preview.id, revision: 1, createdAt: preview.createdAt, partCount, contentHash: digest(serialized) });
@@ -110,7 +110,7 @@ export async function getMonitorPreview(store: ResearchStore, id: string): Promi
     if (!manifest) return null;
     const parts: string[] = [];
     for (let index = 0; index < manifest.partCount; index++) {
-        const part = await store.get<{ id: string; revision: number; createdAt: string; text: string }>('monitor_preview_parts', `${id}:${index}`);
+        const part = await store.get<{ id: string; revision: number; createdAt: string; text: string }>('monitor_preview_parts', previewPartKey(id, index));
         if (!part) throw new OversightError(500, 'Frozen monitor preview part is missing');
         parts.push(part.text);
     }

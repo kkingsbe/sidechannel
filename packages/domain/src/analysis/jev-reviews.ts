@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import type { ReviewStore, ReviewDocument, ReviewQuery, MemberQuery } from '@sidechannel/contracts/analysis/review-repository';
-import type { Decision, Review, ReviewWindow, ReviewContext, ReviewBatch, ReviewListFilter, ReviewQueueFilter } from '@sidechannel/contracts/analysis/jev-reviews';
+import { reviewRevisionKey, type MemberQuery, type ReviewKind, type ReviewQuery, type ReviewStore } from '@sidechannel/contracts/analysis/review-repository';
+import type { Decision, Review, ReviewMember, ReviewQueueItem, ReviewWindow, ReviewContext, ReviewBatch, ReviewListFilter, ReviewQueueFilter } from '@sidechannel/contracts/analysis/jev-reviews';
 import { jsonHash } from '../hashing.js';
 
 const hash = jsonHash;
@@ -9,7 +9,6 @@ const text = (value: unknown, name: string, max = 200) => { if (typeof value !==
 
 const strings = (value: unknown, name: string) => { if (!Array.isArray(value) || value.length > 10000 || value.some(x => typeof x !== 'string')) throw new Error(`Invalid ${name}`); return [...new Set(value as string[])]; };
 
-const record = (collection: ReviewDocument['collection'], partition: string, key: string, value: object): ReviewDocument => ({ id: randomUUID(), collection, partition, key, value: value as Record<string, unknown> });
 
 /** Review history is append-only. Claimed names are never presented as verified accounts. */
 export class ReviewService {
@@ -36,9 +35,9 @@ export class ReviewService {
         if (typeof input.predictionsVisible !== 'boolean') throw new Error('predictionsVisible must be recorded');
         const expected = input.expectedRevision ?? 0; if (!Number.isSafeInteger(expected) || Number(expected) < 0) throw new Error('Invalid expectedRevision');
         const subject = hash([input.scope, input.subjectId, input.codeId, ctx.definitionRevision, ctx.evidenceRevision, reviewer]);
-        if (Number(expected) > 0 && !await this.store.get('reviews', ctx.analysisId, `${subject}:${String(expected).padStart(10, '0')}`)) throw new Error('Review revision conflict');
+        if (Number(expected) > 0 && !await this.store.get('reviews', ctx.analysisId, reviewRevisionKey(subject, Number(expected)))) throw new Error('Review revision conflict');
         const review: Review = { id: randomUUID(), analysisId: ctx.analysisId, subjectId: String(input.subjectId), scope: input.scope as Review['scope'], codeId: String(input.codeId), definitionRevision: ctx.definitionRevision, evidenceRevision: ctx.evidenceRevision, reviewer, identityVerified: false, decision: decision as Decision, rationale, eventIds, stepIds, predictionsVisible: input.predictionsVisible, revision: Number(expected) + 1, createdAt: new Date().toISOString() };
-        await this.store.insert(record('reviews', ctx.analysisId, `${subject}:${String(review.revision).padStart(10, '0')}`, review)); return review;
+        await this.store.insert('reviews', ctx.analysisId, reviewRevisionKey(subject, review.revision), review); return review;
     }
     async list(analysisId: string, after?: string, limit = 100, filter: ReviewListFilter = {}) {
         if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error('limit must be between 1 and 500');
@@ -50,13 +49,13 @@ export class ReviewService {
             const window = this.resolveWindow ? await this.resolveWindow(analysisId, filter.windowId) : (await this.context(analysisId)).windows.find(window => window.id === filter.windowId);
             if (!window) throw new Error('Review window not found'); query.eventIds = window.eventIds;
         }
-        const page = await this.store.queryReviews(analysisId, query, after, limit);
-        return { items: page.items.map(row => row.value as unknown as Review), nextCursor: page.nextCursor };
+        const page = await this.store.queryReviews<Review>(analysisId, query, after, limit);
+        return { items: page.items.map(row => row.value), nextCursor: page.nextCursor };
     }
-    async listBatches(analysisId: string, after?: string, limit = 100) { return this.page('batches', analysisId, after, limit); }
-    private async page(kind: ReviewDocument['collection'], partition: string, after = '', limit = 100, selectedOnly = false, members?: MemberQuery) {
+    async listBatches(analysisId: string, after?: string, limit = 100) { return this.page<ReviewBatch>('batches', analysisId, after, limit); }
+    private async page<T>(kind: ReviewKind, partition: string, after = '', limit = 100, selectedOnly = false, members?: MemberQuery) {
         if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error('limit must be between 1 and 500');
-        const page = await this.store.page(kind, partition, after, limit, selectedOnly, members); return { items: page.items.map(r => r.value), nextCursor: page.nextCursor };
+        const page = await this.store.page<T>(kind, partition, after, limit, selectedOnly, members); return { items: page.items.map(row => row.value), nextCursor: page.nextCursor };
     }
     async createBatch(analysisId: string, input: Record<string, unknown>): Promise<ReviewBatch> {
         const ctx = await this.context(analysisId), seed = text(input.seed, 'seed'), randomSize = input.randomSize ?? Math.min(10, ctx.windows.length), threshold = input.threshold ?? 0.7;
@@ -67,19 +66,19 @@ export class ReviewService {
         if (input.mode !== undefined && !['assisted', 'blind'].includes(String(input.mode))) throw new Error('Invalid review mode');
         const population = [...ctx.windows].sort((a, b) => a.id.localeCompare(b.id)), rank = (id: string) => hash([seed, id]);
         const random = new Set([...population].sort((a, b) => rank(a.id).localeCompare(rank(b.id))).slice(0, Number(randomSize)).map(w => w.id));
-        const members = population.map(window => {
+        const members: ReviewMember[] = population.map(window => {
             const reasons: ('flagged' | 'random' | 'manual')[] = [];
             if (codeIds.some(code => window.probabilities[code] != null && window.probabilities[code]! >= threshold)) reasons.push('flagged');
             if (random.has(window.id)) reasons.push('random'); if (manual.includes(window.id)) reasons.push('manual');
             return { windowId: window.id, eligible: true, selected: reasons.length > 0, reasons, order: hash(['order', seed, window.id]) };
         });
         const batch: ReviewBatch = { id: randomUUID(), analysisId, createdAt: new Date().toISOString(), definitionRevision: ctx.definitionRevision, evidenceRevision: ctx.evidenceRevision, populationHash: hash(population.map(w => w.id)), populationSize: population.length, seed, randomSize: Number(randomSize), threshold, codeIds, selectedCount: members.filter(m => m.selected).length, mode: input.mode === 'blind' ? 'blind' : 'assisted' };
-        for (const member of members) await this.store.insert(record('members', batch.id, member.order + ':' + member.windowId, member));
-        await this.store.insert(record('batches', analysisId, batch.id, batch)); return batch;
+        for (const member of members) await this.store.insert('members', batch.id, member.order + ':' + member.windowId, member);
+        await this.store.insert('batches', analysisId, batch.id, batch); return batch;
     }
     async getBatch(analysisId: string, batchId: string, options: { after?: string; limit?: number; reviewer?: string; provenance?: boolean; filter?: ReviewQueueFilter } = {}) {
-        const stored = await this.store.get('batches', analysisId, batchId); if (!stored) throw new Error('Review batch not found');
-        const batch = stored.value as unknown as ReviewBatch, blind = batch.mode === 'blind' && !options.provenance, filter = options.filter ?? 'all';
+        const stored = await this.store.get<ReviewBatch>('batches', analysisId, batchId); if (!stored) throw new Error('Review batch not found');
+        const batch = stored.value, blind = batch.mode === 'blind' && !options.provenance, filter = options.filter ?? 'all';
         if (!['all', 'unreviewed', 'uncertain', 'disagreement'].includes(filter)) throw new Error('Invalid review queue filter');
         if (options.reviewer !== undefined) options = { ...options, reviewer: text(options.reviewer, 'reviewer') };
         if (filter === 'unreviewed' && !options.reviewer) throw new Error('A reviewer is required for the unreviewed queue');
@@ -89,9 +88,9 @@ export class ReviewService {
         if (filter !== 'all' || blind && options.reviewer) {
             let after: string | undefined;
             do {
-                const reviews = await this.store.queryReviews(analysisId, { latest: true, definitionRevision: batch.definitionRevision, evidenceRevision: batch.evidenceRevision }, after, 500);
+                const reviews = await this.store.queryReviews<Review>(analysisId, { latest: true, definitionRevision: batch.definitionRevision, evidenceRevision: batch.evidenceRevision }, after, 500);
                 for (const row of reviews.items) {
-                    const review = row.value as unknown as Review;
+                    const review = row.value;
                     if (review.scope === 'event' && !eventWindows) {
                         eventWindows = new Map();
                         for (const window of (await this.context(analysisId)).windows) for (const eventId of window.eventIds) eventWindows.set(eventId, [...eventWindows.get(eventId) ?? [], window.id]);
@@ -111,26 +110,26 @@ export class ReviewService {
         }
         const members: MemberQuery = filter === 'unreviewed' ? { excludeWindowIds: [...reviewed] }
             : filter === 'uncertain' ? { includeWindowIds: [...uncertain] } : filter === 'disagreement' ? { includeWindowIds: [...disagreement] } : {};
-        const page = await this.page('members', batchId, options.after, options.limit, true, members);
-        const items = page.items.filter(m => m.selected).map(m => {
+        const page = await this.page<ReviewMember>('members', batchId, options.after, options.limit, true, members);
+        const items: ReviewQueueItem[] = page.items.filter(m => m.selected).map(m => {
             return blind && !reviewed.has(String(m.windowId)) ? { windowId: m.windowId, selected: true } : m;
         });
         const { threshold, codeIds, seed, ...publicBatch } = batch; return { batch: blind ? publicBatch : batch, items, nextCursor: page.nextCursor };
     }
     async allReviews(analysisId: string): Promise<Review[]> {
         const all: Review[] = []; let after: string | undefined;
-        do { const page = await this.store.page('reviews', analysisId, after, 500); all.push(...page.items.map(r => r.value as unknown as Review)); after = page.nextCursor ?? undefined; } while (after); return all;
+        do { const page = await this.store.page<Review>('reviews', analysisId, after, 500); all.push(...page.items.map(row => row.value)); after = page.nextCursor ?? undefined; } while (after); return all;
     }
     async *export(analysisId: string) {
         for (const kind of ['reviews', 'batches'] as const) {
             let after: string | undefined;
             do {
-                const page = await this.store.page(kind, analysisId, after, 500);
+                const page = await this.store.page<{ id: string }>(kind, analysisId, after, 500);
                 for (const row of page.items) {
                     yield { type: kind, data: row.value };
                     if (kind === 'batches') {
                         let memberAfter: string | undefined;
-                        do { const members = await this.store.page('members', String(row.value.id), memberAfter, 500); for (const m of members.items) yield { type: 'review_batch_member', batchId: row.value.id, data: m.value }; memberAfter = members.nextCursor ?? undefined; } while (memberAfter);
+                        do { const members = await this.store.page<ReviewMember>('members', String(row.value.id), memberAfter, 500); for (const m of members.items) yield { type: 'review_batch_member', batchId: row.value.id, data: m.value }; memberAfter = members.nextCursor ?? undefined; } while (memberAfter);
                     }
                 }
                 after = page.nextCursor ?? undefined;
