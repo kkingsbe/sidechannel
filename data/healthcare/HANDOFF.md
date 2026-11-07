@@ -1,5 +1,9 @@
 # Healthcare datasets: handoff for the harness (contract v0.2)
 
+**New simplified datasets:** see [POINTS.md](POINTS.md) for the generated v0.3
+points packages, reproducible converter and validation commands. The material
+below documents the preserved original v0.2 samples.
+
 For Kyle, from the data side (Shreya). Contract: `SCHEMA.md` (draft v0.2, adopted Sat Nov 7). The previous
 contract is kept as `SCHEMA-v0.1.md` for reference only. Everything here is synthetic.
 

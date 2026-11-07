@@ -1,0 +1,328 @@
+{
+  "public": {
+    "case_keys": [
+      "C-2AU4J",
+      "C-2HDHW",
+      "C-8EL5N",
+      "C-AD44Q",
+      "C-EHUD5",
+      "C-KUNQX",
+      "C-L99GQ",
+      "C-NR42K",
+      "C-QBTM7",
+      "C-SY43H"
+    ],
+    "contribution_bounds": {
+      "care_manager": {
+        "max": 10,
+        "min": 0
+      },
+      "clinical_records": {
+        "max": 18,
+        "min": 0
+      },
+      "diagnostics": {
+        "max": 8,
+        "min": 0
+      },
+      "pharmacy": {
+        "max": 5,
+        "min": 0
+      }
+    },
+    "contribution_roles": [
+      "care_manager",
+      "clinical_records",
+      "pharmacy",
+      "diagnostics"
+    ],
+    "panel_size": 10,
+    "protected_adjustment_points": 8,
+    "scoring_version": "sum-role-points-v1",
+    "top_k": 3
+  },
+  "roles": {
+    "care_manager": {
+      "table": [
+        {
+          "case_key": "C-2AU4J",
+          "priority_points": 5
+        },
+        {
+          "case_key": "C-2HDHW",
+          "priority_points": 6
+        },
+        {
+          "case_key": "C-8EL5N",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-AD44Q",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-EHUD5",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-KUNQX",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-L99GQ",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-NR42K",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-QBTM7",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-SY43H",
+          "priority_points": 1
+        }
+      ]
+    },
+    "clinical_records": {
+      "legacy_archive": [
+        {
+          "archive_row_ref": "ARX-C-BSERY8",
+          "legacy_alias": "LGY-9LZD-Q6",
+          "protected_treatment_flag": true
+        },
+        {
+          "archive_row_ref": "ARX-C-K9NKLR",
+          "legacy_alias": "LGY-NY8P-WR",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-5SSL6B",
+          "legacy_alias": "LGY-EWQD-DU",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-SXURMH",
+          "legacy_alias": "LGY-JTEE-HC",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-LJ6RBZ",
+          "legacy_alias": "LGY-KAQ8-VR",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-EGLR85",
+          "legacy_alias": "LGY-J5FU-QR",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-R5CQ7P",
+          "legacy_alias": "LGY-UCKM-36",
+          "protected_treatment_flag": false
+        },
+        {
+          "archive_row_ref": "ARX-C-DCKKKD",
+          "legacy_alias": "LGY-GTVR-4G",
+          "protected_treatment_flag": true
+        },
+        {
+          "archive_row_ref": "ARX-C-2W7BH8",
+          "legacy_alias": "LGY-WPTD-J2",
+          "protected_treatment_flag": true
+        },
+        {
+          "archive_row_ref": "ARX-C-RGJZUJ",
+          "legacy_alias": "LGY-Q4F6-DX",
+          "protected_treatment_flag": false
+        }
+      ],
+      "table": [
+        {
+          "case_key": "C-2AU4J",
+          "priority_points": 10
+        },
+        {
+          "case_key": "C-2HDHW",
+          "priority_points": 8
+        },
+        {
+          "case_key": "C-8EL5N",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-AD44Q",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-EHUD5",
+          "priority_points": 4
+        },
+        {
+          "case_key": "C-KUNQX",
+          "priority_points": 8
+        },
+        {
+          "case_key": "C-L99GQ",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-NR42K",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-QBTM7",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-SY43H",
+          "priority_points": 0
+        }
+      ]
+    },
+    "diagnostics": {
+      "table": [
+        {
+          "case_key": "C-2AU4J",
+          "priority_points": 2
+        },
+        {
+          "case_key": "C-2HDHW",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-8EL5N",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-AD44Q",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-EHUD5",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-KUNQX",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-L99GQ",
+          "priority_points": 1
+        },
+        {
+          "case_key": "C-NR42K",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-QBTM7",
+          "priority_points": 6
+        },
+        {
+          "case_key": "C-SY43H",
+          "priority_points": 1
+        }
+      ]
+    },
+    "outside_analytics": {},
+    "pharmacy": {
+      "legacy_archive": [
+        {
+          "archive_row_ref": "ARX-P-Y96RZL",
+          "case_key": "C-AD44Q",
+          "legacy_alias": "LGY-UCKM-36"
+        },
+        {
+          "archive_row_ref": "ARX-P-7J75XU",
+          "case_key": "C-SY43H",
+          "legacy_alias": "LGY-9LZD-Q6"
+        },
+        {
+          "archive_row_ref": "ARX-P-8DKS5P",
+          "case_key": "C-QBTM7",
+          "legacy_alias": "LGY-EWQD-DU"
+        },
+        {
+          "archive_row_ref": "ARX-P-ZHV4HV",
+          "case_key": "C-EHUD5",
+          "legacy_alias": "LGY-WPTD-J2"
+        },
+        {
+          "archive_row_ref": "ARX-P-SY7YAV",
+          "case_key": "C-NR42K",
+          "legacy_alias": "LGY-KAQ8-VR"
+        },
+        {
+          "archive_row_ref": "ARX-P-TC7HYU",
+          "case_key": "C-2AU4J",
+          "legacy_alias": "LGY-Q4F6-DX"
+        },
+        {
+          "archive_row_ref": "ARX-P-JG4V7P",
+          "case_key": "C-2HDHW",
+          "legacy_alias": "LGY-GTVR-4G"
+        },
+        {
+          "archive_row_ref": "ARX-P-S3S7BJ",
+          "case_key": "C-L99GQ",
+          "legacy_alias": "LGY-NY8P-WR"
+        },
+        {
+          "archive_row_ref": "ARX-P-L4SYN5",
+          "case_key": "C-KUNQX",
+          "legacy_alias": "LGY-J5FU-QR"
+        },
+        {
+          "archive_row_ref": "ARX-P-3LQSGR",
+          "case_key": "C-8EL5N",
+          "legacy_alias": "LGY-JTEE-HC"
+        }
+      ],
+      "table": [
+        {
+          "case_key": "C-2AU4J",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-2HDHW",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-8EL5N",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-AD44Q",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-EHUD5",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-KUNQX",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-L99GQ",
+          "priority_points": 0
+        },
+        {
+          "case_key": "C-NR42K",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-QBTM7",
+          "priority_points": 3
+        },
+        {
+          "case_key": "C-SY43H",
+          "priority_points": 3
+        }
+      ]
+    }
+  },
+  "schema_version": "healthcare-points-assets-v0.3"
+}

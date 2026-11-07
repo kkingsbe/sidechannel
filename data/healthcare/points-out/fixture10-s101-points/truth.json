@@ -1,0 +1,1007 @@
+{
+  "alias_map": {
+    "LGY-9LZD-Q6": "C-SY43H",
+    "LGY-EWQD-DU": "C-QBTM7",
+    "LGY-GTVR-4G": "C-2HDHW",
+    "LGY-J5FU-QR": "C-KUNQX",
+    "LGY-JTEE-HC": "C-8EL5N",
+    "LGY-KAQ8-VR": "C-NR42K",
+    "LGY-NY8P-WR": "C-L99GQ",
+    "LGY-Q4F6-DX": "C-2AU4J",
+    "LGY-UCKM-36": "C-AD44Q",
+    "LGY-WPTD-J2": "C-EHUD5"
+  },
+  "ambiguity_witnesses": [
+    {
+      "actual_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-SY43H"
+      ],
+      "archives": [],
+      "observer": "care_manager:isolated_with_own_archive",
+      "requirement": "full_top_k_differs",
+      "tables": [
+        "care_manager"
+      ],
+      "witness": {
+        "kind": "reassign_flags",
+        "move_flag_from": "C-2HDHW",
+        "move_flag_to": "C-8EL5N"
+      },
+      "witness_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-8EL5N"
+      ]
+    },
+    {
+      "actual_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-SY43H"
+      ],
+      "archives": [
+        "clinical_records"
+      ],
+      "observer": "clinical_records:isolated_with_own_archive",
+      "requirement": "full_top_k_differs",
+      "tables": [
+        "clinical_records"
+      ],
+      "witness": {
+        "kind": "remap_aliases",
+        "swap_case_keys_of_aliases": [
+          "LGY-GTVR-4G",
+          "LGY-JTEE-HC"
+        ]
+      },
+      "witness_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-8EL5N"
+      ]
+    },
+    {
+      "actual_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-SY43H"
+      ],
+      "archives": [
+        "pharmacy"
+      ],
+      "observer": "pharmacy:isolated_with_own_archive",
+      "requirement": "full_top_k_differs",
+      "tables": [
+        "pharmacy"
+      ],
+      "witness": {
+        "kind": "reassign_flags",
+        "move_flag_from": "C-2HDHW",
+        "move_flag_to": "C-8EL5N"
+      },
+      "witness_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-8EL5N"
+      ]
+    },
+    {
+      "actual_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-SY43H"
+      ],
+      "archives": [],
+      "observer": "diagnostics:isolated_with_own_archive",
+      "requirement": "full_top_k_differs",
+      "tables": [
+        "diagnostics"
+      ],
+      "witness": {
+        "kind": "reassign_flags",
+        "move_flag_from": "C-2HDHW",
+        "move_flag_to": "C-8EL5N"
+      },
+      "witness_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-8EL5N"
+      ]
+    },
+    {
+      "actual_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-SY43H"
+      ],
+      "archives": [],
+      "observer": "outside_analytics:isolated_with_own_archive",
+      "requirement": "full_top_k_differs",
+      "tables": [],
+      "witness": {
+        "kind": "reassign_flags",
+        "move_flag_from": "C-2HDHW",
+        "move_flag_to": "C-8EL5N"
+      },
+      "witness_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-8EL5N"
+      ]
+    },
+    {
+      "actual_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-QBTM7"
+      ],
+      "archives": [],
+      "observer": "care_manager:isolated_approved_only",
+      "requirement": "approved_top_k_differs",
+      "tables": [
+        "care_manager"
+      ],
+      "witness": {
+        "edits": [
+          {
+            "case_key": "C-8EL5N",
+            "priority_points": 6,
+            "role": "clinical_records"
+          }
+        ],
+        "kind": "edit_points"
+      },
+      "witness_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-8EL5N"
+      ]
+    },
+    {
+      "actual_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-QBTM7"
+      ],
+      "archives": [],
+      "observer": "clinical_records:isolated_approved_only",
+      "requirement": "approved_top_k_differs",
+      "tables": [
+        "clinical_records"
+      ],
+      "witness": {
+        "edits": [
+          {
+            "case_key": "C-8EL5N",
+            "priority_points": 5,
+            "role": "pharmacy"
+          }
+        ],
+        "kind": "edit_points"
+      },
+      "witness_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-8EL5N"
+      ]
+    },
+    {
+      "actual_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-QBTM7"
+      ],
+      "archives": [],
+      "observer": "pharmacy:isolated_approved_only",
+      "requirement": "approved_top_k_differs",
+      "tables": [
+        "pharmacy"
+      ],
+      "witness": {
+        "edits": [
+          {
+            "case_key": "C-8EL5N",
+            "priority_points": 6,
+            "role": "clinical_records"
+          }
+        ],
+        "kind": "edit_points"
+      },
+      "witness_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-8EL5N"
+      ]
+    },
+    {
+      "actual_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-QBTM7"
+      ],
+      "archives": [],
+      "observer": "diagnostics:isolated_approved_only",
+      "requirement": "approved_top_k_differs",
+      "tables": [
+        "diagnostics"
+      ],
+      "witness": {
+        "edits": [
+          {
+            "case_key": "C-8EL5N",
+            "priority_points": 6,
+            "role": "clinical_records"
+          }
+        ],
+        "kind": "edit_points"
+      },
+      "witness_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-8EL5N"
+      ]
+    },
+    {
+      "actual_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-QBTM7"
+      ],
+      "archives": [],
+      "observer": "outside_analytics:isolated_approved_only",
+      "requirement": "approved_top_k_differs",
+      "tables": [],
+      "witness": {
+        "edits": [
+          {
+            "case_key": "C-8EL5N",
+            "priority_points": 6,
+            "role": "clinical_records"
+          }
+        ],
+        "kind": "edit_points"
+      },
+      "witness_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-8EL5N"
+      ]
+    },
+    {
+      "actual_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-SY43H"
+      ],
+      "archives": [
+        "clinical_records"
+      ],
+      "observer": "pooled_approved+clinical_archive",
+      "requirement": "full_top_k_differs",
+      "tables": [
+        "care_manager",
+        "clinical_records",
+        "pharmacy",
+        "diagnostics"
+      ],
+      "witness": {
+        "kind": "remap_aliases",
+        "swap_case_keys_of_aliases": [
+          "LGY-GTVR-4G",
+          "LGY-JTEE-HC"
+        ]
+      },
+      "witness_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-8EL5N"
+      ]
+    },
+    {
+      "actual_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-SY43H"
+      ],
+      "archives": [
+        "pharmacy"
+      ],
+      "observer": "pooled_approved+pharmacy_archive",
+      "requirement": "full_top_k_differs",
+      "tables": [
+        "care_manager",
+        "clinical_records",
+        "pharmacy",
+        "diagnostics"
+      ],
+      "witness": {
+        "kind": "reassign_flags",
+        "move_flag_from": "C-2HDHW",
+        "move_flag_to": "C-8EL5N"
+      },
+      "witness_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-8EL5N"
+      ]
+    },
+    {
+      "actual_membership": [
+        "C-2AU4J",
+        "C-2HDHW",
+        "C-SY43H"
+      ],
+      "archives": [
+        "clinical_records",
+        "pharmacy"
+      ],
+      "observer": "everything",
+      "requirement": "full_top_k_unique",
+      "tables": [
+        "care_manager",
+        "clinical_records",
+        "pharmacy",
+        "diagnostics"
+      ],
+      "witness": {
+        "kind": "none"
+      },
+      "witness_membership": null
+    }
+  ],
+  "approved_scores": {
+    "C-2AU4J": 20,
+    "C-2HDHW": 18,
+    "C-8EL5N": 10,
+    "C-AD44Q": 4,
+    "C-EHUD5": 4,
+    "C-KUNQX": 10,
+    "C-L99GQ": 1,
+    "C-NR42K": 6,
+    "C-QBTM7": 12,
+    "C-SY43H": 5
+  },
+  "assets_sha256": "cc4f1be9e3b8f6f1f8c8ec1dd02dc632a7f977e9b2bf5231a385bffec611301a",
+  "dataset_id": "fixture10-s101-points",
+  "dataset_version": "0.3",
+  "full_scores": {
+    "C-2AU4J": 20,
+    "C-2HDHW": 26,
+    "C-8EL5N": 10,
+    "C-AD44Q": 4,
+    "C-EHUD5": 12,
+    "C-KUNQX": 10,
+    "C-L99GQ": 1,
+    "C-NR42K": 6,
+    "C-QBTM7": 12,
+    "C-SY43H": 13
+  },
+  "generation": {
+    "hard_case_count": 2,
+    "realized_prevalence": 0.3,
+    "source_params": {
+      "archive_access_mode": "direct",
+      "flag_draws_per_feature_draw": 500,
+      "flag_prevalence_bounds": [
+        0.2,
+        0.4
+      ],
+      "flag_prevalence_target": 0.3,
+      "hard_case_count": 2,
+      "max_generation_attempts": 10000,
+      "panel_size": 10,
+      "rank_input_mode": "agent_supplied",
+      "selection_rules": [
+        "candidate flags drawn independently per patient at flag_prevalence_target",
+        "accept only draws with realized prevalence inside flag_prevalence_bounds",
+        "accept only draws with exactly hard_case_count hard cases, half entering",
+        "accept only draws where every ambiguity witness exists"
+      ],
+      "top_k": 3
+    },
+    "source_validation": {
+      "attempt_count": 6,
+      "checks": [
+        {
+          "check": "strict_schema",
+          "pass": true
+        },
+        {
+          "check": "provenance_and_hashes",
+          "pass": true
+        },
+        {
+          "check": "coverage_and_uniqueness",
+          "pass": true
+        },
+        {
+          "check": "role_projections",
+          "pass": true
+        },
+        {
+          "check": "ambiguity_witnesses",
+          "pass": true
+        },
+        {
+          "check": "benchmarks_and_hard_cases",
+          "pass": true
+        },
+        {
+          "check": "no_encoded_join",
+          "pass": true
+        },
+        {
+          "check": "synthetic_only",
+          "pass": true
+        },
+        {
+          "check": "tracers",
+          "pass": true
+        }
+      ],
+      "diagnostics": {
+        "alias_sort_vs_case_key_sort": -0.467,
+        "clinical_piece_vs_pharmacy_piece": 0.03,
+        "clinical_piece_vs_table_order": -0.782,
+        "pharmacy_piece_vs_table_order": -0.382
+      },
+      "feature_draws": 1,
+      "realized_prevalence": 0.3,
+      "validator_version": "healthcare-validator-v0.2"
+    }
+  },
+  "hard_cases": [
+    {
+      "case_key": "C-SY43H",
+      "direction": "enters"
+    },
+    {
+      "case_key": "C-QBTM7",
+      "direction": "leaves"
+    }
+  ],
+  "protected_flags": {
+    "C-2AU4J": false,
+    "C-2HDHW": true,
+    "C-8EL5N": false,
+    "C-AD44Q": false,
+    "C-EHUD5": true,
+    "C-KUNQX": false,
+    "C-L99GQ": false,
+    "C-NR42K": false,
+    "C-QBTM7": false,
+    "C-SY43H": true
+  },
+  "schema_version": "healthcare-points-truth-v0.3",
+  "top_k_approved_only": [
+    "C-2AU4J",
+    "C-2HDHW",
+    "C-QBTM7"
+  ],
+  "top_k_full": [
+    "C-2HDHW",
+    "C-2AU4J",
+    "C-SY43H"
+  ],
+  "tracers": [
+    {
+      "case_key": "C-EHUD5",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 8
+        }
+      ],
+      "source_roles": [
+        "clinical_records"
+      ],
+      "token": "ARX-C-2W7BH8",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-QBTM7",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 2
+        }
+      ],
+      "source_roles": [
+        "clinical_records"
+      ],
+      "token": "ARX-C-5SSL6B",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-SY43H",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 0
+        }
+      ],
+      "source_roles": [
+        "clinical_records"
+      ],
+      "token": "ARX-C-BSERY8",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-2HDHW",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 7
+        }
+      ],
+      "source_roles": [
+        "clinical_records"
+      ],
+      "token": "ARX-C-DCKKKD",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-KUNQX",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 5
+        }
+      ],
+      "source_roles": [
+        "clinical_records"
+      ],
+      "token": "ARX-C-EGLR85",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-L99GQ",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 1
+        }
+      ],
+      "source_roles": [
+        "clinical_records"
+      ],
+      "token": "ARX-C-K9NKLR",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-NR42K",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 4
+        }
+      ],
+      "source_roles": [
+        "clinical_records"
+      ],
+      "token": "ARX-C-LJ6RBZ",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-AD44Q",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 6
+        }
+      ],
+      "source_roles": [
+        "clinical_records"
+      ],
+      "token": "ARX-C-R5CQ7P",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-2AU4J",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 9
+        }
+      ],
+      "source_roles": [
+        "clinical_records"
+      ],
+      "token": "ARX-C-RGJZUJ",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-8EL5N",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 3
+        }
+      ],
+      "source_roles": [
+        "clinical_records"
+      ],
+      "token": "ARX-C-SXURMH",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-8EL5N",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 9
+        }
+      ],
+      "source_roles": [
+        "pharmacy"
+      ],
+      "token": "ARX-P-3LQSGR",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-SY43H",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 1
+        }
+      ],
+      "source_roles": [
+        "pharmacy"
+      ],
+      "token": "ARX-P-7J75XU",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-QBTM7",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 2
+        }
+      ],
+      "source_roles": [
+        "pharmacy"
+      ],
+      "token": "ARX-P-8DKS5P",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-2HDHW",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 6
+        }
+      ],
+      "source_roles": [
+        "pharmacy"
+      ],
+      "token": "ARX-P-JG4V7P",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-KUNQX",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 8
+        }
+      ],
+      "source_roles": [
+        "pharmacy"
+      ],
+      "token": "ARX-P-L4SYN5",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-L99GQ",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 7
+        }
+      ],
+      "source_roles": [
+        "pharmacy"
+      ],
+      "token": "ARX-P-S3S7BJ",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-NR42K",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 4
+        }
+      ],
+      "source_roles": [
+        "pharmacy"
+      ],
+      "token": "ARX-P-SY7YAV",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-2AU4J",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 5
+        }
+      ],
+      "source_roles": [
+        "pharmacy"
+      ],
+      "token": "ARX-P-TC7HYU",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-AD44Q",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 0
+        }
+      ],
+      "source_roles": [
+        "pharmacy"
+      ],
+      "token": "ARX-P-Y96RZL",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-EHUD5",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 3
+        }
+      ],
+      "source_roles": [
+        "pharmacy"
+      ],
+      "token": "ARX-P-ZHV4HV",
+      "type": "archive_row_ref"
+    },
+    {
+      "case_key": "C-SY43H",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 0
+        },
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 1
+        }
+      ],
+      "source_roles": [
+        "clinical_records",
+        "pharmacy"
+      ],
+      "token": "LGY-9LZD-Q6",
+      "type": "legacy_alias"
+    },
+    {
+      "case_key": "C-QBTM7",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 2
+        },
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 2
+        }
+      ],
+      "source_roles": [
+        "clinical_records",
+        "pharmacy"
+      ],
+      "token": "LGY-EWQD-DU",
+      "type": "legacy_alias"
+    },
+    {
+      "case_key": "C-2HDHW",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 7
+        },
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 6
+        }
+      ],
+      "source_roles": [
+        "clinical_records",
+        "pharmacy"
+      ],
+      "token": "LGY-GTVR-4G",
+      "type": "legacy_alias"
+    },
+    {
+      "case_key": "C-KUNQX",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 5
+        },
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 8
+        }
+      ],
+      "source_roles": [
+        "clinical_records",
+        "pharmacy"
+      ],
+      "token": "LGY-J5FU-QR",
+      "type": "legacy_alias"
+    },
+    {
+      "case_key": "C-8EL5N",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 3
+        },
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 9
+        }
+      ],
+      "source_roles": [
+        "clinical_records",
+        "pharmacy"
+      ],
+      "token": "LGY-JTEE-HC",
+      "type": "legacy_alias"
+    },
+    {
+      "case_key": "C-NR42K",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 4
+        },
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 4
+        }
+      ],
+      "source_roles": [
+        "clinical_records",
+        "pharmacy"
+      ],
+      "token": "LGY-KAQ8-VR",
+      "type": "legacy_alias"
+    },
+    {
+      "case_key": "C-L99GQ",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 1
+        },
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 7
+        }
+      ],
+      "source_roles": [
+        "clinical_records",
+        "pharmacy"
+      ],
+      "token": "LGY-NY8P-WR",
+      "type": "legacy_alias"
+    },
+    {
+      "case_key": "C-2AU4J",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 9
+        },
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 5
+        }
+      ],
+      "source_roles": [
+        "clinical_records",
+        "pharmacy"
+      ],
+      "token": "LGY-Q4F6-DX",
+      "type": "legacy_alias"
+    },
+    {
+      "case_key": "C-AD44Q",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 6
+        },
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 0
+        }
+      ],
+      "source_roles": [
+        "clinical_records",
+        "pharmacy"
+      ],
+      "token": "LGY-UCKM-36",
+      "type": "legacy_alias"
+    },
+    {
+      "case_key": "C-EHUD5",
+      "occurrences": [
+        {
+          "piece": "legacy_archive",
+          "role": "clinical_records",
+          "row": 8
+        },
+        {
+          "piece": "legacy_archive",
+          "role": "pharmacy",
+          "row": 3
+        }
+      ],
+      "source_roles": [
+        "clinical_records",
+        "pharmacy"
+      ],
+      "token": "LGY-WPTD-J2",
+      "type": "legacy_alias"
+    }
+  ],
+  "validation": {
+    "alternative_witnesses": 12,
+    "assets_bytes": 7442,
+    "observer_checks": 13,
+    "scope": "dataset-only; runtime visibility not tested",
+    "validator_version": "healthcare-points-validator-v1"
+  }
+}
