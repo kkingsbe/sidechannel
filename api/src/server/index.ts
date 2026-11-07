@@ -18,6 +18,7 @@ import type { PlaybookCatalog } from '@sidechannel/contracts/playbook/repository
 import { PLAYBOOK_PROVIDER } from '@sidechannel/contracts/playbook/contracts';
 import { PlaybookService } from '../playbook/service.js';
 import { snapBackward, snapForward, TURN_SNAP_SLACK } from '@sidechannel/domain/harness/event-pages';
+import { DEFAULT_EVENT_STREAM_TIMING, streamRunEvents, type EventStreamTiming } from './event-stream.js';
 import { adaptionModelRoute, validateAdaptionModelSelection } from './adaption-models.js';
 
 export type { Draft } from '@sidechannel/contracts/harness/repository';
@@ -30,6 +31,8 @@ export interface ResearcherServerOptions {
     buildMetadata?: ExperimentConfig['build'];
     extensionHandlers?: ResearchRouteHandler[];
     dashboardDirectory?: string;
+    /** Live event stream timing; tests shorten it. */
+    eventStream?: EventStreamTiming;
     healthcareCatalog?: HealthcareCatalog;
     playbookCatalog?: PlaybookCatalog;
 }
@@ -179,6 +182,16 @@ export function createResearcherServer(repository: ResearcherRepository, options
                     if (!runs.length) throw new HttpError(404, 'Pair not found');
                     const configurationDifferences = runs.length === 2 ? differences(runs[0]!.config, runs[1]!.config) : [];
                     return send(200, { pairId, runs: await Promise.all(runs.map(run => repository.getRunSummary(run.id))), configurationDifferences, matched: runs.length === 2 && configurationDifferences.every(path => path.startsWith('condition.')) });
+                }
+                const streamLink = path.match(/^\/runs\/([^/]+)\/events\/stream$/);
+                if (streamLink && method === 'GET') {
+                    const id = decodeURIComponent(streamLink[1]!);
+                    if (!await repository.getRunSummary(id)) throw new HttpError(404, 'Run not found');
+                    if (query.has('to') || query.has('before')) throw new HttpError(400, 'A live stream has no upper sequence bound; use the paged events endpoint');
+                    if (query.has('phase') && !['action', 'report'].includes(query.get('phase')!)) throw new HttpError(400, 'phase must be action or report');
+                    const resume = req.headers['last-event-id'];
+                    const after = cursor(typeof resume === 'string' && resume ? resume : query.get('after'), 0);
+                    return streamRunEvents(res, repository, id, { after, ...(query.get('actor') ? { actor: query.get('actor')! } : {}), ...(query.get('phase') ? { phase: query.get('phase')! } : {}), ...(query.get('type') ? { type: query.get('type')! } : {}), ...(query.has('from') ? { from: cursor(query.get('from'), 0) } : {}) }, options.eventStream ?? DEFAULT_EVENT_STREAM_TIMING);
                 }
                 const eventLink = path.match(/^\/runs\/([^/]+)\/events\/([^/]+)$/);
                 if (eventLink && method === 'GET') {
