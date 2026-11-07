@@ -4,7 +4,7 @@ import type {
 } from '@sidechannel/contracts/browser';
 import type { AnalysisJob as JevJob, AnalysisResult as JevResult, Page, WindowRecord } from '@sidechannel/contracts/browser';
 import type { Review as JevReview, ReviewBatch as JevBatch } from '@sidechannel/contracts/browser';
-import type { AnalysisJob, AnalysisPreview, AnalysisSettings, AnalysisWindow, Codebook, CodebookRevision, EvidenceCategory, HumanReview, ReviewBatch, ReviewSelection, WindowDetail } from '../analysis-types';
+import type { AnalysisJob, AnalysisSettings, AnalysisWindow, Codebook, CodebookRevision, EvidenceCategory, HumanReview, ReviewBatch, ReviewSelection, WindowDetail } from '../analysis-types';
 import type { Requester } from '../transport';
 import { NEW_ANALYSIS_INPUT_LIMITS } from './defaults';
 

@@ -34,7 +34,7 @@ import { useRunRecordOnly } from "./use-run-record";
 export function EventsPanel({ kind }: { kind: "timeline" | "traces" }) {
   const id = useRunId();
   const run = useRunRecordOnly(id);
-  const { progress, updatedAt } = useRunProgress(id);
+  const { updatedAt } = useRunProgress(id);
   const events = useRunEvents(kind);
   const { inspect } = useRunRoute();
   if (run.loading) return <Loading />;
@@ -218,7 +218,6 @@ export function EvidencePanel({ kind }: { kind: "board" | "artifacts" | "memory"
                   {kind === "artifacts" ? (
                     <ArtifactView
                       value={object.value}
-                      scenarioVersion={data.config.scenario.version}
                       artifactSchemaVersion={scenarios.view(data.config.scenario.version).artifactSchemaVersion}
                     />
                   ) : (

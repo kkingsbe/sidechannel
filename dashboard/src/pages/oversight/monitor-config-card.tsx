@@ -10,7 +10,6 @@ import {
   Pager,
   Select,
 } from "../../components/ui";
-import type { MonitorSettings } from "@sidechannel/contracts/browser";
 import type { Run } from "../../lib/types";
 import { short, when } from "../../lib/utils";
 import type { useMonitorSetup } from "./use-monitor-setup";

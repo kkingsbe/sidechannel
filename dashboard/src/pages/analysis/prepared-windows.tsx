@@ -1,5 +1,5 @@
-import { Badge, Button, Card, CardHeading, Empty, Notice, Pager, Table } from "../../components/ui";
-import { evidenceCategories as categories, type AnalysisPreview } from "../../lib/analysis-types";
+import { Badge, Button, Card, CardHeading, Notice, Table } from "../../components/ui";
+import { evidenceCategories as categories } from "../../lib/analysis-types";
 import type { AnalysisSetupState } from "./analysis-setup";
 
 export function PreparedWindows({ state }: { state: AnalysisSetupState }) {

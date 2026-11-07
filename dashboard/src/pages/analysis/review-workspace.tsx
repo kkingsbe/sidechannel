@@ -4,7 +4,7 @@ import { Badge, Button, Card, CardHeading, ErrorState, Field, Input, Loading, No
 import { useApi, useMutation, usePage } from "../../lib/api";
 import { useClients } from "../../lib/clients/context";
 import { useClaimedReviewer } from "../../components/claimed-reviewer";
-import type { AnalysisJob, HumanReview, Page, ReviewBatch, ReviewSelection, WindowDetail } from "../../lib/analysis-types";
+import type { AnalysisJob, Page, ReviewBatch, ReviewSelection } from "../../lib/analysis-types";
 import { when } from "../../lib/utils";
 import { ReviewQueueRow } from "./review-queue-row";
 

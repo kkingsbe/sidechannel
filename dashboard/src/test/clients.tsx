@@ -1,7 +1,6 @@
-import React, { type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { render, type RenderResult } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { RequesterProvider } from '../lib/api';
 import { ApiClientProvider, createClients, type ApiClients } from '../lib/clients/context';
 import type { Requester } from '../lib/transport';
 
@@ -83,7 +82,3 @@ export function renderWithServer(node: ReactNode): RenderResult {
     return render(<ApiClientProvider clients={active ?? fakeClients()}>{node}</ApiClientProvider>);
 }
 
-export const withServer = (server: FakeServer) =>
-    function Wrapper({ children }: { children: ReactNode }) {
-        return <RequesterProvider value={server.request}>{children}</RequesterProvider>;
-    };

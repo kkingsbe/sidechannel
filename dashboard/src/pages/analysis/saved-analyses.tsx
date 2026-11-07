@@ -1,12 +1,11 @@
 import { Badge, Button, Card, CardHeading, Empty, ErrorState, Loading, Pager, Table } from "../../components/ui";
 import { Link } from "react-router-dom";
-import type { AnalysisJob } from "../../lib/analysis-types";
 import { jobStatusMeta } from "../../lib/status";
 import { short, when } from "../../lib/utils";
 import type { AnalysisSetupState } from "./analysis-setup";
 
 export function SavedAnalyses({ state }: { state: AnalysisSetupState }) {
-  const { runId, source, jobs, settings, change } = state;
+  const { runId, jobs } = state;
   return (
     <>
           {runId && (

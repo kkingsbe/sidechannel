@@ -1,10 +1,9 @@
-import { Button, Card, CardHeading, Check, Field, Input, Notice, Pager, Select, Textarea } from "../../components/ui";
-import { Link } from "react-router-dom";
-import { evidenceCategories as categories, type AnalysisSettings, type CodebookRevision } from "../../lib/analysis-types";
+import { Card, CardHeading, Check, Field, Input } from "../../components/ui";
+import { evidenceCategories as categories } from "../../lib/analysis-types";
 import type { AnalysisSetupState } from "./analysis-setup";
 
 export function WindowingSection({ state }: { state: AnalysisSetupState }) {
-  const { source, settings, change, preview } = state;
+  const { settings, change } = state;
   return (
     <>
           <Card className="form-section">

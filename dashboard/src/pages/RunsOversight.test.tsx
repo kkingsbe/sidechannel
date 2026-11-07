@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from "react";
 import { afterEach, expect, it } from "vitest";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";

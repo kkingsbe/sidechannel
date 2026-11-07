@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';

@@ -13,7 +13,6 @@ import {
 } from "../../components/ui";
 import { useClients } from "../../lib/clients/context";
 import { useResourcePage } from "../../lib/clients/query";
-import type { MonitorEvaluation } from "@sidechannel/contracts/browser";
 import { monitorStatusMeta } from "../../lib/status";
 import { when } from "../../lib/utils";
 import { evaluationName } from "./evaluation-detail";

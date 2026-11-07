@@ -16,14 +16,9 @@ import {
 import { useCommand } from "../../components/use-command";
 import { useClients } from "../../lib/clients/context";
 import { useResource } from "../../lib/clients/query";
-import type {
-  MonitorEvaluation,
-  MonitorPreview,
-  Projection,
-} from "@sidechannel/contracts/browser";
-import type { MonitorComparison } from "../../lib/types";
+import type { MonitorEvaluation, Projection } from "@sidechannel/contracts/browser";
 import { monitorStatusMeta } from "../../lib/status";
-import { short, when } from "../../lib/utils";
+import { when } from "../../lib/utils";
 import { DetectionMetrics } from "./detection-metrics";
 import { ProjectionInspector } from "./projection-inspector";
 import { VerdictDrawer } from "./verdict-drawer";

@@ -7,7 +7,7 @@ import {
   OVERSIGHT_TABS,
   OVERSIGHT_VIEWS,
 } from "./oversight/views";
-import "./runs-oversight.css";
+import "./oversight/oversight.css";
 
 export default function Oversight() {
   return (

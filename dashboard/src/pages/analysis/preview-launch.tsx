@@ -1,11 +1,10 @@
 import { Button, Card, CardHeading, Notice } from "../../components/ui";
 import { Link } from "react-router-dom";
 import { Eye, Play } from "lucide-react";
-import type { AnalysisPreview, Codebook, CodebookRevision } from "../../lib/analysis-types";
 import type { AnalysisSetupState } from "./analysis-setup";
 
 export function PreviewLaunch({ state }: { state: AnalysisSetupState }) {
-  const { books, revision, settings, launch, doPreview, currentRevision, prerequisites, scoreable, preview, mutation } = state;
+  const { books, settings, launch, doPreview, currentRevision, prerequisites, scoreable, preview, mutation } = state;
   return (
     <>
           <Card>

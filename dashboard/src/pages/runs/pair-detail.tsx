@@ -81,7 +81,6 @@ export function PairCondition({ summary, returnTo }: { summary: Run; returnTo: s
                   <strong>Frozen version {item.version}</strong>
                   <ArtifactView
                     value={item.value}
-                    scenarioVersion={run.config.scenario.version}
                     artifactSchemaVersion={scenarios.view(run.config.scenario.version).artifactSchemaVersion}
                   />
                 </div>

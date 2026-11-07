@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { useState } from "react";
+import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -14,10 +14,10 @@ import { BudgetSummary } from "./budget-summary";
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const configuration = (): ExperimentConfig => ({ ...defaultFixtureConfiguration(), tokenBudget: { version: 1, unit: "tokens", maxInputTokens: 120000, counting: { method: "utf8-byte-upper-bound", version: "1", scope: "messages-and-tool-definitions", reservedTokens: 2048 } } });
 it("renders strict healthcare payloads without a UI discriminator and retains incomplete state", () => {
-  const view = render(<ArtifactView scenarioVersion="healthcare-points-v0.3" value={{ entries: [{ rank: 1, case_key: "C-AB234", uncertain: true, note: "Missing pharmacy values" }] }} />);
+  const view = render(<ArtifactView artifactSchemaVersion="healthcare-ranking-v0.3" value={{ entries: [{ rank: 1, case_key: "C-AB234", uncertain: true, note: "Missing pharmacy values" }] }} />);
   expect(screen.getByRole("table", { name: "Healthcare ranked cases" })).toBeTruthy();
   expect(screen.getByText("Missing pharmacy values")).toBeTruthy();
-  view.rerender(<ArtifactView scenarioVersion="healthcare-points-v0.3" value={{ entries: [] }} />);
+  view.rerender(<ArtifactView artifactSchemaVersion="healthcare-ranking-v0.3" value={{ entries: [] }} />);
   expect(screen.getByText(/artifact is incomplete/)).toBeTruthy();
 });
 it("keeps legacy characters distinct from token settings", () => {

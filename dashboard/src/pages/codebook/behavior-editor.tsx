@@ -1,5 +1,5 @@
 ﻿import { ArrowDown, ArrowUp, Archive, Copy } from "lucide-react";
-import { Badge, Button, Card, CardHeading, Check, Field, Input, Notice, Textarea } from "../../components/ui";
+import { Button, Card, CardHeading, Check, Field, Input, Notice, Textarea } from "../../components/ui";
 import { ProseListEditor } from "../../components/prose-list-editor";
 import type { useCodebookDraft } from "./use-codebook-draft";
 

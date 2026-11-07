@@ -41,7 +41,6 @@ export interface HumanReview extends Identified, ReviewDraft {
     revision: number; analysisId: string; runId: string; subjectId?: string; windowId?: string;
     scope: 'window' | 'event'; codeId: string; definitionRevisionId: string; supersedesId?: string;
 }
-export interface ReviewBatchInput { mode: 'assisted' | 'blind'; threshold?: number; randomCount?: number; seed?: string; creator?: string; manualWindowIds?: string[] }
 export interface ReviewBatch extends Identified { analysisId: string; mode: 'assisted' | 'blind'; threshold?: number; populationCount: number; selectionCount: number; codebookRevisionId: string }
 export interface ReviewSelection { id: string; windowId: string; reasons?: string[] }
 export interface WindowDetail { window: AnalysisWindow; sourceEventIds: string[]; events?: HarnessEvent[] }

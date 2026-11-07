@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactElement } from "react";
+import { createContext, useContext } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { ErrorState, Loading } from "../../components/ui";
 import type { ViewRegistry } from "../../lib/contracts";
@@ -49,7 +49,7 @@ function TableView() {
 function ReviewView() {
   const id = useRouteId();
   const job = useAnalysisJob(id);
-  const [params, setParams] = useSearchParams();
+  const [, setParams] = useSearchParams();
   const queue = useAnalysisQueue();
   if (job.loading) return <Loading />;
   if (!job.job) return <ErrorState error={job.error} retry={job.refresh} />;
@@ -76,9 +76,3 @@ export const ANALYSIS_VIEWS: ViewRegistry<AnalysisTab> = {
   compare: { title: "Compare analyses", Component: CompareAnalyses },
   provenance: { title: "Provenance & exports", Component: ProvenanceView },
 };
-
-export function analysisViewOrder(): readonly AnalysisTab[] {
-  return ANALYSIS_TABS;
-}
-
-export type { ReactElement };

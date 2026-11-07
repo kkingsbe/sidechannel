@@ -13,14 +13,6 @@
 .pair-condition-grid details {
   padding-block: 10px;
 }
-.action-prerequisites {
-  margin-top: 12px;
-  font-size: 14px;
-  line-height: 1.6;
-}
-.action-prerequisites ul {
-  padding-left: 22px;
-}
 @media (max-width: 850px) {
   .pair-condition-grid {
     grid-template-columns: minmax(0, 1fr);

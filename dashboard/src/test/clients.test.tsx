@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import { useClients } from "../lib/clients/context";
 import { clientsFor, fakeClients, pageClients, renderWithClients } from "./clients";
 import { fakeServer } from "./clients";

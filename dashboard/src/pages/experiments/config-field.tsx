@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { type ReactElement } from "react";
 import { Field, Input, Textarea } from "../../components/ui";
 import type { ExperimentConfig } from "../../lib/types";
 import { valueAt } from "./config-edit";

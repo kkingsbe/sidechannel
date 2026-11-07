@@ -2,7 +2,7 @@ import { Route, Routes } from "react-router-dom";
 import { RunList } from "./runs/run-list";
 import { RunDetail } from "./runs/run-detail";
 import { PairDetail } from "./runs/pair-detail";
-import "./runs-oversight.css";
+import "./runs/runs.css";
 
 /** Route shell: every view owns its own data and markup. */
 export default function Runs() {
