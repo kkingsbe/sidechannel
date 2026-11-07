@@ -4,6 +4,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { assertPairEquivalent } from '@sidechannel/domain/harness/config';
 import type { HarnessEvent, NewEvent, Run } from '@sidechannel/contracts/harness/contracts';
 import type { Repository } from '@sidechannel/contracts/harness/server';
+import type { WorkerStatus } from '@sidechannel/contracts/server/contracts';
 import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, type EvidenceKind, type EvidencePage } from '@sidechannel/contracts/harness/repository';
 import { summarizeRun } from '@sidechannel/domain/harness/repository';
 
@@ -18,7 +19,12 @@ function assertPair(runs: Run[]) {
     try { assertPairEquivalent(runs[0]!.config, runs[1]!.config); } catch { throw new RepositoryConflict('Matched configurations differ outside condition'); }
 }
 
-function eventPhase(event: HarnessEvent): string { return (event.data as { phase?: string } | null)?.phase ?? (event.type.startsWith('report') || event.invocationId?.includes(':report:') ? 'report' : 'action'); }
+function eventPhase(event: HarnessEvent): string {
+    const declared = (event.data as { phase?: string } | null)?.phase;
+    if (declared === 'report' || event.type.startsWith('report') || event.invocationId?.includes(':report:'))
+        return 'report';
+    return declared ?? 'action';
+}
 
 function matchesEvent(event: HarnessEvent, query: EventQuery) { return event.sequence > (query.after ?? 0) && (!query.actor || event.agentId === query.actor) && (!query.type || event.type === query.type) && (!query.phase || eventPhase(event) === query.phase) && (query.from === undefined || event.sequence >= query.from) && (query.to === undefined || event.sequence <= query.to); }
 
@@ -94,7 +100,7 @@ export class InMemoryRepository implements Repository {
         this.events.push(record);
         return clone(record);
     }
-    async listEvents(id: string, afterSequence = 0, limit = 1000) { return clone(this.events.filter(e => e.runId === id && e.sequence > afterSequence).slice(0, limit)); }
+    async listEvents(id: string, afterSequence = 0, limit = 1000) { return clone(this.events.filter(e => e.runId === id && e.sequence > afterSequence).slice(0, Math.min(limit, 10_000))); }
     async saveDraft(id: string, config: unknown, expectedRevision?: number, metadata: DraftMetadata = {}) { const current = this.drafts.get(id); if (current && expectedRevision !== current.revision || !current && expectedRevision !== undefined && expectedRevision !== 0) throw new RepositoryConflict('Draft changed; reload the current revision before saving'); const draft = { ...current, ...clone(metadata), id, config: clone(config), revision: (current?.revision ?? 0) + 1, updatedAt: new Date().toISOString() }; this.drafts.set(id, draft); return clone(draft); }
     async listDrafts() { return clone([...this.drafts.values()]); }
     async getDraft(id: string) { return clone(this.drafts.get(id) ?? null); }
@@ -109,7 +115,7 @@ export class InMemoryRepository implements Repository {
     async getEvidenceItem(id: string, kind: EvidenceKind, key: string): Promise<unknown | null> { const rows = this.runs.get(id)?.[kind] ?? []; const field = kind === 'board' ? 'id' : kind === 'artifacts' ? 'version' : 'agentId'; return clone(rows.find(row => String((row as unknown as Record<string, unknown>)[field]) === key) ?? null); }
     async queryEvents(id: string, query: EventQuery) { const offset = query.offset ?? 0; return clone(this.events.filter(event => event.runId === id && matchesEvent(event, query)).slice(offset, offset + (query.limit ?? 200))); }
     async getEvent(runId: string, eventId: string) { return clone(this.events.find(event => event.runId === runId && event.id === eventId) ?? null); }
-    async workerStatus() { return { capacity: 1, available: null, status: 'unknown' }; }
+    async workerStatus(): Promise<WorkerStatus> { return { capacity: 1, available: null, status: 'unknown' }; }
     async requestCancel(id: string) {
         const run = this.runs.get(id);
         if (run && ['queued', 'running', 'reporting', 'stopping'].includes(run.status)) {
@@ -256,7 +262,11 @@ export class MongoRepository implements Repository {
         return (await this.db.collection('events').find(filter).sort({ sequence: 1 }).skip(query.offset ?? 0).limit(query.limit ?? 200).toArray()).map(row => clean<HarnessEvent>(row)!);
     }
     async getEvent(runId: string, id: string) { return clean<HarnessEvent>(await this.db.collection('events').findOne({ runId, id })); }
-    async workerStatus() { const guard = await this.db.collection('worker_guard').findOne({ key: 'single-worker' }, { projection: { _id: 0, startedAt: 1 } }); return { capacity: 1, available: null, status: guard ? 'registered' : 'unknown', ...(guard ? { startedAt: guard.startedAt } : {}), note: 'Worker registration has no heartbeat; current availability is unknown.' }; }
+    async workerStatus(): Promise<WorkerStatus> {
+        const guard = await this.db.collection('worker_guard').findOne({ key: 'single-worker' }, { projection: { _id: 0, startedAt: 1 } });
+        return { capacity: 1, available: null, status: guard ? 'registered' : 'unknown', ...(guard ? { startedAt: String(guard.startedAt) } : {}),
+            note: 'Worker registration has no heartbeat; current availability is unknown.' };
+    }
     async requestCancel(id: string) {
         await this.db.collection('runs').updateOne({ id, status: { $in: ['queued', 'running', 'reporting', 'stopping'] } }, [{ $set: { cancelRequested: true, status: { $cond: [{ $eq: ['$status', 'queued'] }, 'cancelled', 'stopping'] }, updatedAt: new Date().toISOString() } }]);
         return this.getRun(id);
