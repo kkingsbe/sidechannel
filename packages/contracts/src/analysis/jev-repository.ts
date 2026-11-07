@@ -1,3 +1,4 @@
+import { DomainFailure } from '../errors.js';
 import type { ProviderUsage } from './jev-provider.js';
 import type { AnalysisConfiguration, AnalysisWindow, Codebook, CodebookRevision, Diagnostic, EvidenceAvailability, SourceSnapshot } from './evidence-contracts.js';
 
@@ -39,13 +40,13 @@ export interface PageOptions { after?: string; limit?: number; windowId?: string
 
 export interface Page<T> { items: T[]; nextCursor: string | null; }
 
-export class AnalysisConflict extends Error { readonly status = 409; }
+export class AnalysisConflict extends DomainFailure { constructor(message: string) { super('conflict', message); } }
 
-export class AnalysisNotFound extends Error { readonly status = 404; }
+export class AnalysisNotFound extends DomainFailure { constructor(message: string) { super('not-found', message); } }
 
-export class AnalysisValidation extends Error { readonly status = 400; }
+export class AnalysisValidation extends DomainFailure { constructor(message: string) { super('invalid', message); } }
 
-export class AnalysisPayloadTooLarge extends Error { readonly status = 413; }
+export class AnalysisPayloadTooLarge extends DomainFailure { constructor(message: string) { super('too-large', message); } }
 
 export interface Lease { jobId: string; owner: string; fence: number; }
 

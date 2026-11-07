@@ -1,3 +1,4 @@
+import { DomainFailure } from '../errors.js';
 import type { ExperimentConfig, Run } from './contracts.js';
 
 export interface Draft {
@@ -13,7 +14,7 @@ export interface Draft {
 
 export type DraftMetadata = Pick<Draft, 'name' | 'notes' | 'groupId' | 'lineage'>;
 
-export class RepositoryConflict extends Error { readonly status = 409; }
+export class RepositoryConflict extends DomainFailure { constructor(message: string) { super('conflict', message); } }
 
 export interface EventQuery { after?: number; offset?: number; limit?: number; actor?: string; phase?: string; type?: string; from?: number; to?: number }
 

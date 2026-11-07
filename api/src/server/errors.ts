@@ -1,8 +1,5 @@
 import type { ServerResponse } from 'node:http';
-import { AnalysisConflict, AnalysisNotFound, AnalysisPayloadTooLarge, AnalysisValidation } from '@sidechannel/contracts/analysis/jev-repository';
 import { DomainFailure, type FailureKind } from '@sidechannel/contracts/errors';
-import { RepositoryConflict } from '@sidechannel/contracts/harness/repository';
-import { OversightError } from '@sidechannel/domain/oversight/service';
 
 /** Transport-level failure: only the HTTP layer throws this. */
 export class HttpError extends Error {
@@ -12,13 +9,10 @@ export class HttpError extends Error {
 /** Conventions §3.6 mapping. Unknown failures keep the historical 400 default. */
 const STATUS_BY_KIND: Record<FailureKind, number> = { invalid: 400, 'not-found': 404, conflict: 409, 'too-large': 413, unavailable: 503 };
 
-/** Typed mapping only: no duck-typed status property and no message inspection. */
+/** Typed mapping only: transport failures keep their status, domain failures map by kind. */
 export function statusOf(error: unknown): number {
     if (error instanceof HttpError) return error.status;
     if (error instanceof DomainFailure) return STATUS_BY_KIND[error.kind];
-    if (error instanceof AnalysisConflict || error instanceof AnalysisNotFound || error instanceof AnalysisValidation || error instanceof AnalysisPayloadTooLarge) return error.status;
-    if (error instanceof RepositoryConflict) return error.status;
-    if (error instanceof OversightError) return error.status;
     return 400;
 }
 

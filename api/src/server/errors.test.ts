@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { AnalysisConflict, AnalysisNotFound, AnalysisPayloadTooLarge, AnalysisValidation } from '@sidechannel/contracts/analysis/jev-repository';
 import { DomainFailure } from '@sidechannel/contracts/errors';
 import { RepositoryConflict } from '@sidechannel/contracts/harness/repository';
-import { OversightError } from '@sidechannel/domain/oversight/service';
 import { HttpError, statusOf } from './errors.js';
 
 test('domain failure kinds map to the conventions §3.6 status codes', () => {
@@ -20,7 +19,6 @@ test('legacy typed error classes keep their own status', () => {
     assert.equal(statusOf(new AnalysisValidation('x')), 400);
     assert.equal(statusOf(new AnalysisPayloadTooLarge('x')), 413);
     assert.equal(statusOf(new RepositoryConflict('x')), 409);
-    assert.equal(statusOf(new OversightError(404, 'x')), 404);
 });
 
 test('untyped errors are 400 and message text is never inspected', () => {

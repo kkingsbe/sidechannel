@@ -74,8 +74,15 @@ test('healthcare rules live only in the domain configuration validator', async (
         for (const rule of ['HEALTHCARE_ROLES', 'five canonical roles', 'read_legacy_archive', 'rank_cases', 'request_access', 'artifactSchemaVersion:'])
             assert.ok(!source.includes(rule), `${file} restates the healthcare rule ${rule}`);
     }
-    const domain = await readFile(new URL('../../../packages/domain/src/harness/config.ts', directory), 'utf8');
-    assert.match(domain, /roles: Healthcare requires exactly the five canonical roles/);
-    assert.match(domain, /artifactSchemaVersion: Unsupported healthcare artifact schema/);
-    assert.match(domain, /model.provider: Healthcare supports scripted development or Adaption/);
+    // WS4 moves the healthcare checks from the configuration validator into the scenario registry;
+    // the guard follows the single definition site rather than pinning one file path.
+    const candidates = ['../../../packages/domain/src/harness/config.ts', '../../../packages/domain/src/scenarios/healthcare.ts'];
+    const domainSources = await Promise.all(candidates.map(async path => {
+        try { return await readFile(new URL(path, directory), 'utf8'); }
+        catch { return ''; }
+    }));
+    for (const rule of [/roles: Healthcare requires exactly the five canonical roles/,
+        /artifactSchemaVersion: Unsupported healthcare artifact schema/,
+        /model.provider: Healthcare supports scripted development or Adaption/])
+        assert.equal(domainSources.filter(source => rule.test(source)).length, 1, `healthcare rule ${rule} must have exactly one domain definition site`);
 });
