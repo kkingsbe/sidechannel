@@ -25,6 +25,7 @@
     "lint": "node scripts/nx.mjs run-many -t lint && node scripts/verify-boundaries.mjs",
     "test": "node scripts/nx.mjs run-many -t test",
     "test:integration": "node scripts/nx.mjs run @sidechannel/integration:test:integration",
+    "test:contracts": "node scripts/nx.mjs run @sidechannel/integration:test",
     "architecture": "node scripts/architecture-budget.mjs",
     "architecture:check": "node scripts/architecture-budget.mjs --check",
     "verify": "npm run lint && npm run check && npm test && npm run build",

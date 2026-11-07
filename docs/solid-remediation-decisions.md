@@ -79,11 +79,11 @@ Severity and titles are taken verbatim from the audit report.
 | P2 | high | Harness repository file is two adapters, a schema migration and copied domain invariants | WS3c T3c.1 | planned |
 | P3 | high | Closed unions re-encoded as literal arrays and ternaries in 5–8 places | WS7 T7.3 | planned |
 | P4 | medium | "Which Run fields are summary fields" is expressed four times | WS7 T7.2 | planned |
-| P5 | high | The two harness repositories disagree about a missing run | WS1 Task 2 | planned |
-| P6 | medium | `workerStatus(): Promise` unconstrained and returns different shapes | WS1 Task 3 | accepted (typed shape + note is the honest contract, decision 6 in `agent/docs/decisions.md`) |
-| P7 | medium | Event-phase classification, claim lifecycle and list limits differ between adapters | WS1 Task 4/5 | planned |
-| P8 | high | In-memory analysis repository violates the port it implements | WS1 Task 6 | planned |
-| P9 | medium | `ResearchStore` and `HealthcareCatalog` diverge on idempotent writes/integrity filtering | WS1 Task 7 | accepted (partially: in-memory catalog cannot reproduce byte-level integrity checks; shared validation is unit-tested) |
+| P5 | high | The two harness repositories disagree about a missing run | WS1 Task 2 | done (`b169c1c`) |
+| P6 | medium | `workerStatus(): Promise` unconstrained and returns different shapes | WS1 Task 3 | done (`c711a28`) — typed `WorkerStatus`; accepted note that registration is not a heartbeat |
+| P7 | medium | Event-phase classification, claim lifecycle and list limits differ between adapters | WS1 Task 3/4 | done (`c711a28`, `5022462`) |
+| P8 | high | In-memory analysis repository violates the port it implements | WS1 Task 6 | done (`5022462`) |
+| P9 | medium | `ResearchStore` and `HealthcareCatalog` diverge on idempotent writes/integrity filtering | WS1 Task 7 | done (`2ec6118`) — `replace` revision-match semantics pinned; healthcare-catalog byte-level parity remains accepted |
 | P10 | high | Ports fat for narrow consumers, thin for their client; store ports leak a document-store protocol | WS1 (parity) / WS2 T2.1–T2.4 | planned |
 | S1 | high | API server module is transport, router, auth, parser, static host and launch service | WS3a T3a.2–T3a.3 | planned |
 | S2 | critical | `HarnessScheduler.run()` is a 249-line method with thirteen responsibilities | WS3b T3b.2–T3b.6 | planned |
@@ -100,7 +100,7 @@ Severity and titles are taken verbatim from the audit report.
 | X3 | high | Domain layer encodes HTTP status codes; API guesses meaning from error message text | WS3a T3a.5 (mapper) / WS3c T3c.5 (producers) | planned |
 | X4 | high | Three competing route-handler contracts, three body parsers, synthetic `IncomingMessage` | WS3a T3a.4 | planned |
 | X5 | medium | Generic "read every page" logic reimplemented eight times | WS3a T3a.6 | planned |
-| X6 | medium | Two canonical-JSON hash families in five copies produce different digests | WS1 Task 1 (de-duplicate, byte-identical) / WS7 T7.4 (canonical, versioned) | planned |
+| X6 | medium | Two canonical-JSON hash families in five copies produce different digests | WS1 Task 1 (de-duplicate, byte-identical) / WS7 T7.4 (canonical, versioned) | de-duplication done (`37085bd`); canonical ordering deferred |
 
 ## Decision log
 
@@ -128,6 +128,14 @@ decisions made while executing:
 | 2026-11-07 (WS0) | T0.2 does **not** delete `readyJob`; that deletion is WS2 T2.2 | WS1 T2 adds contract tests around the method before WS2 removes it; deleting it first would delete the test target | Lead |
 | 2026-11-07 (WS0) | The ban on `fetch(` outside `dashboard/src/lib/**` excludes `*.test.ts(x)`: a test that asserts a request was not made must inspect the fetch mock | The rule protects the production transport seam, not test introspection; WS5 removes global-fetch stubbing | Lead |
 | 2026-11-07 (WS0) | The half-wired `kind@schemaVersion` artifact-renderer key is deleted together with the unused `schemaVersion` prop; renderer lookup is keyed by scenario version only | The fallback key was never registered, so rendering is byte-identical; keeping an unused prop would preserve dead wiring | Lead |
+| 2026-11-07 (WS1) | Contract suites live in `tests/integration/contracts/` (`harness-repository`, `analysis-repository`, `research-store`) with a memory entry (`port-contracts.test.ts`, runs under `npm test`) and a Mongo entry (`port-contracts.mongo.test.ts`, runs under `npm run test:integration`); `npm run test:contracts` runs the memory suites on demand | One assertion set proves the two adapters interchangeable; no test helper is exported from a production package | WS1 |
+| 2026-11-07 (WS1) | Agreed port semantics fixed by the suites: unknown run yields `{ items: [], total: 0 }` evidence pages and null items/summaries; event phase classification is report-first; `listEvents` clamps requests to 10,000; `updateWindow` on a missing window is a lease-checked no-op; analysis attempts enforce the 1 MiB metadata bound before writing; `resultsForWindows` caps at 50,000; `ResearchStore.replace` reports the matched revision (not the modified count) | These are the behaviours the audit (P5, P7, P8, P9) found divergent; the suites are now the source of truth and later workstreams must not re-invent them | WS1 |
+| 2026-11-07 (WS1) | Canonical (sorted-key) hashing stays deferred to WS7 T7.4; WS1 only de-duplicates the five helpers into `jsonHash` (insertion-order, byte-identical) and `canonicalHash` (sorted keys, byte-identical to the old `snapshotHash`) | Persisted identity hashes (`configHash`, review keys, previews, launch keys) must not change without a versioned migration | WS1 |
+| 2026-11-07 (WS1) | `packages/domain` does not gain a `./hashing` package export in WS1; `hashing.ts` is imported relatively inside the domain package until WS7 T7.4 needs the public subpath | Keeps the change inside one package; adding an export is a WS7 concern | WS1 |
+| 2026-11-07 (WS1) | **Evidence drift is pre-existing at the baseline.** The committed `agent/examples/completed-fixture.json` holds 103 events; a scripted fixture run on the baseline `5a31bf7` code emits the same sequence plus 20 `context_accounted`/`model_usage` events (123). The file is **not** regenerated | Program rule: characterization evidence is never rewritten to make a gate green. The drift predates the remediation and is recorded here; evidence gates compare generated runs against the WS3b characterization snapshot, and a later task may only regenerate the export with an explicit decision entry naming the delta | WS1 |
+| 2026-11-07 (WS1) | `npm run fixture` is blocked in this environment by a stale `worker_guard` document in the shared `sidechannel` database (the compose stack's experiment worker may own it); baseline verification used an ephemeral database instead | Deleting a live worker guard could admit two workers; the gate is reproducible on a clean database and the docker stack is not part of this program | WS1 |
+| 2026-11-07 (WS3b) | Scheduler characterization snapshots (`experiment-worker/src/harness/__snapshots__/scheduler-{fixture,healthcare}.txt`) are committed **before** WS2 changes the scheduler constructor (WS3b T3b.1, commit `dc40629`); the two `new HarnessScheduler(...)` lines carry `// Rebase point (WS2 T2.1)` comments and WS2 may rewrite only those lines, proving zero snapshot diff | The snapshot is the evidence budget for the scheduler decomposition; it must exist before the constructor moves | WS3b |
+| 2026-11-07 (WS3b) | Snapshot comparison normalises CRLF to LF before comparing | The repository is checked out with `core.autocrlf=true` on Windows; the gate must compare event content, not checkout encoding | WS3b |
 
 ## Verification gates
 
