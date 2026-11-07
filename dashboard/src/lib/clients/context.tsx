@@ -7,6 +7,7 @@ import { createCodebooksClient, type CodebooksClient } from './codebooks';
 import { createAnalysesClient, type AnalysesClient } from './analyses';
 import { createMonitorClient, createReviewsClient, type MonitorClient, type ReviewsClient } from './monitor';
 import { createWorkspaceClient, type WorkspaceClient } from './workspace';
+import { createExperimentsClient, type ExperimentsClient } from './experiments';
 
 export interface ApiClients {
     request: Requester;
@@ -16,6 +17,7 @@ export interface ApiClients {
     monitor: MonitorClient;
     reviews: ReviewsClient;
     workspace: WorkspaceClient;
+    experiments: ExperimentsClient;
 }
 
 /** Composition root for dashboard data access. Tests inject a fake `request`. */
@@ -23,7 +25,7 @@ export function createClients(overrides: { request?: Requester; adapt?: boolean 
     const session = createJevSession();
     const base = overrides.request ?? request;
     const api = overrides.adapt === false ? base : createJevRequester(base, session);
-    return {
+    const resources = {
         request: api,
         runs: createRunsClient(api),
         codebooks: createCodebooksClient(api),
@@ -32,6 +34,7 @@ export function createClients(overrides: { request?: Requester; adapt?: boolean 
         reviews: createReviewsClient(api),
         workspace: createWorkspaceClient(api),
     };
+    return { ...resources, experiments: createExperimentsClient(resources) };
 }
 
 const fallback = createClients();

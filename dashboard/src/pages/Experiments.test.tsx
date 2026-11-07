@@ -1,51 +1,41 @@
 // @vitest-environment jsdom
-import React from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, screen, waitFor } from "@testing-library/react";
-import { activate, fakeServer, renderWithServer } from "../test/clients";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
 import { defaultFixtureConfiguration } from "@sidechannel/contracts/testing";
 import Experiments from "./Experiments";
+import { fakeClients, renderWithClients, type ClientOverrides } from "../test/clients";
+
 const config = defaultFixtureConfiguration();
 let submitted: { config: typeof config } | undefined;
-function renderAt(path: string) {
-  return renderWithServer(
-    <MemoryRouter initialEntries={[path]}>
-      <Experiments />
-    </MemoryRouter>,
-  );
+function renderAt(path: string, overrides: ClientOverrides = {}) {
+  return renderWithClients(<Experiments />, {
+    route: path,
+    clients: fakeClients({
+      experiments: {
+        defaults: async () => config,
+        schema: async () => ({ fields: [] }),
+        drafts: async () => [],
+        ...overrides.experiments,
+      },
+      ...overrides,
+    }),
+  });
 }
 beforeEach(() => {
   localStorage.clear();
   submitted = undefined;
-  activate(fakeServer((path, options) => {
-      if (path === "/config/default") return config;
-      if (path === "/config/schema") return { fields: [] };
-      if (path === "/drafts") return [{ id: "shared", config, revision: 2 }];
-      if (path === "/config/validate") {
-        submitted = JSON.parse(String(options?.body));
-        return {
-          valid: false,
-          errors: ["Fix memory"],
-          fieldErrors: {
-            "memory.contextBudget": "Use a positive memory budget",
-          },
-        };
-      }
-      throw new Error(path);
-  }));
 });
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-});
+afterEach(cleanup);
+
 it("lists shared drafts separately from explicit local recovery", async () => {
   localStorage.setItem(
     "sidechannel-experiment-draft",
     JSON.stringify({ config }),
   );
-  renderAt("/experiments");
+  renderAt("/experiments", {
+    experiments: { drafts: async () => [{ id: "shared", config, revision: 2 }] },
+  });
   expect(await screen.findByRole("link", { name: /revision 2/ })).toBeTruthy();
   expect(
     screen.getByRole("link", { name: "New experiment" }).getAttribute("href"),
@@ -57,6 +47,7 @@ it("lists shared drafts separately from explicit local recovery", async () => {
   ).toContain("recover=1");
   expect(screen.queryByLabelText("Experiment name")).toBeNull();
 });
+
 it("starts with supported defaults and recovers local changes only on request", async () => {
   localStorage.setItem(
     "sidechannel-experiment-draft",
@@ -69,8 +60,23 @@ it("starts with supported defaults and recovers local changes only on request", 
   ).toBe("Recovered configuration");
   expect(screen.getByText(/Recovered unsaved edits/)).toBeTruthy();
 });
+
 it("preserves frozen settings and opens and focuses collapsed validation errors", async () => {
-  renderAt("/experiments/new");
+  renderAt("/experiments/new", {
+    experiments: {
+      defaults: async () => config,
+      validate: async (value: typeof config) => {
+        submitted = { config: value };
+        return {
+          valid: false,
+          errors: ["Fix memory"],
+          fieldErrors: {
+            "memory.contextBudget": "Use a positive memory budget",
+          },
+        };
+      },
+    },
+  });
   await screen.findByLabelText("Experiment name");
   const memory = screen.getByLabelText("Memory context budget (characters)");
   expect(memory.closest("details")?.open).toBe(false);
@@ -81,8 +87,17 @@ it("preserves frozen settings and opens and focuses collapsed validation errors"
   expect(memory.closest("details")?.open).toBe(true);
   expect(submitted?.config).toEqual(config);
 });
+
 it("converts human duration inputs to exact millisecond payloads", async () => {
-  renderAt("/experiments/new");
+  renderAt("/experiments/new", {
+    experiments: {
+      defaults: async () => config,
+      validate: async (value: typeof config) => {
+        submitted = { config: value };
+        return { valid: true, errors: [] };
+      },
+    },
+  });
   const timeout = await screen.findByLabelText("Request timeout (seconds)");
   const duration = screen.getByLabelText("Maximum run duration (minutes)");
   const user = userEvent.setup();
