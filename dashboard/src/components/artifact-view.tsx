@@ -50,20 +50,15 @@ function HealthcareArtifact({ value }: { value: unknown }) {
 }
 export function ArtifactView({
   value,
-  schemaVersion,
   scenarioVersion,
 }: {
   value: unknown;
-  schemaVersion: string;
   scenarioVersion?: string;
 }) {
-  const kind =
-    value && typeof value === "object" && !Array.isArray(value)
-      ? String((value as Record<string, unknown>).kind ?? "generic")
-      : "generic";
-  const Renderer =
-    artifactRenderers[scenarioVersion ?? ""] ??
-    artifactRenderers[`${kind}@${schemaVersion}`];
+  // Scenario renderers are keyed by the scenario version that produced the
+  // artifact. There is deliberately no `kind@schemaVersion` fallback: it was
+  // never registered, so the lookup was half-wired and only added ambiguity.
+  const Renderer = artifactRenderers[scenarioVersion ?? ""];
   return Renderer ? (
     <Renderer value={value} />
   ) : (

@@ -2,7 +2,6 @@ export type {
   ExperimentConfig,
   Run,
   HarnessEvent,
-  BoardMessage,
   ArtifactVersion,
   Json,
 } from "@sidechannel/contracts/browser";
@@ -12,10 +11,6 @@ export interface Draft {
   config: ExperimentConfig;
   revision?: number;
   updatedAt?: string;
-}
-export interface ConfigurationResponse {
-  default: ExperimentConfig;
-  [key: string]: unknown;
 }
 import type {
   MonitorDefinition,

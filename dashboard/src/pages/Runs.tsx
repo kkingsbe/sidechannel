@@ -10,7 +10,6 @@ import {
 import {
   ArrowLeft,
   ArrowUpRight,
-  Braces,
   CheckCircle2,
   Copy,
   Download,
@@ -44,7 +43,6 @@ import {
 import { arrayOf, post, useApi, useMutation } from "../lib/api";
 import type {
   ArtifactVersion,
-  BoardMessage,
   Draft,
   HarnessEvent,
   Run,
@@ -741,7 +739,6 @@ function RunDetail() {
                         {tab === "artifacts" ? (
                           <ArtifactView
                             value={object.value}
-                            schemaVersion={data.config.artifactSchemaVersion}
                             scenarioVersion={data.config.scenario.version}
                           />
                         ) : (
@@ -1139,7 +1136,6 @@ function PairCondition({
                   <strong>Frozen version {item.version}</strong>
                   <ArtifactView
                     value={item.value}
-                    schemaVersion={run.config.artifactSchemaVersion}
                     scenarioVersion={run.config.scenario.version}
                   />
                 </div>

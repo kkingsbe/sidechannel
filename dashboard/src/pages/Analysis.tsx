@@ -13,10 +13,8 @@ import {
   Download,
   Eye,
   EyeOff,
-  GitCompare,
   Play,
   RefreshCw,
-  ShieldCheck,
   Square,
 } from "lucide-react";
 import {
@@ -40,7 +38,7 @@ import {
   Tabs,
   Textarea,
 } from "../components/ui";
-import { api, arrayOf, post, useApi, useMutation } from "../lib/api";
+import { arrayOf, post, useApi, useMutation } from "../lib/api";
 import { useCursorApi, useOffsetApi } from "../lib/paging";
 import { list, pretty, short, when } from "../lib/utils";
 import "./Analysis.css";
