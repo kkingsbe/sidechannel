@@ -3,7 +3,7 @@ import { setTimeout } from 'node:timers/promises';
 import type { EventLog, RunQueue, RunStateStore, WorkerGuard } from '@sidechannel/contracts/harness/server';
 import type { Run } from '@sidechannel/contracts/harness/contracts';
 
-/** Everything the loop needs. No concrete adapter, no Mastra, no Mongo. */
+/** Everything the loop needs. No concrete adapter, no Mastra, no database driver. */
 export interface WorkerDeps {
     queue: RunQueue;
     guard: WorkerGuard;
