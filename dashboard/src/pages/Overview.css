@@ -1,0 +1,7 @@
+ol.workflow-list {
+  list-style: none;
+  margin: 0;
+}
+.onboarding:not([open]) {
+  padding: 0;
+}

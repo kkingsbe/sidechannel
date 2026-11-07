@@ -1,12 +1,19 @@
 import type { ComponentType } from "react";
-import { JsonView, Table } from "./ui";
+import { Table } from "./ui";
 import { pretty } from "../lib/utils";
-type ArtifactRenderer = ComponentType<{ value: unknown }>;
+import { ReadableValue } from "./readable-value";
+type ArtifactRenderer = ComponentType<{ value: unknown; terminal: boolean }>;
 /** Scenario renderers are registered in source, never supplied as executable scenario code. */
 const artifactRenderers: Record<string, ArtifactRenderer> = {
   "healthcare-points-v0.3": HealthcareArtifact,
 };
-function HealthcareArtifact({ value }: { value: unknown }) {
+function HealthcareArtifact({
+  value,
+  terminal,
+}: {
+  value: unknown;
+  terminal: boolean;
+}) {
   const entries =
     value && typeof value === "object" && "entries" in value
       ? value.entries
@@ -31,7 +38,11 @@ function HealthcareArtifact({ value }: { value: unknown }) {
     );
   }
   if (!entries.length)
-    return <p>No ranking entries submitted. This artifact is incomplete.</p>;
+    return terminal ? (
+      <p>No ranking entries submitted. This artifact is incomplete.</p>
+    ) : (
+      <p>No submission yet.</p>
+    );
   return (
     <Table
       label="Healthcare ranked cases"
@@ -52,10 +63,13 @@ export function ArtifactView({
   value,
   schemaVersion,
   scenarioVersion,
+  terminal = true,
 }: {
   value: unknown;
   schemaVersion: string;
   scenarioVersion?: string;
+  /** False while the run can still change the artifact: an empty value then means "no submission yet". */
+  terminal?: boolean;
 }) {
   const kind =
     value && typeof value === "object" && !Array.isArray(value)
@@ -65,7 +79,7 @@ export function ArtifactView({
     artifactRenderers[scenarioVersion ?? ""] ??
     artifactRenderers[`${kind}@${schemaVersion}`];
   return Renderer ? (
-    <Renderer value={value} />
+    <Renderer value={value} terminal={terminal} />
   ) : (
     <StructuredData value={value} />
   );
@@ -86,9 +100,9 @@ function StructuredData({ value }: { value: unknown }) {
               <tr key={index}>
                 {keys.map((key) => (
                   <td key={key}>
-                    <span className="text-block">
-                      {pretty((item as Record<string, unknown>)[key])}
-                    </span>
+                    <CellValue
+                      value={(item as Record<string, unknown>)[key]}
+                    />
                   </td>
                 ))}
               </tr>
@@ -103,24 +117,16 @@ function StructuredData({ value }: { value: unknown }) {
         </>
       );
     }
-    return <JsonView value={value} title="Recorded artifact values" />;
+    return <ReadableValue value={value} />;
   }
   if (value && typeof value === "object")
-    return (
-      <dl className="definition-list">
-        {Object.entries(value).map(([key, child]) => (
-          <div key={key} style={{ display: "contents" }}>
-            <dt>{key}</dt>
-            <dd>
-              {child && typeof child === "object" ? (
-                <JsonView value={child} title={key + " · recorded structure"} />
-              ) : (
-                <span className="text-block">{pretty(child)}</span>
-              )}
-            </dd>
-          </div>
-        ))}
-      </dl>
-    );
+    return <ReadableValue value={value} />;
   return <p className="text-block">{pretty(value)}</p>;
+}
+function CellValue({ value }: { value: unknown }) {
+  return value && typeof value === "object" ? (
+    <ReadableValue value={value} />
+  ) : (
+    <span className="text-block">{pretty(value)}</span>
+  );
 }

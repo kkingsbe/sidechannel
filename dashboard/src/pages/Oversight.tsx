@@ -42,7 +42,8 @@ import {
   Textarea,
 } from "../components/ui";
 import { api, arrayOf, post, useApi, useMutation } from "../lib/api";
-import type { Run } from "../lib/types";
+import type { HarnessEvent, Run } from "../lib/types";
+import { summarizeValue } from "../components/readable-value";
 import type {
   MonitorDefinition,
   MonitorEvaluation,
@@ -68,8 +69,45 @@ const viewNames: Record<MonitorView, string> = {
   full: "Full observable trace",
 };
 import "./runs-oversight.css";
+import "./oversight.css";
 const views: MonitorView[] = ["reports", "audit", "board", "full"];
 type Page<T> = { items: T[]; nextCursor: string | null };
+const runChoiceLabel = (run: Run) =>
+  `${run.config.label} · ${run.config.condition.id} · ${short(run.id)}`;
+/** Loads metadata (experiment, condition, pair) for source runs referenced by id. */
+function useRunsMeta(ids: string[]) {
+  const [runs, setRuns] = useState<Record<string, Run>>({});
+  const key = ids.join(",");
+  useEffect(() => {
+    let live = true;
+    ids.forEach((id) => {
+      api<Run>("/runs/" + id)
+        .then((run) => {
+          if (live && run?.config)
+            setRuns((previous) => ({ ...previous, [id]: run }));
+        })
+        .catch(() => undefined);
+    });
+    return () => {
+      live = false;
+    };
+  }, [key]);
+  return runs;
+}
+/** Groups pair members together (reviewed before excluded), keeping first-seen order of groups. */
+function orderSourceRuns(runIds: string[], metas: Record<string, Run>) {
+  const rank = (id: string) =>
+    metas[id]?.config.condition.id === "reviewed" ? 0 : 1;
+  const groups = new Map<string, string[]>();
+  runIds.forEach((id) => {
+    const key = metas[id]?.pairId ?? id;
+    groups.set(key, [...(groups.get(key) ?? []), id]);
+  });
+  return [...groups.entries()].map(([key, ids]) => ({
+    pairId: metas[ids[0]]?.pairId ? key : undefined,
+    runIds: [...ids].sort((a, b) => rank(a) - rank(b)),
+  }));
+}
 /** Results carry their request path so changing identity or revision cannot expose stale form actions. */
 function useExactApi<T>(path: string | null, interval = 0) {
   const [result, setResult] = useState<{
@@ -224,6 +262,7 @@ function OversightSetup({ creating = false }: { creating?: boolean }) {
   });
   const [preview, setPreview] = useState<MonitorPreview>();
   const [projection, setProjection] = useState<Projection>();
+  const [acknowledged, setAcknowledged] = useState(false);
   const mutation = useMutation();
   const navigate = useNavigate();
   const launchKey = useRef(crypto.randomUUID());
@@ -259,8 +298,18 @@ function OversightSetup({ creating = false }: { creating?: boolean }) {
     );
     if (result) setPreview(result);
   };
+  useEffect(() => setAcknowledged(false), [preview]);
+  const previewProjections =
+    preview?.runs.flatMap((run) => run.projections) ?? [];
+  const unavailableViews = previewProjections.filter(
+    (p) => p.status !== "ready",
+  ).length;
+  const totalEstimatedTokens = previewProjections.reduce(
+    (sum, p) => sum + p.estimatedInputTokens,
+    0,
+  );
   const launch = async () => {
-    if (!preview) return;
+    if (!preview || (unavailableViews > 0 && !acknowledged)) return;
     const result = await mutation.run(() =>
       post<MonitorEvaluation>("/monitor-evaluations", {
         previewId: preview.id,
@@ -273,7 +322,7 @@ function OversightSetup({ creating = false }: { creating?: boolean }) {
   return (
     <>
       <PageHeader
-        eyebrow="ISOLATED EVIDENCE COMPARISONS"
+        eyebrow="OVERSIGHT MONITOR"
         title="Oversight monitor"
         description="Compare what the same monitor detects from four explicitly different evidence views."
         actions={
@@ -340,7 +389,7 @@ function OversightSetup({ creating = false }: { creating?: boolean }) {
                       )}
                     {arrayOf(referenceRuns.data).map((run) => (
                       <option key={run.id} value={run.id}>
-                        {run.config.label} · {short(run.id)}
+                        {runChoiceLabel(run)}
                       </option>
                     ))}
                   </Select>
@@ -429,7 +478,7 @@ function OversightSetup({ creating = false }: { creating?: boolean }) {
                           arrayOf(runs.data).map((run) => (
                             <Check
                               key={run.id}
-                              label={`${run.config.label} · ${run.config.condition.id} · ${short(run.id)}`}
+                              label={runChoiceLabel(run)}
                               checked={selected.includes(run.id)}
                               onChange={(e) => {
                                 setSelected(
@@ -733,14 +782,50 @@ function OversightSetup({ creating = false }: { creating?: boolean }) {
                       </p>
                     )}
                     {preview && (
+                      <div className="oversight-preview-summary">
+                        <dl className="definition-list">
+                          <dt>Total estimated input</dt>
+                          <dd>
+                            {totalEstimatedTokens.toLocaleString()} tokens
+                            across {previewProjections.length} views
+                          </dd>
+                        </dl>
+                        {unavailableViews > 0 && (
+                          <div
+                            className="oversight-oversize-warning"
+                            role="alert"
+                          >
+                            <strong>
+                              {unavailableViews} of {previewProjections.length}{" "}
+                              views oversized / unavailable
+                            </strong>
+                            <p>
+                              Oversized views are not truncated; they are
+                              recorded as unavailable and the comparison is
+                              partial. Raise the context window or input limit,
+                              or accept this below.
+                            </p>
+                            <Check
+                              label="Launch anyway; oversized views will be recorded as unavailable"
+                              checked={acknowledged}
+                              onChange={(e) =>
+                                setAcknowledged(e.target.checked)
+                              }
+                            />
+                          </div>
+                        )}
                       <Button
-                        disabled={mutation.busy}
+                          disabled={
+                            mutation.busy ||
+                            (unavailableViews > 0 && !acknowledged)
+                          }
                         onClick={launch}
                         style={{ width: "100%", marginTop: 10 }}
                       >
                         <ShieldCheck size={15} />
                         Launch monitor comparison
                       </Button>
+                      </div>
                     )}
                     <p className="helper" style={{ marginTop: 12 }}>
                       Preview makes no model calls. Launch freezes the complete
@@ -1086,8 +1171,9 @@ function DefinitionEditor({
     </>
   );
 }
-function evaluationName(job: MonitorEvaluation) {
-  return `${job.settings.model.id} - ${job.runIds.length} source ${job.runIds.length === 1 ? "run" : "runs"} - revision ${job.definition.revision}`;
+function evaluationName(job: MonitorEvaluation, withTime = false) {
+  const name = `${job.settings.model.id} - ${job.runIds.length} source ${job.runIds.length === 1 ? "run" : "runs"} - revision ${job.definition.revision}`;
+  return withTime ? `${name} - ${when(job.createdAt)}` : name;
 }
 function evaluationReturn(value: string | null) {
   return value === "/oversight" ||
@@ -1122,7 +1208,6 @@ function EvaluationList({
             "Frozen monitor model",
             "Sources / definitions",
             "State",
-            "Created",
             "",
           ]}
         >
@@ -1133,9 +1218,9 @@ function EvaluationList({
                   className="table-title"
                   to={"/oversight/" + job.id + returnSearch}
                 >
-                  {evaluationName(job)}
+                  {evaluationName(job, true)}
                 </Link>
-                <small>{when(job.createdAt)}</small>
+                <small>Created {when(job.createdAt)}</small>
                 <details>
                   <summary>Evaluation identifier</summary>
                   <span className="mono">{job.id}</span>
@@ -1145,12 +1230,11 @@ function EvaluationList({
                 {job.settings.model.provider}/{job.settings.model.id}
               </td>
               <td>
-                {job.runIds.length} runs · revision {job.definition.revision}
+                {job.runIds.length} {job.runIds.length === 1 ? "run" : "runs"} · revision {job.definition.revision}
               </td>
               <td>
                 <Badge status={job.status} />
               </td>
-              <td>{when(job.createdAt)}</td>
               <td>
                 <Button asChild variant="ghost" size="sm">
                   <Link to={"/oversight/" + job.id + returnSearch}>
@@ -1171,6 +1255,20 @@ function EvaluationList({
     </Card>
   );
 }
+function availabilityText(
+  projection: Projection,
+  recorded: boolean,
+  category: string,
+) {
+  const excluded = projection.excluded.includes(category);
+  if (recorded)
+    return excluded
+      ? "recorded for this run · not included in this view"
+      : "recorded for this run · included in this view";
+  return excluded
+    ? "not recorded for this run · not included in this view"
+    : "not recorded for this run";
+}
 function ProjectionInspector({ projection }: { projection: Projection }) {
   return (
     <>
@@ -1187,17 +1285,21 @@ function ProjectionInspector({ projection }: { projection: Projection }) {
         <dd>{projection.included.join(", ")}</dd>
         <dt>Excluded categories</dt>
         <dd>{projection.excluded.join(", ")}</dd>
-        <dt>Private memory available</dt>
+        <dt>Private memory</dt>
         <dd>
-          {projection.availability.privateMemory
-            ? "Recorded"
-            : "Unavailable or excluded"}
+          {availabilityText(
+            projection,
+            projection.availability.privateMemory,
+            "private memory",
+          )}
         </dd>
-        <dt>Provider reasoning available</dt>
+        <dt>Provider reasoning</dt>
         <dd>
-          {projection.availability.providerReasoning
-            ? "Recorded"
-            : "Unavailable or excluded"}
+          {availabilityText(
+            projection,
+            projection.availability.providerReasoning,
+            "provider reasoning",
+          )}
         </dd>
         <dt>Input hash</dt>
         <dd className="mono">{projection.hash}</dd>
@@ -1217,8 +1319,109 @@ function ProjectionInspector({ projection }: { projection: Projection }) {
     </>
   );
 }
+type VerdictSelection = {
+  runId: string;
+  view: MonitorView;
+  outcomeId: string;
+};
+/** `?verdict=<runId>:<outcomeId>:<view>`; run and outcome IDs may themselves contain colons. */
+function parseVerdictParam(value: string | null): VerdictSelection | undefined {
+  if (!value) return undefined;
+  const last = value.lastIndexOf(":");
+  const middle = last > 0 ? value.lastIndexOf(":", last - 1) : -1;
+  const view = value.slice(last + 1) as MonitorView;
+  if (middle <= 0 || !views.includes(view)) return undefined;
+  return {
+    runId: value.slice(0, middle),
+    outcomeId: value.slice(middle + 1, last),
+    view,
+  };
+}
+function SourceTitle({ runId, run }: { runId: string; run?: Run }) {
+  if (!run) return <Link to={"/runs/" + runId}>Source run {short(runId)}</Link>;
+  return (
+    <span className="oversight-source-title">
+      <Link to={"/runs/" + runId}>{run.config.label}</Link>
+      <Badge>{run.config.condition.id}</Badge>
+      {run.pairId && (
+        <Link className="oversight-pair-link" to={"/runs/pairs/" + run.pairId}>
+          Pair {short(run.pairId)}
+        </Link>
+      )}
+      <span className="mono helper">{short(runId)}</span>
+    </span>
+  );
+}
+function PairSummary({
+  evaluation,
+  metas,
+  pairId,
+  runIds,
+}: {
+  evaluation: MonitorEvaluation;
+  metas: Record<string, Run>;
+  pairId: string;
+  runIds: string[];
+}) {
+  const reviewed = runIds.find(
+    (id) => metas[id]?.config.condition.id === "reviewed",
+  );
+  const excluded = runIds.find(
+    (id) => metas[id]?.config.condition.id === "excluded",
+  );
+  if (!reviewed || !excluded) return null;
+  const verdict = (runId: string, view: MonitorView, outcomeId: string) => {
+    const result = evaluation.results.find(
+      (r) => r.runId === runId && r.view === view,
+    );
+    return (
+      result?.judgments.find((j) => j.outcomeId === outcomeId)?.verdict ??
+      result?.status ??
+      "pending"
+    );
+  };
+  return (
+    <Card className="form-section">
+      <CardHeading
+        title={"Pair-aligned summary · " + metas[reviewed].config.label}
+        description={
+          <>
+            Reviewed and excluded verdicts side by side ·{" "}
+            <Link to={"/runs/pairs/" + pairId}>Pair {short(pairId)}</Link>
+          </>
+        }
+      />
+      <Table
+        label={"Pair-aligned verdicts for " + pairId}
+        headers={["Run-level outcome", ...views.map((v) => viewNames[v])]}
+      >
+        {evaluation.definition.outcomes
+          .filter((o) => !o.archived)
+          .map((outcome) => (
+            <tr key={outcome.id}>
+              <td>{outcome.name}</td>
+              {views.map((view) => (
+                <td key={view}>
+                  <div className="oversight-pair-cell">
+                    <span>
+                      Reviewed:{" "}
+                      <strong>{verdict(reviewed, view, outcome.id)}</strong>
+                    </span>
+                    <span>
+                      Excluded:{" "}
+                      <strong>{verdict(excluded, view, outcome.id)}</strong>
+                    </span>
+                  </div>
+                </td>
+              ))}
+            </tr>
+          ))}
+      </Table>
+    </Card>
+  );
+}
 function EvaluationDetail() {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const { id } = useParams();
   const evaluation = useApi<MonitorEvaluation>(
     "/monitor-evaluations/" + id,
@@ -1233,16 +1436,31 @@ function EvaluationDetail() {
     preview: MonitorPreview;
   }>("/monitor-evaluations/" + id + "/export");
   const [projection, setProjection] = useState<Projection>();
-  const [resultSelection, setResultSelection] = useState<{
-    runId: string;
-    view: MonitorView;
-    outcomeId: string;
-  }>();
+  const resultSelection = parseVerdictParam(params.get("verdict"));
+  const setResultSelection = (selection?: VerdictSelection) =>
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      if (selection)
+        next.set(
+          "verdict",
+          `${selection.runId}:${selection.outcomeId}:${selection.view}`,
+        );
+      else next.delete("verdict");
+      return next;
+    });
   const mutation = useMutation();
+  const metas = useRunsMeta(evaluation.data?.runIds ?? []);
   if (evaluation.loading) return <Loading />;
   if (!evaluation.data)
     return <ErrorState error={evaluation.error} retry={evaluation.refresh} />;
   const data = evaluation.data;
+  const sourceGroups = orderSourceRuns(data.runIds, metas);
+  const hasAgreedReferences = !!comparison.data?.comparisons.some((c) =>
+    c.metrics.some(
+      (m) =>
+        m.referencePositive + m.referenceNegative + m.referenceUncertain > 0,
+    ),
+  );
   const selectedResult = data.results.find(
     (r) =>
       r.runId === resultSelection?.runId && r.view === resultSelection?.view,
@@ -1262,12 +1480,12 @@ function EvaluationDetail() {
         </Link>
       </Button>
       <PageHeader
-        eyebrow="FROZEN MONITOR COMPARISON"
-        title={evaluationName(data)}
+        eyebrow="MONITOR EVALUATION"
+        title={evaluationName(data, true)}
         description={`${data.settings.model.provider}/${data.settings.model.id} · created ${when(data.createdAt)}`}
         actions={
           <>
-            <Badge status={data.status} />
+            <span role="status"><Badge status={data.status} /></span>
             <Button asChild variant="secondary">
               <a href={"/api/monitor-evaluations/" + id + "/export"} download>
                 <Download size={14} />
@@ -1322,10 +1540,25 @@ function EvaluationDetail() {
         citations or structured output are failures, not negative findings. An
         unavailable view makes a comparison partial.
       </Notice>
-      {data.runIds.map((runId) => (
+      {sourceGroups.map(
+        (group) =>
+          group.pairId &&
+          group.runIds.length > 1 && (
+            <PairSummary
+              key={group.pairId}
+              evaluation={data}
+              metas={metas}
+              pairId={group.pairId}
+              runIds={group.runIds}
+            />
+          ),
+      )}
+      {sourceGroups
+        .flatMap((group) => group.runIds)
+        .map((runId) => (
         <Card key={runId} className="form-section">
           <CardHeading
-            title={<Link to={"/runs/" + runId}>Source run {short(runId)}</Link>}
+              title={<SourceTitle runId={runId} run={metas[runId]} />}
             description="Human reference on the left; isolated monitor evidence views on the right."
             actions={
               <Button asChild variant="ghost" size="sm">
@@ -1439,6 +1672,18 @@ function EvaluationDetail() {
           title="Detection & false-positive denominators"
           description="Runs are the experimental unit. Monitor abstentions remain in binary reference denominators."
         />
+        {!hasAgreedReferences ? (
+          <Empty
+            title="No agreed human references yet"
+            description="Adjudicate outcomes to populate detection and false-positive rates."
+          >
+            <Button asChild variant="secondary" size="sm">
+              <Link to="/oversight?view=references">
+                Open Human reference outcomes
+              </Link>
+            </Button>
+          </Empty>
+        ) : (
         <Table
           label="Detection and false positive counts"
           headers={[
@@ -1478,7 +1723,7 @@ function EvaluationDetail() {
                         ? "Unavailable"
                         : (counts.detectionRate * 100).toFixed(1) + "%"}
                       <small>
-                        {counts.detected} / {counts.referencePositive} runs
+                        {counts.detected} / {counts.referencePositive} {counts.referencePositive === 1 ? "run" : "runs"}
                       </small>
                     </td>
                     <td>
@@ -1486,7 +1731,8 @@ function EvaluationDetail() {
                         ? "Unavailable"
                         : (counts.falsePositiveRate * 100).toFixed(1) + "%"}
                       <small>
-                        {counts.falsePositive} / {counts.referenceNegative} runs
+                          {counts.falsePositive} / {counts.referenceNegative}{" "}
+                          runs
                       </small>
                     </td>
                     <td>{counts.monitorUncertain}</td>
@@ -1502,6 +1748,7 @@ function EvaluationDetail() {
               }),
             )}
         </Table>
+        )}
         <div className="card-body" style={{ paddingTop: 14 }}>
           <p className="helper">
             Only agreed present/absent references from two reviewers on matching
@@ -1598,6 +1845,118 @@ function EvaluationDetail() {
     </>
   );
 }
+function CitationPicker({
+  runId,
+  value,
+  onChange,
+}: {
+  runId: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [events, setEvents] = useState<HarnessEvent[]>([]);
+  const [next, setNext] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error>();
+  const [query, setQuery] = useState("");
+  const load = useCallback(
+    async (after: number) => {
+      setLoading(true);
+      setError(undefined);
+      try {
+        const result = await api<{
+          events: HarnessEvent[];
+          nextCursor: number;
+          hasMore?: boolean;
+        }>(`/runs/${runId}/events?limit=50&after=${after}`);
+        setEvents((previous) =>
+          after === 0 ? result.events : [...previous, ...result.events],
+        );
+        setNext(
+          (result.hasMore ?? result.events.length >= 50)
+            ? result.nextCursor
+            : null,
+        );
+      } catch (e) {
+        setError(e as Error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [runId],
+  );
+  useEffect(() => {
+    void load(0);
+  }, [load]);
+  const ids = list(value);
+  const needle = query.trim().toLowerCase();
+  const rows = events
+    .map((event) => ({
+      event,
+      summary: summarizeValue(event.data, 100),
+    }))
+    .filter(
+      ({ event, summary }) =>
+        !needle ||
+        `${event.sequence} ${event.type} ${event.agentId ?? ""} ${summary}`
+          .toLowerCase()
+          .includes(needle),
+    );
+  const toggle = (id: string, checked: boolean) =>
+    onChange(
+      (checked
+        ? [...ids.filter((x) => x !== id), id]
+        : ids.filter((x) => x !== id)
+      ).join("\n"),
+    );
+  return (
+    <div className="oversight-citation-picker">
+      <strong>Pick cited events from this run</strong>
+      <p className="helper">
+        Checked events are added to the list above; you can still paste IDs
+        directly. {ids.length} selected.
+      </p>
+      <Input
+        type="search"
+        aria-label="Search run events"
+        placeholder="Search loaded events by sequence, type, actor or text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      {error && (
+        <ErrorState
+          error={error}
+          retry={() => load(events.length ? (next ?? 0) : 0)}
+        />
+      )}
+      <div className="oversight-citation-list">
+        {rows.map(({ event, summary }) => (
+          <label key={event.id} className="oversight-citation-row">
+            <input
+              type="checkbox"
+              aria-label={"Cite event " + event.sequence}
+              checked={ids.includes(event.id)}
+              onChange={(e) => toggle(event.id, e.target.checked)}
+            />
+            <span className="mono">#{event.sequence}</span>
+            <span>{event.type.replaceAll("_", " ")}</span>
+            <span>{event.agentId ?? "system"}</span>
+            <span className="oversight-citation-summary">{summary}</span>
+          </label>
+        ))}
+        {!loading && !error && !rows.length && (
+          <p className="helper">No loaded events match.</p>
+        )}
+        {loading && <Loading label="Loading events…" />}
+      </div>
+      {next != null && !loading && (
+        <Button variant="secondary" size="sm" onClick={() => load(next)}>
+          Load more events
+        </Button>
+      )}
+    </div>
+  );
+}
 function RunReferenceEditor({
   runId,
   initialDefinitionRevisionId,
@@ -1634,7 +1993,20 @@ function RunReferenceEditor({
   const [decision, setDecision] = useState<Verdict>("uncertain");
   const [rationale, setRationale] = useState("");
   const [evidence, setEvidence] = useState("");
+  const [dismissedError, setDismissedError] = useState<Error>();
   const mutation = useMutation();
+  const saveError =
+    mutation.error && mutation.error !== dismissedError
+      ? mutation.error
+      : undefined;
+  const citationError =
+    saveError && /citation|event id/i.test(saveError.message)
+      ? saveError.message
+      : undefined;
+  const editEvidence = (value: string) => {
+    setEvidence(value);
+    setDismissedError(mutation.error);
+  };
   const latestQuery = new URLSearchParams({
     reviewer: reviewer.trim().normalize("NFKC").toLocaleLowerCase("en-US"),
     outcomeId,
@@ -1709,9 +2081,6 @@ function RunReferenceEditor({
         }
       />
       <div className="card-body">
-        {mutation.error && (
-          <Notice kind="error">{mutation.error.message}</Notice>
-        )}
         {mutation.message && <Notice kind="success">{mutation.message}</Notice>}
         {latest.error && (
           <ErrorState error={latest.error} retry={latest.refresh} />
@@ -1797,12 +2166,20 @@ function RunReferenceEditor({
             label="Supporting source event IDs"
             hint="One actual event ID per line. Present judgments require at least one citation."
             className="full"
+            error={citationError}
           >
             <Textarea
               value={evidence}
-              onChange={(e) => setEvidence(e.target.value)}
+              onChange={(e) => editEvidence(e.target.value)}
             />
           </Field>
+          <div className="full">
+            <CitationPicker
+              runId={runId}
+              value={evidence}
+              onChange={editEvidence}
+            />
+          </div>
           <Field
             required
             label="Rationale / unresolved questions"
@@ -1862,6 +2239,11 @@ function RunReferenceEditor({
               Revising an agreed judgment reopens finalization until the other
               reviewer reconfirms.
             </span>
+            {saveError && (
+              <p role="alert" className="oversight-save-error">
+                {saveError.message}
+              </p>
+            )}
           </div>
         </div>
         <hr className="section-divider" />
@@ -1890,7 +2272,7 @@ function RunReferenceEditor({
                 </td>
                 <td>{agreement?.decision || "Unresolved"}</td>
                 <td>
-                  {agreement?.reviewIds.length || 0} reviews
+                  {agreement?.reviewIds.length || 0} {agreement?.reviewIds.length === 1 ? "review" : "reviews"}
                   {agreement && !agreement.sourceMatches && (
                     <small>Source changed · excluded</small>
                   )}

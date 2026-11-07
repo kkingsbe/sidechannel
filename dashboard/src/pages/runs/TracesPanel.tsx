@@ -2,10 +2,11 @@ import * as React from 'react';
 import type { HarnessEvent } from '@sidechannel/contracts/browser';
 import { ChevronDown, ChevronRight, ChevronUp, Search, X } from 'lucide-react';
 import { Badge } from '../../components/ui';
-import { ModelCallMeta, OutputText, ReasoningBlock, ToolCallList } from '../../components/model-call';
+import { cn } from '../../lib/utils';
+import { ModelCallFailure, ModelCallMeta, OutputText, ReasoningBlock, ToolCallList, proseArgument } from '../../components/model-call';
 import {
   buildModelCalls, findMatches, formatTokens, prettyArguments, safeJson,
-  type ModelCall,
+  type ModelCall, type PageNav,
 } from '../../lib/model-calls';
 import './traces-panel.css';
 
@@ -18,6 +19,8 @@ export interface TracesPanelProps {
   onInspect: (eventId: string, sequence?: number) => void;
   /** Scroll into view and briefly emphasise this call on mount/change. */
   focusInvocationId?: string | null;
+  /** Position of this page in the run; enables continuation markers and "Jump to latest". */
+  paging?: PageNav;
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -106,22 +109,26 @@ function inputMessages(request: HarnessEvent | undefined): { role: string; text:
 
 interface CardProps {
   call: ModelCall;
-  step: number;
   query: string;
   matches: number;
   focused: boolean;
+  /** Page-level note already says the provider hid reasoning. */
+  quietHidden: boolean;
   onInspect: TracesPanelProps['onInspect'];
   registerRef: (id: string, el: HTMLElement | null) => void;
 }
 
-function CallCard({ call, step, query, matches, focused, onInspect, registerRef }: CardProps) {
+function CallCard({ call, query, matches, focused, quietHidden, onInspect, registerRef }: CardProps) {
   const [open, setOpen] = React.useState(false);
   const listId = React.useId();
   const out = displayText(call);
   const textState = hasReasoningText(call);
+  const seq = call.sequenceRange[0];
+  // Prose arguments (board posts, notes) need the full card width, so tools stack below the output.
+  const stack = call.toolCalls.some(t => proseArgument(t.arguments) !== undefined);
   const messages = open ? inputMessages(call.request) : [];
   const inputLabel = call.inputSummary
-    ? `Input · ${call.inputSummary.messages} messages · ${call.inputSummary.tools} tools available`
+    ? `Input · ${call.inputSummary.messages} ${call.inputSummary.messages === 1 ? "message" : "messages"} · ${call.inputSummary.tools} ${call.inputSummary.tools === 1 ? "tool" : "tools"} available`
     : 'Input · not recorded';
   const link = (label: string, e: HarnessEvent | undefined) => e && (
     <button type="button" className="tr-link" onClick={() => onInspect(e.id, e.sequence)}>{label} #{e.sequence}</button>
@@ -149,19 +156,26 @@ function CallCard({ call, step, query, matches, focused, onInspect, registerRef 
       ref={el => registerRef(call.invocationId, el)}
       data-invocation-id={call.invocationId}
       data-focused={focused ? 'true' : undefined}
-      aria-label={`Model call ${call.ordinal}`}
+      aria-label={`Model call #${seq}`}
+      data-failed={call.failure ? 'true' : undefined}
     >
       <header className="tr-card-head">
         <div className="tr-card-title">
-          <h4>Call {call.ordinal}</h4>
+          {/* Labelled by event sequence, which is the same on every page; a per-page counter would restart. */}
+          <h4>Call #{seq}</h4>
           {call.phase && <span className={`tr-phase ${call.phase === 'report' ? 'tr-phase-report' : 'tr-phase-action'}`}>{call.phase}</span>}
-          <span className="tr-muted">step {step} · {clockTime(call.startedAt)}</span>
+          <span className="tr-muted">R{call.round ?? '?'} · T{call.turn ?? '?'} · {clockTime(call.startedAt)}</span>
           {query.trim() && matches > 0 && <span className="tr-match-pill">{matches} {matches === 1 ? 'match' : 'matches'}</span>}
         </div>
         <ModelCallMeta call={call} />
       </header>
-      {textState ? (
-        <div className="tr-body">
+      {call.failure ? (
+        <>
+          <div className="tr-strip"><ModelCallFailure call={call} /></div>
+          {call.toolCalls.length > 0 && <div className="tr-body"><div className="tr-col">{tools}</div></div>}
+        </>
+      ) : textState ? (
+        <div className={cn('tr-body', stack && 'tr-body-stack')}>
           <div className="tr-col tr-col-reasoning">
             <ReasoningBlock call={call} collapsible={false} highlight={query} />
           </div>
@@ -169,10 +183,18 @@ function CallCard({ call, step, query, matches, focused, onInspect, registerRef 
         </div>
       ) : (
         <>
-          <div className="tr-strip"><ReasoningBlock call={call} collapsible={false} /></div>
-          <div className="tr-body">
-            <div className="tr-col">{output}</div>
-            <div className="tr-col">{tools}</div>
+          {!(quietHidden && call.reasoningState === 'hidden') && (
+            <div className="tr-strip"><ReasoningBlock call={call} collapsible={false} /></div>
+          )}
+          <div className={cn('tr-body', stack && 'tr-body-stack')}>
+            {stack ? (
+              <div className="tr-col">{output}{tools}</div>
+            ) : (
+              <>
+                <div className="tr-col">{output}</div>
+                <div className="tr-col">{tools}</div>
+              </>
+            )}
           </div>
         </>
       )}
@@ -201,7 +223,7 @@ function CallCard({ call, step, query, matches, focused, onInspect, registerRef 
 
 /* ------------------------------------------------------------------ panel */
 
-export function TracesPanel({ events, provider, onInspect, focusInvocationId }: TracesPanelProps) {
+export function TracesPanel({ events, provider, onInspect, focusInvocationId, paging }: TracesPanelProps) {
   const [query, setQuery] = React.useState('');
   const [onlyReasoning, setOnlyReasoning] = React.useState(false);
   const [active, setActive] = React.useState(0);
@@ -218,6 +240,18 @@ export function TracesPanel({ events, provider, onInspect, focusInvocationId }: 
   const total = counts.reduce((a, b) => a + b, 0);
   const current = total === 0 ? 0 : Math.min(active, total - 1);
 
+  const hiddenCount = allCalls.filter(c => c.reasoningState === 'hidden').length;
+  // A turn is split across pages when its start or end event lies on another page.
+  const turnEvents = React.useMemo(() => {
+    const started = new Set<string>();
+    const ended = new Set<string>();
+    for (const e of events) {
+      const key = `${e.agentId ?? ''}|${e.round ?? ''}|${e.turn ?? ''}`;
+      if (e.type === 'turn_started') started.add(key);
+      if (e.type === 'turn_ended') ended.add(key);
+    }
+    return { started, ended };
+  }, [events]);
   const returnedCount = allCalls.filter(hasReasoningText).length;
   const knownTokens = allCalls.filter(c => c.tokens.reasoning !== undefined);
   const reasoningTokens = knownTokens.reduce((a, c) => a + (c.tokens.reasoning ?? 0), 0);
@@ -252,11 +286,28 @@ export function TracesPanel({ events, provider, onInspect, focusInvocationId }: 
 
   return (
     <div className="tr-root" ref={rootRef}>
+      {paging && (paging.hasPrevious || paging.hasNext) && (
+        <div className="tr-pagebar">
+          <span>
+            Showing this page only{paging.hasPrevious ? '; earlier calls are on previous pages' : ''}
+            {paging.hasNext ? '; later calls are on next pages' : ''}.
+          </span>
+          {paging.hasNext && paging.onJumpToLatest && (
+            <button type="button" className="tr-btn" onClick={paging.onJumpToLatest}>Jump to latest</button>
+          )}
+        </div>
+      )}
       <div className="tr-chips">
-        <span className="tr-chip"><strong>{allCalls.length}</strong> {allCalls.length === 1 ? 'call' : 'calls'}</span>
-        <span className="tr-chip tr-chip-reasoning">Reasoning returned on <strong>{returnedCount} of {allCalls.length}</strong></span>
-        {knownTokens.length > 0 && <span className="tr-chip"><strong>{formatTokens(reasoningTokens)}</strong> reasoning tokens</span>}
+        <span className="tr-chip"><strong>{allCalls.length}</strong> {allCalls.length === 1 ? 'call' : 'calls'} in the loaded turns</span>
+        <span className="tr-chip tr-chip-reasoning">Reasoning returned on <strong>{returnedCount} of {allCalls.length}</strong> in the loaded turns</span>
+        {knownTokens.length > 0 && <span className="tr-chip"><strong>{formatTokens(reasoningTokens)}</strong> reasoning tokens in the loaded turns</span>}
       </div>
+      {hiddenCount > 0 && (
+        <p className="tr-note-hidden" role="note">
+          Provider hid reasoning on {hiddenCount === allCalls.length ? `all ${allCalls.length}` : `${hiddenCount} of ${allCalls.length}`} call{allCalls.length === 1 ? '' : 's'} in the loaded turns.
+          Reasoning token counts are shown on each call.
+        </p>
+      )}
 
       <div className="tr-toolbar" role="search">
         <div className="tr-find">
@@ -287,22 +338,29 @@ export function TracesPanel({ events, provider, onInspect, focusInvocationId }: 
 
       {calls.length === 0 ? (
         <div className="tr-empty" role="status">
-          {allCalls.length === 0 ? 'No model calls on this page' : 'No calls with reasoning on this page'}
+          {allCalls.length === 0 ? 'No model calls in the loaded turns' : 'No calls with reasoning in the loaded turns'}
         </div>
       ) : (
-        groups.map(group => (
+        groups.map((group, groupIndex) => {
+          const turnKey = `${group.agentId ?? ''}|${group.calls[0].round ?? ''}|${group.calls[0].turn ?? ''}`;
+          const isTurn = !group.key.startsWith('report|');
+          const continued = isTurn && groupIndex === 0 && !!paging?.hasPrevious && !turnEvents.started.has(turnKey);
+          const continues = isTurn && groupIndex === groups.length - 1 && !!paging?.hasNext && !turnEvents.ended.has(turnKey);
+          return (
           <section key={`${group.key}-${group.calls[0].invocationId}`} aria-label={group.label} className="tr-root">
             <div className="tr-group">
               <h3>{group.label}</h3>
               {group.agentId && <Badge>{group.agentId}</Badge>}
+              {continued && <span className="tr-muted">Continued from previous page</span>}
+              {continues && <span className="tr-muted">Continues on next page</span>}
               <span className="tr-rule" aria-hidden="true" />
               <span className="tr-group-count">{group.calls.length} {group.calls.length === 1 ? 'call' : 'calls'}</span>
             </div>
-            {group.calls.map((call, i) => (
+            {group.calls.map(call => (
               <CallCard
                 key={call.invocationId}
                 call={call}
-                step={i + 1}
+                quietHidden
                 query={query}
                 matches={countById.get(call.invocationId) ?? 0}
                 focused={flash === call.invocationId}
@@ -311,7 +369,8 @@ export function TracesPanel({ events, provider, onInspect, focusInvocationId }: 
               />
             ))}
           </section>
-        ))
+          );
+        })
       )}
     </div>
   );

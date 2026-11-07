@@ -265,3 +265,74 @@
     padding: 0 12px;
   }
 }
+
+/* ---- inspect affordance (chevron + label instead of a play-style icon) */
+.tl-open {
+  width: auto;
+  grid-auto-flow: column;
+  gap: 2px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 12px;
+}
+.tl-open-text {
+  font-weight: 500;
+}
+
+/* ---- failed rows (model timeout, turn ended in error, run terminated) */
+.tl-row-error {
+  background: color-mix(in srgb, var(--danger-bg) 55%, transparent);
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+.tl-summary-error {
+  color: var(--danger);
+  font-weight: 500;
+}
+
+/* ---- page position, notes and turn continuation flags */
+.tl-pagebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 8px var(--tl-pad);
+  font-size: 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.tl-jump {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--primary);
+  cursor: pointer;
+}
+.tl-jump:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.tl-note {
+  margin: 0;
+  padding: 10px var(--tl-pad);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--reasoning);
+  background: var(--reasoning-bg);
+  border-bottom: 1px solid var(--reasoning-border);
+}
+.tl-turn-flag {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.tl-pending { display: flex; align-items: center; gap: 8px; margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+.tl-pending-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); animation: tl-pending-pulse 1.2s ease-in-out infinite; }
+@keyframes tl-pending-pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .tl-pending-dot { animation: none; } }

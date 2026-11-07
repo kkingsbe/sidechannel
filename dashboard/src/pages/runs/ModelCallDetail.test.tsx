@@ -49,7 +49,7 @@ const setup = (which: 'one' | 'two' | 'three', extra: Partial<React.ComponentPro
 
 it('shows the readable view by default with usage tiles and the proposals note', () => {
   setup('two');
-  expect(screen.getByText('Call 2 of 3')).toBeTruthy();
+  expect(screen.getByText('Call #5 · 2 of 3 in the loaded turns')).toBeTruthy();
   expect(screen.getByRole('tab', { name: 'Readable' }).getAttribute('aria-selected')).toBe('true');
   expect(screen.getByText('thinking about two')).toBeTruthy();
   expect(screen.getByText('text of two')).toBeTruthy();

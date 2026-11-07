@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import Analysis, { WindowInspector } from "./Analysis";
@@ -500,4 +500,184 @@ it("blocks preview and explains how to recover when the selected codebook is arc
   expect((screen.getByRole("button", { name: "Preview analysis" }) as HTMLButtonElement).disabled).toBe(true);
   await userEvent.setup().click(screen.getByRole("button", { name: "Preview analysis" }));
   expect(mocks.post).not.toHaveBeenCalled();
+});
+
+it("lists windows by numeric run position and colours the heatmap on a continuous scale", async () => {
+  const base = mocks.request.getMockImplementation()!;
+  // 12 windows, delivered in the text order of their IDs: window-1, window-10, window-11, window-12, window-2 ...
+  const windows = Array.from({ length: 12 }, (_, i) => i + 1)
+    .map((n) => ({
+      id: `window-${n}`,
+      index: n - 1,
+      startStep: (n - 1) * 2 + 1,
+      endStep: (n - 1) * 2 + 3,
+      status: "completed",
+      partial: false,
+      incomplete: false,
+      results: [{ codeId: code.id, probability: n === 12 ? 0.9 : n / 100 }],
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  expect(windows[1].id).toBe("window-10");
+  mocks.request.mockImplementation((path: string | null) =>
+    path?.startsWith("/analyses/analysis-a/windows?")
+      ? { items: windows, nextCursor: null }
+      : base(path),
+  );
+  render(
+    <MemoryRouter initialEntries={["/analysis-a?view=heatmap"]}>
+      <Analysis />
+    </MemoryRouter>,
+  );
+  const table = await screen.findByRole("table", {
+    name: "Behavior probability heatmap",
+  });
+  const starts = within(table)
+    .getAllByRole("columnheader")
+    .slice(1)
+    .map((th) => Number(th.textContent!.split("–")[0]));
+  expect(starts).toEqual(Array.from({ length: 12 }, (_, i) => i * 2 + 1));
+  const low = screen.getByRole("button", { name: /steps 3–5: 2\.0%/ });
+  const mid = screen.getByRole("button", { name: /steps 11–13: 6\.0%/ });
+  const high = screen.getByRole("button", { name: /steps 23–25: 90\.0%/ });
+  expect(low.style.getPropertyValue("--heat")).toBe("0.02");
+  expect(mid.style.getPropertyValue("--heat")).toBe("0.06");
+  // Only the above-threshold cell is outlined; low scores are not labelled as a different "medium" class.
+  expect(high.className).toContain("flagged");
+  expect(low.className).not.toContain("flagged");
+  expect(low.className).not.toContain("medium");
+  // The threshold is entered as a percent.
+  expect(
+    (screen.getByLabelText(/Highlight threshold/) as HTMLInputElement).value,
+  ).toBe("70");
+  // A score table follows the same order.
+  await userEvent.setup().click(screen.getByRole("tab", { name: "Score table" }));
+  const rows = within(
+    screen.getByRole("table", { name: "Window probability scores" }),
+  ).getAllByRole("row");
+  expect(rows[1].textContent).toContain("Steps 1–3");
+  expect(rows[2].textContent).toContain("Steps 3–5");
+});
+
+it("offers a window size that fits when windows are oversized, and totals the estimated input", async () => {
+  const base = mocks.request.getMockImplementation()!;
+  mocks.request.mockImplementation((path: string | null) => {
+    if (path?.startsWith("/runs?")) return { items: [], nextCursor: null };
+    if (path === "/runs/source-run")
+      return {
+        id: "source-run",
+        status: "completed",
+        configHash: "hash",
+        config: { label: "Study", model: { provider: "demo", id: "test" } },
+      };
+    if (path?.startsWith("/codebooks?"))
+      return {
+        items: [{ id: "book", name: "Behaviors", currentRevisionId: "revision" }],
+        nextCursor: null,
+      };
+    if (path === "/codebooks/book")
+      return {
+        codebook: { name: "Behaviors" },
+        revision: { id: "revision", revision: 1, codes: [code] },
+      };
+    return base(path);
+  });
+  const budget = (estimatedTokens: number, oversized: boolean) => ({
+    oversized,
+    estimatedTokens,
+    bytes: 1,
+    perQuestionLimit: 32000,
+    perRequestLimit: 64000,
+    headroom: 2000,
+    batches: oversized ? [] : [["visibility"]],
+  });
+  mocks.post.mockResolvedValue({
+    previewToken: "preview",
+    manifest: { availability: { assistant: 1, reasoning: 0 }, diagnostics: [], scoredCodeCount: 1 },
+    windows: [
+      { id: "w1", index: 0, startStep: 1, endStep: 12, partial: false, empty: false, budget: budget(60000, true) },
+      { id: "w2", index: 1, startStep: 5, endStep: 16, partial: false, empty: false, budget: budget(9000, false) },
+    ],
+  });
+  render(
+    <MemoryRouter initialEntries={["/new?run=source-run"]}>
+      <Analysis />
+    </MemoryRouter>,
+  );
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText(/Researcher \/ creator/), "Reviewer A");
+  await user.click(screen.getByRole("button", { name: "Preview analysis" }));
+  expect(await screen.findByText(/Per-request budget/)).toBeTruthy();
+  expect(screen.getByText(/9,000 estimated input tokens across 1 request\b/)).toBeTruthy();
+  expect(screen.getByText(/Assistant outputs: present/)).toBeTruthy();
+  expect(screen.getByText(/Available provider reasoning: none recorded/)).toBeTruthy();
+  // 60,000 tokens / 12 steps = 5,000 per step; 30,000 capacity -> 6 steps -> 90% margin -> 5.
+  await user.click(screen.getByRole("button", { name: "Use 5-step windows" }));
+  expect(
+    (screen.getByLabelText("Window size (classification steps)") as HTMLInputElement).value,
+  ).toBe("5");
+  expect(screen.queryByText("Prepared windows")).toBeNull();
+});
+
+it("shows per-window judgment progress in the review queue", async () => {
+  localStorage.setItem("sidechannel-reviewer", "Reviewer A");
+  const second = { ...code, id: "second", code: "SECOND" };
+  const base = mocks.request.getMockImplementation()!;
+  mocks.request.mockImplementation((path: string | null) => {
+    if (path === "/analyses/analysis-a")
+      return {
+        ...job,
+        manifest: {
+          ...job.manifest,
+          codebook: { id: "revision-a", revision: 1, codes: [code, second] },
+        },
+      };
+    if (path?.includes("/review-batches/blind-batch"))
+      return {
+        batch: { id: "blind-batch", mode: "blind", selectionCount: 1 },
+        selections: {
+          items: [{ id: "one", windowId: "window-a", reasons: ["flagged"] }],
+          nextCursor: null,
+        },
+      };
+    if (path?.includes("/reviews?windowId=window-a&reviewer="))
+      return {
+        items: [
+          { id: "r1", reviewer: "Reviewer A", windowId: "window-a", scope: "window", codeId: code.id, revision: 1 },
+        ],
+        nextCursor: null,
+      };
+    return base(path);
+  });
+  render(
+    <MemoryRouter initialEntries={["/analysis-a?view=review&batch=blind-batch"]}>
+      <Analysis />
+    </MemoryRouter>,
+  );
+  expect(await screen.findByText("1 / 2 behaviors judged")).toBeTruthy();
+  expect(screen.getByText("In progress")).toBeTruthy();
+  expect(await screen.findByText(/0 \/ 1 window complete/)).toBeTruthy();
+});
+
+it("confirms a saved judgment, resets the draft and only asks for a rationale after a failed attempt", async () => {
+  localStorage.setItem("sidechannel-reviewer", "Reviewer A");
+  mocks.post.mockResolvedValue({ id: "saved", revision: 2 });
+  render(
+    <MemoryRouter>
+      <WindowInspector detail={detail} job={job} blind={false} />
+    </MemoryRouter>,
+  );
+  const user = userEvent.setup();
+  expect(screen.queryByText("Add a rationale before saving.")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Save judgment" }));
+  expect(screen.getByText("Add a rationale before saving.")).toBeTruthy();
+  expect(mocks.post).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("checkbox", { name: "Cite event event-a" }));
+  await user.type(screen.getByLabelText(/Rationale/), "Supported by the cited event.");
+  expect(screen.queryByText("Add a rationale before saving.")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Save judgment" }));
+  const status = (await screen.findByText(/Saved · VISIBILITY · r2/)).closest(".analysis-saved");
+  expect(status?.getAttribute("aria-live")).toBe("polite");
+  expect((screen.getByLabelText(/Rationale/) as HTMLTextAreaElement).value).toBe("");
+  expect(screen.getByText("Selected citations (0)")).toBeTruthy();
+  expect(screen.queryByText("Add a rationale before saving.")).toBeNull();
 });

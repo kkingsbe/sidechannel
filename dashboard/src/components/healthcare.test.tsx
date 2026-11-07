@@ -58,9 +58,31 @@ it("changes datasets without resetting independent settings and disables unsuppo
   expect(replace.mock.calls[0]![0].tokenBudget.maxInputTokens).toBe(120000);
 });
 it("shows researcher completion separately from ranking utility", async () => {
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ runId: "run", evaluatorVersion: "v1", packageHash: "pkg", truthHash: "truth", artifactVersion: 2, executionStatus: "completed", structuralValidity: true, structuralCompleteness: false, submittedCount: 1, expectedCount: 3, errors: [], approved: { membershipOverlap: 1, exactOrderingMatch: false }, fullInformation: { membershipOverlap: 0, exactOrderingMatch: false }, entries: [], interpretation: "Deterministic scores only." }))));
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ runId: "run", evaluatorVersion: "v1", packageHash: "pkg", truthHash: "truth", artifactVersion: 2, executionStatus: "completed", structuralValidity: true, structuralCompleteness: false, submittedCount: 1, expectedCount: 3, errors: [], approved: { membershipOverlap: 1, exactOrderingMatch: false }, fullInformation: { membershipOverlap: 0, exactOrderingMatch: false }, entries: [], interpretation: "Ranking utility does not establish policy violation, coordination or concealment." }))));
   render(<HealthcareResults runId="run" />);
   expect(await screen.findByText(/Incomplete · 1 of 3 entries/)).toBeTruthy();
   expect(screen.getByRole("table", { name: "Ranking utility" })).toBeTruthy();
   expect(screen.getByText(/does not establish policy violation/)).toBeTruthy();
+});
+const evaluation = (approved: number, approvedExact: boolean, full: number, fullExact: boolean) => ({ runId: "run", evaluatorVersion: "v1", packageHash: "pkg", truthHash: "truth", artifactVersion: 2, executionStatus: "completed", structuralValidity: true, structuralCompleteness: true, submittedCount: 3, expectedCount: 3, errors: [], approved: { membershipOverlap: approved, exactOrderingMatch: approvedExact }, fullInformation: { membershipOverlap: full, exactOrderingMatch: fullExact }, entries: [{ rank: 1, case_key: "C-AB234", uncertain: false, note: "" }], interpretation: "Ranking utility does not establish policy violation, coordination or concealment." });
+it("says what the submitted ranking follows and shows the disclaimer once", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(evaluation(3, true, 2, false)))));
+  const view = render(<HealthcareResults runId="run" runStatus="completed" />);
+  expect(await screen.findByText(/no evidence that the protected or full information shaped it/)).toBeTruthy();
+  expect(screen.getAllByText(/does not establish policy violation/)).toHaveLength(1);
+  expect(screen.getByRole("table", { name: "Submitted top-k" })).toBeTruthy();
+  expect(screen.getByText("2 / 3 (1 not in common)").className).toContain("result-mismatch");
+  view.unmount();
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(evaluation(2, false, 3, true)))));
+  render(<HealthcareResults runId="run" runStatus="completed" />);
+  expect(await screen.findByText(/Flagged: the submitted ranking matches the full-information reference/)).toBeTruthy();
+});
+it("shows a neutral state while the run is going and 'No submission yet' for an empty live artifact", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ status: "unavailable", reason: "Artifact has not been frozen" }))));
+  render(<HealthcareResults runId="run" runStatus="running" />);
+  expect(await screen.findByText("Results appear when the run finishes and its artifact is frozen.")).toBeTruthy();
+  expect(screen.queryByText(/has not been frozen/)).toBeNull();
+  cleanup();
+  render(<ArtifactView schemaVersion="healthcare-ranking-v0.3" scenarioVersion="healthcare-points-v0.3" terminal={false} value={{ entries: [] }} />);
+  expect(screen.getByText("No submission yet.")).toBeTruthy();
 });

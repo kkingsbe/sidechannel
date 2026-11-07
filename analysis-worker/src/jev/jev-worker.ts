@@ -45,7 +45,9 @@ export class AnalysisWorker {
                     const submitted = (await this.repository.listAttempts(job.id, { windowId: window.id, limit: 1 })).items.length > 0;
                     progress.returnedAnswers += answers - priorAnswers; progress.submittedWindows += Number(submitted) - Number(priorSubmitted);
                     progress.finishedWindows += Number(latest.status === 'completed') - Number(window.status === 'completed');
-                    progress.failedWindows += Number(latest.status === 'failed' || latest.status === 'oversized') - Number(window.status === 'failed');
+                    progress.failedWindows += Number(latest.status === 'failed') - Number(window.status === 'failed');
+                    // Oversized windows are deliberately unscored and never retried, so they count as skipped rather than failed.
+                    progress.skippedWindows += Number(latest.status === 'oversized') - Number(window.status === 'oversized');
                     // Per-window deltas keep progress linear. Full history/usage reconciliation runs once at finalization.
                     await this.repository.updateCounters(lease, { ...progress });
                 });
@@ -58,7 +60,9 @@ export class AnalysisWorker {
             await Promise.all(pending);
             if (lost || signal?.aborted) return true; // Leave lease recoverable after process shutdown or loss.
             const counters = await this.counters(job.id, allIds.length);
-            const status = cancelled ? 'cancelled' : counters.returnedAnswers === counters.expectedAnswers && counters.failedWindows === 0 ? 'completed' : counters.returnedAnswers ? 'partial' : 'failed';
+            // Oversized windows count as skipped, but a job that scored nothing because every window was oversized still failed.
+            const nothingScoredBecauseOversized = counters.returnedAnswers === 0 && counters.finishedWindows === 0 && await this.hasOversizedWindow(job.id);
+            const status = cancelled ? 'cancelled' : nothingScoredBecauseOversized ? 'failed' : counters.returnedAnswers === counters.expectedAnswers && counters.failedWindows === 0 ? 'completed' : counters.returnedAnswers ? 'partial' : 'failed';
             await this.repository.finishJob(lease, status, counters, undefined, await this.usage(job.id));
         } catch (e) {
             abortAll(); await Promise.allSettled(pending);
@@ -105,9 +109,13 @@ export class AnalysisWorker {
         }
         await this.repository.updateWindow(lease, window.id, { status: expected.every(id => completed.has(id)) ? 'completed' : contextRejected ? 'oversized' : 'failed', diagnostics: [...window.diagnostics, ...failures] });
     }
+    private async hasOversizedWindow(id: string): Promise<boolean> {
+        for await (const w of pages(p => this.repository.listWindows(id, p))) if (w.status === 'oversized') return true;
+        return false;
+    }
     private async counters(id: string, codeCount: number): Promise<JobCounters> {
         const c = emptyCounters(), submitted = new Set<string>();
-        for await (const w of pages(p => this.repository.listWindows(id, p))) { c.preparedWindows++; if (w.status !== 'skipped') c.expectedAnswers += codeCount; if (w.status === 'completed') c.finishedWindows++; if (w.status === 'failed' || w.status === 'oversized') c.failedWindows++; if (w.status === 'skipped') c.skippedWindows++; }
+        for await (const w of pages(p => this.repository.listWindows(id, p))) { c.preparedWindows++; if (w.status !== 'skipped' && w.status !== 'oversized') c.expectedAnswers += codeCount; if (w.status === 'completed') c.finishedWindows++; if (w.status === 'failed') c.failedWindows++; if (w.status === 'skipped' || w.status === 'oversized') c.skippedWindows++; }
         for await (const a of pages(p => this.repository.listAttempts(id, p))) submitted.add(a.windowId); c.submittedWindows = submitted.size;
         for await (const _r of pages(p => this.repository.listResults(id, p))) c.returnedAnswers++;
         return c;

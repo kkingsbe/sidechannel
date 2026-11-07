@@ -8,8 +8,9 @@
  * gets `data-active="true"` / class `mc-mark-active`.
  */
 import * as React from 'react';
-import { Brain, Check, ChevronDown, ChevronUp, Copy, EyeOff, Info, Lock, ListTree, AlignLeft } from 'lucide-react';
+import { AlertTriangle, Brain, Check, ChevronDown, ChevronUp, Copy, EyeOff, Info, Lock, ListTree, AlignLeft } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { ReadableValue, isProse, parseMaybeJson, summarizeValue } from './readable-value';
 import {
   findMatches, formatTokens, prettyArguments, safeJson,
   type ModelCall, type ModelCallTokens, type ProposedToolCall, type ReasoningPart, type ReasoningState, type ToolCallStatus,
@@ -70,6 +71,8 @@ export interface ReasoningBlockProps {
   activeMatch?: number;
   /** When given, text-less states show an "Open in Traces" button. */
   onOpenTraces?: () => void;
+  /** Render nothing for the "hidden by provider" state; the caller shows one page-level note instead. */
+  quietHidden?: boolean;
   className?: string;
 }
 
@@ -89,7 +92,7 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 export function ReasoningBlock(props: ReasoningBlockProps) {
-  const { call, collapsible = true, defaultExpanded = false, onToggle, maxHeight, highlight, activeMatch, onOpenTraces, className } = props;
+  const { call, collapsible = true, defaultExpanded = false, onToggle, maxHeight, highlight, activeMatch, onOpenTraces, quietHidden, className } = props;
   const parts = props.parts ?? call?.reasoning ?? [];
   const state: ReasoningState = props.state ?? call?.reasoningState ?? (parts.length ? 'returned' : 'unknown');
   const tokenCount = reasoningTokenCount(props.tokens) ?? call?.tokens.reasoning;
@@ -99,6 +102,7 @@ export function ReasoningBlock(props: ReasoningBlockProps) {
   const expanded = !collapsible || (props.expanded ?? internal);
 
   if (state !== 'returned' && state !== 'summary') {
+    if (quietHidden && state === 'hidden') return null;
     return <ReasoningNotice state={state} tokens={tokenCount} onOpenTraces={onOpenTraces} className={className} />;
   }
 
@@ -261,6 +265,13 @@ const STATUS_TONE: Record<ToolCallStatus, string> = {
   deduplicated: 'neutral',
 };
 
+/** The first prose-like (long or multi-line) string argument, if any: a board post, notes, a report. */
+export function proseArgument(args: unknown): string | undefined {
+  const parsed = parseMaybeJson(args);
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
+  return Object.values(parsed as Record<string, unknown>).find(isProse);
+}
+
 function argsPreview(args: unknown, max = 48): string {
   if (args === undefined || args === null) return '';
   const json = safeJson(args);
@@ -295,11 +306,14 @@ export function ToolCallList({ calls, variant = 'compact', onSelectEvent, highli
             <>
               <code className="mc-chip" title={safeJson(call.arguments)}>
                 <ListTree size={12} aria-hidden="true" />
-                <Highlight text={`${call.name}(${argsPreview(call.arguments)})`} query={highlight} />
+                <Highlight text={proseArgument(call.arguments) ? call.name : `${call.name}(${argsPreview(call.arguments)})`} query={highlight} />
               </code>
               <StatusPill call={call} onSelectEvent={onSelectEvent} />
               {call.reason && (call.status === 'unexecuted' || call.status === 'failed') && (
                 <span className="mc-tool-reason">{call.reason}</span>
+              )}
+              {proseArgument(call.arguments) !== undefined && (
+                <p className="mc-tool-prose" title={summarizeValue(call.arguments, 600)}>{proseArgument(call.arguments)}</p>
               )}
             </>
           ) : (
@@ -309,7 +323,11 @@ export function ToolCallList({ calls, variant = 'compact', onSelectEvent, highli
                 <StatusPill call={call} onSelectEvent={onSelectEvent} />
                 {call.reason && <span className="mc-tool-reason">{call.reason}</span>}
               </div>
-              <pre className="mc-tool-args"><Highlight text={prettyArguments(call.arguments)} query={highlight} /></pre>
+              {highlight && findMatches(prettyArguments(call.arguments), highlight).length > 0 ? (
+                <pre className="mc-tool-args"><Highlight text={prettyArguments(call.arguments)} query={highlight} /></pre>
+              ) : (
+                <ReadableValue value={call.arguments ?? {}} className="mc-tool-readable" />
+              )}
             </>
           )}
         </li>
@@ -325,7 +343,7 @@ export function modelCallMetaParts(call: Pick<ModelCall, 'tokens' | 'finishReaso
   const { tokens } = call;
   if (tokens.context !== undefined) out.push(`${formatTokens(tokens.context)} context tokens (est.)`);
   if (tokens.output !== undefined) out.push(`${formatTokens(tokens.output)} output`);
-  if (tokens.reasoning !== undefined) out.push(`${formatTokens(tokens.reasoning)} reasoning`);
+  if (tokens.reasoning !== undefined) out.push(`${formatTokens(tokens.reasoning)} reasoning tokens`);
   if (call.finishReason) out.push(`finish: ${call.finishReason}`);
   if (call.latencyMs !== undefined) out.push(`${(call.latencyMs / 1000).toFixed(1)} s`);
   return out;
@@ -336,4 +354,19 @@ export function ModelCallMeta({ call, className }: { call: Pick<ModelCall, 'toke
   const parts = modelCallMetaParts(call);
   if (parts.length === 0) return null;
   return <p className={cn('mc-meta', className)}>{parts.join(' · ')}</p>;
+}
+
+/** Danger callout for a call that never got a response because the turn or run then failed. */
+export function ModelCallFailure({ call, className }: { call: Pick<ModelCall, 'failure'>; className?: string }) {
+  if (!call.failure) return null;
+  const { reason, elapsedMs } = call.failure;
+  return (
+    <div className={cn('mc-failure', className)} role="alert">
+      <AlertTriangle size={14} aria-hidden="true" />
+      <span>
+        <strong>Model call failed.</strong> {reason}
+        {elapsedMs !== undefined ? ` · no response after ${(elapsedMs / 1000).toFixed(1)} s` : ''}
+      </span>
+    </div>
+  );
 }

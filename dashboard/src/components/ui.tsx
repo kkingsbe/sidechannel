@@ -226,6 +226,7 @@ export function Drawer({
   onOpenChange,
   children,
   wide = false,
+  eyebrow = "Evidence inspector",
 }: {
   title: string;
   description?: string;
@@ -233,6 +234,7 @@ export function Drawer({
   onOpenChange: (v: boolean) => void;
   children: React.ReactNode;
   wide?: boolean;
+  eyebrow?: string;
 }) {
   const opener = React.useRef<HTMLElement | null>(null);
   return (
@@ -248,7 +250,7 @@ export function Drawer({
           }}>
           <div className="drawer-heading">
             <div>
-              <span className="eyebrow">Evidence inspector</span>
+              <span className="eyebrow">{eyebrow}</span>
               <Dialog.Title>{title}</Dialog.Title>
               <Dialog.Description>
                 {description ??

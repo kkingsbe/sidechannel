@@ -147,3 +147,30 @@ it('shows the server message when archiving conflicts', async () => {
   await screen.findByText('Codebook revision conflict');
   expect(screen.queryByText(/Another researcher saved a newer revision/)).toBeNull();
 });
+
+it('starts new behaviors empty, flags a missing author, and clears the success notice on the next edit', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (path:string, options?:RequestInit) => {
+    const rev = {id:'revision-1', codebookId:'book', revision:1, createdAt:'2026-11-07T12:00:00Z', createdBy:'Researcher', definitions:[{...definition,code:'SUPPLY',name:'SUPPLY'}]};
+    let value:unknown;
+    if (path.startsWith('/api/jev/codebooks?')) value={items:[{id:'book',name:'Study',currentRevisionId:'revision-1'}],nextCursor:null};
+    else if (path==='/api/jev/codebooks/book' && options?.method==='PATCH') { const s=JSON.parse(String(options.body)); value={codebook:{id:'book',name:s.name,currentRevisionId:'revision-1'},revision:{...rev,definitions:s.definitions}}; }
+    else if (path==='/api/jev/codebooks/book') value={id:'book',name:'Study',currentRevisionId:'revision-1'};
+    else if (path.startsWith('/api/jev/codebooks/book/revisions/')) value=rev;
+    else throw new Error('Unexpected request '+path);
+    return new Response(JSON.stringify(value),{status:200,headers:{'Content-Type':'application/json'}});
+  }));
+  render(<CodebookPage/>); const user=userEvent.setup();
+  const field=await screen.findByLabelText('Definition');
+  await user.type(field,' more');
+  expect(screen.getByLabelText('Revision author').getAttribute('aria-invalid')).toBe('true');
+  expect(screen.getAllByText('Enter a revision author to save your changes.').length).toBeGreaterThan(0);
+  await user.type(screen.getByLabelText('Revision author'),'Reviewer');
+  await user.click(screen.getByRole('button',{name:'Save revision'}));
+  await screen.findByText(/New immutable codebook revision saved/);
+  await user.type(screen.getByLabelText('Definition'),'!');
+  expect(screen.queryByText(/New immutable codebook revision saved/)).toBeNull();
+  await user.click(screen.getByRole('button',{name:'Add behavior code'}));
+  expect((screen.getByLabelText(/Display code/) as HTMLInputElement).value).toBe('');
+  expect((screen.getByLabelText(/Display name/) as HTMLInputElement).value).toBe('');
+  expect(screen.getByLabelText(/Display name/).getAttribute('placeholder')).toMatch(/Proposes a prohibited route/);
+});
