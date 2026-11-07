@@ -5,8 +5,8 @@
  */
 export const GENERIC_SETTINGS = ['maxOutputTokens', 'temperature', 'topP', 'topK', 'presencePenalty', 'frequencyPenalty', 'seed'] as const;
 
-/** Controls verified against Adaption's Responses API. */
-export const ADAPTION_SETTINGS = ['maxOutputTokens', 'temperature'] as const;
+/** Controls verified against Adaption's Responses API: a subset, not a second list. */
+export const ADAPTION_SETTINGS: readonly string[] = GENERIC_SETTINGS.filter(key => key === 'maxOutputTokens' || key === 'temperature');
 
 /** Settings forwarded to the SDK instead of being interpreted by the harness. */
 export const PASSTHROUGH_SETTINGS = ['providerOptions', 'stopSequences'] as const;
@@ -17,14 +17,13 @@ export const isRecord = (value: unknown): value is Record<string, unknown> => va
 
 type ValueRule = (key: string, value: number) => string | undefined;
 
-const RULES: Record<(typeof GENERIC_SETTINGS)[number], ValueRule> = {
+/** Value rules for the numeric controls; controls without a rule are unconstrained finite numbers. */
+const RULES: Partial<Record<(typeof GENERIC_SETTINGS)[number], ValueRule>> = {
     maxOutputTokens: (key, value) => Number.isSafeInteger(value) && value >= 1 ? undefined : `${key} must be positive integer`,
     topK: (key, value) => Number.isSafeInteger(value) && value >= 1 ? undefined : `${key} must be positive integer`,
     seed: (_key, value) => Number.isSafeInteger(value) ? undefined : 'provider seed must be integer',
     temperature: (key, value) => value < 0 || value > 2 ? `${key} outside supported range` : undefined,
     topP: (key, value) => value < 0 || value > 1 ? `${key} outside supported range` : undefined,
-    presencePenalty: () => undefined,
-    frequencyPenalty: () => undefined,
 };
 
 /**
@@ -50,7 +49,7 @@ export function genericSettingErrors(settings: Record<string, unknown>): string[
             errors.push(`${key} must be finite`);
             continue;
         }
-        const message = RULES[key as (typeof GENERIC_SETTINGS)[number]](key, value);
+        const message = RULES[key as (typeof GENERIC_SETTINGS)[number]]?.(key, value);
         if (message) errors.push(message);
     }
     return errors;
