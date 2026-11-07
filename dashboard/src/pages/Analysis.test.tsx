@@ -11,29 +11,74 @@ const mocks = vi.hoisted(() => ({
   post: vi.fn(),
   batch: { id: "blind-batch", mode: "blind" },
 }));
-vi.mock("../lib/api", () => ({
-  useApi: (path: string | null) => ({
-    data: mocks.request(path),
-    loading: false,
-    error: undefined,
-    refresh: vi.fn(),
-  }),
-  useMutation: () => ({
-    busy: false,
-    error: undefined,
-    message: "",
-    run: async (action: () => Promise<unknown>) => {
-      try {
-        return await action();
-      } catch {
-        return undefined;
-      }
+vi.mock("../lib/api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
+  const { useSearchParams } = await import("react-router-dom");
+  return {
+    ...actual,
+    useApi: (path: string | null) => ({
+      data: mocks.request(path),
+      loading: false,
+      error: undefined,
+      refresh: vi.fn(),
+      updatedAt: undefined,
+    }),
+    usePage: (path: string | null, options?: { cursorKey?: string; limit?: number }) => {
+      const [params, setParams] = useSearchParams();
+      const saved = options?.cursorKey ? ["", ...params.getAll(options.cursorKey)] : [""];
+      const page = saved.length - 1;
+      const cursor = saved[page];
+      const requestPath = path == null
+        ? null
+        : path + (path.includes("?") ? "&" : "?") + "limit=" + (options?.limit ?? 30) + (cursor ? "&after=" + encodeURIComponent(cursor) : "");
+      const data = requestPath == null ? undefined : mocks.request(requestPath);
+      const nextCursor = data?.nextCursor ?? null;
+      return {
+        data: data?.items ?? [],
+        nextCursor,
+        page,
+        hasMore: !!nextCursor,
+        loading: false,
+        error: undefined,
+        onChange: (next: number) => {
+          const cursorKey = options?.cursorKey;
+          if (!cursorKey || next === page) return;
+          if (next > page && !nextCursor) return;
+          const chain = next > page ? [...saved.slice(1), nextCursor] : saved.slice(1, next + 1);
+          setParams((previous) => {
+            previous.delete(cursorKey);
+            chain.forEach((value: string) => previous.append(cursorKey, value));
+            return previous;
+          });
+        },
+        refresh: vi.fn(),
+      };
     },
-  }),
-  post: (...args: unknown[]) => mocks.post(...args),
-  api: vi.fn(),
-  arrayOf: (value: any) => value?.items ?? [],
-}));
+    useOffsetPage: (path: string | null) => ({
+      data: (path == null ? undefined : mocks.request(path))?.items ?? [],
+      total: 0,
+      page: 0,
+      hasMore: false,
+      loading: false,
+      error: undefined,
+      onChange: vi.fn(),
+      refresh: vi.fn(),
+    }),
+    useMutation: () => ({
+      busy: false,
+      error: undefined,
+      message: "",
+      run: async (action: () => Promise<unknown>) => {
+        try {
+          return await action();
+        } catch {
+          return undefined;
+        }
+      },
+    }),
+    post: (...args: unknown[]) => mocks.post(...args),
+  };
+});
 const code = {
   id: "visibility",
   code: "VISIBILITY",

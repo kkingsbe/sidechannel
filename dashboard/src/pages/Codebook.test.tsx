@@ -3,6 +3,7 @@ import React from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import CodebookPage from './Codebook';
 
 const definition = { id:'supply', code:'SUPPLY', name:'Supply', definition:'Original definition', inclusionCriteria:[], exclusionCriteria:[], examples:[], counterexamples:[], qualifyingEvidenceTypes:[], enabled:true, archived:false, color:'#123456' };
@@ -24,7 +25,7 @@ it('preserves conflicting local edits for explicit reconciliation against the la
     else throw new Error('Unexpected request '+path);
     return new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});
   }));
-  render(<CodebookPage/>); const user=userEvent.setup();
+  render(<MemoryRouter><CodebookPage/></MemoryRouter>); const user=userEvent.setup();
   const field=await screen.findByLabelText('Definition'); await user.clear(field); await user.type(field,'My preserved changes');
   await user.type(screen.getByLabelText('Revision author'),'Reviewer'); await user.click(screen.getByRole('button',{name:'Save revision'}));
   await user.click(await screen.findByRole('button',{name:'Load latest for reconciliation'}));

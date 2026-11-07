@@ -26,18 +26,16 @@ import {
   Select,
   Textarea,
 } from "../components/ui";
-import { api, post, useApi, useMutation } from "../lib/api";
+import { api, post, useApi, useMutation, usePage } from "../lib/api";
 import { ProseListEditor } from "../components/prose-list-editor";
 import { list, when } from "../lib/utils";
 import type {
   BehaviorCode,
   Codebook,
   CodebookRevision,
-  Page,
 } from "../lib/analysis-types";
 export default function CodebookPage() {
-  const [bookCursor, setBookCursor] = useState<string | null>(null);
-  const books = useApi<Page<Codebook>>("/codebooks?limit=30" + (bookCursor ? "&after=" + encodeURIComponent(bookCursor) : ""));
+  const books = usePage<Codebook>("/codebooks", { limit: 30 });
   const [bookOptions, setBookOptions] = useState<Codebook[]>([]);
   const [bookId, setBookId] = useState("");
   const current = useApi<{ codebook: Codebook; revision: CodebookRevision }>(
@@ -51,23 +49,22 @@ export default function CodebookPage() {
   );
   const [dirty, setDirty] = useState(false);
   const [history, setHistory] = useState(false);
-  const [revisionCursor, setRevisionCursor] = useState<string | null>(null);
-  const [revisionPages, setRevisionPages] = useState<(string | null)[]>([]);
   const [formBookId, setFormBookId] = useState("");
   const [baseRevisionId, setBaseRevisionId] = useState("");
   const [baseRevision, setBaseRevision] = useState(0);
   const [recovery, setRecovery] = useState<{name:string;codes:BehaviorCode[];baseRevision:number}>();
-  const revisions = useApi<Page<CodebookRevision>>(
-    history && bookId ? "/codebooks/" + bookId + "/revisions?limit=30" + (revisionCursor ? "&after=" + encodeURIComponent(revisionCursor) : "") : null,
+  const revisions = usePage<CodebookRevision>(
+    history && bookId ? "/codebooks/" + bookId + "/revisions" : null,
+    { limit: 30 },
   );
   const [historyRevision, setHistoryRevision] = useState<CodebookRevision>();
   const mutation = useMutation();
   useEffect(() => {
-    if (books.data) setBookOptions(previous => [...new Map([...previous, ...books.data!.items].map(book => [book.id, book])).values()]);
+    if (books.data) setBookOptions(previous => [...new Map([...previous, ...books.data].map(book => [book.id, book])).values()]);
   }, [books.data]);
-  useEffect(() => { setRevisionCursor(null); setRevisionPages([]); setHistoryRevision(undefined); }, [bookId]);
+  useEffect(() => setHistoryRevision(undefined), [bookId]);
   useEffect(() => {
-    if (!bookId && books.data?.items[0]) setBookId(books.data.items[0].id);
+    if (!bookId && books.data[0]) setBookId(books.data[0].id);
   }, [books.data, bookId]);
   useEffect(() => {
     if (!current.data || current.data.codebook.id !== bookId) return;
@@ -275,7 +272,7 @@ export default function CodebookPage() {
         <Loading />
       ) : books.error ? (
         <ErrorState error={books.error} retry={books.refresh} />
-      ) : !books.data?.items.length ? (
+      ) : !books.data.length ? (
         <Card>
           <Empty
             title="Create the study codebook"
@@ -310,7 +307,7 @@ export default function CodebookPage() {
                   </option>
                 ))}
               </Select>
-              {books.data.nextCursor && <Button variant="ghost" size="sm" onClick={() => setBookCursor(books.data!.nextCursor)}>Load more codebooks</Button>}
+              {books.hasMore && <Button variant="ghost" size="sm" onClick={() => books.onChange(books.page + 1)}>Load more codebooks</Button>}
             </Field>
             <Field label="Codebook name" required error={dirty && !name.trim() ? "Enter a codebook name." : undefined}>
               <Input
@@ -530,7 +527,7 @@ export default function CodebookPage() {
         ) : revisions.error ? (
           <ErrorState error={revisions.error} retry={revisions.refresh} />
         ) : (
-          revisions.data?.items.map((revision) => (
+          revisions.data.map((revision) => (
             <button
               key={revision.id}
               className="list-button"
@@ -561,7 +558,7 @@ export default function CodebookPage() {
             ))}
           </div>
         )}
-        <div className="actions"><Button variant="secondary" disabled={!revisionPages.length || revisions.loading} onClick={() => { setRevisionCursor(revisionPages.at(-1) ?? null); setRevisionPages(previous => previous.slice(0,-1)); setHistoryRevision(undefined); }}>Previous revisions</Button><Button variant="secondary" disabled={!revisions.data?.nextCursor || revisions.loading} onClick={() => { setRevisionPages(previous => [...previous, revisionCursor]); setRevisionCursor(revisions.data!.nextCursor); setHistoryRevision(undefined); }}>Next revisions</Button></div>
+        <div className="actions"><Button variant="secondary" disabled={revisions.page === 0 || revisions.loading} onClick={() => { revisions.onChange(revisions.page - 1); setHistoryRevision(undefined); }}>Previous revisions</Button><Button variant="secondary" disabled={!revisions.hasMore || revisions.loading} onClick={() => { revisions.onChange(revisions.page + 1); setHistoryRevision(undefined); }}>Next revisions</Button></div>
       </Drawer>
     </>
   );

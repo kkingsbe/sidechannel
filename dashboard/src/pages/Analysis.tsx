@@ -38,8 +38,13 @@ import {
   Tabs,
   Textarea,
 } from "../components/ui";
-import { arrayOf, post, useApi, useMutation } from "../lib/api";
-import { useCursorApi, useOffsetApi } from "../lib/paging";
+import {
+  post,
+  useApi,
+  useMutation,
+  useOffsetPage,
+  usePage,
+} from "../lib/api";
 import { list, pretty, short, when } from "../lib/utils";
 import "./Analysis.css";
 import { RecordedEventContent } from "./analysis/RecordedEventContent";
@@ -89,13 +94,12 @@ function AnalysisEntry() {
   );
 }
 function AnalysisCollection() {
-  const [params, setParams] = useSearchParams();
-  const cursors = params.getAll("cursor");
-  const jobs = useApi<Page<AnalysisJob>>(
-    "/analyses?limit=30" +
-      (cursors.length ? "&after=" + encodeURIComponent(cursors.at(-1)!) : ""),
-    5000,
-  );
+  const [params] = useSearchParams();
+  const jobs = usePage<AnalysisJob>("/analyses", {
+    interval: 5000,
+    cursorKey: "cursor",
+    limit: 30,
+  });
   const returnTo = "/analysis" + (params.size ? "?" + params.toString() : "");
   return (
     <>
@@ -114,7 +118,7 @@ function AnalysisCollection() {
           <Loading />
         ) : jobs.error ? (
           <ErrorState error={jobs.error} retry={jobs.refresh} />
-        ) : !jobs.data?.items.length ? (
+        ) : !jobs.data.length ? (
           <Empty
             title="No analyses yet"
             description="Choose New analysis to select a source run and frozen definitions."
@@ -124,7 +128,7 @@ function AnalysisCollection() {
             label="Saved analyses"
             headers={["Source and settings", "State", "Created", ""]}
           >
-            {jobs.data.items.map((job) => (
+            {jobs.data.map((job) => (
               <AnalysisCollectionRow
                 key={job.id}
                 job={job}
@@ -134,19 +138,9 @@ function AnalysisCollection() {
           </Table>
         )}
         <Pager
-          page={cursors.length}
-          hasMore={!!jobs.data?.nextCursor}
-          onChange={(next) =>
-            setParams((previous) => {
-              const chain =
-                next > cursors.length
-                  ? [...cursors, jobs.data!.nextCursor!]
-                  : cursors.slice(0, next);
-              previous.delete("cursor");
-              chain.forEach((cursor) => previous.append("cursor", cursor));
-              return previous;
-            })
-          }
+          page={jobs.page}
+          hasMore={jobs.hasMore}
+          onChange={jobs.onChange}
         />
       </Card>
     </>
@@ -204,14 +198,13 @@ function AnalysisSetup() {
   const [params, setParams] = useSearchParams();
   const runId = params.get("run") || "";
   const clone = params.get("clone");
-  const runs = useOffsetApi<Run>("/runs?summary=true", 50);
+  const runs = useOffsetPage<Run>("/runs?summary=true", { pageSize: 50 });
   const source = useApi<Run>(runId ? "/runs/" + runId : null);
-  const books = useCursorApi<Codebook>("/codebooks");
+  const books = usePage<Codebook>("/codebooks", { limit: 30 });
   const cloned = useApi<AnalysisJob>(clone ? "/analyses/" + clone : null);
-  const jobs = useCursorApi<AnalysisJob>(
+  const jobs = usePage<AnalysisJob>(
     runId ? "/runs/" + runId + "/analyses" : null,
-    30,
-    5000,
+    { interval: 5000, limit: 30 },
   );
   const [settings, setSettings] = useState<AnalysisSettings>({
     codebookId: "",
@@ -229,10 +222,11 @@ function AnalysisSetup() {
   const revision = useApi<{ codebook: Codebook; revision: CodebookRevision }>(
     settings.codebookId ? "/codebooks/" + settings.codebookId : null,
   );
-  const revisionHistory = useCursorApi<CodebookRevision>(
+  const revisionHistory = usePage<CodebookRevision>(
     settings.codebookId
       ? "/codebooks/" + settings.codebookId + "/revisions"
       : null,
+    { limit: 30 },
   );
   const [preview, setPreview] = useState<AnalysisPreview>();
   const [previewWindow, setPreviewWindow] = useState<
@@ -246,11 +240,11 @@ function AnalysisSetup() {
     setPreview(undefined);
   }, [runId]);
   useEffect(() => {
-    if (!settings.codebookId && books.data?.items[0])
+    if (!settings.codebookId && books.data[0])
       setSettings((old) => ({
         ...old,
-        codebookId: books.data!.items[0].id,
-        codebookRevisionId: books.data!.items[0].currentRevisionId,
+        codebookId: books.data[0].id,
+        codebookRevisionId: books.data[0].currentRevisionId,
       }));
   }, [books.data, settings.codebookId]);
   useEffect(() => {
@@ -291,7 +285,7 @@ function AnalysisSetup() {
     if (result && generation === settingsGeneration.current) setPreview(result);
   };
   const currentRevision =
-    revisionHistory.data?.items.find(
+    revisionHistory.data.find(
       (r) => r.id === settings.codebookRevisionId,
     ) ?? revision.data?.revision;
   const prerequisites = [
@@ -351,26 +345,26 @@ function AnalysisSetup() {
                   >
                     <option value="">Select a source run</option>
                     {runId &&
-                      !runs.data?.items.some((run) => run.id === runId) && (
+                      !runs.data.some((run) => run.id === runId) && (
                         <option value={runId}>
                           {source.data?.config.label || runId} · selected source
                         </option>
                       )}
-                    {arrayOf(runs.data).map((run) => (
+                    {runs.data.map((run) => (
                       <option key={run.id} value={run.id}>
                         {run.config.label} · {run.status} · {short(run.id)}
                       </option>
                     ))}
                   </Select>
                 </Field>
-                <Pager {...runs.pagination} />
+                <Pager page={runs.page} hasMore={runs.hasMore} onChange={runs.onChange} />
               </div>
               <div>
                 <Field label="Codebook" required>
                   <Select
                     value={settings.codebookId}
                     onChange={(e) => {
-                      const book = books.data?.items.find(
+                      const book = books.data.find(
                         (b) => b.id === e.target.value,
                       );
                       change({
@@ -381,21 +375,21 @@ function AnalysisSetup() {
                   >
                     <option value="">Select codebook</option>
                     {settings.codebookId &&
-                      !books.data?.items.some(
+                      !books.data.some(
                         (book) => book.id === settings.codebookId,
                       ) && (
                         <option value={settings.codebookId}>
                           {revision.data?.codebook.name || "Selected codebook"}
                         </option>
                       )}
-                    {books.data?.items.map((book) => (
+                    {books.data.map((book) => (
                       <option key={book.id} value={book.id}>
                         {book.name}
                       </option>
                     ))}
                   </Select>
                 </Field>
-                <Pager {...books.pagination} />
+                <Pager page={books.page} hasMore={books.hasMore} onChange={books.onChange} />
               </div>
               <div>
                 <Field
@@ -410,14 +404,14 @@ function AnalysisSetup() {
                     }
                   >
                     {revision.data &&
-                      !revisionHistory.data?.items.some(
+                      !revisionHistory.data.some(
                         (item) => item.id === revision.data?.revision.id,
                       ) && (
                         <option value={revision.data.revision.id}>
                           Current revision {revision.data.revision.revision}
                         </option>
                       )}
-                    {revisionHistory.data?.items.map((item) => (
+                    {revisionHistory.data.map((item) => (
                       <option
                         key={item.id}
                         value={item.id}
@@ -428,7 +422,7 @@ function AnalysisSetup() {
                     ))}
                   </Select>
                 </Field>
-                <Pager {...revisionHistory.pagination} />
+                <Pager page={revisionHistory.page} hasMore={revisionHistory.hasMore} onChange={revisionHistory.onChange} />
               </div>
               <Field
                 required
@@ -734,7 +728,7 @@ function AnalysisSetup() {
                 <Loading />
               ) : jobs.error ? (
                 <ErrorState error={jobs.error} retry={jobs.refresh} />
-              ) : jobs.data?.items.length ? (
+              ) : jobs.data.length ? (
                 <Table
                   label="Source analysis jobs"
                   headers={[
@@ -745,7 +739,7 @@ function AnalysisSetup() {
                     "",
                   ]}
                 >
-                  {jobs.data.items.map((job) => (
+                  {jobs.data.map((job) => (
                     <tr key={job.id}>
                       <td>
                         <Link
@@ -775,7 +769,7 @@ function AnalysisSetup() {
               ) : (
                 <Empty title="No analyses of this source run yet" />
               )}
-              <Pager {...jobs.pagination} />
+              <Pager page={jobs.page} hasMore={jobs.hasMore} onChange={jobs.onChange} />
             </Card>
           )}
         </div>
@@ -869,7 +863,7 @@ function AnalysisSetup() {
               </p>
             </div>
           </Card>
-          {!books.data?.items.length && !books.loading && (
+          {!books.data.length && !books.loading && (
             <Notice>
               Start by creating a{" "}
               <Link className="table-title" to="/codebook">
@@ -959,17 +953,12 @@ function AnalysisDetail() {
   const [params, setParams] = useSearchParams();
   const tab = params.get("view") || "heatmap";
   const windowId = params.get("window");
-  const job = useApi<AnalysisJob>("/analyses/" + id, 4000);
+  const job = useApi<AnalysisJob>("/analyses/" + id, { interval: 4000 });
   const sourceRun = useApi<Run>(job.data ? "/runs/" + job.data.runId : null);
-  const [page, setPage] = useState(0),
-    [cursors, setCursors] = useState<(string | null)[]>([null]);
-  const windows = useApi<Page<AnalysisWindow>>(
-    "/analyses/" +
-      id +
-      "/windows?limit=30" +
-      (cursors[page] ? "&after=" + encodeURIComponent(cursors[page]!) : ""),
-    6000,
-  );
+  const windows = usePage<AnalysisWindow>("/analyses/" + id + "/windows", {
+    interval: 6000,
+    limit: 30,
+  });
   const detail = useApi<WindowDetail>(
     windowId ? "/analyses/" + id + "/windows/" + windowId : null,
   );
@@ -990,8 +979,9 @@ function AnalysisDetail() {
   const otherWindows = useApi<Page<AnalysisWindow>>(
     compareId ? "/analyses/" + compareId + "/windows?limit=30" : null,
   );
-  const sourceJobs = useCursorApi<AnalysisJob>(
+  const sourceJobs = usePage<AnalysisJob>(
     job.data ? "/runs/" + job.data.runId + "/analyses" : null,
+    { limit: 30 },
   );
   if (job.loading) return <Loading />;
   if (!job.data) return <ErrorState error={job.error} retry={job.refresh} />;
@@ -1000,7 +990,7 @@ function AnalysisDetail() {
     (c) => c.enabled && !c.archived,
   );
   const shown = codes.filter((c) => !visible || visible.includes(c.id));
-  const current = windows.data?.items ?? [];
+  const current = windows.data;
   const openWindow = (window: AnalysisWindow) =>
     setParams((prev) => {
       prev.set("window", window.id);
@@ -1264,16 +1254,9 @@ function AnalysisDetail() {
                 />
               )}
               <Pager
-                page={page}
-                hasMore={!!windows.data?.nextCursor}
-                onChange={(next) => {
-                  if (next > page)
-                    setCursors((prev) => [
-                      ...prev.slice(0, next),
-                      windows.data?.nextCursor ?? null,
-                    ]);
-                  setPage(next);
-                }}
+                page={windows.page}
+                hasMore={windows.hasMore}
+                onChange={windows.onChange}
               />
             </Card>
           </>
@@ -1308,7 +1291,7 @@ function AnalysisDetail() {
                   }}
                 >
                   <option value="">Choose another saved analysis</option>
-                  {sourceJobs.data?.items
+                  {sourceJobs.data
                     .filter((j) => j.id !== data.id)
                     .map((j) => (
                       <option key={j.id} value={j.id}>
@@ -1319,7 +1302,7 @@ function AnalysisDetail() {
                     ))}
                 </Select>
               </Field>
-              <Pager {...sourceJobs.pagination} />
+              <Pager page={sourceJobs.page} hasMore={sourceJobs.hasMore} onChange={sourceJobs.onChange} />
               {comparison.data && (
                 <>
                   <hr className="section-divider" />
@@ -1691,8 +1674,9 @@ function ReviewWorkspace({
   const [seed, setSeed] = useState("pilot-42");
   const [queueFilter, setQueueFilter] = useState("all");
   const [batchCursor, setBatchCursor] = useState<string | null>(null);
-  const batches = useCursorApi<ReviewBatch>(
+  const batches = usePage<ReviewBatch>(
     "/analyses/" + job.id + "/review-batches",
+    { limit: 30 },
   );
   const batch = useApi<{
     batch: ReviewBatch;
@@ -1916,7 +1900,7 @@ function ReviewWorkspace({
         </Card>
         <Card>
           <CardHeading title="Saved selection batches" />
-          {batches.data?.items.map((item) => (
+          {batches.data.map((item) => (
             <button
               key={item.id}
               className="list-button"
@@ -1938,7 +1922,7 @@ function ReviewWorkspace({
               </div>
             </button>
           ))}
-          <Pager {...batches.pagination} />
+          <Pager page={batches.page} hasMore={batches.hasMore} onChange={batches.onChange} />
         </Card>
       </div>
     </>
@@ -2100,18 +2084,12 @@ export function WindowInspector({
   const [reviewer, setReviewer] = useState(
     () => localStorage.getItem("sidechannel-reviewer") || "",
   );
-  const [historyPage, setHistoryPage] = useState(0),
-    [historyCursors, setHistoryCursors] = useState<(string | null)[]>([null]);
-  const reviews = useApi<Page<HumanReview>>(
+  const reviews = usePage<HumanReview>(
     "/analyses/" +
       job.id +
       "/reviews?windowId=" +
-      detail.window.id +
-      "&limit=30" +
-      (historyCursors[historyPage]
-        ? "&after=" + encodeURIComponent(historyCursors[historyPage]!)
-        : ""),
-    4000,
+      detail.window.id,
+    { interval: 4000, limit: 30 },
   );
   const [scope, setScope] = useState<"window" | "event">("window");
   const [codeId, setCodeId] = useState(
@@ -2474,7 +2452,7 @@ export function WindowInspector({
       ) : reviews.error ? (
         <ErrorState error={reviews.error} retry={reviews.refresh} />
       ) : (
-        reviews.data?.items
+        reviews.data
           .filter((r) => r.windowId === detail.window.id)
           .map((review) => (
             <div
@@ -2505,16 +2483,9 @@ export function WindowInspector({
       )}
       {predictionsVisible && (
         <Pager
-          page={historyPage}
-          hasMore={!!reviews.data?.nextCursor}
-          onChange={(next) => {
-            if (next > historyPage)
-              setHistoryCursors((previous) => [
-                ...previous.slice(0, next),
-                reviews.data?.nextCursor ?? null,
-              ]);
-            setHistoryPage(next);
-          }}
+          page={reviews.page}
+          hasMore={reviews.hasMore}
+          onChange={reviews.onChange}
         />
       )}
     </>

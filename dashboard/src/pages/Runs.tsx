@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import {
   Link,
   Route,
@@ -40,7 +40,18 @@ import {
   Table,
   Tabs,
 } from "../components/ui";
-import { arrayOf, post, useApi, useMutation } from "../lib/api";
+import {
+  arrayOf,
+  post,
+  useApi,
+  useMutation,
+  useRequester,
+} from "../lib/api";
+import {
+  useResourceOffsetPage,
+  useResourcePage,
+} from "../lib/clients/query";
+import { withQuery } from "../lib/transport";
 import type {
   ArtifactVersion,
   Draft,
@@ -77,7 +88,7 @@ function RunList() {
   const query = new URLSearchParams(params);
   query.set("summary", "true");
   query.set("limit", "25");
-  const runs = useApi<RecordPage<Run>>("/runs?" + query, 5000);
+  const runs = useApi<RecordPage<Run>>("/runs?" + query, { interval: 5000 });
   const items = arrayOf(runs.data);
   const filter = (key: string, value: string) => {
     setParams((previous) => {
@@ -208,34 +219,45 @@ function RunDetail() {
   const selected = params.get("evidence");
   const seq = params.get("seq");
   const run = useApi<Run>("/runs/" + id);
-  const progress = useApi<Partial<Run>>("/runs/" + id + "/progress", 3500);
+  const progress = useApi<Partial<Run>>("/runs/" + id + "/progress", {
+    interval: 3500,
+  });
   const mutation = useMutation();
   const navigate = useNavigate();
+  const requester = useRequester();
   const [actor, setActor] = useState(""),
     [phase, setPhase] = useState(""),
     [eventType, setEventType] = useState(""),
     [from, setFrom] = useState(""),
     [to, setTo] = useState("");
-  const [page, setPage] = useState(0);
-  const [cursors, setCursors] = useState([0]);
-  const query = new URLSearchParams({
-    limit: "50",
-    after: String(cursors[page] || 0),
-  });
-  if (actor) query.set("actor", actor);
-  if (phase) query.set("phase", phase);
-  if (eventType) query.set("type", eventType);
-  if (from) query.set("from", from);
-  if (to) query.set("to", to);
-  const events = useApi<{
-    events: HarnessEvent[];
-    nextCursor: number;
-    hasMore?: boolean;
-  }>(
-    tab === "timeline" || tab === "traces"
-      ? "/runs/" + id + "/events?" + query
-      : null,
-    4000,
+  const eventKey = [id, actor, phase, eventType, from, to].join("|");
+  const events = useResourcePage<HarnessEvent>(
+    tab === "timeline" || tab === "traces" ? eventKey : null,
+    async cursor => {
+      const payload = await requester<{
+        events?: HarnessEvent[];
+        items: HarnessEvent[];
+        nextCursor: number;
+        hasMore?: boolean;
+      }>(
+        withQuery("/runs/" + id + "/events", {
+          limit: 50,
+          after: cursor ?? 0,
+          actor,
+          phase,
+          type: eventType,
+          from,
+          to,
+        }),
+      );
+      const rows = payload.events ?? payload.items;
+      const hasMore = payload.hasMore ?? rows.length === 50;
+      return {
+        items: rows,
+        nextCursor: hasMore ? String(payload.nextCursor) : null,
+      };
+    },
+    { interval: 4000 },
   );
   const selectedEvent = useApi<HarnessEvent>(
     selected && ["timeline", "traces", "memory"].includes(tab)
@@ -258,16 +280,32 @@ function RunDetail() {
           )
       : null,
   );
-  const evidence = useApi<RecordPage<unknown> | unknown[]>(
-    ["board", "artifacts", "memory", "reports"].includes(tab)
-      ? `/runs/${id}/${tab}?limit=30&offset=${page * 30}`
-      : null,
-    5000,
+  const evidencePath = ["board", "artifacts", "memory", "reports"].includes(tab)
+    ? "/runs/" + id + "/" + tab
+    : null;
+  const evidencePayload = useRef<{
+    path: string;
+    payload: RecordPage<unknown>;
+  }>(undefined);
+  const evidence = useResourceOffsetPage<unknown>(
+    evidencePath,
+    async offset => {
+      const payload = await requester<RecordPage<unknown>>(
+        withQuery(evidencePath!, { limit: 30, offset }),
+      );
+      evidencePayload.current = { path: evidencePath!, payload };
+      return {
+        items: payload.items ?? [],
+        total: payload.total ?? 0,
+        nextOffset: payload.nextOffset ?? null,
+      };
+    },
+    { interval: 5000, pageSize: 30 },
   );
-  useEffect(() => {
-    setPage(0);
-    setCursors([0]);
-  }, [tab, actor, phase, eventType, from, to, id]);
+  const board =
+    evidencePayload.current?.path === evidencePath
+      ? evidencePayload.current.payload
+      : undefined;
   const data = run.data
     ? { ...run.data, ...progress.data, config: run.data.config }
     : undefined;
@@ -285,19 +323,16 @@ function RunDetail() {
       sequence ? prev.set("seq", String(sequence)) : prev.delete("seq");
       return prev;
     });
-  const items = Array.isArray(evidence.data)
-    ? evidence.data
-    : (evidence.data?.items ?? evidence.data?.posts ?? []);
+  const items = evidence.data;
   const event =
-    selectedEvent.data ?? events.data?.events.find((e) => e.id === selected);
+    selectedEvent.data ?? events.data.find((e) => e.id === selected);
   const selectedItem =
     event ??
     selectedRecord.data ??
     items.find((item, index) => evidenceKey(item, index) === selected);
-  const traceEvents =
-    events.data?.events.filter(
-      (e) => tab !== "traces" || /model|invocation|reason|trace/.test(e.type),
-    ) ?? [];
+  const traceEvents = events.data.filter(
+    (e) => tab !== "traces" || /model|invocation|reason|trace/.test(e.type),
+  );
   if (run.loading) return <Loading />;
   if (!data) return <ErrorState error={run.error} retry={run.refresh} />;
   const active = ["queued", "running", "reporting", "stopping"].includes(
@@ -580,18 +615,9 @@ function RunDetail() {
               />
             )}
             <Pager
-              page={page}
-              hasMore={
-                events.data?.hasMore ?? events.data?.events.length === 50
-              }
-              onChange={(next) => {
-                if (next > page)
-                  setCursors((prev) => [
-                    ...prev.slice(0, next),
-                    events.data?.nextCursor ?? 0,
-                  ]);
-                setPage(next);
-              }}
+              page={events.page}
+              hasMore={events.hasMore}
+              onChange={events.onChange}
             />
           </Card>
         ) : tab === "configuration" ? (
@@ -661,25 +687,21 @@ function RunDetail() {
                     : "Recorded source evidence with immutable provenance."
               }
             />
-            {tab === "reports" &&
-              !Array.isArray(evidence.data) &&
-              evidence.data?.reporting && (
-                <div className="card-body">
-                  <JsonView
-                    value={evidence.data.reporting}
-                    title="Exact reporting instructions and schema version"
-                  />
-                </div>
-              )}
-            {tab === "board" &&
-              !Array.isArray(evidence.data) &&
-              evidence.data?.deliveriesMayHaveMore && (
-                <Notice kind="warning">
-                  This response contains a page of delivery events. For a
-                  complete delivery history, filter the timeline for
-                  board_delivery and paginate through the source events.
-                </Notice>
-              )}
+            {tab === "reports" && board?.reporting && (
+              <div className="card-body">
+                <JsonView
+                  value={board.reporting}
+                  title="Exact reporting instructions and schema version"
+                />
+              </div>
+            )}
+            {tab === "board" && board?.deliveriesMayHaveMore && (
+              <Notice kind="warning">
+                This response contains a page of delivery events. For a
+                complete delivery history, filter the timeline for
+                board_delivery and paginate through the source events.
+              </Notice>
+            )}
             {evidence.error && (
               <ErrorState error={evidence.error} retry={evidence.refresh} />
             )}
@@ -755,11 +777,7 @@ function RunDetail() {
                         {tab === "board" && (
                           <BoardDelivery
                             id={String(object.id)}
-                            deliveries={
-                              !Array.isArray(evidence.data)
-                                ? evidence.data?.deliveries
-                                : undefined
-                            }
+                            deliveries={board?.deliveries}
                           />
                         )}
                         {tab === "artifacts" && index > 0 && (
@@ -793,12 +811,9 @@ function RunDetail() {
               />
             )}
             <Pager
-              page={page}
-              hasMore={
-                !Array.isArray(evidence.data) &&
-                evidence.data?.nextOffset != null
-              }
-              onChange={setPage}
+              page={evidence.page}
+              hasMore={evidence.hasMore}
+              onChange={evidence.onChange}
             />
           </Card>
         )}
@@ -1070,7 +1085,7 @@ function PairCondition({
   summary: Run;
   returnTo: string;
 }) {
-  const resource = useApi<Run>("/runs/" + summary.id, 5000);
+  const resource = useApi<Run>("/runs/" + summary.id, { interval: 5000 });
   const run = resource.data || summary;
   const suffix = "&returnTo=" + encodeURIComponent(returnTo);
   const finals = resource.data?.artifacts?.filter((item) => item.frozen) || [];
