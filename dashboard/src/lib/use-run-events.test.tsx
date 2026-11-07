@@ -53,6 +53,17 @@ describe('useRunEvents', () => {
     expect(FakeEventSource.instances).toHaveLength(0);
   });
 
+  it('reopens exactly one stream from the new window when filters change while following', async () => {
+    mockPages(path => (path.includes('actor=beta') ? { events: [ev(9)], hasMore: false } : { events: [ev(4), ev(5)], hasMore: false }));
+    const { result, rerender } = renderHook(({ actor }) => useRunEvents('run-1', { actor }, { start: 'latest', follow: true, enabled: true }), { initialProps: { actor: 'alpha' } });
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    rerender({ actor: 'beta' });
+    await waitFor(() => expect(result.current.events.map(e => e.sequence)).toEqual([9]));
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(2));
+    expect(FakeEventSource.instances[0]!.readyState).toBe(FakeEventSource.CLOSED);
+    expect(FakeEventSource.instances[1]!.url).toBe('/api/runs/run-1/events/stream?actor=beta&after=9');
+  });
+
   it('falls back to polling when the stream is closed by the browser', async () => {
     mockPages(() => ({ events: [ev(1)], hasMore: false }));
     const { result } = renderHook(() => useRunEvents('run-1', {}, { start: 'latest', follow: true, enabled: true }));

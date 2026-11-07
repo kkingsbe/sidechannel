@@ -47,6 +47,8 @@ export function useRunEvents(runId: string | undefined, filters: EventFilters, o
   const [loadError, setLoadError] = useState<Error>();
   const [pageError, setPageError] = useState<Error>();
   const [status, setStatus] = useState<StreamStatus>('idle');
+  /** The key whose initial window is in `win`; the stream opens only for it, never from a stale window. */
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const windowRef = useRef(win);
   windowRef.current = win;
   const generation = useRef(0);
@@ -72,14 +74,14 @@ export function useRunEvents(runId: string | undefined, filters: EventFilters, o
         ? fetchPage({ after: '0' }).then(page => ({ events: page.events, hasEarlier: false, hasLater: page.hasMore }))
         : fetchPage({ after: String(start - 1) }).then(page => ({ events: page.events, hasEarlier: start > 1, hasLater: page.hasMore }));
     initial
-      .then(next => { if (current === generation.current) setWin(next); }, (error: unknown) => { if (current === generation.current) setLoadError(error as Error); })
+      .then(next => { if (current === generation.current) { setWin(next); setLoadedKey(key); } }, (error: unknown) => { if (current === generation.current) setLoadError(error as Error); })
       .finally(() => { if (current === generation.current) setLoading(false); });
   }, [key, fetchPage, start]);
 
   // Once the caller stops following (run finished, or the reader jumped elsewhere), a stream that was running reads as ended.
   useEffect(() => { if (!follow) setStatus(previous => (previous === 'idle' ? previous : 'ended')); }, [follow]);
 
-  const following = !!key && follow && !loading && !loadError;
+  const following = !!key && key === loadedKey && follow && !loading && !loadError;
   useEffect(() => {
     if (!following) return;
     const current = generation.current;
