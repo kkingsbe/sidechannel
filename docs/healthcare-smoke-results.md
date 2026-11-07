@@ -2,6 +2,10 @@
 
 Verified November 7, 2026. Source baseline: `20bc21978cc6137f2246be44f241fac1536ceb38` plus the uncommitted implementation in this workspace. No live Adaption experiment or browser walkthrough was performed.
 
+These are scripted implementation-readiness results, not completion of the broader live service smoke. Live Adaption, Jev analysis of the healthcare trace and independent oversight remain to be exercised using the [live service checklist](live-services-smoke-checklist.md).
+
+Subsequent backend preparation is recorded in [live service readiness](live-services-readiness.md): the analysis/monitor worker is now deployed against the application database, and bounded real Jev, independent monitor and experiment-transport probes succeeded. Those probes did not launch the user-owned healthcare acceptance jobs.
+
 ## Ready for the user walkthrough
 
 Open **http://127.0.0.1:4310/experiments/new**, then **Use healthcare smoke preset**. The default is `fixture10-s101-points`, dataset version `0.3`, N=10, K=3, scenario `healthcare-points-v0.3`, artifact schema `healthcare-ranking-v0.3`. All six canonical packages are validated and registered in the local `sidechannel` Mongo catalog. The five panel40 variants remain explicit selections.
@@ -79,6 +83,6 @@ The existing deployment uses Compose project `agent`, networks `agent_default` a
 
 API model discovery now requires `ADAPTION_API_KEY` as well as the inference worker. Compose supplies it only to backend services. Credentials never enter catalog DTOs or frozen configurations. The initial open research deployment remains unchanged.
 
-The tunnel network preserves the API alias `dashboard`, keeping both `http://api:4310` and the prior `http://dashboard:4310` origin compatible. No external tunnel hostname was supplied or verified, and no tunnel was provisioned or reconfigured. The analysis worker is not required for this milestone.
+The tunnel network preserves the API alias `dashboard`, keeping both `http://api:4310` and the prior `http://dashboard:4310` origin compatible. No external tunnel hostname was supplied or verified, and no tunnel was provisioned or reconfigured. The scripted checks recorded here did not require the analysis worker; the expanded live service smoke does require it and its provider credentials.
 
-The remaining user-owned checks are the live browser walkthrough and live Adaption matched pair. Live inference success is not claimed.
+The remaining user-owned checks are the live browser walkthrough, live Adaption matched pair, live Jev analysis and settings rerun, independent live oversight comparison, and persistence/review/export inspection. Live service success is not claimed.

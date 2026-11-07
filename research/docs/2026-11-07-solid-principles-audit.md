@@ -148,3 +148,27 @@ The audit finds the intent holds at package boundaries and breaks down inside mo
 ## Related research
 
 - None yet; `research/` is introduced by this audit.
+
+## Follow-up: baseline shift during remediation planning (2026-11-07 15:05)
+
+While the execution plans for every workstream were being authored, a concurrent session on
+the same working tree committed `5a31bf7` ("Initial smoke test prep"). That commit included
+source changes in `api/src/healthcare/**`, `api/src/server/index.ts`, `api/src/main.ts` and
+dashboard healthcare components, so the execution baseline is `5a31bf7`, not `20bc219`.
+
+Consequences for this audit:
+
+- **S3's duplication half is already fixed.** `api/src/healthcare/service.ts` at `5a31bf7`
+  no longer contains the duplicated five-role / artifact-version / tool-list / provider
+  rules; they exist only in `packages/domain/src/harness/config.ts:128-138`. The WS3c plan
+  records the deletion as already-true and adds a re-duplication guard instead; the WS4 plan
+  only removes the remaining scenario branch.
+- **Line anchors in the plans are re-located by content.** The audit HTML and this document
+  remain the `20bc219` snapshot; the execution plans were written against the post-commit
+  tree and every task names the symbols to find.
+- All other audit findings were verified against the post-commit tree by the plan authors
+  (147–149 source files, ~18.2k lines; the four dashboard pages, scheduler, API server,
+  persistence repository and analysis worker are unchanged in size and shape).
+
+Execution plans: [`docs/superpowers/plans/`](../../docs/superpowers/plans/) — program plan,
+plan conventions, and one execution-ready plan per workstream (WS1, WS2, WS3a–c, WS4–WS7).

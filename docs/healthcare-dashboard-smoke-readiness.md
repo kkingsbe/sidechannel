@@ -2,6 +2,8 @@
 
 Status: implementation handoff. Updated November 7, 2026. Baseline inspected: `20bc219` on `main`.
 
+Scope clarification: the final smoke test includes real Adaption inference, real Jev analysis and independent live oversight through the ordinary dashboard workflow. Follow the [live service checklist](live-services-smoke-checklist.md) for that acceptance pass. The implementation gaps listed below describe the original baseline; consult the [implementation results](healthcare-smoke-results.md) for completed work.
+
 Prepare Sidechannel so a researcher can select the new healthcare fixture, configure an experiment, launch a matched pair from the dashboard, follow execution, and inspect its evidence and results. The user will perform the actual live dashboard steps. This handoff covers the remaining implementation, automated validation and operational preparation before that walkthrough.
 
 Creating this document does not implement these changes. Use the existing dashboard, API, experiment worker and MongoDB architecture; the earlier dashboard rewrite and service split have already landed.
@@ -23,7 +25,7 @@ Before handing over, demonstrate this application path with a scripted healthcar
 
 The user owns the final live browser walkthrough and live Adaption launches. Do not launch paid live runs or drive the live dashboard as part of implementing this handoff unless separately asked. Scripted integration tests, frontend tests and local service readiness checks are implementation work.
 
-The smoke milestone does not require an upload interface, campaign launcher, new authentication, a full provider trace-tree viewer, Jev classification or oversight evaluation. Their broader release requirements remain in their existing specs. Ground-truth task evaluation described here is a deterministic researcher feature, separate from Jev, oversight models and human behavior coding.
+The smoke milestone does not require an upload interface, campaign launcher, new authentication or a full provider trace-tree viewer. It does require live Jev classification and independent oversight evaluation of the healthcare evidence, as detailed in the live service checklist. Ground-truth task evaluation described here is a deterministic researcher feature, separate from Jev, oversight models and human behavior coding.
 
 ## 2. What is already available
 
@@ -211,7 +213,7 @@ Keep imports within the existing Nx dependency boundaries. Reuse installed Mastr
 
 Provide a documented bootstrap command for the fixture catalog and an automated scripted healthcare integration command. The commands must exist and be tested before handoff; do not present proposed command names as already supported. Keep fixture source files out of agent-accessible tools and mount/copy them only where bootstrap requires them.
 
-Verify the updated build, API, experiment worker, MongoDB replica set and dashboard asset hosting. Check deployment configuration compatibility with the existing Cloudflare Tunnel if that is the user's access path. Preserve backend-only credential handling. The analysis worker is not a prerequisite for this healthcare execution smoke, though the existing deployment may run it.
+Verify the updated build, API, experiment worker, analysis/monitor worker, MongoDB replica set and dashboard asset hosting. Check deployment configuration compatibility with the existing Cloudflare Tunnel if that is the user's access path. Preserve backend-only credential handling. The analysis worker and its Jev/monitor credentials are required for the complete live service smoke.
 
 Run focused checks during implementation, then the repository's applicable type checks, lint/boundary checks, tests and build. Mongo-backed integration checks must actually run before claiming the queue/persistence path is verified. Record unavailable prerequisites and skipped checks precisely.
 
@@ -224,7 +226,7 @@ Deliver a concise readiness note containing:
 - How the user selects an available Adaption model and sees compatible input/output settings.
 - Known limitations and any pending live-only checks.
 
-Implementation is complete when all automated gates pass and the dashboard is ready for the user to launch the live pair. Do not report the live smoke test itself as passed until the user has performed it or explicitly delegated it.
+Implementation readiness requires the automated gates plus a dashboard and all backend services ready for the live pair, Jev analysis and independent oversight evaluation. Do not report the live smoke test itself as passed until the user has performed those stages or explicitly delegated them; retain per-stage evidence using the live service checklist.
 
 ## References
 
