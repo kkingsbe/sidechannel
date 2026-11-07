@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { InMemoryRepository } from './repository.js';
+import { defaultFixtureConfiguration, resolveConfiguration } from './config.js';
+import { createQueuedRun } from './scheduler.js';
+test('duplicate launch, exclusive claim, immutable snapshot and concurrent cancel', async () => {
+    const repo = new InMemoryRepository();
+    const run = createQueuedRun(resolveConfiguration(defaultFixtureConfiguration()), 'launch');
+    await repo.createRun(run);
+    assert.equal((await repo.createRun(createQueuedRun(run.config, 'launch'))).id, run.id);
+    assert.deepEqual(await Promise.all([repo.claimRun(run.id, 'one'), repo.claimRun(run.id, 'two')]), [true, false]);
+    const stale = (await repo.getRun(run.id))!;
+    await repo.requestCancel(run.id);
+    stale.config.label = 'illegal change';
+    stale.status = 'completed';
+    await repo.saveRun(stale);
+    const saved = (await repo.getRun(run.id))!;
+    assert.equal(saved.config.label, 'Development fixture');
+    assert.equal(saved.cancelRequested, true);
+    assert.equal(saved.status, 'stopping');
+});

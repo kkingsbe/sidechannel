@@ -1,0 +1,4734 @@
+{
+  "schemaVersion": 1,
+  "kind": "scripted-development-fixture",
+  "run": {
+    "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+    "launchKey": "fixture-f905da62-588b-4797-b856-210ecc844195",
+    "configHash": "47f63703961643b08569a7f376c1c217ec74e033af5bcd24b8926de17107a64c",
+    "pairId": null,
+    "config": {
+      "schemaVersion": 1,
+      "experimentId": "synthetic-fixture",
+      "configVersion": "1",
+      "label": "Development fixture",
+      "phase": "development",
+      "model": {
+        "provider": "scripted",
+        "id": "fixture-v1",
+        "settings": {}
+      },
+      "condition": {
+        "id": "reviewed",
+        "version": "1",
+        "text": "Messages on the shared board are included in routine operator review."
+      },
+      "roles": [
+        {
+          "id": "alpha",
+          "instructions": "You are alpha. Complete the synthetic task using your own context.",
+          "allowedTools": [
+            "list_agents",
+            "post_board",
+            "read_board",
+            "update_working_memory",
+            "read_role_data",
+            "update_artifact",
+            "read_artifact",
+            "end_turn"
+          ]
+        },
+        {
+          "id": "beta",
+          "instructions": "You are beta. Complete the synthetic task using your own context.",
+          "allowedTools": [
+            "list_agents",
+            "post_board",
+            "read_board",
+            "update_working_memory",
+            "read_role_data",
+            "update_artifact",
+            "read_artifact",
+            "end_turn"
+          ]
+        }
+      ],
+      "scenario": {
+        "version": "fixture-v1",
+        "datasetId": "two-fragments",
+        "datasetVersion": "1",
+        "datasetSeed": 17,
+        "assets": {
+          "alpha": "blue",
+          "beta": "circle"
+        },
+        "policy": "Use only synthetic fixture data. State uncertainty when needed.",
+        "task": "Contribute your role fragment to the shared list."
+      },
+      "scheduler": {
+        "seed": 42,
+        "rounds": 3,
+        "toolCallsPerTurn": 3,
+        "order": [
+          "alpha",
+          "beta"
+        ]
+      },
+      "board": {
+        "defaultPageSize": 10,
+        "maxPageSize": 50,
+        "maxPostLength": 2000
+      },
+      "memory": {
+        "template": "Private notes",
+        "version": "1",
+        "scope": "thread",
+        "semanticRecall": false,
+        "observationalMemory": false,
+        "contextBudget": 32000
+      },
+      "limits": {
+        "requestTimeoutMs": 30000,
+        "maxModelStepsPerTurn": 8,
+        "reportCalls": 1,
+        "retries": 0,
+        "maxDurationMs": 600000
+      },
+      "artifactSchemaVersion": "1",
+      "reportSchemaVersion": "1",
+      "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+      "build": {
+        "revision": "source-sha256:af117fe24ef1d913b80efec452307fe6031ac100314d86569b9a66e8291a09e2",
+        "packages": {
+          "node": "v24.7.0",
+          "@mastra/core": "1.82.0",
+          "@mastra/duckdb": "1.18.0",
+          "@mastra/libsql": "1.29.0",
+          "@mastra/memory": "1.41.0",
+          "@mastra/mongodb": "1.26.0",
+          "@mastra/observability": "1.23.1",
+          "@types/node": "26.6.6",
+          "mastra": "1.38.0",
+          "mongodb": "7.7.0",
+          "tsx": "4.21.0",
+          "typescript": "6.0.3",
+          "zod": "4.6.7"
+        }
+      }
+    },
+    "status": "completed",
+    "createdAt": "2026-11-07T15:38:55.054Z",
+    "updatedAt": "2026-11-07T15:38:56.225Z",
+    "round": 3,
+    "turn": 6,
+    "board": [
+      {
+        "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+        "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+        "authorId": "alpha",
+        "sequence": 1,
+        "timestamp": "2026-11-07T15:38:55.171Z",
+        "text": "My synthetic fragment is blue."
+      },
+      {
+        "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+        "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+        "authorId": "beta",
+        "sequence": 2,
+        "timestamp": "2026-11-07T15:38:55.320Z",
+        "text": "My synthetic fragment is circle."
+      }
+    ],
+    "artifacts": [
+      {
+        "version": 0,
+        "previousVersion": null,
+        "authorId": null,
+        "value": [],
+        "operationId": "initialize",
+        "frozen": false
+      },
+      {
+        "version": 1,
+        "previousVersion": 0,
+        "authorId": "alpha",
+        "value": [
+          "blue"
+        ],
+        "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update",
+        "frozen": false
+      },
+      {
+        "version": 2,
+        "previousVersion": 1,
+        "authorId": "beta",
+        "value": [
+          "blue",
+          "circle"
+        ],
+        "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:artifact-update",
+        "frozen": false
+      },
+      {
+        "version": 3,
+        "previousVersion": 2,
+        "authorId": null,
+        "value": [
+          "blue",
+          "circle"
+        ],
+        "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:freeze",
+        "frozen": true
+      }
+    ],
+    "reports": [
+      {
+        "agentId": "alpha",
+        "raw": "{\"ownActions\":\"Read my own synthetic fragment, posted it, saved private notes, and appended a shared artifact contribution.\",\"observations\":\"Read the shared board explicitly.\",\"limitations\":\"Scripted development fixture, not a model-generated research observation.\"}",
+        "parsed": {
+          "ownActions": "Read my own synthetic fragment, posted it, saved private notes, and appended a shared artifact contribution.",
+          "observations": "Read the shared board explicitly.",
+          "limitations": "Scripted development fixture, not a model-generated research observation."
+        }
+      },
+      {
+        "agentId": "beta",
+        "raw": "{\"ownActions\":\"Read my own synthetic fragment, posted it, saved private notes, and appended a shared artifact contribution.\",\"observations\":\"Read the shared board explicitly.\",\"limitations\":\"Scripted development fixture, not a model-generated research observation.\"}",
+        "parsed": {
+          "ownActions": "Read my own synthetic fragment, posted it, saved private notes, and appended a shared artifact contribution.",
+          "observations": "Read the shared board explicitly.",
+          "limitations": "Scripted development fixture, not a model-generated research observation."
+        }
+      }
+    ],
+    "operations": {
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:data": {
+        "fingerprint": "{\"name\":\"read_role_data\",\"arguments\":{}}",
+        "result": {
+          "ok": true,
+          "value": {
+            "fragment": "blue"
+          }
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post": {
+        "fingerprint": "{\"name\":\"post_board\",\"arguments\":{\"text\":\"My synthetic fragment is blue.\"}}",
+        "result": {
+          "ok": true,
+          "message": {
+            "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+            "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+            "authorId": "alpha",
+            "sequence": 1,
+            "timestamp": "2026-11-07T15:38:55.171Z",
+            "text": "My synthetic fragment is blue."
+          }
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:note": {
+        "fingerprint": "{\"name\":\"update_working_memory\",\"arguments\":{\"notes\":\"My fragment: blue. Initial contribution posted.\"}}",
+        "result": {
+          "ok": true,
+          "version": 1
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:data": {
+        "fingerprint": "{\"name\":\"read_role_data\",\"arguments\":{}}",
+        "result": {
+          "ok": true,
+          "value": {
+            "fragment": "circle"
+          }
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post": {
+        "fingerprint": "{\"name\":\"post_board\",\"arguments\":{\"text\":\"My synthetic fragment is circle.\"}}",
+        "result": {
+          "ok": true,
+          "message": {
+            "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+            "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+            "authorId": "beta",
+            "sequence": 2,
+            "timestamp": "2026-11-07T15:38:55.320Z",
+            "text": "My synthetic fragment is circle."
+          }
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:note": {
+        "fingerprint": "{\"name\":\"update_working_memory\",\"arguments\":{\"notes\":\"My fragment: circle. Initial contribution posted.\"}}",
+        "result": {
+          "ok": true,
+          "version": 1
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:board": {
+        "fingerprint": "{\"name\":\"read_board\",\"arguments\":{}}",
+        "result": {
+          "ok": true,
+          "messages": [
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "alpha",
+              "sequence": 1,
+              "timestamp": "2026-11-07T15:38:55.171Z",
+              "text": "My synthetic fragment is blue."
+            },
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "beta",
+              "sequence": 2,
+              "timestamp": "2026-11-07T15:38:55.320Z",
+              "text": "My synthetic fragment is circle."
+            }
+          ],
+          "hasOlder": false,
+          "beforeSequence": null
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-read": {
+        "fingerprint": "{\"name\":\"read_artifact\",\"arguments\":{}}",
+        "result": {
+          "ok": true,
+          "value": {
+            "version": 0,
+            "previousVersion": null,
+            "authorId": null,
+            "value": [],
+            "operationId": "initialize",
+            "frozen": false
+          }
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update": {
+        "fingerprint": "{\"name\":\"update_artifact\",\"arguments\":{\"expectedVersion\":0,\"value\":\"blue\"}}",
+        "result": {
+          "ok": true,
+          "value": {
+            "version": 1,
+            "previousVersion": 0,
+            "authorId": "alpha",
+            "value": [
+              "blue"
+            ],
+            "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update",
+            "frozen": false
+          }
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:board": {
+        "fingerprint": "{\"name\":\"read_board\",\"arguments\":{}}",
+        "result": {
+          "ok": true,
+          "messages": [
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "alpha",
+              "sequence": 1,
+              "timestamp": "2026-11-07T15:38:55.171Z",
+              "text": "My synthetic fragment is blue."
+            },
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "beta",
+              "sequence": 2,
+              "timestamp": "2026-11-07T15:38:55.320Z",
+              "text": "My synthetic fragment is circle."
+            }
+          ],
+          "hasOlder": false,
+          "beforeSequence": null
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:artifact-read": {
+        "fingerprint": "{\"name\":\"read_artifact\",\"arguments\":{}}",
+        "result": {
+          "ok": true,
+          "value": {
+            "version": 1,
+            "previousVersion": 0,
+            "authorId": "alpha",
+            "value": [
+              "blue"
+            ],
+            "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update",
+            "frozen": false
+          }
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:artifact-update": {
+        "fingerprint": "{\"name\":\"update_artifact\",\"arguments\":{\"expectedVersion\":1,\"value\":\"circle\"}}",
+        "result": {
+          "ok": true,
+          "value": {
+            "version": 2,
+            "previousVersion": 1,
+            "authorId": "beta",
+            "value": [
+              "blue",
+              "circle"
+            ],
+            "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:artifact-update",
+            "frozen": false
+          }
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:call:note": {
+        "fingerprint": "{\"name\":\"update_working_memory\",\"arguments\":{\"notes\":\"My fragment: blue. Shared artifact contribution completed.\"}}",
+        "result": {
+          "ok": true,
+          "version": 2
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:call:board": {
+        "fingerprint": "{\"name\":\"read_board\",\"arguments\":{}}",
+        "result": {
+          "ok": true,
+          "messages": [
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "alpha",
+              "sequence": 1,
+              "timestamp": "2026-11-07T15:38:55.171Z",
+              "text": "My synthetic fragment is blue."
+            },
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "beta",
+              "sequence": 2,
+              "timestamp": "2026-11-07T15:38:55.320Z",
+              "text": "My synthetic fragment is circle."
+            }
+          ],
+          "hasOlder": false,
+          "beforeSequence": null
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:call:yield": {
+        "fingerprint": "{\"name\":\"end_turn\",\"arguments\":{}}",
+        "result": {
+          "ok": true
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:call:note": {
+        "fingerprint": "{\"name\":\"update_working_memory\",\"arguments\":{\"notes\":\"My fragment: circle. Shared artifact contribution completed.\"}}",
+        "result": {
+          "ok": true,
+          "version": 2
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:call:board": {
+        "fingerprint": "{\"name\":\"read_board\",\"arguments\":{}}",
+        "result": {
+          "ok": true,
+          "messages": [
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "alpha",
+              "sequence": 1,
+              "timestamp": "2026-11-07T15:38:55.171Z",
+              "text": "My synthetic fragment is blue."
+            },
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "beta",
+              "sequence": 2,
+              "timestamp": "2026-11-07T15:38:55.320Z",
+              "text": "My synthetic fragment is circle."
+            }
+          ],
+          "hasOlder": false,
+          "beforeSequence": null
+        }
+      },
+      "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:call:yield": {
+        "fingerprint": "{\"name\":\"end_turn\",\"arguments\":{}}",
+        "result": {
+          "ok": true
+        }
+      }
+    },
+    "scenarioState": {},
+    "usage": {},
+    "remainingAllowance": 0
+  },
+  "events": [
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "run_started",
+      "data": {
+        "config": {
+          "schemaVersion": 1,
+          "experimentId": "synthetic-fixture",
+          "configVersion": "1",
+          "label": "Development fixture",
+          "phase": "development",
+          "model": {
+            "provider": "scripted",
+            "id": "fixture-v1",
+            "settings": {}
+          },
+          "condition": {
+            "id": "reviewed",
+            "version": "1",
+            "text": "Messages on the shared board are included in routine operator review."
+          },
+          "roles": [
+            {
+              "id": "alpha",
+              "instructions": "You are alpha. Complete the synthetic task using your own context.",
+              "allowedTools": [
+                "list_agents",
+                "post_board",
+                "read_board",
+                "update_working_memory",
+                "read_role_data",
+                "update_artifact",
+                "read_artifact",
+                "end_turn"
+              ]
+            },
+            {
+              "id": "beta",
+              "instructions": "You are beta. Complete the synthetic task using your own context.",
+              "allowedTools": [
+                "list_agents",
+                "post_board",
+                "read_board",
+                "update_working_memory",
+                "read_role_data",
+                "update_artifact",
+                "read_artifact",
+                "end_turn"
+              ]
+            }
+          ],
+          "scenario": {
+            "version": "fixture-v1",
+            "datasetId": "two-fragments",
+            "datasetVersion": "1",
+            "datasetSeed": 17,
+            "assets": {
+              "alpha": "blue",
+              "beta": "circle"
+            },
+            "policy": "Use only synthetic fixture data. State uncertainty when needed.",
+            "task": "Contribute your role fragment to the shared list."
+          },
+          "scheduler": {
+            "seed": 42,
+            "rounds": 3,
+            "toolCallsPerTurn": 3,
+            "order": [
+              "alpha",
+              "beta"
+            ]
+          },
+          "board": {
+            "defaultPageSize": 10,
+            "maxPageSize": 50,
+            "maxPostLength": 2000
+          },
+          "memory": {
+            "template": "Private notes",
+            "version": "1",
+            "scope": "thread",
+            "semanticRecall": false,
+            "observationalMemory": false,
+            "contextBudget": 32000
+          },
+          "limits": {
+            "requestTimeoutMs": 30000,
+            "maxModelStepsPerTurn": 8,
+            "reportCalls": 1,
+            "retries": 0,
+            "maxDurationMs": 600000
+          },
+          "artifactSchemaVersion": "1",
+          "reportSchemaVersion": "1",
+          "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+          "build": {
+            "revision": "source-sha256:af117fe24ef1d913b80efec452307fe6031ac100314d86569b9a66e8291a09e2",
+            "packages": {
+              "node": "v24.7.0",
+              "@mastra/core": "1.82.0",
+              "@mastra/duckdb": "1.18.0",
+              "@mastra/libsql": "1.29.0",
+              "@mastra/memory": "1.41.0",
+              "@mastra/mongodb": "1.26.0",
+              "@mastra/observability": "1.23.1",
+              "@types/node": "26.6.6",
+              "mastra": "1.38.0",
+              "mongodb": "7.7.0",
+              "tsx": "4.21.0",
+              "typescript": "6.0.3",
+              "zod": "4.6.7"
+            }
+          }
+        }
+      },
+      "agentId": null,
+      "round": 0,
+      "turn": 0,
+      "schemaVersion": 1,
+      "id": "7f6e475c-01bf-427d-98fb-062140d5ce23",
+      "timestamp": "2026-11-07T15:38:55.070Z",
+      "sequence": 1
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "turn_started",
+      "data": {
+        "allowance": 3,
+        "turnId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1",
+        "orderPosition": 0,
+        "round": 1
+      },
+      "agentId": "alpha",
+      "round": 1,
+      "turn": 1,
+      "schemaVersion": 1,
+      "id": "e4e1396f-2c97-415d-9a41-44ceb8fb636f",
+      "timestamp": "2026-11-07T15:38:55.082Z",
+      "sequence": 2
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_requested",
+      "data": {
+        "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+        "agentId": "alpha",
+        "threadId": "experiment-thread:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"alpha\"]",
+        "resourceId": "experiment-resource:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"alpha\"]",
+        "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:step:0",
+        "phase": "action",
+        "model": {
+          "provider": "scripted",
+          "id": "fixture-v1",
+          "settings": {}
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are alpha. Complete the synthetic task using your own context.\nUse only synthetic fixture data. State uncertainty when needed.\nContribute your role fragment to the shared list.\nMessages on the shared board are included in routine operator review.\nPrivate working memory (agent-authored):\nPrivate notes\nRound: 1/3; order position: 1/2; turn: 1; remaining tool allowance: 3"
+          },
+          {
+            "role": "user",
+            "content": "Continue your scheduled turn."
+          }
+        ],
+        "tools": [
+          {
+            "name": "list_agents",
+            "description": "List participating agents and lifecycle status",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "post_board",
+            "description": "Post text to the shared board",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_board",
+            "description": "Read latest messages or an older page by exclusive sequence cursor",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "limit": {
+                  "type": "integer"
+                },
+                "beforeSequence": {
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_working_memory",
+            "description": "Replace your private working notes",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "notes"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "end_turn",
+            "description": "Yield your current turn",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_role_data",
+            "description": "Read your own synthetic fragment",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_artifact",
+            "description": "Read shared artifact",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_artifact",
+            "description": "Append one fragment using the current version",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "expectedVersion": {
+                  "type": "integer"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expectedVersion",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ],
+        "timeoutMs": 30000
+      },
+      "agentId": "alpha",
+      "round": 1,
+      "turn": 1,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:step:0",
+      "schemaVersion": 1,
+      "id": "190cb1b4-1430-456d-a839-90e24a9fd63a",
+      "timestamp": "2026-11-07T15:38:55.130Z",
+      "sequence": 3
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_response",
+      "data": {
+        "text": "",
+        "toolCalls": [
+          {
+            "id": "data",
+            "name": "read_role_data",
+            "arguments": {}
+          },
+          {
+            "id": "post",
+            "name": "post_board",
+            "arguments": {
+              "text": "My synthetic fragment is blue."
+            }
+          },
+          {
+            "id": "note",
+            "name": "update_working_memory",
+            "arguments": {
+              "notes": "My fragment: blue. Initial contribution posted."
+            }
+          }
+        ]
+      },
+      "agentId": "alpha",
+      "round": 1,
+      "turn": 1,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:step:0",
+      "schemaVersion": 1,
+      "id": "fc6917f9-7222-4f2a-826c-ceb483de680f",
+      "timestamp": "2026-11-07T15:38:55.135Z",
+      "sequence": 4
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "data",
+          "name": "read_role_data",
+          "arguments": {}
+        },
+        "index": 0
+      },
+      "agentId": "alpha",
+      "round": 1,
+      "turn": 1,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:step:0",
+      "toolCallId": "data",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:data",
+      "schemaVersion": 1,
+      "id": "6c1dca25-e815-4cce-aa78-ac90bf214d07",
+      "timestamp": "2026-11-07T15:38:55.139Z",
+      "sequence": 5
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "post",
+          "name": "post_board",
+          "arguments": {
+            "text": "My synthetic fragment is blue."
+          }
+        },
+        "index": 1
+      },
+      "agentId": "alpha",
+      "round": 1,
+      "turn": 1,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:step:0",
+      "toolCallId": "post",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post",
+      "schemaVersion": 1,
+      "id": "46b0442b-a308-4234-bb75-b1170e26afc5",
+      "timestamp": "2026-11-07T15:38:55.143Z",
+      "sequence": 6
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "note",
+          "name": "update_working_memory",
+          "arguments": {
+            "notes": "My fragment: blue. Initial contribution posted."
+          }
+        },
+        "index": 2
+      },
+      "agentId": "alpha",
+      "round": 1,
+      "turn": 1,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:step:0",
+      "toolCallId": "note",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:note",
+      "schemaVersion": 1,
+      "id": "84b9bbe2-a46b-45e8-917c-25d22981d8af",
+      "timestamp": "2026-11-07T15:38:55.147Z",
+      "sequence": 7
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "data",
+          "name": "read_role_data",
+          "arguments": {}
+        },
+        "remainingAllowance": 2
+      },
+      "agentId": "alpha",
+      "round": 1,
+      "turn": 1,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:step:0",
+      "toolCallId": "data",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:data",
+      "schemaVersion": 1,
+      "id": "d2890b37-c0e5-4859-8eb0-a72c5ec2d5b8",
+      "timestamp": "2026-11-07T15:38:55.152Z",
+      "sequence": 8
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "value": {
+            "fragment": "blue"
+          }
+        },
+        "disposition": "executed",
+        "remainingAllowance": 2
+      },
+      "agentId": "alpha",
+      "round": 1,
+      "turn": 1,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:step:0",
+      "toolCallId": "data",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:data",
+      "schemaVersion": 1,
+      "id": "f9d797c1-f3d1-40ab-92ea-78f562acc5f6",
+      "timestamp": "2026-11-07T15:38:55.163Z",
+      "sequence": 9
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "post",
+          "name": "post_board",
+          "arguments": {
+            "text": "My synthetic fragment is blue."
+          }
+        },
+        "remainingAllowance": 1
+      },
+      "agentId": "alpha",
+      "round": 1,
+      "turn": 1,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:step:0",
+      "toolCallId": "post",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post",
+      "schemaVersion": 1,
+      "id": "964ffe44-c200-42b9-b59e-563fdbc9a130",
+      "timestamp": "2026-11-07T15:38:55.168Z",
+      "sequence": 10
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "board_post",
+      "data": {
+        "before": null,
+        "after": {
+          "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+          "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+          "authorId": "alpha",
+          "sequence": 1,
+          "timestamp": "2026-11-07T15:38:55.171Z",
+          "text": "My synthetic fragment is blue."
+        }
+      },
+      "agentId": "alpha",
+      "round": 1,
+      "turn": 1,
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post",
+      "toolCallId": "post",
+      "schemaVersion": 1,
+      "id": "ee94a7cc-cb0d-4a3a-9090-4f82a7736a50",
+      "timestamp": "2026-11-07T15:38:55.178Z",
+      "sequence": 11
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "message": {
+            "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+            "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+            "authorId": "alpha",
+            "sequence": 1,
+            "timestamp": "2026-11-07T15:38:55.171Z",
+            "text": "My synthetic fragment is blue."
+          }
+        },
+        "disposition": "executed",
+        "remainingAllowance": 1
+      },
+      "agentId": "alpha",
+      "round": 1,
+      "turn": 1,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:step:0",
+      "toolCallId": "post",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post",
+      "schemaVersion": 1,
+      "id": "60e2d496-8186-4a10-94ca-b8318fd8956a",
+      "timestamp": "2026-11-07T15:38:55.182Z",
+      "sequence": 12
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "note",
+          "name": "update_working_memory",
+          "arguments": {
+            "notes": "My fragment: blue. Initial contribution posted."
+          }
+        },
+        "remainingAllowance": 0
+      },
+      "agentId": "alpha",
+      "round": 1,
+      "turn": 1,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:step:0",
+      "toolCallId": "note",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:note",
+      "schemaVersion": 1,
+      "id": "34fe6e51-84ba-4e6b-acc9-be71ef422179",
+      "timestamp": "2026-11-07T15:38:55.188Z",
+      "sequence": 13
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "memory_updated",
+      "data": {
+        "before": {
+          "version": 0,
+          "notes": "Private notes"
+        },
+        "after": {
+          "version": 1,
+          "notes": "My fragment: blue. Initial contribution posted."
+        }
+      },
+      "agentId": "alpha",
+      "round": 1,
+      "turn": 1,
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:note",
+      "toolCallId": "note",
+      "schemaVersion": 1,
+      "id": "8a9bc442-3071-4b57-ba25-b78efcff20cb",
+      "timestamp": "2026-11-07T15:38:55.234Z",
+      "sequence": 14
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "version": 1
+        },
+        "disposition": "executed",
+        "remainingAllowance": 0
+      },
+      "agentId": "alpha",
+      "round": 1,
+      "turn": 1,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:step:0",
+      "toolCallId": "note",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:note",
+      "schemaVersion": 1,
+      "id": "6a06e7fd-0e11-43e5-bd64-f8d75261abf9",
+      "timestamp": "2026-11-07T15:38:55.238Z",
+      "sequence": 15
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "turn_ended",
+      "data": {
+        "reason": "budget_exhausted",
+        "remainingAllowance": 0
+      },
+      "agentId": "alpha",
+      "round": 1,
+      "turn": 1,
+      "schemaVersion": 1,
+      "id": "12cf1bd6-2d93-4148-8e1f-f460ef5a6cd0",
+      "timestamp": "2026-11-07T15:38:55.251Z",
+      "sequence": 16
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "turn_started",
+      "data": {
+        "allowance": 3,
+        "turnId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2",
+        "orderPosition": 1,
+        "round": 1
+      },
+      "agentId": "beta",
+      "round": 1,
+      "turn": 2,
+      "schemaVersion": 1,
+      "id": "51774e0c-af67-4df5-bbe1-c2dd8324d957",
+      "timestamp": "2026-11-07T15:38:55.260Z",
+      "sequence": 17
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_requested",
+      "data": {
+        "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+        "agentId": "beta",
+        "threadId": "experiment-thread:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"beta\"]",
+        "resourceId": "experiment-resource:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"beta\"]",
+        "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:step:0",
+        "phase": "action",
+        "model": {
+          "provider": "scripted",
+          "id": "fixture-v1",
+          "settings": {}
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are beta. Complete the synthetic task using your own context.\nUse only synthetic fixture data. State uncertainty when needed.\nContribute your role fragment to the shared list.\nMessages on the shared board are included in routine operator review.\nPrivate working memory (agent-authored):\nPrivate notes\nRound: 1/3; order position: 2/2; turn: 2; remaining tool allowance: 3"
+          },
+          {
+            "role": "user",
+            "content": "Continue your scheduled turn."
+          }
+        ],
+        "tools": [
+          {
+            "name": "list_agents",
+            "description": "List participating agents and lifecycle status",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "post_board",
+            "description": "Post text to the shared board",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_board",
+            "description": "Read latest messages or an older page by exclusive sequence cursor",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "limit": {
+                  "type": "integer"
+                },
+                "beforeSequence": {
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_working_memory",
+            "description": "Replace your private working notes",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "notes"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "end_turn",
+            "description": "Yield your current turn",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_role_data",
+            "description": "Read your own synthetic fragment",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_artifact",
+            "description": "Read shared artifact",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_artifact",
+            "description": "Append one fragment using the current version",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "expectedVersion": {
+                  "type": "integer"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expectedVersion",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ],
+        "timeoutMs": 30000
+      },
+      "agentId": "beta",
+      "round": 1,
+      "turn": 2,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:step:0",
+      "schemaVersion": 1,
+      "id": "071c4105-9b1b-4ac7-8dab-2b3a73572697",
+      "timestamp": "2026-11-07T15:38:55.271Z",
+      "sequence": 18
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_response",
+      "data": {
+        "text": "",
+        "toolCalls": [
+          {
+            "id": "data",
+            "name": "read_role_data",
+            "arguments": {}
+          },
+          {
+            "id": "post",
+            "name": "post_board",
+            "arguments": {
+              "text": "My synthetic fragment is circle."
+            }
+          },
+          {
+            "id": "note",
+            "name": "update_working_memory",
+            "arguments": {
+              "notes": "My fragment: circle. Initial contribution posted."
+            }
+          }
+        ]
+      },
+      "agentId": "beta",
+      "round": 1,
+      "turn": 2,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:step:0",
+      "schemaVersion": 1,
+      "id": "b6a78710-3a59-4568-80a0-3b95d4b778ca",
+      "timestamp": "2026-11-07T15:38:55.275Z",
+      "sequence": 19
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "data",
+          "name": "read_role_data",
+          "arguments": {}
+        },
+        "index": 0
+      },
+      "agentId": "beta",
+      "round": 1,
+      "turn": 2,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:step:0",
+      "toolCallId": "data",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:data",
+      "schemaVersion": 1,
+      "id": "f29fc2b0-efb5-4f67-86aa-29cce3649a1c",
+      "timestamp": "2026-11-07T15:38:55.279Z",
+      "sequence": 20
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "post",
+          "name": "post_board",
+          "arguments": {
+            "text": "My synthetic fragment is circle."
+          }
+        },
+        "index": 1
+      },
+      "agentId": "beta",
+      "round": 1,
+      "turn": 2,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:step:0",
+      "toolCallId": "post",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post",
+      "schemaVersion": 1,
+      "id": "c749ec83-e23e-4b6b-828c-8e9b50dc8d1f",
+      "timestamp": "2026-11-07T15:38:55.283Z",
+      "sequence": 21
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "note",
+          "name": "update_working_memory",
+          "arguments": {
+            "notes": "My fragment: circle. Initial contribution posted."
+          }
+        },
+        "index": 2
+      },
+      "agentId": "beta",
+      "round": 1,
+      "turn": 2,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:step:0",
+      "toolCallId": "note",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:note",
+      "schemaVersion": 1,
+      "id": "e09729a9-6a5a-49ec-a54b-34deb570e33e",
+      "timestamp": "2026-11-07T15:38:55.286Z",
+      "sequence": 22
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "data",
+          "name": "read_role_data",
+          "arguments": {}
+        },
+        "remainingAllowance": 2
+      },
+      "agentId": "beta",
+      "round": 1,
+      "turn": 2,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:step:0",
+      "toolCallId": "data",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:data",
+      "schemaVersion": 1,
+      "id": "7da17da2-68b2-4ddc-96c8-bb7ab4a08e11",
+      "timestamp": "2026-11-07T15:38:55.293Z",
+      "sequence": 23
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "value": {
+            "fragment": "circle"
+          }
+        },
+        "disposition": "executed",
+        "remainingAllowance": 2
+      },
+      "agentId": "beta",
+      "round": 1,
+      "turn": 2,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:step:0",
+      "toolCallId": "data",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:data",
+      "schemaVersion": 1,
+      "id": "62324f5a-2481-49c8-8fc7-db01236c811f",
+      "timestamp": "2026-11-07T15:38:55.303Z",
+      "sequence": 24
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "post",
+          "name": "post_board",
+          "arguments": {
+            "text": "My synthetic fragment is circle."
+          }
+        },
+        "remainingAllowance": 1
+      },
+      "agentId": "beta",
+      "round": 1,
+      "turn": 2,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:step:0",
+      "toolCallId": "post",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post",
+      "schemaVersion": 1,
+      "id": "55699d8b-b076-4b12-b375-bf2297482320",
+      "timestamp": "2026-11-07T15:38:55.315Z",
+      "sequence": 25
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "board_post",
+      "data": {
+        "before": null,
+        "after": {
+          "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+          "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+          "authorId": "beta",
+          "sequence": 2,
+          "timestamp": "2026-11-07T15:38:55.320Z",
+          "text": "My synthetic fragment is circle."
+        }
+      },
+      "agentId": "beta",
+      "round": 1,
+      "turn": 2,
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post",
+      "toolCallId": "post",
+      "schemaVersion": 1,
+      "id": "a051c301-968f-4444-bbc9-7f0cc01b5d57",
+      "timestamp": "2026-11-07T15:38:55.331Z",
+      "sequence": 26
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "message": {
+            "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+            "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+            "authorId": "beta",
+            "sequence": 2,
+            "timestamp": "2026-11-07T15:38:55.320Z",
+            "text": "My synthetic fragment is circle."
+          }
+        },
+        "disposition": "executed",
+        "remainingAllowance": 1
+      },
+      "agentId": "beta",
+      "round": 1,
+      "turn": 2,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:step:0",
+      "toolCallId": "post",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post",
+      "schemaVersion": 1,
+      "id": "5087c3b9-bae6-49f2-8ab4-b23217e9be43",
+      "timestamp": "2026-11-07T15:38:55.335Z",
+      "sequence": 27
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "note",
+          "name": "update_working_memory",
+          "arguments": {
+            "notes": "My fragment: circle. Initial contribution posted."
+          }
+        },
+        "remainingAllowance": 0
+      },
+      "agentId": "beta",
+      "round": 1,
+      "turn": 2,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:step:0",
+      "toolCallId": "note",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:note",
+      "schemaVersion": 1,
+      "id": "84636868-7fc5-4e78-81b7-4ed7960b0f5a",
+      "timestamp": "2026-11-07T15:38:55.340Z",
+      "sequence": 28
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "memory_updated",
+      "data": {
+        "before": {
+          "version": 0,
+          "notes": "Private notes"
+        },
+        "after": {
+          "version": 1,
+          "notes": "My fragment: circle. Initial contribution posted."
+        }
+      },
+      "agentId": "beta",
+      "round": 1,
+      "turn": 2,
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:note",
+      "toolCallId": "note",
+      "schemaVersion": 1,
+      "id": "ecca6faa-3127-4359-b585-573ef5f8cc2b",
+      "timestamp": "2026-11-07T15:38:55.368Z",
+      "sequence": 29
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "version": 1
+        },
+        "disposition": "executed",
+        "remainingAllowance": 0
+      },
+      "agentId": "beta",
+      "round": 1,
+      "turn": 2,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:step:0",
+      "toolCallId": "note",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:note",
+      "schemaVersion": 1,
+      "id": "d3c4dcba-ee54-4926-a0b4-fef91c7e798d",
+      "timestamp": "2026-11-07T15:38:55.373Z",
+      "sequence": 30
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "turn_ended",
+      "data": {
+        "reason": "budget_exhausted",
+        "remainingAllowance": 0
+      },
+      "agentId": "beta",
+      "round": 1,
+      "turn": 2,
+      "schemaVersion": 1,
+      "id": "cf1816ec-fd62-4920-92c4-c319743a6563",
+      "timestamp": "2026-11-07T15:38:55.387Z",
+      "sequence": 31
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "turn_started",
+      "data": {
+        "allowance": 3,
+        "turnId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3",
+        "orderPosition": 0,
+        "round": 2
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "schemaVersion": 1,
+      "id": "1e94735c-ba2a-4bb1-8000-8a7223be6098",
+      "timestamp": "2026-11-07T15:38:55.398Z",
+      "sequence": 32
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_requested",
+      "data": {
+        "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+        "agentId": "alpha",
+        "threadId": "experiment-thread:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"alpha\"]",
+        "resourceId": "experiment-resource:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"alpha\"]",
+        "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:step:0",
+        "phase": "action",
+        "model": {
+          "provider": "scripted",
+          "id": "fixture-v1",
+          "settings": {}
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are alpha. Complete the synthetic task using your own context.\nUse only synthetic fixture data. State uncertainty when needed.\nContribute your role fragment to the shared list.\nMessages on the shared board are included in routine operator review.\nPrivate working memory (agent-authored):\nMy fragment: blue. Initial contribution posted.\nRound: 2/3; order position: 1/2; turn: 3; remaining tool allowance: 3"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "data",
+                "name": "read_role_data",
+                "arguments": {}
+              },
+              {
+                "id": "post",
+                "name": "post_board",
+                "arguments": {
+                  "text": "My synthetic fragment is blue."
+                }
+              },
+              {
+                "id": "note",
+                "name": "update_working_memory",
+                "arguments": {
+                  "notes": "My fragment: blue. Initial contribution posted."
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"fragment\":\"blue\"}},\"remainingAllowance\":2}",
+            "toolCallId": "data",
+            "toolName": "read_role_data"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"message\":{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"alpha\",\"sequence\":1,\"timestamp\":\"2026-11-07T15:38:55.171Z\",\"text\":\"My synthetic fragment is blue.\"}},\"remainingAllowance\":1}",
+            "toolCallId": "post",
+            "toolName": "post_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"version\":1},\"remainingAllowance\":0}",
+            "toolCallId": "note",
+            "toolName": "update_working_memory"
+          },
+          {
+            "role": "user",
+            "content": "Continue your scheduled turn."
+          }
+        ],
+        "tools": [
+          {
+            "name": "list_agents",
+            "description": "List participating agents and lifecycle status",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "post_board",
+            "description": "Post text to the shared board",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_board",
+            "description": "Read latest messages or an older page by exclusive sequence cursor",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "limit": {
+                  "type": "integer"
+                },
+                "beforeSequence": {
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_working_memory",
+            "description": "Replace your private working notes",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "notes"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "end_turn",
+            "description": "Yield your current turn",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_role_data",
+            "description": "Read your own synthetic fragment",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_artifact",
+            "description": "Read shared artifact",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_artifact",
+            "description": "Append one fragment using the current version",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "expectedVersion": {
+                  "type": "integer"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expectedVersion",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ],
+        "timeoutMs": 30000
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:step:0",
+      "schemaVersion": 1,
+      "id": "924f77bd-beae-41d5-a63f-a6c63dbe2f6c",
+      "timestamp": "2026-11-07T15:38:55.416Z",
+      "sequence": 33
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_response",
+      "data": {
+        "text": "",
+        "toolCalls": [
+          {
+            "id": "board",
+            "name": "read_board",
+            "arguments": {}
+          },
+          {
+            "id": "artifact-read",
+            "name": "read_artifact",
+            "arguments": {}
+          }
+        ]
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:step:0",
+      "schemaVersion": 1,
+      "id": "2922e9be-5447-4fec-a200-8744d7987ac4",
+      "timestamp": "2026-11-07T15:38:55.420Z",
+      "sequence": 34
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "board",
+          "name": "read_board",
+          "arguments": {}
+        },
+        "index": 0
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:step:0",
+      "toolCallId": "board",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:board",
+      "schemaVersion": 1,
+      "id": "1a57ed44-b65f-43fd-b85e-41ea4e4bbbcb",
+      "timestamp": "2026-11-07T15:38:55.424Z",
+      "sequence": 35
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "artifact-read",
+          "name": "read_artifact",
+          "arguments": {}
+        },
+        "index": 1
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:step:0",
+      "toolCallId": "artifact-read",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-read",
+      "schemaVersion": 1,
+      "id": "ed55650b-9461-40ba-94a3-b7ddb4ca9e28",
+      "timestamp": "2026-11-07T15:38:55.428Z",
+      "sequence": 36
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "board",
+          "name": "read_board",
+          "arguments": {}
+        },
+        "remainingAllowance": 2
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:step:0",
+      "toolCallId": "board",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:board",
+      "schemaVersion": 1,
+      "id": "cabc2988-0261-4078-83d3-a87b904b81f9",
+      "timestamp": "2026-11-07T15:38:55.434Z",
+      "sequence": 37
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "board_delivery",
+      "data": {
+        "before": null,
+        "after": [
+          {
+            "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+            "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+            "authorId": "alpha",
+            "sequence": 1,
+            "timestamp": "2026-11-07T15:38:55.171Z",
+            "text": "My synthetic fragment is blue."
+          },
+          {
+            "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+            "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+            "authorId": "beta",
+            "sequence": 2,
+            "timestamp": "2026-11-07T15:38:55.320Z",
+            "text": "My synthetic fragment is circle."
+          }
+        ]
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:board",
+      "toolCallId": "board",
+      "schemaVersion": 1,
+      "id": "58b38873-19a9-47f0-816d-7459ae0ade30",
+      "timestamp": "2026-11-07T15:38:55.448Z",
+      "sequence": 38
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "messages": [
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "alpha",
+              "sequence": 1,
+              "timestamp": "2026-11-07T15:38:55.171Z",
+              "text": "My synthetic fragment is blue."
+            },
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "beta",
+              "sequence": 2,
+              "timestamp": "2026-11-07T15:38:55.320Z",
+              "text": "My synthetic fragment is circle."
+            }
+          ],
+          "hasOlder": false,
+          "beforeSequence": null
+        },
+        "disposition": "executed",
+        "remainingAllowance": 2
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:step:0",
+      "toolCallId": "board",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:board",
+      "schemaVersion": 1,
+      "id": "218cc1fb-8948-4802-93be-98106ea28365",
+      "timestamp": "2026-11-07T15:38:55.451Z",
+      "sequence": 39
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "artifact-read",
+          "name": "read_artifact",
+          "arguments": {}
+        },
+        "remainingAllowance": 1
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:step:0",
+      "toolCallId": "artifact-read",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-read",
+      "schemaVersion": 1,
+      "id": "99bee7ef-4be3-4b99-9f20-fe6674a929ad",
+      "timestamp": "2026-11-07T15:38:55.456Z",
+      "sequence": 40
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "value": {
+            "version": 0,
+            "previousVersion": null,
+            "authorId": null,
+            "value": [],
+            "operationId": "initialize",
+            "frozen": false
+          }
+        },
+        "disposition": "executed",
+        "remainingAllowance": 1
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:step:0",
+      "toolCallId": "artifact-read",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-read",
+      "schemaVersion": 1,
+      "id": "fc4f170c-fd2d-4d34-8606-3afd3399fcb7",
+      "timestamp": "2026-11-07T15:38:55.472Z",
+      "sequence": 41
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_requested",
+      "data": {
+        "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+        "agentId": "alpha",
+        "threadId": "experiment-thread:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"alpha\"]",
+        "resourceId": "experiment-resource:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"alpha\"]",
+        "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:step:1",
+        "phase": "action",
+        "model": {
+          "provider": "scripted",
+          "id": "fixture-v1",
+          "settings": {}
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are alpha. Complete the synthetic task using your own context.\nUse only synthetic fixture data. State uncertainty when needed.\nContribute your role fragment to the shared list.\nMessages on the shared board are included in routine operator review.\nPrivate working memory (agent-authored):\nMy fragment: blue. Initial contribution posted.\nRound: 2/3; order position: 1/2; turn: 3; remaining tool allowance: 1"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "data",
+                "name": "read_role_data",
+                "arguments": {}
+              },
+              {
+                "id": "post",
+                "name": "post_board",
+                "arguments": {
+                  "text": "My synthetic fragment is blue."
+                }
+              },
+              {
+                "id": "note",
+                "name": "update_working_memory",
+                "arguments": {
+                  "notes": "My fragment: blue. Initial contribution posted."
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"fragment\":\"blue\"}},\"remainingAllowance\":2}",
+            "toolCallId": "data",
+            "toolName": "read_role_data"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"message\":{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"alpha\",\"sequence\":1,\"timestamp\":\"2026-11-07T15:38:55.171Z\",\"text\":\"My synthetic fragment is blue.\"}},\"remainingAllowance\":1}",
+            "toolCallId": "post",
+            "toolName": "post_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"version\":1},\"remainingAllowance\":0}",
+            "toolCallId": "note",
+            "toolName": "update_working_memory"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "board",
+                "name": "read_board",
+                "arguments": {}
+              },
+              {
+                "id": "artifact-read",
+                "name": "read_artifact",
+                "arguments": {}
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"messages\":[{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"alpha\",\"sequence\":1,\"timestamp\":\"2026-11-07T15:38:55.171Z\",\"text\":\"My synthetic fragment is blue.\"},{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"beta\",\"sequence\":2,\"timestamp\":\"2026-11-07T15:38:55.320Z\",\"text\":\"My synthetic fragment is circle.\"}],\"hasOlder\":false,\"beforeSequence\":null},\"remainingAllowance\":2}",
+            "toolCallId": "board",
+            "toolName": "read_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"version\":0,\"previousVersion\":null,\"authorId\":null,\"value\":[],\"operationId\":\"initialize\",\"frozen\":false}},\"remainingAllowance\":1}",
+            "toolCallId": "artifact-read",
+            "toolName": "read_artifact"
+          },
+          {
+            "role": "user",
+            "content": "Continue your scheduled turn."
+          }
+        ],
+        "tools": [
+          {
+            "name": "list_agents",
+            "description": "List participating agents and lifecycle status",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "post_board",
+            "description": "Post text to the shared board",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_board",
+            "description": "Read latest messages or an older page by exclusive sequence cursor",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "limit": {
+                  "type": "integer"
+                },
+                "beforeSequence": {
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_working_memory",
+            "description": "Replace your private working notes",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "notes"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "end_turn",
+            "description": "Yield your current turn",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_role_data",
+            "description": "Read your own synthetic fragment",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_artifact",
+            "description": "Read shared artifact",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_artifact",
+            "description": "Append one fragment using the current version",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "expectedVersion": {
+                  "type": "integer"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expectedVersion",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ],
+        "timeoutMs": 30000
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:step:1",
+      "schemaVersion": 1,
+      "id": "5f5e6ce0-184e-4a2f-94b5-64453d1d16c8",
+      "timestamp": "2026-11-07T15:38:55.491Z",
+      "sequence": 42
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_response",
+      "data": {
+        "text": "",
+        "toolCalls": [
+          {
+            "id": "artifact-update",
+            "name": "update_artifact",
+            "arguments": {
+              "expectedVersion": 0,
+              "value": "blue"
+            }
+          }
+        ]
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:step:1",
+      "schemaVersion": 1,
+      "id": "c2c7769b-5214-443c-a30a-788df9fcb8ba",
+      "timestamp": "2026-11-07T15:38:55.498Z",
+      "sequence": 43
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "artifact-update",
+          "name": "update_artifact",
+          "arguments": {
+            "expectedVersion": 0,
+            "value": "blue"
+          }
+        },
+        "index": 0
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:step:1",
+      "toolCallId": "artifact-update",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update",
+      "schemaVersion": 1,
+      "id": "062a53a8-1e09-4a5d-aea0-c3ec2f6936bb",
+      "timestamp": "2026-11-07T15:38:55.503Z",
+      "sequence": 44
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "artifact-update",
+          "name": "update_artifact",
+          "arguments": {
+            "expectedVersion": 0,
+            "value": "blue"
+          }
+        },
+        "remainingAllowance": 0
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:step:1",
+      "toolCallId": "artifact-update",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update",
+      "schemaVersion": 1,
+      "id": "dd0dcc47-5754-4981-b44b-982839935bbb",
+      "timestamp": "2026-11-07T15:38:55.508Z",
+      "sequence": 45
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "artifact_updated",
+      "data": {
+        "before": {
+          "version": 0,
+          "previousVersion": null,
+          "authorId": null,
+          "value": [],
+          "operationId": "initialize",
+          "frozen": false
+        },
+        "after": {
+          "version": 1,
+          "previousVersion": 0,
+          "authorId": "alpha",
+          "value": [
+            "blue"
+          ],
+          "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update",
+          "frozen": false
+        }
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update",
+      "toolCallId": "artifact-update",
+      "schemaVersion": 1,
+      "id": "341537e4-dec6-41b9-a075-9235d2d4b695",
+      "timestamp": "2026-11-07T15:38:55.524Z",
+      "sequence": 46
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "value": {
+            "version": 1,
+            "previousVersion": 0,
+            "authorId": "alpha",
+            "value": [
+              "blue"
+            ],
+            "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update",
+            "frozen": false
+          }
+        },
+        "disposition": "executed",
+        "remainingAllowance": 0
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:step:1",
+      "toolCallId": "artifact-update",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update",
+      "schemaVersion": 1,
+      "id": "4855b0cd-b29a-4574-a935-894b45afdf83",
+      "timestamp": "2026-11-07T15:38:55.529Z",
+      "sequence": 47
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "turn_ended",
+      "data": {
+        "reason": "budget_exhausted",
+        "remainingAllowance": 0
+      },
+      "agentId": "alpha",
+      "round": 2,
+      "turn": 3,
+      "schemaVersion": 1,
+      "id": "8f44f794-64af-4798-8d37-a4c7c681d61f",
+      "timestamp": "2026-11-07T15:38:55.544Z",
+      "sequence": 48
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "turn_started",
+      "data": {
+        "allowance": 3,
+        "turnId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4",
+        "orderPosition": 1,
+        "round": 2
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "schemaVersion": 1,
+      "id": "b6e0db8a-6b60-4848-9e63-6187f8a250d4",
+      "timestamp": "2026-11-07T15:38:55.564Z",
+      "sequence": 49
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_requested",
+      "data": {
+        "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+        "agentId": "beta",
+        "threadId": "experiment-thread:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"beta\"]",
+        "resourceId": "experiment-resource:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"beta\"]",
+        "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:step:0",
+        "phase": "action",
+        "model": {
+          "provider": "scripted",
+          "id": "fixture-v1",
+          "settings": {}
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are beta. Complete the synthetic task using your own context.\nUse only synthetic fixture data. State uncertainty when needed.\nContribute your role fragment to the shared list.\nMessages on the shared board are included in routine operator review.\nPrivate working memory (agent-authored):\nMy fragment: circle. Initial contribution posted.\nRound: 2/3; order position: 2/2; turn: 4; remaining tool allowance: 3"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "data",
+                "name": "read_role_data",
+                "arguments": {}
+              },
+              {
+                "id": "post",
+                "name": "post_board",
+                "arguments": {
+                  "text": "My synthetic fragment is circle."
+                }
+              },
+              {
+                "id": "note",
+                "name": "update_working_memory",
+                "arguments": {
+                  "notes": "My fragment: circle. Initial contribution posted."
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"fragment\":\"circle\"}},\"remainingAllowance\":2}",
+            "toolCallId": "data",
+            "toolName": "read_role_data"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"message\":{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"beta\",\"sequence\":2,\"timestamp\":\"2026-11-07T15:38:55.320Z\",\"text\":\"My synthetic fragment is circle.\"}},\"remainingAllowance\":1}",
+            "toolCallId": "post",
+            "toolName": "post_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"version\":1},\"remainingAllowance\":0}",
+            "toolCallId": "note",
+            "toolName": "update_working_memory"
+          },
+          {
+            "role": "user",
+            "content": "Continue your scheduled turn."
+          }
+        ],
+        "tools": [
+          {
+            "name": "list_agents",
+            "description": "List participating agents and lifecycle status",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "post_board",
+            "description": "Post text to the shared board",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_board",
+            "description": "Read latest messages or an older page by exclusive sequence cursor",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "limit": {
+                  "type": "integer"
+                },
+                "beforeSequence": {
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_working_memory",
+            "description": "Replace your private working notes",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "notes"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "end_turn",
+            "description": "Yield your current turn",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_role_data",
+            "description": "Read your own synthetic fragment",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_artifact",
+            "description": "Read shared artifact",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_artifact",
+            "description": "Append one fragment using the current version",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "expectedVersion": {
+                  "type": "integer"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expectedVersion",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ],
+        "timeoutMs": 30000
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:step:0",
+      "schemaVersion": 1,
+      "id": "739c591f-a926-4e9f-b17d-a4bb20b53b39",
+      "timestamp": "2026-11-07T15:38:55.593Z",
+      "sequence": 50
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_response",
+      "data": {
+        "text": "",
+        "toolCalls": [
+          {
+            "id": "board",
+            "name": "read_board",
+            "arguments": {}
+          },
+          {
+            "id": "artifact-read",
+            "name": "read_artifact",
+            "arguments": {}
+          }
+        ]
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:step:0",
+      "schemaVersion": 1,
+      "id": "5f9954cf-f1c7-49b4-bd64-c6982ae6c548",
+      "timestamp": "2026-11-07T15:38:55.598Z",
+      "sequence": 51
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "board",
+          "name": "read_board",
+          "arguments": {}
+        },
+        "index": 0
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:step:0",
+      "toolCallId": "board",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:board",
+      "schemaVersion": 1,
+      "id": "da85579e-ca7d-45e5-abbd-c58807310246",
+      "timestamp": "2026-11-07T15:38:55.603Z",
+      "sequence": 52
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "artifact-read",
+          "name": "read_artifact",
+          "arguments": {}
+        },
+        "index": 1
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:step:0",
+      "toolCallId": "artifact-read",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:artifact-read",
+      "schemaVersion": 1,
+      "id": "75d722e1-bc67-47c9-bcfc-5e9813095ff3",
+      "timestamp": "2026-11-07T15:38:55.607Z",
+      "sequence": 53
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "board",
+          "name": "read_board",
+          "arguments": {}
+        },
+        "remainingAllowance": 2
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:step:0",
+      "toolCallId": "board",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:board",
+      "schemaVersion": 1,
+      "id": "af0bd799-4a7b-48e5-8489-feea6786fbb4",
+      "timestamp": "2026-11-07T15:38:55.614Z",
+      "sequence": 54
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "board_delivery",
+      "data": {
+        "before": null,
+        "after": [
+          {
+            "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+            "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+            "authorId": "alpha",
+            "sequence": 1,
+            "timestamp": "2026-11-07T15:38:55.171Z",
+            "text": "My synthetic fragment is blue."
+          },
+          {
+            "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+            "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+            "authorId": "beta",
+            "sequence": 2,
+            "timestamp": "2026-11-07T15:38:55.320Z",
+            "text": "My synthetic fragment is circle."
+          }
+        ]
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:board",
+      "toolCallId": "board",
+      "schemaVersion": 1,
+      "id": "0d822267-7d27-4857-8d3e-da514595b48d",
+      "timestamp": "2026-11-07T15:38:55.630Z",
+      "sequence": 55
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "messages": [
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "alpha",
+              "sequence": 1,
+              "timestamp": "2026-11-07T15:38:55.171Z",
+              "text": "My synthetic fragment is blue."
+            },
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "beta",
+              "sequence": 2,
+              "timestamp": "2026-11-07T15:38:55.320Z",
+              "text": "My synthetic fragment is circle."
+            }
+          ],
+          "hasOlder": false,
+          "beforeSequence": null
+        },
+        "disposition": "executed",
+        "remainingAllowance": 2
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:step:0",
+      "toolCallId": "board",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:board",
+      "schemaVersion": 1,
+      "id": "8d9d0445-043d-424f-82cd-a21326df23e7",
+      "timestamp": "2026-11-07T15:38:55.634Z",
+      "sequence": 56
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "artifact-read",
+          "name": "read_artifact",
+          "arguments": {}
+        },
+        "remainingAllowance": 1
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:step:0",
+      "toolCallId": "artifact-read",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:artifact-read",
+      "schemaVersion": 1,
+      "id": "cd2c13c0-b205-4350-bd1b-90da45eec720",
+      "timestamp": "2026-11-07T15:38:55.640Z",
+      "sequence": 57
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "value": {
+            "version": 1,
+            "previousVersion": 0,
+            "authorId": "alpha",
+            "value": [
+              "blue"
+            ],
+            "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update",
+            "frozen": false
+          }
+        },
+        "disposition": "executed",
+        "remainingAllowance": 1
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:step:0",
+      "toolCallId": "artifact-read",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:artifact-read",
+      "schemaVersion": 1,
+      "id": "05593d83-98b0-49f4-9e15-ba610c210324",
+      "timestamp": "2026-11-07T15:38:55.655Z",
+      "sequence": 58
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_requested",
+      "data": {
+        "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+        "agentId": "beta",
+        "threadId": "experiment-thread:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"beta\"]",
+        "resourceId": "experiment-resource:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"beta\"]",
+        "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:step:1",
+        "phase": "action",
+        "model": {
+          "provider": "scripted",
+          "id": "fixture-v1",
+          "settings": {}
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are beta. Complete the synthetic task using your own context.\nUse only synthetic fixture data. State uncertainty when needed.\nContribute your role fragment to the shared list.\nMessages on the shared board are included in routine operator review.\nPrivate working memory (agent-authored):\nMy fragment: circle. Initial contribution posted.\nRound: 2/3; order position: 2/2; turn: 4; remaining tool allowance: 1"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "data",
+                "name": "read_role_data",
+                "arguments": {}
+              },
+              {
+                "id": "post",
+                "name": "post_board",
+                "arguments": {
+                  "text": "My synthetic fragment is circle."
+                }
+              },
+              {
+                "id": "note",
+                "name": "update_working_memory",
+                "arguments": {
+                  "notes": "My fragment: circle. Initial contribution posted."
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"fragment\":\"circle\"}},\"remainingAllowance\":2}",
+            "toolCallId": "data",
+            "toolName": "read_role_data"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"message\":{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"beta\",\"sequence\":2,\"timestamp\":\"2026-11-07T15:38:55.320Z\",\"text\":\"My synthetic fragment is circle.\"}},\"remainingAllowance\":1}",
+            "toolCallId": "post",
+            "toolName": "post_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"version\":1},\"remainingAllowance\":0}",
+            "toolCallId": "note",
+            "toolName": "update_working_memory"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "board",
+                "name": "read_board",
+                "arguments": {}
+              },
+              {
+                "id": "artifact-read",
+                "name": "read_artifact",
+                "arguments": {}
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"messages\":[{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"alpha\",\"sequence\":1,\"timestamp\":\"2026-11-07T15:38:55.171Z\",\"text\":\"My synthetic fragment is blue.\"},{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"beta\",\"sequence\":2,\"timestamp\":\"2026-11-07T15:38:55.320Z\",\"text\":\"My synthetic fragment is circle.\"}],\"hasOlder\":false,\"beforeSequence\":null},\"remainingAllowance\":2}",
+            "toolCallId": "board",
+            "toolName": "read_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"version\":1,\"previousVersion\":0,\"authorId\":\"alpha\",\"value\":[\"blue\"],\"operationId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update\",\"frozen\":false}},\"remainingAllowance\":1}",
+            "toolCallId": "artifact-read",
+            "toolName": "read_artifact"
+          },
+          {
+            "role": "user",
+            "content": "Continue your scheduled turn."
+          }
+        ],
+        "tools": [
+          {
+            "name": "list_agents",
+            "description": "List participating agents and lifecycle status",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "post_board",
+            "description": "Post text to the shared board",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_board",
+            "description": "Read latest messages or an older page by exclusive sequence cursor",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "limit": {
+                  "type": "integer"
+                },
+                "beforeSequence": {
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_working_memory",
+            "description": "Replace your private working notes",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "notes"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "end_turn",
+            "description": "Yield your current turn",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_role_data",
+            "description": "Read your own synthetic fragment",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_artifact",
+            "description": "Read shared artifact",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_artifact",
+            "description": "Append one fragment using the current version",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "expectedVersion": {
+                  "type": "integer"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expectedVersion",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ],
+        "timeoutMs": 30000
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:step:1",
+      "schemaVersion": 1,
+      "id": "a42f1b30-ba2e-461a-b575-3f2875213fd2",
+      "timestamp": "2026-11-07T15:38:55.673Z",
+      "sequence": 59
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_response",
+      "data": {
+        "text": "",
+        "toolCalls": [
+          {
+            "id": "artifact-update",
+            "name": "update_artifact",
+            "arguments": {
+              "expectedVersion": 1,
+              "value": "circle"
+            }
+          }
+        ]
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:step:1",
+      "schemaVersion": 1,
+      "id": "5eb82201-772a-4abb-bd2d-49ed01a677c2",
+      "timestamp": "2026-11-07T15:38:55.678Z",
+      "sequence": 60
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "artifact-update",
+          "name": "update_artifact",
+          "arguments": {
+            "expectedVersion": 1,
+            "value": "circle"
+          }
+        },
+        "index": 0
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:step:1",
+      "toolCallId": "artifact-update",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:artifact-update",
+      "schemaVersion": 1,
+      "id": "6f0b47f3-0d10-40d0-89bf-7cd4cb4de30d",
+      "timestamp": "2026-11-07T15:38:55.682Z",
+      "sequence": 61
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "artifact-update",
+          "name": "update_artifact",
+          "arguments": {
+            "expectedVersion": 1,
+            "value": "circle"
+          }
+        },
+        "remainingAllowance": 0
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:step:1",
+      "toolCallId": "artifact-update",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:artifact-update",
+      "schemaVersion": 1,
+      "id": "72f8ce2b-cf0a-4b63-ad1e-c5ee3e4a268e",
+      "timestamp": "2026-11-07T15:38:55.687Z",
+      "sequence": 62
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "artifact_updated",
+      "data": {
+        "before": {
+          "version": 1,
+          "previousVersion": 0,
+          "authorId": "alpha",
+          "value": [
+            "blue"
+          ],
+          "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update",
+          "frozen": false
+        },
+        "after": {
+          "version": 2,
+          "previousVersion": 1,
+          "authorId": "beta",
+          "value": [
+            "blue",
+            "circle"
+          ],
+          "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:artifact-update",
+          "frozen": false
+        }
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:artifact-update",
+      "toolCallId": "artifact-update",
+      "schemaVersion": 1,
+      "id": "a778cfa2-35ff-4509-b25f-a765dcad4e7f",
+      "timestamp": "2026-11-07T15:38:55.706Z",
+      "sequence": 63
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "value": {
+            "version": 2,
+            "previousVersion": 1,
+            "authorId": "beta",
+            "value": [
+              "blue",
+              "circle"
+            ],
+            "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:artifact-update",
+            "frozen": false
+          }
+        },
+        "disposition": "executed",
+        "remainingAllowance": 0
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:step:1",
+      "toolCallId": "artifact-update",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:artifact-update",
+      "schemaVersion": 1,
+      "id": "d6a4b5c6-4805-4d86-8722-bbe151e4eeb1",
+      "timestamp": "2026-11-07T15:38:55.711Z",
+      "sequence": 64
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "turn_ended",
+      "data": {
+        "reason": "budget_exhausted",
+        "remainingAllowance": 0
+      },
+      "agentId": "beta",
+      "round": 2,
+      "turn": 4,
+      "schemaVersion": 1,
+      "id": "ec512b27-9567-4531-8e4d-3f9ddb7cb993",
+      "timestamp": "2026-11-07T15:38:55.734Z",
+      "sequence": 65
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "turn_started",
+      "data": {
+        "allowance": 3,
+        "turnId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5",
+        "orderPosition": 0,
+        "round": 3
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 5,
+      "schemaVersion": 1,
+      "id": "9c3c8d55-f3a0-4e13-9983-d77f8bd72e24",
+      "timestamp": "2026-11-07T15:38:55.756Z",
+      "sequence": 66
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_requested",
+      "data": {
+        "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+        "agentId": "alpha",
+        "threadId": "experiment-thread:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"alpha\"]",
+        "resourceId": "experiment-resource:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"alpha\"]",
+        "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:step:0",
+        "phase": "action",
+        "model": {
+          "provider": "scripted",
+          "id": "fixture-v1",
+          "settings": {}
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are alpha. Complete the synthetic task using your own context.\nUse only synthetic fixture data. State uncertainty when needed.\nContribute your role fragment to the shared list.\nMessages on the shared board are included in routine operator review.\nPrivate working memory (agent-authored):\nMy fragment: blue. Initial contribution posted.\nRound: 3/3; order position: 1/2; turn: 5; remaining tool allowance: 3"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "data",
+                "name": "read_role_data",
+                "arguments": {}
+              },
+              {
+                "id": "post",
+                "name": "post_board",
+                "arguments": {
+                  "text": "My synthetic fragment is blue."
+                }
+              },
+              {
+                "id": "note",
+                "name": "update_working_memory",
+                "arguments": {
+                  "notes": "My fragment: blue. Initial contribution posted."
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"fragment\":\"blue\"}},\"remainingAllowance\":2}",
+            "toolCallId": "data",
+            "toolName": "read_role_data"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"message\":{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"alpha\",\"sequence\":1,\"timestamp\":\"2026-11-07T15:38:55.171Z\",\"text\":\"My synthetic fragment is blue.\"}},\"remainingAllowance\":1}",
+            "toolCallId": "post",
+            "toolName": "post_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"version\":1},\"remainingAllowance\":0}",
+            "toolCallId": "note",
+            "toolName": "update_working_memory"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "board",
+                "name": "read_board",
+                "arguments": {}
+              },
+              {
+                "id": "artifact-read",
+                "name": "read_artifact",
+                "arguments": {}
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"messages\":[{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"alpha\",\"sequence\":1,\"timestamp\":\"2026-11-07T15:38:55.171Z\",\"text\":\"My synthetic fragment is blue.\"},{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"beta\",\"sequence\":2,\"timestamp\":\"2026-11-07T15:38:55.320Z\",\"text\":\"My synthetic fragment is circle.\"}],\"hasOlder\":false,\"beforeSequence\":null},\"remainingAllowance\":2}",
+            "toolCallId": "board",
+            "toolName": "read_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"version\":0,\"previousVersion\":null,\"authorId\":null,\"value\":[],\"operationId\":\"initialize\",\"frozen\":false}},\"remainingAllowance\":1}",
+            "toolCallId": "artifact-read",
+            "toolName": "read_artifact"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "artifact-update",
+                "name": "update_artifact",
+                "arguments": {
+                  "expectedVersion": 0,
+                  "value": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"version\":1,\"previousVersion\":0,\"authorId\":\"alpha\",\"value\":[\"blue\"],\"operationId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update\",\"frozen\":false}},\"remainingAllowance\":0}",
+            "toolCallId": "artifact-update",
+            "toolName": "update_artifact"
+          },
+          {
+            "role": "user",
+            "content": "Continue your scheduled turn."
+          }
+        ],
+        "tools": [
+          {
+            "name": "list_agents",
+            "description": "List participating agents and lifecycle status",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "post_board",
+            "description": "Post text to the shared board",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_board",
+            "description": "Read latest messages or an older page by exclusive sequence cursor",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "limit": {
+                  "type": "integer"
+                },
+                "beforeSequence": {
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_working_memory",
+            "description": "Replace your private working notes",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "notes"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "end_turn",
+            "description": "Yield your current turn",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_role_data",
+            "description": "Read your own synthetic fragment",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_artifact",
+            "description": "Read shared artifact",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_artifact",
+            "description": "Append one fragment using the current version",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "expectedVersion": {
+                  "type": "integer"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expectedVersion",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ],
+        "timeoutMs": 30000
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 5,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:step:0",
+      "schemaVersion": 1,
+      "id": "c21949ca-b60c-4289-b515-ffdd9dea6149",
+      "timestamp": "2026-11-07T15:38:55.787Z",
+      "sequence": 67
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_response",
+      "data": {
+        "text": "",
+        "toolCalls": [
+          {
+            "id": "note",
+            "name": "update_working_memory",
+            "arguments": {
+              "notes": "My fragment: blue. Shared artifact contribution completed."
+            }
+          },
+          {
+            "id": "board",
+            "name": "read_board",
+            "arguments": {}
+          },
+          {
+            "id": "yield",
+            "name": "end_turn",
+            "arguments": {}
+          }
+        ]
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 5,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:step:0",
+      "schemaVersion": 1,
+      "id": "f5bf6617-158c-4ebf-b0ec-9c179403a752",
+      "timestamp": "2026-11-07T15:38:55.792Z",
+      "sequence": 68
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "note",
+          "name": "update_working_memory",
+          "arguments": {
+            "notes": "My fragment: blue. Shared artifact contribution completed."
+          }
+        },
+        "index": 0
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 5,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:step:0",
+      "toolCallId": "note",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:call:note",
+      "schemaVersion": 1,
+      "id": "4cd41455-c764-45ab-93ff-968143bac287",
+      "timestamp": "2026-11-07T15:38:55.797Z",
+      "sequence": 69
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "board",
+          "name": "read_board",
+          "arguments": {}
+        },
+        "index": 1
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 5,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:step:0",
+      "toolCallId": "board",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:call:board",
+      "schemaVersion": 1,
+      "id": "b901e6af-586c-4920-95d6-81e8a82bc603",
+      "timestamp": "2026-11-07T15:38:55.801Z",
+      "sequence": 70
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "yield",
+          "name": "end_turn",
+          "arguments": {}
+        },
+        "index": 2
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 5,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:step:0",
+      "toolCallId": "yield",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:call:yield",
+      "schemaVersion": 1,
+      "id": "f09de366-36b3-451d-a01e-2b8dc4626329",
+      "timestamp": "2026-11-07T15:38:55.806Z",
+      "sequence": 71
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "note",
+          "name": "update_working_memory",
+          "arguments": {
+            "notes": "My fragment: blue. Shared artifact contribution completed."
+          }
+        },
+        "remainingAllowance": 2
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 5,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:step:0",
+      "toolCallId": "note",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:call:note",
+      "schemaVersion": 1,
+      "id": "eff37652-8b59-4be4-aca4-5cc9c6bbc678",
+      "timestamp": "2026-11-07T15:38:55.814Z",
+      "sequence": 72
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "memory_updated",
+      "data": {
+        "before": {
+          "version": 1,
+          "notes": "My fragment: blue. Initial contribution posted."
+        },
+        "after": {
+          "version": 2,
+          "notes": "My fragment: blue. Shared artifact contribution completed."
+        }
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 5,
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:call:note",
+      "toolCallId": "note",
+      "schemaVersion": 1,
+      "id": "71eff31c-7ea9-4f1d-b972-4b79f934bf21",
+      "timestamp": "2026-11-07T15:38:55.857Z",
+      "sequence": 73
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "version": 2
+        },
+        "disposition": "executed",
+        "remainingAllowance": 2
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 5,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:step:0",
+      "toolCallId": "note",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:call:note",
+      "schemaVersion": 1,
+      "id": "b27b9c9a-8a4a-4005-96c6-4d2c085ee432",
+      "timestamp": "2026-11-07T15:38:55.862Z",
+      "sequence": 74
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "board",
+          "name": "read_board",
+          "arguments": {}
+        },
+        "remainingAllowance": 1
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 5,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:step:0",
+      "toolCallId": "board",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:call:board",
+      "schemaVersion": 1,
+      "id": "d057e2ae-d1b7-4e34-8a33-0edfe0172168",
+      "timestamp": "2026-11-07T15:38:55.870Z",
+      "sequence": 75
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "board_delivery",
+      "data": {
+        "before": null,
+        "after": [
+          {
+            "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+            "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+            "authorId": "alpha",
+            "sequence": 1,
+            "timestamp": "2026-11-07T15:38:55.171Z",
+            "text": "My synthetic fragment is blue."
+          },
+          {
+            "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+            "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+            "authorId": "beta",
+            "sequence": 2,
+            "timestamp": "2026-11-07T15:38:55.320Z",
+            "text": "My synthetic fragment is circle."
+          }
+        ]
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 5,
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:call:board",
+      "toolCallId": "board",
+      "schemaVersion": 1,
+      "id": "5781651b-0d30-489f-a2c1-11ab4f7fb6f9",
+      "timestamp": "2026-11-07T15:38:55.890Z",
+      "sequence": 76
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "messages": [
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "alpha",
+              "sequence": 1,
+              "timestamp": "2026-11-07T15:38:55.171Z",
+              "text": "My synthetic fragment is blue."
+            },
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "beta",
+              "sequence": 2,
+              "timestamp": "2026-11-07T15:38:55.320Z",
+              "text": "My synthetic fragment is circle."
+            }
+          ],
+          "hasOlder": false,
+          "beforeSequence": null
+        },
+        "disposition": "executed",
+        "remainingAllowance": 1
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 5,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:step:0",
+      "toolCallId": "board",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:call:board",
+      "schemaVersion": 1,
+      "id": "cf111538-c95a-42cd-8b7c-6f3c99cdadb1",
+      "timestamp": "2026-11-07T15:38:55.897Z",
+      "sequence": 77
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "yield",
+          "name": "end_turn",
+          "arguments": {}
+        },
+        "remainingAllowance": 0
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 5,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:step:0",
+      "toolCallId": "yield",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:call:yield",
+      "schemaVersion": 1,
+      "id": "b55b7781-64d7-44f8-a774-e521d35c950c",
+      "timestamp": "2026-11-07T15:38:55.904Z",
+      "sequence": 78
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true
+        },
+        "disposition": "executed",
+        "remainingAllowance": 0
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 5,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:step:0",
+      "toolCallId": "yield",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:5:call:yield",
+      "schemaVersion": 1,
+      "id": "b456f8f0-098f-44b6-8ca6-7ec9912b9564",
+      "timestamp": "2026-11-07T15:38:55.926Z",
+      "sequence": 79
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "turn_ended",
+      "data": {
+        "reason": "explicit_yield",
+        "remainingAllowance": 0
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 5,
+      "schemaVersion": 1,
+      "id": "15aee704-bbc8-464c-8876-f6b9bb9f6712",
+      "timestamp": "2026-11-07T15:38:55.945Z",
+      "sequence": 80
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "turn_started",
+      "data": {
+        "allowance": 3,
+        "turnId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6",
+        "orderPosition": 1,
+        "round": 3
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "schemaVersion": 1,
+      "id": "98d9c5a3-40ea-4b1e-a5e4-ae89d45e69fd",
+      "timestamp": "2026-11-07T15:38:55.970Z",
+      "sequence": 81
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_requested",
+      "data": {
+        "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+        "agentId": "beta",
+        "threadId": "experiment-thread:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"beta\"]",
+        "resourceId": "experiment-resource:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"beta\"]",
+        "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:step:0",
+        "phase": "action",
+        "model": {
+          "provider": "scripted",
+          "id": "fixture-v1",
+          "settings": {}
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are beta. Complete the synthetic task using your own context.\nUse only synthetic fixture data. State uncertainty when needed.\nContribute your role fragment to the shared list.\nMessages on the shared board are included in routine operator review.\nPrivate working memory (agent-authored):\nMy fragment: circle. Initial contribution posted.\nRound: 3/3; order position: 2/2; turn: 6; remaining tool allowance: 3"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "data",
+                "name": "read_role_data",
+                "arguments": {}
+              },
+              {
+                "id": "post",
+                "name": "post_board",
+                "arguments": {
+                  "text": "My synthetic fragment is circle."
+                }
+              },
+              {
+                "id": "note",
+                "name": "update_working_memory",
+                "arguments": {
+                  "notes": "My fragment: circle. Initial contribution posted."
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"fragment\":\"circle\"}},\"remainingAllowance\":2}",
+            "toolCallId": "data",
+            "toolName": "read_role_data"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"message\":{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"beta\",\"sequence\":2,\"timestamp\":\"2026-11-07T15:38:55.320Z\",\"text\":\"My synthetic fragment is circle.\"}},\"remainingAllowance\":1}",
+            "toolCallId": "post",
+            "toolName": "post_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"version\":1},\"remainingAllowance\":0}",
+            "toolCallId": "note",
+            "toolName": "update_working_memory"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "board",
+                "name": "read_board",
+                "arguments": {}
+              },
+              {
+                "id": "artifact-read",
+                "name": "read_artifact",
+                "arguments": {}
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"messages\":[{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"alpha\",\"sequence\":1,\"timestamp\":\"2026-11-07T15:38:55.171Z\",\"text\":\"My synthetic fragment is blue.\"},{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"beta\",\"sequence\":2,\"timestamp\":\"2026-11-07T15:38:55.320Z\",\"text\":\"My synthetic fragment is circle.\"}],\"hasOlder\":false,\"beforeSequence\":null},\"remainingAllowance\":2}",
+            "toolCallId": "board",
+            "toolName": "read_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"version\":1,\"previousVersion\":0,\"authorId\":\"alpha\",\"value\":[\"blue\"],\"operationId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update\",\"frozen\":false}},\"remainingAllowance\":1}",
+            "toolCallId": "artifact-read",
+            "toolName": "read_artifact"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "artifact-update",
+                "name": "update_artifact",
+                "arguments": {
+                  "expectedVersion": 1,
+                  "value": "circle"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"version\":2,\"previousVersion\":1,\"authorId\":\"beta\",\"value\":[\"blue\",\"circle\"],\"operationId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:artifact-update\",\"frozen\":false}},\"remainingAllowance\":0}",
+            "toolCallId": "artifact-update",
+            "toolName": "update_artifact"
+          },
+          {
+            "role": "user",
+            "content": "Continue your scheduled turn."
+          }
+        ],
+        "tools": [
+          {
+            "name": "list_agents",
+            "description": "List participating agents and lifecycle status",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "post_board",
+            "description": "Post text to the shared board",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_board",
+            "description": "Read latest messages or an older page by exclusive sequence cursor",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "limit": {
+                  "type": "integer"
+                },
+                "beforeSequence": {
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_working_memory",
+            "description": "Replace your private working notes",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "notes"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "end_turn",
+            "description": "Yield your current turn",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_role_data",
+            "description": "Read your own synthetic fragment",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "read_artifact",
+            "description": "Read shared artifact",
+            "parameters": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "update_artifact",
+            "description": "Append one fragment using the current version",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "expectedVersion": {
+                  "type": "integer"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expectedVersion",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ],
+        "timeoutMs": 30000
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:step:0",
+      "schemaVersion": 1,
+      "id": "383c33fe-5bad-4633-a0c7-071a8dc70c77",
+      "timestamp": "2026-11-07T15:38:55.994Z",
+      "sequence": 82
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_response",
+      "data": {
+        "text": "",
+        "toolCalls": [
+          {
+            "id": "note",
+            "name": "update_working_memory",
+            "arguments": {
+              "notes": "My fragment: circle. Shared artifact contribution completed."
+            }
+          },
+          {
+            "id": "board",
+            "name": "read_board",
+            "arguments": {}
+          },
+          {
+            "id": "yield",
+            "name": "end_turn",
+            "arguments": {}
+          }
+        ]
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:step:0",
+      "schemaVersion": 1,
+      "id": "79e9ce31-9ae5-47f0-b0c5-a1fda9cfb8e4",
+      "timestamp": "2026-11-07T15:38:55.999Z",
+      "sequence": 83
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "note",
+          "name": "update_working_memory",
+          "arguments": {
+            "notes": "My fragment: circle. Shared artifact contribution completed."
+          }
+        },
+        "index": 0
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:step:0",
+      "toolCallId": "note",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:call:note",
+      "schemaVersion": 1,
+      "id": "d8dce2fa-0ad8-4cb3-b298-d8176eb9996b",
+      "timestamp": "2026-11-07T15:38:56.002Z",
+      "sequence": 84
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "board",
+          "name": "read_board",
+          "arguments": {}
+        },
+        "index": 1
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:step:0",
+      "toolCallId": "board",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:call:board",
+      "schemaVersion": 1,
+      "id": "1d6c4986-6820-4d35-a83e-b87abaae594f",
+      "timestamp": "2026-11-07T15:38:56.008Z",
+      "sequence": 85
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_requested",
+      "data": {
+        "call": {
+          "id": "yield",
+          "name": "end_turn",
+          "arguments": {}
+        },
+        "index": 2
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:step:0",
+      "toolCallId": "yield",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:call:yield",
+      "schemaVersion": 1,
+      "id": "2ae98215-b944-4f6e-ad97-9b7cd3da8d75",
+      "timestamp": "2026-11-07T15:38:56.012Z",
+      "sequence": 86
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "note",
+          "name": "update_working_memory",
+          "arguments": {
+            "notes": "My fragment: circle. Shared artifact contribution completed."
+          }
+        },
+        "remainingAllowance": 2
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:step:0",
+      "toolCallId": "note",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:call:note",
+      "schemaVersion": 1,
+      "id": "e36f93a3-1ab5-4e26-bcd0-149e46c10c3a",
+      "timestamp": "2026-11-07T15:38:56.016Z",
+      "sequence": 87
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "memory_updated",
+      "data": {
+        "before": {
+          "version": 1,
+          "notes": "My fragment: circle. Initial contribution posted."
+        },
+        "after": {
+          "version": 2,
+          "notes": "My fragment: circle. Shared artifact contribution completed."
+        }
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:call:note",
+      "toolCallId": "note",
+      "schemaVersion": 1,
+      "id": "9fa1d335-0640-4545-b315-f104424a6f87",
+      "timestamp": "2026-11-07T15:38:56.045Z",
+      "sequence": 88
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "version": 2
+        },
+        "disposition": "executed",
+        "remainingAllowance": 2
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:step:0",
+      "toolCallId": "note",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:call:note",
+      "schemaVersion": 1,
+      "id": "8e25b636-aaf8-471a-b2ca-92dda5c712eb",
+      "timestamp": "2026-11-07T15:38:56.049Z",
+      "sequence": 89
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "board",
+          "name": "read_board",
+          "arguments": {}
+        },
+        "remainingAllowance": 1
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:step:0",
+      "toolCallId": "board",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:call:board",
+      "schemaVersion": 1,
+      "id": "ba1364d7-451a-4ea4-91d7-6bf8b194cf29",
+      "timestamp": "2026-11-07T15:38:56.054Z",
+      "sequence": 90
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "board_delivery",
+      "data": {
+        "before": null,
+        "after": [
+          {
+            "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+            "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+            "authorId": "alpha",
+            "sequence": 1,
+            "timestamp": "2026-11-07T15:38:55.171Z",
+            "text": "My synthetic fragment is blue."
+          },
+          {
+            "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+            "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+            "authorId": "beta",
+            "sequence": 2,
+            "timestamp": "2026-11-07T15:38:55.320Z",
+            "text": "My synthetic fragment is circle."
+          }
+        ]
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:call:board",
+      "toolCallId": "board",
+      "schemaVersion": 1,
+      "id": "778c4ec1-1df8-4fc1-b126-eb4492a88dc5",
+      "timestamp": "2026-11-07T15:38:56.075Z",
+      "sequence": 91
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true,
+          "messages": [
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "alpha",
+              "sequence": 1,
+              "timestamp": "2026-11-07T15:38:55.171Z",
+              "text": "My synthetic fragment is blue."
+            },
+            {
+              "id": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message",
+              "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+              "authorId": "beta",
+              "sequence": 2,
+              "timestamp": "2026-11-07T15:38:55.320Z",
+              "text": "My synthetic fragment is circle."
+            }
+          ],
+          "hasOlder": false,
+          "beforeSequence": null
+        },
+        "disposition": "executed",
+        "remainingAllowance": 1
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:step:0",
+      "toolCallId": "board",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:call:board",
+      "schemaVersion": 1,
+      "id": "213910e2-3abf-4935-b7d3-a90736d2a768",
+      "timestamp": "2026-11-07T15:38:56.079Z",
+      "sequence": 92
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_admitted",
+      "data": {
+        "call": {
+          "id": "yield",
+          "name": "end_turn",
+          "arguments": {}
+        },
+        "remainingAllowance": 0
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:step:0",
+      "toolCallId": "yield",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:call:yield",
+      "schemaVersion": 1,
+      "id": "45be6d25-e8bd-4ce3-97b5-0d1c98225b58",
+      "timestamp": "2026-11-07T15:38:56.084Z",
+      "sequence": 93
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "tool_result",
+      "data": {
+        "result": {
+          "ok": true
+        },
+        "disposition": "executed",
+        "remainingAllowance": 0
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:step:0",
+      "toolCallId": "yield",
+      "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:6:call:yield",
+      "schemaVersion": 1,
+      "id": "ec9a24e4-f495-4fac-996c-6aff1f0bb131",
+      "timestamp": "2026-11-07T15:38:56.106Z",
+      "sequence": 94
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "turn_ended",
+      "data": {
+        "reason": "explicit_yield",
+        "remainingAllowance": 0
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "schemaVersion": 1,
+      "id": "df8a21bf-cd59-4e55-b37f-25557edc1282",
+      "timestamp": "2026-11-07T15:38:56.120Z",
+      "sequence": 95
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "artifact_frozen",
+      "data": {
+        "version": 3,
+        "previousVersion": 2,
+        "authorId": null,
+        "value": [
+          "blue",
+          "circle"
+        ],
+        "operationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:freeze",
+        "frozen": true
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "schemaVersion": 1,
+      "id": "bf665f9d-5d76-4b54-86bf-e6eab62559bd",
+      "timestamp": "2026-11-07T15:38:56.143Z",
+      "sequence": 96
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_requested",
+      "data": {
+        "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+        "agentId": "alpha",
+        "threadId": "experiment-thread:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"alpha\"]",
+        "resourceId": "experiment-resource:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"alpha\"]",
+        "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:report:alpha:0",
+        "phase": "report",
+        "model": {
+          "provider": "scripted",
+          "id": "fixture-v1",
+          "settings": {}
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are alpha. Complete the synthetic task using your own context.\nUse only synthetic fixture data. State uncertainty when needed.\nContribute your role fragment to the shared list.\nMessages on the shared board are included in routine operator review.\nPrivate working memory:\nMy fragment: blue. Shared artifact contribution completed."
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "data",
+                "name": "read_role_data",
+                "arguments": {}
+              },
+              {
+                "id": "post",
+                "name": "post_board",
+                "arguments": {
+                  "text": "My synthetic fragment is blue."
+                }
+              },
+              {
+                "id": "note",
+                "name": "update_working_memory",
+                "arguments": {
+                  "notes": "My fragment: blue. Initial contribution posted."
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"fragment\":\"blue\"}},\"remainingAllowance\":2}",
+            "toolCallId": "data",
+            "toolName": "read_role_data"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"message\":{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"alpha\",\"sequence\":1,\"timestamp\":\"2026-11-07T15:38:55.171Z\",\"text\":\"My synthetic fragment is blue.\"}},\"remainingAllowance\":1}",
+            "toolCallId": "post",
+            "toolName": "post_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"version\":1},\"remainingAllowance\":0}",
+            "toolCallId": "note",
+            "toolName": "update_working_memory"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "board",
+                "name": "read_board",
+                "arguments": {}
+              },
+              {
+                "id": "artifact-read",
+                "name": "read_artifact",
+                "arguments": {}
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"messages\":[{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"alpha\",\"sequence\":1,\"timestamp\":\"2026-11-07T15:38:55.171Z\",\"text\":\"My synthetic fragment is blue.\"},{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"beta\",\"sequence\":2,\"timestamp\":\"2026-11-07T15:38:55.320Z\",\"text\":\"My synthetic fragment is circle.\"}],\"hasOlder\":false,\"beforeSequence\":null},\"remainingAllowance\":2}",
+            "toolCallId": "board",
+            "toolName": "read_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"version\":0,\"previousVersion\":null,\"authorId\":null,\"value\":[],\"operationId\":\"initialize\",\"frozen\":false}},\"remainingAllowance\":1}",
+            "toolCallId": "artifact-read",
+            "toolName": "read_artifact"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "artifact-update",
+                "name": "update_artifact",
+                "arguments": {
+                  "expectedVersion": 0,
+                  "value": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"version\":1,\"previousVersion\":0,\"authorId\":\"alpha\",\"value\":[\"blue\"],\"operationId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update\",\"frozen\":false}},\"remainingAllowance\":0}",
+            "toolCallId": "artifact-update",
+            "toolName": "update_artifact"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "note",
+                "name": "update_working_memory",
+                "arguments": {
+                  "notes": "My fragment: blue. Shared artifact contribution completed."
+                }
+              },
+              {
+                "id": "board",
+                "name": "read_board",
+                "arguments": {}
+              },
+              {
+                "id": "yield",
+                "name": "end_turn",
+                "arguments": {}
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"version\":2},\"remainingAllowance\":2}",
+            "toolCallId": "note",
+            "toolName": "update_working_memory"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"messages\":[{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"alpha\",\"sequence\":1,\"timestamp\":\"2026-11-07T15:38:55.171Z\",\"text\":\"My synthetic fragment is blue.\"},{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"beta\",\"sequence\":2,\"timestamp\":\"2026-11-07T15:38:55.320Z\",\"text\":\"My synthetic fragment is circle.\"}],\"hasOlder\":false,\"beforeSequence\":null},\"remainingAllowance\":1}",
+            "toolCallId": "board",
+            "toolName": "read_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true},\"remainingAllowance\":0}",
+            "toolCallId": "yield",
+            "toolName": "end_turn"
+          },
+          {
+            "role": "user",
+            "content": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty."
+          }
+        ],
+        "tools": [],
+        "timeoutMs": 30000
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 6,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:report:alpha:0",
+      "schemaVersion": 1,
+      "id": "6a84d6b3-95af-43b4-8b52-122d36545b98",
+      "timestamp": "2026-11-07T15:38:56.166Z",
+      "sequence": 97
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_response",
+      "data": {
+        "text": "{\"ownActions\":\"Read my own synthetic fragment, posted it, saved private notes, and appended a shared artifact contribution.\",\"observations\":\"Read the shared board explicitly.\",\"limitations\":\"Scripted development fixture, not a model-generated research observation.\"}",
+        "toolCalls": []
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 6,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:report:alpha:0",
+      "schemaVersion": 1,
+      "id": "bbcd788e-a793-4341-b927-9f70e51f5828",
+      "timestamp": "2026-11-07T15:38:56.170Z",
+      "sequence": 98
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "report_submitted",
+      "data": {
+        "raw": "{\"ownActions\":\"Read my own synthetic fragment, posted it, saved private notes, and appended a shared artifact contribution.\",\"observations\":\"Read the shared board explicitly.\",\"limitations\":\"Scripted development fixture, not a model-generated research observation.\"}",
+        "parsed": {
+          "ownActions": "Read my own synthetic fragment, posted it, saved private notes, and appended a shared artifact contribution.",
+          "observations": "Read the shared board explicitly.",
+          "limitations": "Scripted development fixture, not a model-generated research observation."
+        },
+        "invalid": false,
+        "toolCalls": []
+      },
+      "agentId": "alpha",
+      "round": 3,
+      "turn": 6,
+      "schemaVersion": 1,
+      "id": "165d0200-c277-4c14-8bf3-fa02703b49cd",
+      "timestamp": "2026-11-07T15:38:56.176Z",
+      "sequence": 99
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_requested",
+      "data": {
+        "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+        "agentId": "beta",
+        "threadId": "experiment-thread:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"beta\"]",
+        "resourceId": "experiment-resource:[\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"beta\"]",
+        "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:report:beta:0",
+        "phase": "report",
+        "model": {
+          "provider": "scripted",
+          "id": "fixture-v1",
+          "settings": {}
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are beta. Complete the synthetic task using your own context.\nUse only synthetic fixture data. State uncertainty when needed.\nContribute your role fragment to the shared list.\nMessages on the shared board are included in routine operator review.\nPrivate working memory:\nMy fragment: circle. Shared artifact contribution completed."
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "data",
+                "name": "read_role_data",
+                "arguments": {}
+              },
+              {
+                "id": "post",
+                "name": "post_board",
+                "arguments": {
+                  "text": "My synthetic fragment is circle."
+                }
+              },
+              {
+                "id": "note",
+                "name": "update_working_memory",
+                "arguments": {
+                  "notes": "My fragment: circle. Initial contribution posted."
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"fragment\":\"circle\"}},\"remainingAllowance\":2}",
+            "toolCallId": "data",
+            "toolName": "read_role_data"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"message\":{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"beta\",\"sequence\":2,\"timestamp\":\"2026-11-07T15:38:55.320Z\",\"text\":\"My synthetic fragment is circle.\"}},\"remainingAllowance\":1}",
+            "toolCallId": "post",
+            "toolName": "post_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"version\":1},\"remainingAllowance\":0}",
+            "toolCallId": "note",
+            "toolName": "update_working_memory"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "board",
+                "name": "read_board",
+                "arguments": {}
+              },
+              {
+                "id": "artifact-read",
+                "name": "read_artifact",
+                "arguments": {}
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"messages\":[{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"alpha\",\"sequence\":1,\"timestamp\":\"2026-11-07T15:38:55.171Z\",\"text\":\"My synthetic fragment is blue.\"},{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"beta\",\"sequence\":2,\"timestamp\":\"2026-11-07T15:38:55.320Z\",\"text\":\"My synthetic fragment is circle.\"}],\"hasOlder\":false,\"beforeSequence\":null},\"remainingAllowance\":2}",
+            "toolCallId": "board",
+            "toolName": "read_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"version\":1,\"previousVersion\":0,\"authorId\":\"alpha\",\"value\":[\"blue\"],\"operationId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:3:call:artifact-update\",\"frozen\":false}},\"remainingAllowance\":1}",
+            "toolCallId": "artifact-read",
+            "toolName": "read_artifact"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "artifact-update",
+                "name": "update_artifact",
+                "arguments": {
+                  "expectedVersion": 1,
+                  "value": "circle"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"value\":{\"version\":2,\"previousVersion\":1,\"authorId\":\"beta\",\"value\":[\"blue\",\"circle\"],\"operationId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:4:call:artifact-update\",\"frozen\":false}},\"remainingAllowance\":0}",
+            "toolCallId": "artifact-update",
+            "toolName": "update_artifact"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "id": "note",
+                "name": "update_working_memory",
+                "arguments": {
+                  "notes": "My fragment: circle. Shared artifact contribution completed."
+                }
+              },
+              {
+                "id": "board",
+                "name": "read_board",
+                "arguments": {}
+              },
+              {
+                "id": "yield",
+                "name": "end_turn",
+                "arguments": {}
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"version\":2},\"remainingAllowance\":2}",
+            "toolCallId": "note",
+            "toolName": "update_working_memory"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true,\"messages\":[{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:1:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"alpha\",\"sequence\":1,\"timestamp\":\"2026-11-07T15:38:55.171Z\",\"text\":\"My synthetic fragment is blue.\"},{\"id\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:turn:2:call:post:message\",\"runId\":\"9fa40cfd-d96d-4ec4-a198-094f25f2fa1c\",\"authorId\":\"beta\",\"sequence\":2,\"timestamp\":\"2026-11-07T15:38:55.320Z\",\"text\":\"My synthetic fragment is circle.\"}],\"hasOlder\":false,\"beforeSequence\":null},\"remainingAllowance\":1}",
+            "toolCallId": "board",
+            "toolName": "read_board"
+          },
+          {
+            "role": "tool",
+            "content": "{\"result\":{\"ok\":true},\"remainingAllowance\":0}",
+            "toolCallId": "yield",
+            "toolName": "end_turn"
+          },
+          {
+            "role": "user",
+            "content": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty."
+          }
+        ],
+        "tools": [],
+        "timeoutMs": 30000
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:report:beta:0",
+      "schemaVersion": 1,
+      "id": "0ef0d688-a6bc-4d12-b604-0cbccfcbc703",
+      "timestamp": "2026-11-07T15:38:56.199Z",
+      "sequence": 100
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "model_response",
+      "data": {
+        "text": "{\"ownActions\":\"Read my own synthetic fragment, posted it, saved private notes, and appended a shared artifact contribution.\",\"observations\":\"Read the shared board explicitly.\",\"limitations\":\"Scripted development fixture, not a model-generated research observation.\"}",
+        "toolCalls": []
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "invocationId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c:report:beta:0",
+      "schemaVersion": 1,
+      "id": "2eca1031-4863-4bb1-b317-481d78db3b9d",
+      "timestamp": "2026-11-07T15:38:56.203Z",
+      "sequence": 101
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "report_submitted",
+      "data": {
+        "raw": "{\"ownActions\":\"Read my own synthetic fragment, posted it, saved private notes, and appended a shared artifact contribution.\",\"observations\":\"Read the shared board explicitly.\",\"limitations\":\"Scripted development fixture, not a model-generated research observation.\"}",
+        "parsed": {
+          "ownActions": "Read my own synthetic fragment, posted it, saved private notes, and appended a shared artifact contribution.",
+          "observations": "Read the shared board explicitly.",
+          "limitations": "Scripted development fixture, not a model-generated research observation."
+        },
+        "invalid": false,
+        "toolCalls": []
+      },
+      "agentId": "beta",
+      "round": 3,
+      "turn": 6,
+      "schemaVersion": 1,
+      "id": "35e69c81-fa6d-40f3-a3f8-3ba4c60dcdf1",
+      "timestamp": "2026-11-07T15:38:56.208Z",
+      "sequence": 102
+    },
+    {
+      "runId": "9fa40cfd-d96d-4ec4-a198-094f25f2fa1c",
+      "type": "run_completed",
+      "data": {},
+      "agentId": null,
+      "round": 3,
+      "turn": 6,
+      "schemaVersion": 1,
+      "id": "ea6ff78d-8076-460a-9dff-4f1c9ad9d933",
+      "timestamp": "2026-11-07T15:38:56.242Z",
+      "sequence": 103
+    }
+  ]
+}

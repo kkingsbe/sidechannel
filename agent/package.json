@@ -1,0 +1,43 @@
+{
+  "name": "agent",
+  "version": "1.0.0",
+  "description": "Observable Mastra experiment harness and shared researcher dashboard.",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "dev": "mastra dev",
+    "build": "mastra build",
+    "start": "mastra start",
+    "dashboard": "tsx --env-file-if-exists=.env src/server.ts",
+    "worker": "tsx --env-file-if-exists=.env src/worker.ts",
+    "fixture": "tsx --env-file-if-exists=.env src/fixture.ts",
+    "recover": "tsx --env-file-if-exists=.env src/recover.ts",
+    "check": "tsc --noEmit",
+    "test": "tsx --test src/harness/*.test.ts src/server/*.test.ts",
+    "test:mongo": "tsx --env-file-if-exists=.env --test src/integration/*.test.ts",
+    "smoke:live": "tsx --env-file-if-exists=.env src/harness/live-smoke.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": "^22.18.0 || >=24.11.0"
+  },
+  "dependencies": {
+    "@mastra/core": "1.82.0",
+    "@mastra/duckdb": "1.18.0",
+    "@mastra/libsql": "1.29.0",
+    "@mastra/memory": "1.41.0",
+    "@mastra/mongodb": "1.26.0",
+    "@mastra/observability": "1.23.1",
+    "mongodb": "7.7.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "mastra": "1.38.0",
+    "tsx": "4.21.0",
+    "typescript": "6.0.3"
+  }
+}
