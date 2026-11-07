@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Badge, Button, Card, CardHeading, ErrorState, Field, Input, Loading, Notice, Pager, Select, Table } from "../../components/ui";
 import { useApi, useMutation, usePage } from "../../lib/api";
 import { useClients } from "../../lib/clients/context";
+import { useClaimedReviewer } from "../../components/claimed-reviewer";
 import type { AnalysisJob, HumanReview, Page, ReviewBatch, ReviewSelection, WindowDetail } from "../../lib/analysis-types";
 import { when } from "../../lib/utils";
 import { ReviewQueueRow } from "./review-queue-row";
@@ -20,9 +21,7 @@ export function ReviewWorkspace({
 }) {
   const [params, setParams] = useSearchParams();
   const batchId = params.get("batch") || "";
-  const [reviewer, setReviewer] = useState(
-    () => localStorage.getItem("sidechannel-reviewer") || "",
-  );
+  const { reviewer, identifyReviewer } = useClaimedReviewer();
   const [mode, setMode] = useState<"assisted" | "blind">(
     params.get("blind") === "true" ? "blind" : "assisted",
   );
@@ -113,13 +112,7 @@ export function ReviewWorkspace({
               >
                 <Input
                   value={reviewer}
-                  onChange={(e) => {
-                    setReviewer(e.target.value);
-                    localStorage.setItem(
-                      "sidechannel-reviewer",
-                      e.target.value,
-                    );
-                  }}
+                  onChange={(e) => identifyReviewer(e.target.value)}
                 />
               </Field>
               <Field label="Initial review mode">

@@ -5,7 +5,7 @@ import { useApi } from '../lib/api';
 import { useClients } from '../lib/clients/context';
 import type { Run, Draft } from '../lib/types';
 import { short, when } from '../lib/utils';
-import { RunTable } from '../App';
+import { RunTable } from '../components/run-table';
 
 interface OverviewData {
   observedAt: string; counts: Record<string, number>; activity: Run[]; recent: Run[]; attention: Run[];

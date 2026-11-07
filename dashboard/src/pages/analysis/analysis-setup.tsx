@@ -9,6 +9,7 @@ import {
   PageHeader,
 } from "../../components/ui";
 import { useClients } from "../../lib/clients/context";
+import { useClaimedReviewer } from "../../components/claimed-reviewer";
 import { useResource, useResourceOffsetPage, useResourcePage } from "../../lib/clients/query";
 import type { AnalysisJob, CodebookRevision } from "../../lib/analysis-types";
 import type { OffsetPage } from "../../lib/contracts";
@@ -29,9 +30,7 @@ function useAnalysisSetup() {
   const [params, setParams] = useSearchParams();
   const runId = params.get("run") || "";
   const clone = params.get("clone");
-  const [defaultCreator] = useState(
-    () => localStorage.getItem("sidechannel-reviewer") || "",
-  );
+  const { reviewer: defaultCreator } = useClaimedReviewer();
   const runs = useResourceOffsetPage<Run>(
     "analysis:setup:runs",
     async (offset) =>

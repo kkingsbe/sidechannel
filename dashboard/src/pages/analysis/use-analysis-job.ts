@@ -19,12 +19,6 @@ export function useAnalysisJob(id: string | undefined) {
   const command = useCommand();
   const cancel = async () => {
     if (!job.data) return;
-    if (
-      !window.confirm(
-        "Cancel remaining analysis work? Successful scores and their evidence remain saved.",
-      )
-    )
-      return;
     await command.run(() => clients.analyses.cancel(id!));
     void job.refresh();
   };

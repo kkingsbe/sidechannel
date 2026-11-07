@@ -4,6 +4,8 @@ import { EyeOff } from "lucide-react";
 import { Badge, Button, ErrorState, Field, Input, JsonView, Notice, Pager, Select, Textarea } from "../../components/ui";
 import { useApi, useMutation, usePage } from "../../lib/api";
 import { useClients } from "../../lib/clients/context";
+import { useClaimedReviewer } from "../../components/claimed-reviewer";
+import { ReviewHistoryRow } from "../../components/review-history";
 import type { AnalysisJob, Decision, HumanReview, Page, WindowDetail } from "../../lib/analysis-types";
 import { list, short, when } from "../../lib/utils";
 import { CanonicalEvent } from "./canonical-event";
@@ -24,9 +26,7 @@ export function WindowInspector({
   job: AnalysisJob;
   blind: boolean;
 }) {
-  const [reviewer, setReviewer] = useState(
-    () => localStorage.getItem("sidechannel-reviewer") || "",
-  );
+  const { reviewer, identifyReviewer } = useClaimedReviewer();
   const clients = useClients();
   const reviews = usePage<HumanReview>(
     clients.analyses.paths.reviews(job.id, { windowId: detail.window.id }),
@@ -217,10 +217,7 @@ export function WindowInspector({
             <Field label="Claimed reviewer identity" required>
               <Input
                 value={reviewer}
-                onChange={(e) => {
-                  setReviewer(e.target.value);
-                  localStorage.setItem("sidechannel-reviewer", e.target.value);
-                }}
+                onChange={(e) => identifyReviewer(e.target.value)}
               />
             </Field>
             <Field label="Judgment scope">
@@ -399,30 +396,27 @@ export function WindowInspector({
         reviews.data
           .filter((r) => r.windowId === detail.window.id)
           .map((review) => (
-            <div
+            <ReviewHistoryRow
               key={review.id}
-              style={{
-                padding: "13px 0",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              <div className="actions">
-                <strong>{review.reviewer}</strong>
-                <Badge status={review.decision} />
-                <span className="helper">
+              reviewer={review.reviewer}
+              decision={review.decision}
+              meta={
+                <>
                   {review.scope} · r{review.revision} · {when(review.createdAt)}
-                </span>
-              </div>
-              <p className="text-block">{review.rationale}</p>
-              <p className="helper">
-                {review.predictionsVisible
-                  ? "Suggestions visible"
-                  : "Initial judgment blinded"}
-                {review.supersedesId
-                  ? " · Revises " + short(review.supersedesId)
-                  : ""}
-              </p>
-            </div>
+                </>
+              }
+              rationale={review.rationale}
+              note={
+                <>
+                  {review.predictionsVisible
+                    ? "Suggestions visible"
+                    : "Initial judgment blinded"}
+                  {review.supersedesId
+                    ? " · Revises " + short(review.supersedesId)
+                    : ""}
+                </>
+              }
+            />
           ))
       )}
       {predictionsVisible && (

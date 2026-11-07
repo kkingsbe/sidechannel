@@ -56,7 +56,7 @@ import type {
   Run,
 } from "../lib/types";
 import { cn, pretty, short, when } from "../lib/utils";
-import { RunTable } from "../App";
+import { RunTable } from "../components/run-table";
 import "./runs-oversight.css";
 import { ArtifactView } from "../components/artifact-view";
 import { BudgetSummary } from "../components/budget-summary";

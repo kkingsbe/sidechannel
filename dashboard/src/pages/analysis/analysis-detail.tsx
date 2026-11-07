@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Copy, Download, RefreshCw, Square } from "lucide-react";
+import { ArrowLeft, Copy, Download, RefreshCw } from "lucide-react";
 import {
   Badge,
   Button,
@@ -11,6 +11,7 @@ import {
   PageHeader,
 } from "../../components/ui";
 import { ViewPanel } from "../../components/view-registry";
+import { CancelJobButton } from "../../components/cancel-job-button";
 import { useClients } from "../../lib/clients/context";
 import { useResource } from "../../lib/clients/query";
 import type { ReviewBatch } from "../../lib/analysis-types";
@@ -82,16 +83,15 @@ export function AnalysisDetail() {
                 Full analysis export
               </a>
             </Button>
-            {job.active && (
-              <Button
-                variant="destructive"
-                disabled={job.command.busy || data.cancelRequested}
-                onClick={() => void job.cancel()}
-              >
-                <Square size={13} />
-                {data.cancelRequested ? "Cancellation requested" : "Cancel"}
-              </Button>
-            )}
+            <CancelJobButton
+              active={job.active}
+              cancelRequested={data.cancelRequested}
+              busy={job.command.busy}
+              confirm="Cancel remaining analysis work? Successful scores and their evidence remain saved."
+              idleLabel="Cancel"
+              requestedLabel="Cancellation requested"
+              onCancel={job.cancel}
+            />
             {["partial", "failed", "cancelled"].includes(data.status) && (
               <Button
                 variant="secondary"
