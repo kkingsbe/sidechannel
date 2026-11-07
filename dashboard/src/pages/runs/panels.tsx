@@ -31,6 +31,7 @@ import { pretty, when } from "../../lib/utils";
 import { BoardDelivery } from "./board-delivery";
 import { evidenceKey } from "./evidence-key";
 import { useRunEvidence, useRunEvents, useRunId, useRunRoute } from "./use-run-evidence";
+import { useScenarios } from "../../lib/descriptors";
 import { useRunProgress } from "./use-run-progress";
 import { useRunRecordOnly } from "./use-run-record";
 
@@ -141,6 +142,7 @@ export function EvidencePanel({ kind }: { kind: "board" | "artifacts" | "memory"
   const id = useRunId();
   const run = useRunRecordOnly(id);
   const evidence = useRunEvidence(kind);
+  const scenarios = useScenarios();
   const { inspect } = useRunRoute();
   const board = kind === "board" ? evidence.payload as BoardPage | undefined : undefined;
   const reporting = kind === "reports" && evidence.payload && "reporting" in evidence.payload
@@ -227,7 +229,11 @@ export function EvidencePanel({ kind }: { kind: "board" | "artifacts" | "memory"
                 </div>
                 <div className="card-body">
                   {kind === "artifacts" ? (
-                    <ArtifactView value={object.value} scenarioVersion={data.config.scenario.version} />
+                    <ArtifactView
+                      value={object.value}
+                      scenarioVersion={data.config.scenario.version}
+                      artifactSchemaVersion={scenarios.view(data.config.scenario.version).artifactSchemaVersion}
+                    />
                   ) : (
                     <p className="text-block">
                       {kind === "board"

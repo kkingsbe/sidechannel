@@ -1,6 +1,7 @@
 import type { DatasetCatalogItem } from "@sidechannel/contracts/browser";
 import type { ExperimentConfig } from "../lib/types";
 import { useApi, useMutation } from "../lib/api";
+import { useScenarios } from "../lib/descriptors";
 import { useClients } from "../lib/clients/context";
 import { Button, Field, Loading, Notice, Select } from "./ui";
 
@@ -14,9 +15,10 @@ export function HealthcarePreset({
   errors?: Record<string, string>;
 }) {
   const clients = useClients();
+  const scenarios = useScenarios();
   const catalog = useApi<DatasetCatalogItem[]>(clients.workspace.paths.datasets());
   const mutation = useMutation();
-  const healthcare = config.scenario.version === "healthcare-points-v0.3";
+  const healthcare = scenarios.view(config.scenario.version).presentation.hasDatasetPreset;
   const selected = catalog.data?.find(
     (item) =>
       item.datasetId === config.scenario.datasetId &&

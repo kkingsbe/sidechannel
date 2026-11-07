@@ -14,6 +14,7 @@ import {
 import { CancelJobButton } from "../../components/cancel-job-button";
 import { ViewPanel } from "../../components/view-registry";
 import { useClients } from "../../lib/clients/context";
+import { useProviders, useScenarios } from "../../lib/descriptors";
 import { short, when } from "../../lib/utils";
 import { useRunRecord } from "./use-run-record";
 import { useRunSelection } from "./use-run-evidence";
@@ -27,6 +28,8 @@ export const safeRunReturn = (value: string | null) =>
 export function RunDetail() {
   const { id } = useParams();
   const clients = useClients();
+  const providers = useProviders();
+  const scenarios = useScenarios();
   const record = useRunRecord(id);
   const [params, setParams] = useSearchParams();
   const tab = (params.get("view") || DEFAULT_RUN_TAB) as RunsTab;
@@ -48,7 +51,9 @@ export function RunDetail() {
     });
   if (record.run.loading) return <Loading />;
   if (!data) return <ErrorState error={record.run.error} retry={record.run.refresh} />;
-  const hasResults = data.config.scenario.version === "healthcare-points-v0.3";
+  const provider = providers.view(data.config.model.provider);
+  const scenario = scenarios.view(data.config.scenario.version);
+  const hasResults = scenario.presentation.tabs.includes("results");
   return (
     <>
       <Button variant="ghost" size="sm" asChild className="mb-4">
@@ -58,11 +63,7 @@ export function RunDetail() {
         </Link>
       </Button>
       <PageHeader
-        eyebrow={
-          data.config.model.provider === "scripted"
-            ? "SCRIPTED FIXTURE · NOT SPONTANEOUS MODEL BEHAVIOR"
-            : "EXPERIMENT RUN"
-        }
+        eyebrow={provider.runEyebrow ?? "EXPERIMENT RUN"}
         title={data.config.label}
         description={id!}
         actions={
@@ -168,9 +169,9 @@ export function RunDetail() {
         title={
           selection.event
             ? selection.event.type.replaceAll("_", " ")
-            : tab === "artifacts"
+            : runsViews(hasResults)[tab]?.title === "Artifacts"
               ? "Artifact version"
-              : tab === "board"
+              : runsViews(hasResults)[tab]?.title === "Board & deliveries"
                 ? "Board message"
                 : "Recorded evidence"
         }

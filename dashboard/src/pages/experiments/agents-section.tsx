@@ -2,9 +2,11 @@ import { Button, Card, CardHeading, Check, Field, Input, Notice } from "../../co
 import { ModelControls } from "../../components/model-controls";
 import { Plus } from "lucide-react";
 import type { ExperimentConfig } from "../../lib/types";
+import { useProviders, useScenarios } from "../../lib/descriptors";
 import { readableName } from "./config-edit";
 import type { ConfigFieldFactory } from "./config-field";
 
+/** Documented payload gap: scenario metadata carries no role tool list (presentation.toolNames). */
 const tools = [
   "list_agents",
   "post_board",
@@ -14,15 +16,6 @@ const tools = [
   "update_artifact",
   "read_artifact",
   "end_turn",
-];
-const supportedSettings = [
-  "maxOutputTokens",
-  "temperature",
-  "topP",
-  "topK",
-  "presencePenalty",
-  "frequencyPenalty",
-  "seed",
 ];
 
 /** Agents & shared model section: role editor plus the model controls. */
@@ -39,6 +32,11 @@ export function AgentsSection({
   field: ConfigFieldFactory;
   errors: Record<string, string> | undefined;
 }) {
+  const providers = useProviders();
+  const scenarios = useScenarios();
+  const provider = providers.view(config.model.provider);
+  const scenario = scenarios.view(config.scenario.version);
+  const supportedSettings = provider.settings.length ? [...provider.settings] : Object.keys(config.model.settings);
   return (
     <Card className="form-section">
       <CardHeading
@@ -46,7 +44,7 @@ export function AgentsSection({
         description="All roles use this model. Provider credentials stay on the server."
       />
       <div className="card-body form-grid">
-        {config.scenario.version === "healthcare-points-v0.3" ? (
+        {scenario.modelSection === "catalog" ? (
           <ModelControls config={config} replace={replace} errors={errors} />
         ) : (
           <>

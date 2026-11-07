@@ -14,6 +14,7 @@ import {
 } from "../../components/ui";
 import { ArtifactView } from "../../components/artifact-view";
 import { useClients } from "../../lib/clients/context";
+import { useScenarios } from "../../lib/descriptors";
 import { useResource } from "../../lib/clients/query";
 import type { Run } from "../../lib/types";
 import { when } from "../../lib/utils";
@@ -22,6 +23,7 @@ import { configValue, settingLabel } from "./pair-settings";
 
 export function PairCondition({ summary, returnTo }: { summary: Run; returnTo: string }) {
   const clients = useClients();
+  const scenarios = useScenarios();
   const resource = useResource<Run>(`run:${summary.id}:pair-condition`, () => clients.runs.get(summary.id), { interval: 5000 });
   const run = resource.data || summary;
   const suffix = "&returnTo=" + encodeURIComponent(returnTo);
@@ -76,7 +78,11 @@ export function PairCondition({ summary, returnTo }: { summary: Run; returnTo: s
               finals.map((item) => (
                 <div key={item.version}>
                   <strong>Frozen version {item.version}</strong>
-                  <ArtifactView value={item.value} scenarioVersion={run.config.scenario.version} />
+                  <ArtifactView
+                    value={item.value}
+                    scenarioVersion={run.config.scenario.version}
+                    artifactSchemaVersion={scenarios.view(run.config.scenario.version).artifactSchemaVersion}
+                  />
                 </div>
               ))
             ) : (

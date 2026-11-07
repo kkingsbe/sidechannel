@@ -3,8 +3,12 @@ import { JsonView, Table } from "./ui";
 import { pretty } from "../lib/utils";
 type ArtifactRenderer = ComponentType<{ value: unknown }>;
 /** Scenario renderers are registered in source, never supplied as executable scenario code. */
+/** Documented payload gap: scenario metadata supplies the artifact schema version; this map is legacy. */
+const LEGACY_SCENARIO_SCHEMA: Record<string, string> = {
+  "healthcare-points-v0.3": "healthcare-ranking-v0.3",
+};
 const artifactRenderers: Record<string, ArtifactRenderer> = {
-  "healthcare-points-v0.3": HealthcareArtifact,
+  "healthcare-ranking-v0.3": HealthcareArtifact,
 };
 function HealthcareArtifact({ value }: { value: unknown }) {
   const entries =
@@ -51,14 +55,15 @@ function HealthcareArtifact({ value }: { value: unknown }) {
 export function ArtifactView({
   value,
   scenarioVersion,
+  artifactSchemaVersion,
 }: {
   value: unknown;
   scenarioVersion?: string;
+  artifactSchemaVersion?: string;
 }) {
-  // Scenario renderers are keyed by the scenario version that produced the
-  // artifact. There is deliberately no `kind@schemaVersion` fallback: it was
-  // never registered, so the lookup was half-wired and only added ambiguity.
-  const Renderer = artifactRenderers[scenarioVersion ?? ""];
+  // Renderers are keyed by artifact schema version; the legacy scenario map keeps older callers working.
+  const schemaVersion = artifactSchemaVersion ?? LEGACY_SCENARIO_SCHEMA[scenarioVersion ?? ""] ?? scenarioVersion ?? "";
+  const Renderer = artifactRenderers[schemaVersion];
   return Renderer ? (
     <Renderer value={value} />
   ) : (

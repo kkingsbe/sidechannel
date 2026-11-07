@@ -1,6 +1,7 @@
 import { Card, CardHeading, Field, Input, Notice, Select, Textarea } from "../../components/ui";
 import { HealthcarePreset } from "../../components/healthcare-preset";
 import type { ExperimentConfig, Json } from "../../lib/types";
+import { useScenarios } from "../../lib/descriptors";
 import { readableName, primitiveAssets } from "./config-edit";
 import type { ConfigFieldFactory } from "./config-field";
 
@@ -22,6 +23,8 @@ export function ScenarioSection({
   field: ConfigFieldFactory;
   errors: Record<string, string> | undefined;
 }) {
+  const scenarios = useScenarios();
+  const showDatasetFields = scenarios.view(config.scenario.version).showDatasetFields;
   const assets = primitiveAssets(config);
   return (
     <Card className="form-section">
@@ -45,7 +48,7 @@ export function ScenarioSection({
           </Select>
         </Field>
         {field("scenario.version", "Scenario version")}
-        {config.scenario.version !== "healthcare-points-v0.3" && (
+        {showDatasetFields && (
           <>
             {field("scenario.datasetId", "Dataset identifier")}
             {field("scenario.datasetVersion", "Dataset version")}
@@ -75,7 +78,7 @@ export function ScenarioSection({
         >
           <Textarea value={notes} onChange={(e) => editNotes(e.target.value)} />
         </Field>
-        {config.scenario.version !== "healthcare-points-v0.3" && (
+        {showDatasetFields && (
           <>
             <div className="full">
               <h3>Scenario assets</h3>
