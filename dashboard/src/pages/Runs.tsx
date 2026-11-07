@@ -11,16 +11,11 @@ import {
   ArrowLeft,
   ArrowUpRight,
   Braces,
-  CheckCircle2,
   Copy,
   Download,
   Filter,
-  MessageSquare,
-  Play,
   RefreshCw,
   Square,
-  Wrench,
-  XCircle,
 } from "lucide-react";
 import {
   Badge,
@@ -55,6 +50,10 @@ import "./runs-oversight.css";
 import { ArtifactView } from "../components/artifact-view";
 import { BudgetSummary } from "../components/budget-summary";
 import { HealthcareResults } from "../components/healthcare-results";
+import { MODEL_CALL_EVENT_TYPES } from "../lib/model-calls";
+import { TimelinePanel } from "./runs/TimelinePanel";
+import { TracesPanel } from "./runs/TracesPanel";
+import { ModelCallDetail } from "./runs/ModelCallDetail";
 type RecordPage<T> = {
   items: T[];
   nextOffset?: number | null;
@@ -278,6 +277,7 @@ function RunDetail() {
       prev.set("view", view);
       prev.delete("evidence");
       prev.delete("seq");
+      prev.delete("call");
       return prev;
     });
   };
@@ -296,10 +296,17 @@ function RunDetail() {
     event ??
     selectedRecord.data ??
     items.find((item, index) => evidenceKey(item, index) === selected);
-  const traceEvents =
-    events.data?.events.filter(
-      (e) => tab !== "traces" || /model|invocation|reason|trace/.test(e.type),
-    ) ?? [];
+  // Both panels need the whole page: Traces derives tool status from tool lifecycle events.
+  const traceEvents = events.data?.events ?? [];
+  const focusCall = params.get("call");
+  const openTraces = (invocationId: string) =>
+    setParams((prev) => {
+      prev.set("view", "traces");
+      prev.set("call", invocationId);
+      prev.delete("evidence");
+      prev.delete("seq");
+      return prev;
+    });
   if (run.loading) return <Loading />;
   if (!data) return <ErrorState error={run.error} retry={run.refresh} />;
   const active = ["queued", "running", "reporting", "stopping"].includes(
@@ -464,11 +471,13 @@ function RunDetail() {
           <Card>
             <CardHeading
               title={
-                tab === "timeline"
-                  ? "Execution timeline"
-                  : "Model invocations & trace references"
+                tab === "timeline" ? "Execution timeline" : "Model invocations"
               }
-              description="Proposed requests, admitted actions, side effects, and results remain distinct."
+              description={
+                tab === "timeline"
+                  ? "Proposed requests, admitted actions, side effects, and results remain distinct."
+                  : "One card per model call on this page: what it reasoned, what it said, and what it proposed."
+              }
               actions={
                 <Badge>
                   {progress.updatedAt
@@ -530,51 +539,21 @@ function RunDetail() {
             {events.loading ? (
               <Loading />
             ) : traceEvents.length ? (
-              <div className="timeline-list">
-                {traceEvents.map((e) => {
-                  const Icon = /denied|error|fail/.test(e.type)
-                    ? XCircle
-                    : /board/.test(e.type)
-                      ? MessageSquare
-                      : /tool/.test(e.type)
-                        ? Wrench
-                        : /complete|success/.test(e.type)
-                          ? CheckCircle2
-                          : Play;
-                  return (
-                    <button
-                      className="timeline-row"
-                      key={e.id}
-                      onClick={() => inspect(e.id, e.sequence)}
-                    >
-                      <span className="timeline-marker">
-                        <Icon size={13} aria-hidden="true" />
-                      </span>
-                      <div className="timeline-main">
-                        <div>
-                          <strong>{e.type.replaceAll("_", " ")}</strong>
-                          <Badge>{e.agentId || "system"}</Badge>
-                          <span className="helper">
-                            #{e.sequence} · R{e.round ?? "—"} / T{e.turn ?? "—"}
-                          </span>
-                          {/denied|error|fail/.test(e.type) && (
-                            <Badge status="failed">Diagnostic</Badge>
-                          )}
-                        </div>
-                        <p>{pretty(e.data).slice(0, 190)}</p>
-                      </div>
-                      <time className="timeline-time">
-                        {new Date(e.timestamp).toLocaleTimeString()}
-                      </time>
-                      <ArrowUpRight
-                        size={13}
-                        className="muted"
-                        aria-hidden="true"
-                      />
-                    </button>
-                  );
-                })}
-              </div>
+              tab === "timeline" ? (
+                <TimelinePanel
+                  events={traceEvents}
+                  provider={data.config.model.provider}
+                  onInspect={inspect}
+                  onOpenTraces={openTraces}
+                />
+              ) : (
+                <TracesPanel
+                  events={traceEvents}
+                  provider={data.config.model.provider}
+                  onInspect={inspect}
+                  focusInvocationId={focusCall}
+                />
+              )
             ) : (
               <Empty
                 title="No matching events"
@@ -866,23 +845,33 @@ function RunDetail() {
               )}
             </dl>
             <hr className="section-divider" />
-            {event && (
-              <Notice>
-                Tool requests are proposals until an admission and result are
-                recorded. Repeated input context is not a new action.
-              </Notice>
-            )}
-            <JsonView value={selectedItem} />
-            {event?.invocationId && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setTab("traces");
-                }}
-              >
-                Inspect model / trace references
-              </Button>
+            {event?.invocationId && MODEL_CALL_EVENT_TYPES.has(event.type) ? (
+              <ModelCallDetail
+                event={event}
+                events={traceEvents}
+                provider={data.config.model.provider}
+                onNavigate={inspect}
+                onOpenTraces={openTraces}
+              />
+            ) : (
+              <>
+                {event && (
+                  <Notice>
+                    Tool requests are proposals until an admission and result
+                    are recorded. Repeated input context is not a new action.
+                  </Notice>
+                )}
+                <JsonView value={selectedItem} />
+                {event?.invocationId && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => openTraces(event.invocationId!)}
+                  >
+                    Open model call in Model &amp; traces
+                  </Button>
+                )}
+              </>
             )}
           </>
         ) : (
