@@ -39,26 +39,50 @@ export function HealthcarePreset({
         : { ...preset, label: config.label, experimentId: config.experimentId },
     );
   };
+  const unavailable =
+    catalog.error &&
+    ((catalog.error as { status?: number }).status === 404 ||
+      /route not found/i.test(catalog.error.message));
+  const presetReady = catalog.data?.some(
+    (item) =>
+      item.datasetId === "fixture10-s101-points" && item.runtimeSupported,
+  );
+  const presetReason = catalog.loading
+    ? "Checking the dataset catalog…"
+    : unavailable
+      ? "The dataset catalog isn't available in this workspace."
+      : catalog.error
+        ? "The dataset catalog couldn't be loaded."
+        : !presetReady
+          ? "The healthcare smoke dataset isn't installed in this workspace."
+          : undefined;
   return (
     <div className="full stack">
       {!healthcare && (
-        <Button
-          variant="secondary"
-          disabled={
-            mutation.busy ||
-            !catalog.data?.some(
-              (item) =>
-                item.datasetId === "fixture10-s101-points" &&
-                item.runtimeSupported,
-            )
-          }
-          onClick={() => void apply("fixture10-s101-points")}
-        >
-          Use healthcare smoke preset
-        </Button>
+        <div className="stack" style={{ gap: 6 }}>
+          <Button
+            variant="secondary"
+            disabled={mutation.busy || !presetReady}
+            aria-describedby={presetReason ? "healthcare-preset-reason" : undefined}
+            onClick={() => void apply("fixture10-s101-points")}
+          >
+            Use healthcare smoke preset
+          </Button>
+          {presetReason && (
+            <p className="helper" id="healthcare-preset-reason">
+              {presetReason}
+            </p>
+          )}
+        </div>
       )}
       {catalog.loading ? (
         <Loading />
+      ) : unavailable ? (
+        healthcare && (
+          <p className="helper">
+            Dataset catalog isn't available in this workspace.
+          </p>
+        )
       ) : catalog.error ? (
         <Notice kind="warning">
           Dataset catalog unavailable: {catalog.error.message}{" "}

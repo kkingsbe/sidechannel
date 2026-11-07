@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   useLocation,
@@ -32,6 +32,18 @@ import {
 import { api, post, useApi, useMutation } from "../lib/api";
 import type { Draft, ExperimentConfig, Json, Run } from "../lib/types";
 import { pretty, when } from "../lib/utils";
+import {
+  DURATION_WARNING_MS,
+  MAX_DURATION_MS,
+  configFingerprint,
+  humanDuration,
+  humanizeError,
+  localFieldErrors,
+  readSessionLaunches,
+  recordSessionLaunch,
+  runBudget,
+  type SessionLaunch,
+} from "../lib/experiment-form";
 import "./Experiments.css";
 import { HealthcarePreset } from "../components/healthcare-preset";
 import { ModelControls } from "../components/model-controls";
@@ -51,6 +63,32 @@ const focusField = (path: string) => {
     parent = parent.parentElement;
   }
   control?.focus();
+};
+type DraftMeta = Draft & { name?: string; notes?: string; lineage?: unknown };
+const blankConfig = (value: ExperimentConfig): ExperimentConfig => ({
+  ...structuredClone(value),
+  label: "",
+});
+const timeOf = (iso: string) =>
+  new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const normalize = (result: Validation): Validation => {
+  const raw = result.fieldErrors ?? {};
+  const rawMessages = new Set(Object.values(raw));
+  const fieldErrors = Object.fromEntries(
+    Object.entries(raw).map(([path, message]) => [
+      path,
+      humanizeError(message, path),
+    ]),
+  );
+  const shown = new Set(Object.values(fieldErrors));
+  const errors = [
+    ...new Set(
+      (result.errors || [])
+        .filter((error) => !rawMessages.has(error))
+        .map((error) => humanizeError(error)),
+    ),
+  ].filter((error) => !shown.has(error));
+  return { ...result, fieldErrors, errors };
 };
 type Validation = {
   valid: boolean;
@@ -178,11 +216,30 @@ export default function Experiments() {
   const [dirty, setDirty] = useState(false);
   const [launchReview, setLaunchReview] = useState(false);
   const [savedLocal, setSavedLocal] = useState(false);
-  const [launched, setLaunched] = useState<Run[]>();
+  const [confirming, setConfirming] = useState(false);
+  const [touched, setTouched] = useState<string[]>([]);
+  const [launchedNow, setLaunchedNow] = useState<SessionLaunch>();
+  const [sessionLaunches, setSessionLaunches] = useState(readSessionLaunches);
+  const [pendingLeave, setPendingLeave] = useState<string>();
   const [notes, setNotes] = useState("");
   const mutation = useMutation();
   const launchKey = useRef(crypto.randomUUID());
   const initializedRoute = useRef("");
+  const draftId = useRef<string | undefined>(undefined);
+  const live = useMemo(
+    () => (config ? localFieldErrors(config) : {}),
+    [config],
+  );
+  const guardActive = dirty && !launchedNow;
+  const resetReview = () => {
+    setLaunchReview(false);
+    setConfirming(false);
+  };
+  const touch = (path: string) =>
+    setTouched((items) => (items.includes(path) ? items : [...items, path]));
+  const fieldError = (path: string) =>
+    validation?.fieldErrors?.[path] ??
+    (touched.includes(path) ? live[path] : undefined);
   useEffect(() => {
     const routeKey = location.pathname + location.search;
     if (!defaults.data || !editing || initializedRoute.current === routeKey)
@@ -190,11 +247,14 @@ export default function Experiments() {
     initializedRoute.current = routeKey;
     if (params.has("draft")) return;
     setDraft(undefined);
+    draftId.current = undefined;
     setNotes("");
     setDirty(false);
     setSavedLocal(false);
     setValidation(undefined);
-    setLaunchReview(false);
+    resetReview();
+    setTouched([]);
+    setLaunchedNow(undefined);
     launchKey.current = crypto.randomUUID();
     const saved = localStorage.getItem("sidechannel-experiment-draft");
     if (saved && params.has("recover") && !params.has("draft")) {
@@ -210,18 +270,31 @@ export default function Experiments() {
         /* Ignore an invalid local recovery copy. */
       }
     }
-    setConfig(structuredClone(defaults.data));
+    setConfig(blankConfig(defaults.data));
   }, [defaults.data, editing, location.pathname, location.search, params]);
   useEffect(() => {
-    if (!params.get("draft")) return;
+    const id = params.get("draft");
+    if (!id || draftId.current === id) return;
     setDraftError(undefined);
-    void api<Draft>("/drafts/" + encodeURIComponent(params.get("draft")!))
+    void api<DraftMeta>("/drafts/" + encodeURIComponent(id))
       .then((data) => {
-        setConfig(data.config);
+        // A copy that has never been edited opens as an unsaved "Copy of <name>".
+        const copied =
+          !!data.lineage &&
+          (data.revision ?? 1) <= 1 &&
+          !!data.config?.label &&
+          !/^Copy of /.test(data.config.label);
+        draftId.current = data.id;
+        setConfig(
+          copied
+            ? { ...data.config, label: `Copy of ${data.config.label}` }
+            : data.config,
+        );
         setDraft(data);
-        setNotes((data as Draft & { notes?: string }).notes || "");
+        setNotes(data.notes || "");
         setSavedLocal(false);
-        setDirty(false);
+        setDirty(copied);
+        setTouched([]);
       })
       .catch((error: Error) => setDraftError(error));
   }, [params]);
@@ -232,19 +305,54 @@ export default function Experiments() {
         JSON.stringify({ config, draft, notes }),
       );
   }, [config, draft, dirty, notes]);
+  useEffect(() => {
+    if (!guardActive) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    // BrowserRouter has no navigation blocker, so in-app links are intercepted here.
+    const click = (event: MouseEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      )
+        return;
+      const anchor = (event.target as Element | null)?.closest?.(
+        "a[href]",
+      ) as HTMLAnchorElement | null;
+      if (!anchor || (anchor.target && anchor.target !== "_self")) return;
+      const href = anchor.getAttribute("href") || "";
+      if (!href.startsWith("/") || href.startsWith("//")) return;
+      if (href === location.pathname + location.search) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setPendingLeave(href);
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    document.addEventListener("click", click, true);
+    return () => {
+      window.removeEventListener("beforeunload", beforeUnload);
+      document.removeEventListener("click", click, true);
+    };
+  }, [guardActive, location.pathname, location.search]);
   const change = (path: string, value: unknown) => {
     if (!config) return;
     setConfig(setAt(config, path, value));
     setDirty(true);
     setValidation(undefined);
-    setLaunchReview(false);
+    resetReview();
     launchKey.current = crypto.randomUUID();
   };
   const replace = (value: ExperimentConfig) => {
     setConfig(value);
     setDirty(true);
     setValidation(undefined);
-    setLaunchReview(false);
+    resetReview();
     launchKey.current = crypto.randomUUID();
   };
   const field = (
@@ -253,12 +361,13 @@ export default function Experiments() {
     hint?: string,
     kind: "text" | "textarea" | "number" = "text",
     min?: number,
+    placeholder?: string,
   ) => (
     <Field
       key={path}
       label={label}
       hint={hint}
-      error={validation?.fieldErrors?.[path]}
+      error={fieldError(path)}
       required={schema.data?.fields.some(
         (item) => item.path === path && item.required,
       )}
@@ -268,14 +377,21 @@ export default function Experiments() {
           data-config-path={path}
           value={String(valueAt(config!, path) ?? "")}
           onChange={(e) => change(path, e.target.value)}
+          onBlur={() => touch(path)}
         />
       ) : (
         <Input
           data-config-path={path}
           type={kind}
           min={min}
+          placeholder={placeholder}
+          onBlur={() => touch(path)}
           step={kind === "number" ? 1 : undefined}
-          value={String(valueAt(config!, path) ?? "")}
+          value={
+            Number.isNaN(valueAt(config!, path))
+              ? ""
+              : String(valueAt(config!, path) ?? "")
+          }
           onChange={(e) =>
             change(
               path,
@@ -287,34 +403,59 @@ export default function Experiments() {
     </Field>
   );
   const save = async () => {
+    if (!config) return;
+    // A draft always has a name so it is recognisable in the shared list.
+    const named = config.label?.trim()
+      ? config
+      : {
+          ...config,
+          label: `Untitled draft · ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`,
+        };
     const result = await mutation.run(
       () =>
         post<Draft>("/drafts", {
           id: draft?.id,
           revision: draft?.revision,
-          config,
-          name: config?.label,
+          config: named,
+          name: named.label,
           notes,
         }),
       "Draft saved. This does not launch any run.",
     );
     if (result) {
+      if (named !== config) setConfig(named);
       setDraft(result);
       launchKey.current = crypto.randomUUID();
       setDirty(false);
       setSavedLocal(false);
       localStorage.removeItem("sidechannel-experiment-draft");
       void drafts.refresh();
+      if (params.get("draft") !== result.id) {
+        draftId.current = result.id;
+        navigate("/experiments?draft=" + encodeURIComponent(result.id), {
+          replace: true,
+        });
+      }
     }
   };
   const validate = async () => {
-    const result = await mutation.run(() =>
+    const local = localFieldErrors(config!);
+    if (Object.keys(local).length) {
+      setTouched(Object.keys(local));
+      setValidation({ valid: false, errors: [], fieldErrors: local });
+      resetReview();
+      requestAnimationFrame(() => focusField(Object.keys(local)[0]!));
+      return;
+    }
+    const response = await mutation.run(() =>
       post<Validation>("/config/validate", { config }),
     );
-    if (result) {
+    if (response) {
+      const result = normalize(response);
       setValidation(result);
       if (result.valid && result.config) setConfig(result.config);
       setLaunchReview(result.valid);
+      setConfirming(false);
       if (!result.valid) {
         const path = Object.keys(result.fieldErrors || {})[0];
         requestAnimationFrame(() =>
@@ -326,21 +467,46 @@ export default function Experiments() {
     }
   };
   const launch = async () => {
+    const sent = config!;
     const result = await mutation.run(() =>
       post<Run[]>("/pairs", {
-        config,
+        config: sent,
         idempotencyKey: launchKey.current,
-        pairingSeed: config?.scheduler?.seed,
+        pairingSeed: sent.scheduler?.seed,
         ...(!dirty && draft
           ? { sourceDraftId: draft.id, sourceDraftRevision: draft.revision }
           : {}),
       }),
     );
     if (result) {
-      setLaunched(result);
-      setLaunchReview(false);
+      const entries = recordSessionLaunch(sent, launchKey.current, result);
+      setSessionLaunches(entries);
+      resetReview();
       localStorage.removeItem("sidechannel-experiment-draft");
+      const pairId = entries[0]?.pairId;
+      if (pairId) {
+        setDirty(false);
+        navigate("/runs/pairs/" + encodeURIComponent(pairId));
+      } else setLaunchedNow(entries[0]);
     }
+  };
+  const configureAnother = () => {
+    setLaunchedNow(undefined);
+    setValidation(undefined);
+    resetReview();
+  };
+  const startNew = () => {
+    setConfig(blankConfig(defaults.data!));
+    setDraft(undefined);
+    draftId.current = undefined;
+    setNotes("");
+    setDirty(false);
+    setValidation(undefined);
+    setTouched([]);
+    setLaunchedNow(undefined);
+    resetReview();
+    launchKey.current = crypto.randomUUID();
+    navigate("/experiments/new");
   };
   const load = (item: Draft) => {
     if (
@@ -356,41 +522,60 @@ export default function Experiments() {
     setDirty(false);
     setSavedLocal(false);
     setValidation(undefined);
-    setLaunchReview(false);
+    setTouched([]);
+    resetReview();
     launchKey.current = crypto.randomUUID();
+    draftId.current = item.id;
     navigate("/experiments?draft=" + item.id);
   };
   const duplicate = async () => {
     if (!draft) return;
     const result = await mutation.run(() =>
-      post<Draft>("/drafts/" + draft.id + "/duplicate", {}),
+      post<Draft>("/drafts/" + draft.id + "/duplicate", {
+        name: `Copy of ${config?.label || draft.config?.label || draft.id}`,
+      }),
     );
     if (result) {
-      setConfig(result.config);
-      setDraft(result);
       launchKey.current = crypto.randomUUID();
-      setDirty(false);
+      // The draft loader opens a never-edited copy as an unsaved "Copy of <name>".
+      draftId.current = undefined;
       void drafts.refresh();
+      navigate("/experiments?draft=" + encodeURIComponent(result.id));
     }
   };
-  const duration = (path: string, label: string, scale: number) => (
-    <Field
-      label={label}
-      error={validation?.fieldErrors?.[path]}
-      hint={`Stored in milliseconds (${String(valueAt(config!, path))} ms).`}
-    >
-      <Input
-        data-config-path={path}
-        type="number"
-        step="any"
-        min={1 / scale}
-        value={Number(valueAt(config!, path)) / scale}
-        onChange={(event) =>
-          change(path, Math.round(event.target.valueAsNumber * scale))
+  const duration = (path: string, label: string, scale: number) => {
+    const ms = Number(valueAt(config!, path));
+    const long =
+      path === "limits.maxDurationMs" &&
+      ms > DURATION_WARNING_MS &&
+      ms <= MAX_DURATION_MS;
+    return (
+      <Field
+        label={label}
+        error={fieldError(path)}
+        hint={
+          long ? (
+            <span className="field-warning">
+              About {humanDuration(ms)}. Runs this long spend more model budget;
+              the limit is 24 hours.
+            </span>
+          ) : undefined
         }
-      />
-    </Field>
-  );
+      >
+        <Input
+          data-config-path={path}
+          type="number"
+          step="any"
+          min={1 / scale}
+          value={Number.isFinite(ms) ? ms / scale : ""}
+          onBlur={() => touch(path)}
+          onChange={(event) =>
+            change(path, Math.round(event.target.valueAsNumber * scale))
+          }
+        />
+      </Field>
+    );
+  };
   if (!editing)
     return (
       <>
@@ -512,12 +697,7 @@ export default function Experiments() {
               </Button>
               <Button
                 variant="ghost"
-                onClick={() => {
-                  setConfig(structuredClone(defaults.data!));
-                  setDraft(undefined);
-                  setDirty(false);
-                  navigate("/experiments/new");
-                }}
+                onClick={startNew}
               >
                 Start a new draft
               </Button>
@@ -538,6 +718,18 @@ export default function Experiments() {
     !Array.isArray(config.scenario.assets)
       ? Object.entries(config.scenario.assets)
       : null;
+  const valid = (value: unknown) =>
+    typeof value === "number" && Number.isSafeInteger(value) && value >= 1
+      ? value.toLocaleString()
+      : "—";
+  const budget = runBudget(config);
+  const fingerprint = configFingerprint(config);
+  const previousLaunches = sessionLaunches.filter(
+    (item) => item.at !== launchedNow?.at,
+  );
+  const nearIdentical = sessionLaunches.find(
+    (item) => item.fingerprint === fingerprint && item.key !== launchKey.current,
+  );
   return (
     <>
       <Link to="/experiments">All experiments</Link>
@@ -554,7 +746,11 @@ export default function Experiments() {
                   ? `Draft revision ${draft.revision ?? 1}`
                   : "New draft"}
             </Badge>
-            <Button variant="secondary" disabled={mutation.busy} onClick={save}>
+            <Button
+              variant="secondary"
+              disabled={mutation.busy || !!launchedNow}
+              onClick={save}
+            >
               <Save size={15} />
               Save draft
             </Button>
@@ -595,33 +791,53 @@ export default function Experiments() {
               </button>
             </p>
           ))}
-          <ul>
-            {validation.errors.map((error) => (
-              <li key={error}>{error}</li>
-            ))}
-          </ul>
+          {validation.errors.length > 0 && (
+            <ul>
+              {validation.errors.map((error) => (
+                <li key={error}>{error}</li>
+              ))}
+            </ul>
+          )}
         </Notice>
       )}
-      {launched && (
-        <Notice kind="success">
-          <strong>Matched pair queued</strong>
-          <p>
-            The configuration is frozen. Runs execute independently of this
-            browser.
-          </p>
-          <div className="actions">
-            {launched.map((run) => (
-              <Button asChild size="sm" variant="secondary" key={run.id}>
-                <Link to={"/runs/" + run.id}>
-                  {run.config.condition.id} · {run.id.slice(0, 12)}
-                </Link>
+      {pendingLeave && (
+        <div
+          className="leave-guard-backdrop"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setPendingLeave(undefined);
+          }}
+        >
+          <div
+            className="card leave-guard"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="leave-guard-title"
+          >
+            <h2 id="leave-guard-title">Leave without saving?</h2>
+            <p>
+              Your edits are not saved to the shared draft list. A recovery copy
+              stays in this browser until you launch or start over.
+            </p>
+            <div className="actions">
+              <Button autoFocus onClick={() => setPendingLeave(undefined)}>
+                Keep editing
               </Button>
-            ))}
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const target = pendingLeave;
+                  setPendingLeave(undefined);
+                  navigate(target);
+                }}
+              >
+                Leave and discard
+              </Button>
+            </div>
           </div>
-        </Notice>
+        </div>
       )}
       <div className="editor-layout">
-        <div>
+        <fieldset className="form-lock" disabled={!!launchedNow}>
           <Card className="form-section">
             <CardHeading
               title="Scenario & data"
@@ -633,7 +849,14 @@ export default function Experiments() {
                 replace={replace}
                 errors={validation?.fieldErrors}
               />
-              {field("label", "Experiment name")}
+              {field(
+                "label",
+                "Experiment name",
+                undefined,
+                "text",
+                undefined,
+                "Name this experiment, e.g. Pilot · reviewed vs excluded",
+              )}
               {field("experimentId", "Experiment / group identifier")}
               {field("configVersion", "Configuration version")}
               <Field label="Designation">
@@ -1025,7 +1248,7 @@ export default function Experiments() {
               </div>
             </Card>
           </details>
-        </div>
+        </fieldset>
         <aside className="stack sticky">
           <Card>
             <CardHeading
@@ -1052,8 +1275,22 @@ export default function Experiments() {
                 <BudgetSummary config={config} />
                 <dt>Rounds</dt>
                 <dd>
-                  {config.scheduler.rounds} ×{" "}
-                  {config.scheduler.toolCallsPerTurn} calls / turn
+                  {valid(config.scheduler.rounds)} ×{" "}
+                  {valid(config.scheduler.toolCallsPerTurn)} calls / turn
+                </dd>
+                <dt>Maximum duration</dt>
+                <dd>
+                  {valid(config.limits.maxDurationMs) === "—" ||
+                  config.limits.maxDurationMs > MAX_DURATION_MS
+                    ? "—"
+                    : humanDuration(config.limits.maxDurationMs)}{" "}
+                  per run
+                </dd>
+                <dt>Budget per run</dt>
+                <dd>
+                  {budget
+                    ? `Up to ${budget.toolCalls.toLocaleString()} admitted tool calls and ${budget.modelSteps.toLocaleString()} model steps`
+                    : "—"}
                 </dd>
                 <dt>Designation</dt>
                 <dd>
@@ -1081,23 +1318,115 @@ export default function Experiments() {
                 </p>
               </div>
               <hr className="section-divider" />
-              {launchReview ? (
-                <>
+              {launchedNow && !launchedNow.pairId ? (
+                <div className="stack" style={{ gap: 10 }}>
                   <Notice kind="success">
-                    <CheckCircle2 size={14} /> Valid configuration. Launch
-                    freezes two runs.
+                    <strong>Matched pair queued</strong>
+                    <p>
+                      The configuration is frozen. Runs execute independently of
+                      this browser.
+                    </p>
+                    <div className="actions">
+                      {launchedNow.runs.map((run) => (
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="secondary"
+                          key={run.id}
+                        >
+                          <Link to={"/runs/" + run.id}>
+                            {run.condition} · {run.id.slice(0, 12)}
+                          </Link>
+                        </Button>
+                      ))}
+                    </div>
                   </Notice>
+                  <Button
+                    variant="secondary"
+                    onClick={configureAnother}
+                    style={{ width: "100%" }}
+                  >
+                    Configure another
+                  </Button>
+                </div>
+              ) : launchReview && confirming ? (
+                <div className="stack" role="group" aria-label="Confirm launch">
+                  <strong>Start 2 runs now?</strong>
+                  <dl className="definition-list">
+                    <dt>Runs</dt>
+                    <dd>2 (reviewed board + excluded board)</dd>
+                    <dt>Model</dt>
+                    <dd>
+                      {config.model.provider} / {config.model.id}
+                    </dd>
+                    <dt>Per run</dt>
+                    <dd>
+                      {budget
+                        ? `${budget.rounds} rounds × ${budget.calls} admitted tool calls / turn × ${budget.agents} agents`
+                        : "—"}
+                    </dd>
+                    <dt>Model steps / turn</dt>
+                    <dd>{valid(config.limits.maxModelStepsPerTurn)}</dd>
+                    <dt>Max duration</dt>
+                    <dd>
+                      {humanDuration(config.limits.maxDurationMs)} per run
+                    </dd>
+                  </dl>
+                  {config.model.provider !== "scripted" && (
+                    <p className="helper">
+                      This spends real model budget on the live stack. Runs
+                      continue even if you close this page.
+                    </p>
+                  )}
+                  {nearIdentical && (
+                    <Notice kind="warning">
+                      You launched a near-identical pair at{" "}
+                      {timeOf(nearIdentical.at)}
+                      {nearIdentical.label === config.label
+                        ? " with the same name"
+                        : ` as “${nearIdentical.label}”`}
+                      . Only the name or notes differ, so this starts two more
+                      runs.{" "}
+                      {nearIdentical.pairId && (
+                        <Link to={"/runs/pairs/" + nearIdentical.pairId}>
+                          View that pair
+                        </Link>
+                      )}
+                    </Notice>
+                  )}
                   <Button
                     disabled={mutation.busy}
                     onClick={launch}
                     style={{ width: "100%" }}
                   >
                     <Send size={14} />
-                    {mutation.busy ? "Submitting…" : "Launch matched pair"}
+                    {mutation.busy ? "Submitting…" : "Confirm: start 2 runs"}
                   </Button>
                   <Button
                     variant="ghost"
-                    onClick={() => setLaunchReview(false)}
+                    disabled={mutation.busy}
+                    onClick={() => setConfirming(false)}
+                    style={{ width: "100%" }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : launchReview ? (
+                <>
+                  <Notice kind="success">
+                    Valid configuration. Launch freezes two runs.
+                  </Notice>
+                  <Button
+                    disabled={mutation.busy}
+                    onClick={() => setConfirming(true)}
+                    style={{ width: "100%" }}
+                  >
+                    <Send size={14} />
+                    Launch matched pair
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={resetReview}
                     style={{ width: "100%", marginTop: 7 }}
                   >
                     Back to editing
@@ -1113,8 +1442,8 @@ export default function Experiments() {
                   Validate & review launch
                 </Button>
               )}
-              {!launchReview && (
-                <p>
+              {!launchReview && !launchedNow && (
+                <p className="helper">
                   Launch requires successful validation of the current
                   configuration. Saving a draft is available before validation.
                 </p>
@@ -1125,6 +1454,32 @@ export default function Experiments() {
               </p>
             </div>
           </Card>
+          {previousLaunches.length > 0 && (
+            <Card>
+              <CardHeading
+                title="Launched this session"
+                description="Pairs started from this form in this browser session."
+              />
+              <ul className="launched-list card-body">
+                {previousLaunches.map((item) => (
+                    <li key={item.at + item.key}>
+                      <strong>{item.label || "Untitled"}</strong>
+                      <small>{timeOf(item.at)}</small>
+                      <span className="actions">
+                        {item.pairId && (
+                          <Link to={"/runs/pairs/" + item.pairId}>Pair</Link>
+                        )}
+                        {item.runs.map((run) => (
+                          <Link key={run.id} to={"/runs/" + run.id}>
+                            {run.condition}
+                          </Link>
+                        ))}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </Card>
+          )}
           <Card>
             <CardHeading
               title="Saved drafts"
@@ -1133,14 +1488,7 @@ export default function Experiments() {
                   aria-label="Start a new draft"
                   size="icon"
                   variant="ghost"
-                  onClick={() => {
-                    setConfig(structuredClone(defaults.data!));
-                    setDraft(undefined);
-                    setDirty(false);
-                    setValidation(undefined);
-                    setLaunchReview(false);
-                    navigate("/experiments/new");
-                  }}
+                  onClick={startNew}
                 >
                   <Plus size={16} />
                 </Button>

@@ -1,0 +1,11 @@
+/* Mobile drawer: keep the close button in normal flow above the logo instead of overlapping it. */
+.sidebar > .mobile-nav {
+  flex: none;
+  align-self: flex-start;
+  margin: 0 0 14px;
+  color: #e6edf7;
+  position: static;
+}
+.sidebar > .brand {
+  flex: none;
+}

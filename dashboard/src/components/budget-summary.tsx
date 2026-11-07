@@ -5,7 +5,13 @@ export function BudgetSummary({ config }: { config: ExperimentConfig }) {
   return (
     <>
       <dt>Input allowance</dt>
-      <dd>
+      <dd
+        title={
+          budget
+            ? undefined
+            : "This configuration has no token budget, so the private-memory context is limited by character count (memory.contextBudget) instead of model tokens."
+        }
+      >
         {budget
           ? `${budget.maxInputTokens.toLocaleString()} tokens (conservative estimate)`
           : `${config.memory.contextBudget.toLocaleString()} characters (legacy)`}
