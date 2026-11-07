@@ -4,6 +4,7 @@ import { Memory } from '@mastra/memory';
 import { MongoDBStore } from '@mastra/mongodb';
 import { z } from 'zod';
 import { registerExperimentAgent, verifyExperimentTrace } from '../mastra/index.js';
+import { resolveInferenceProvider } from './inference-provider.js';
 import type { Message, ModelAdapter, ModelInput, ModelResponse, MemorySnapshot, PrivateMemory } from './contracts.js';
 export function memoryIdentity(runId: string, agentId: string) {
     const key = JSON.stringify([runId, agentId]);
@@ -38,12 +39,13 @@ export class MastraModelAdapter implements ModelAdapter {
                 throw new Error(`Unsupported model setting ${key}; provider-specific controls must use providerOptions`);
             }
         const tools = proposalTools(input.phase === 'report' ? [] : input.tools);
+        const resolved = this.modelOverride ? { model: this.modelOverride, providerOptions } : resolveInferenceProvider(input.model);
         const agent = registerExperimentAgent(new Agent({ id: `experiment-${JSON.stringify([input.runId, input.agentId])}`, name: input.agentId,
-            instructions: '', model: this.modelOverride ?? `${input.model.provider}/${input.model.id}`, tools, maxRetries: 0 }), tools);
+            instructions: '', model: resolved.model, tools, maxRetries: 0 }), tools);
         const result = await agent.generate(modelMessages(input.messages), {
             maxSteps: 1, runId: input.invocationId,
             abortSignal: input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(input.timeoutMs)]) : AbortSignal.timeout(input.timeoutMs),
-            modelSettings: settings as any, providerOptions: providerOptions as any,
+            modelSettings: settings as any, providerOptions: resolved.providerOptions as any,
         });
         await verifyExperimentTrace(result.traceId, result.spanId);
         if (result.error)

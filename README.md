@@ -62,7 +62,7 @@ The planned oversight comparison gives one fixed monitor four progressively broa
 | Reports, audit metadata, and board | Adds board content and exact delivery records |
 | Full observable trace | Adds tool arguments/results and shared artifact history |
 
-Monitor views, behavioral coding, and adjudication are not yet implemented. Hidden answer keys and researcher labels must stay out of monitor inputs. The visibility of private working memory in evaluation remains an open research decision.
+The researcher workspace implements behavioral coding, Jev screening, human review, and four-view oversight. Hidden answer keys and researcher labels stay out of monitor inputs. The full monitor view includes recorded private working memory and supported observable reasoning; the three narrower views exclude both. See the [dashboard operations guide](docs/dashboard-operations.md) and [Jev backend guide](agent/docs/jev-analysis.md).
 
 A run is the experimental unit; messages, agents, and patient records within it are not independent trials. Small matched samples support descriptive comparisons and trace analysis, not stable model rankings. A run without qualifying misconduct is a valid result, and does not establish general safety.
 
@@ -89,6 +89,8 @@ Use Node.js **22.18+ within 22.x, or 24.11+**, npm, and Docker Desktop. From the
 ```powershell
 cd agent
 npm ci
+npm --prefix ../dashboard ci
+npm run dashboard:build
 # First setup only; keep an existing .env if already configured.
 Copy-Item .env.example .env
 docker compose up -d --wait mongo
@@ -106,7 +108,7 @@ Validate the development fixture's resolved configuration, then launch a run or 
 
 For actual model runs, configure provider credentials in the backend environment and select a supported provider/model. Keep credentials out of configuration JSON. See the [harness setup and operations guide](agent/README.md) for live smoke tests, deployment settings, fixture regeneration, and recovery.
 
-For a fully containerized setup, the [harness guide](agent/README.md#run-separate-containers) covers separate MongoDB, dashboard/API, worker and Mastra Studio/API services, plus an optional Access-protected Cloudflare Tunnel that exposes only the dashboard.
+For a fully containerized setup, the [harness guide](agent/README.md#run-separate-containers) covers separate MongoDB, dashboard/API, experiment worker, analysis/monitor worker and Mastra Studio/API services, plus an optional open Cloudflare Tunnel that exposes only the dashboard.
 
 ### Development checks
 
@@ -128,16 +130,18 @@ Mongo integration checks require the local replica set started by Docker Compose
 | [agent/](agent/) | Runnable TypeScript/Mastra application, dependencies, and infrastructure configuration |
 | [agent/src/harness/](agent/src/harness/) | Configuration, scheduler, gateway, scenario, persistence, and model adapters |
 | [agent/src/server/](agent/src/server/) | Researcher API |
-| [agent/src/dashboard/](agent/src/dashboard/) | Browser dashboard |
+| [dashboard/](dashboard/) | React researcher workspace |
 | [agent/examples/completed-fixture.json](agent/examples/completed-fixture.json) | Exported scripted fixture evidence |
 | [agent/docs/mastra-integration.md](agent/docs/mastra-integration.md) | Tool execution boundary, private memory, and tracing decisions |
 | [agent/docs/decisions.md](agent/docs/decisions.md) | Implementation decisions |
 | [harness_handoff.md](harness_handoff.md) | Current harness requirements and acceptance criteria |
+| [docs/jev-analysis-spec.md](docs/jev-analysis-spec.md) | Proposed Jev trace-analysis workflow, windowing, codebook, jobs, and backend contracts |
+| [docs/dashboard-spec.md](docs/dashboard-spec.md) | Proposed full dashboard rewrite: experiments, evidence, analysis, review, and oversight |
 
 ## Next steps and limits
 
 The next research milestone is to implement the synthetic healthcare scenario, validate a legitimate completion route and complementary archive fragments, and freeze the policy and coding definitions. Paired pilots should then establish usable budgets and model compatibility before final collection. Pilots and scripted fixtures remain separate from study results.
 
-The final model matrix, automated semantic evaluation, monitor views, monetary cost caps, and hosted identity integration remain outside the first milestone. A crashed worker requires manual recovery and is not automatically resumed. Embedded MongoDB run projections are subject to the 16 MB document limit; larger studies need storage changes. The dashboard exposes trace IDs and model payloads rather than a full trace-tree viewer.
+The final model matrix, healthcare-specific semantic evaluation, monetary cost caps, and hosted identity integration remain separate work. A crashed experiment worker requires manual recovery and is not automatically resumed; research workers use independent recoverable leases. Embedded MongoDB run projections remain subject to the 16 MB document limit; larger studies need source-storage changes. The dashboard exposes trace IDs and model payloads rather than a full provider trace-tree viewer.
 
 See the [research draft](https://chatgpt.com/space/page_cd05069decec819189b2be80968b2c6b) for the proposed hypotheses, reviewer procedure, study schedule, and related work, and the [harness guide](agent/README.md) for operational details and current limitations.

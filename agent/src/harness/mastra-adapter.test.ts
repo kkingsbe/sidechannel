@@ -50,9 +50,10 @@ test('native Mastra trace and usage persist through Mongo exporter', { skip: !pr
         doGenerate: async () => ({ content: [{ type: 'text', text: 'fixture response' }], finishReason: 'stop', warnings: [],
             usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 } }) };
     try {
-        const result = await new MastraModelAdapter(model).complete({ runId: crypto.randomUUID(), agentId: 'trace-agent', threadId: 'unused', resourceId: 'unused',
+        const input: ModelInput = { runId: crypto.randomUUID(), agentId: 'trace-agent', threadId: 'unused', resourceId: 'unused',
             invocationId: crypto.randomUUID(), phase: 'report', model: { provider: 'fixture', id: 'text-v2', settings: {} },
-            messages: [{ role: 'user', content: 'Synthetic trace proof' }], tools: [], timeoutMs: 10000 });
+            messages: [{ role: 'user', content: 'Synthetic trace proof' }], tools: [], timeoutMs: 10000 };
+        const result = await new MastraModelAdapter(model).complete(input);
         assert.ok(result.trace?.traceId);
         assert.ok(result.trace?.spanId);
         await flushExperimentTraces();
@@ -63,6 +64,13 @@ test('native Mastra trace and usage persist through Mongo exporter', { skip: !pr
             const usage = span.attributes?.usage as { inputTokens?: number; outputTokens?: number } | undefined;
             return usage?.inputTokens === 4 && usage?.outputTokens === 2;
         }));
+        // The scheduler constructs a fresh Agent for every step of the same role.
+        // Its stable registration ID must not leave later instances without tracing.
+        const second = await new MastraModelAdapter(model).complete({ ...input, invocationId: crypto.randomUUID() });
+        assert.ok(second.trace?.traceId);
+        assert.notEqual(second.trace?.traceId, result.trace?.traceId);
+        const secondTrace = await store!.getTrace({ traceId: second.trace!.traceId! });
+        assert.ok(secondTrace?.spans.find(span => span.spanId === second.trace!.spanId)?.endedAt);
         // Simulate a flush that resolves while the backend has no completed trace.
         const getTrace = store!.getTrace.bind(store);
         store!.getTrace = async () => null;

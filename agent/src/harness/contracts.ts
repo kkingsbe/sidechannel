@@ -139,6 +139,15 @@ export interface Run {
     pairId?: string;
     pairingSeed?: number;
     pairPosition?: number;
+    /** Researcher metadata frozen when a saved draft is submitted. Never agent input. */
+    sourceDraft?: {
+        id: string;
+        revision: number;
+        name?: string;
+        notes?: string;
+        groupId?: string;
+        lineage?: { sourceType: 'draft' | 'run' | 'pair'; sourceId: string; sourceRevision?: number };
+    };
     config: ExperimentConfig;
     status: RunStatus;
     createdAt: string;

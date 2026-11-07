@@ -1,6 +1,8 @@
 x-app: &app
   image: sidechannel-agent:local
-  build: .
+  build:
+    context: ..
+    dockerfile: agent/Dockerfile
   init: true
   networks: [backend]
   depends_on:
@@ -51,8 +53,19 @@ services:
     environment:
       <<: *database
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ADAPTION_API_KEY: ${ADAPTION_API_KEY:-}
     # Never automatically restart a worker after a crash: ownership needs recovery.
     restart: "no"
+    stop_grace_period: 2m
+  analysis-worker:
+    <<: *app
+    command: [npm, run, analysis:worker]
+    environment:
+      <<: *database
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-${TYPESAFE_AI_API_KEY:-}}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ADAPTION_API_KEY: ${ADAPTION_API_KEY:-}
+    restart: unless-stopped
     stop_grace_period: 2m
   mastra:
     <<: *app

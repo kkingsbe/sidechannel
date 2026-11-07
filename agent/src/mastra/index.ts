@@ -25,6 +25,10 @@ export function registerExperimentAgent(agent: Agent, tools: Record<string, Tool
             throw new Error('Experiment tools must be proposal-only');
         mastra.addTool(tool, name);
     }
+    // addAgent skips an existing ID. Each scheduler step supplies a fresh Agent;
+    // replace the prior registration so this instance receives storage/tracing.
+    // Scheduler calls are serial, and the prior invocation is already flushed.
+    mastra.removeAgent(agent.id);
     mastra.addAgent(agent);
     return agent;
 }
