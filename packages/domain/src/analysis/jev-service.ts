@@ -7,15 +7,17 @@ import { normalizeTrace } from './normalization.js';
 import { buildWindows, selectSteps } from './windows.js';
 import { serializeWindow, preflightQuestions, SERIALIZATION_VERSION } from './serialization.js';
 import { buildBehaviorQuestions, JEV_ADAPTER_VERSION, JEV_SDK_VERSION, QUESTION_TEMPLATE_VERSION } from './jev-questions.js';
-import { AnalysisConflict, AnalysisNotFound, AnalysisPayloadTooLarge, AnalysisValidation, type AnalysisJob, type AnalysisRepository, type PageOptions, type WindowRecord } from '@sidechannel/contracts/analysis/jev-repository';
+import { AnalysisConflict, AnalysisNotFound, AnalysisPayloadTooLarge, AnalysisValidation, type AnalysisJob, type AnalysisRepository, type WindowRecord } from '@sidechannel/contracts/analysis/jev-repository';
 import { emptyCounters } from './jev-repository.js';
+import { iteratePages, type PageFetcher } from '../pagination.js';
 import type { PreviewInput, LaunchInput } from '@sidechannel/contracts/analysis/jev-service';
 
 const text = (v: unknown, label: string, max = 200): string => { if (typeof v !== 'string' || !v.trim() || v.length > max) throw new AnalysisValidation(`${label} must be a nonempty string of at most ${max} characters`); return v.trim(); };
 
 const validate = <T>(fn: () => T): T => { try { return fn(); } catch (e) { throw new AnalysisValidation(e instanceof Error ? e.message : 'Invalid analysis input'); } };
 
-export async function* pages<T>(fetch: (p: PageOptions) => Promise<{ items: T[]; nextCursor: string | null }>): AsyncGenerator<T> { let after: string | undefined; do { const p = await fetch({ limit: 100, after }); for (const item of p.items) yield item; after = p.nextCursor ?? undefined; } while (after); }
+/** Compatibility wrapper for the analysis worker; one cursor loop implementation for the whole codebase. */
+export function pages<T>(fetch: PageFetcher<T>): AsyncGenerator<T> { return iteratePages(fetch, 100); }
 
 export class AnalysisService {
     /** Composed analysis port: this service is the codebook + job lifecycle entry point. */

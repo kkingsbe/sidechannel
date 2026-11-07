@@ -150,6 +150,10 @@
     "./harness/token-budget": {
       "types": "./dist/harness/token-budget.d.ts",
       "import": "./dist/harness/token-budget.js"
+    },
+    "./pagination": {
+      "types": "./dist/pagination.d.ts",
+      "import": "./dist/pagination.js"
     }
   }
 }

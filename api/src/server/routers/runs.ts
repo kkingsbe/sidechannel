@@ -2,6 +2,7 @@ import { resolveConfiguration } from '@sidechannel/domain/harness/config';
 import { createQueuedRun } from '@sidechannel/domain/harness/initialization';
 import type { EventQuery, EvidenceKind } from '@sidechannel/contracts/harness/repository';
 import type { ResearcherRepository, ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
+import { collectPages } from '@sidechannel/domain/pagination';
 import type { HealthcareService } from '../../healthcare/service.js';
 import type { ConfigurationPipeline } from '../configuration.js';
 import { HttpError } from '../errors.js';
@@ -73,8 +74,10 @@ export function createRunsRouter({ repository, pipeline, launch, healthcare }: R
         }
         const run = (await repository.getRun(id))!;
         if (!op) return { status: 200, data: run };
-        const events = []; let after = 0;
-        while (true) { const rows = await repository.listEvents(id, after, 1000); events.push(...rows); if (rows.length < 1000) break; after = rows.at(-1)!.sequence; }
+        const events = await collectPages(async ({ after, limit = 1000 }) => {
+            const rows = await repository.listEvents(id, Number(after ?? 0), limit);
+            return { items: rows, nextCursor: rows.length === limit ? String(rows.at(-1)!.sequence) : null };
+        }, 1000);
         const researcherEvaluation = await healthcare?.researcherExport(run, repository);
         return { status: 200, data: { schemaVersion: 1, scope: 'complete-source-evidence', exportedAt: new Date().toISOString(), run, events, ...(researcherEvaluation ? { researcherEvaluation } : {}) } };
     };

@@ -4,6 +4,7 @@ import { ReviewService } from '@sidechannel/domain/analysis/jev-reviews';
 import type { ReviewContext, ReviewListFilter, ReviewQueueFilter } from '@sidechannel/contracts/analysis/jev-reviews';
 import type { ReviewStore } from '@sidechannel/contracts/analysis/review-repository';
 import type { ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
+import { iteratePages } from '@sidechannel/domain/pagination';
 import { HttpError } from '../server/errors.js';
 
 /** Review bodies stay bounded at 1 MB; core and Jev routes keep the 2 MB default. */
@@ -13,20 +14,12 @@ export async function reviewContext(repository: Pick<AnalysisRepository, 'getJob
     const job = await repository.getJob(analysisId);
     if (!job) throw new AnalysisNotFound('Analysis not found');
     const windows: ReviewContext['windows'] = [];
-    let after: string | undefined;
-    do {
-        const page = await repository.listWindows(analysisId, { after, limit: 500 });
-        windows.push(...page.items.map(w => ({ id: w.id, eventIds: w.eventIds, stepIds: w.stepIds, probabilities: {} })));
+    for await (const window of iteratePages(options => repository.listWindows(analysisId, options), 500)) {
+        windows.push({ id: window.id, eventIds: window.eventIds, stepIds: window.stepIds, probabilities: {} });
         if (windows.length > 100000) throw new AnalysisValidation('Review selection supports at most 100000 windows; narrow the analysis range');
-        after = page.nextCursor ?? undefined;
-    } while (after);
-    const byId = new Map(windows.map(w => [w.id, w]));
-    after = undefined;
-    do {
-        const page = await repository.listResults(analysisId, { after, limit: 500 });
-        for (const result of page.items) { const window = byId.get(result.windowId); if (window) window.probabilities[result.codeId] = result.probability; }
-        after = page.nextCursor ?? undefined;
-    } while (after);
+    }
+    const byId = new Map(windows.map(window => [window.id, window]));
+    for await (const result of iteratePages(options => repository.listResults(analysisId, options), 500)) { const window = byId.get(result.windowId); if (window) window.probabilities[result.codeId] = result.probability; }
     return { analysisId, runId: job.runId, definitionRevision: job.manifest.codebook.id, evidenceRevision: job.manifest.source.evidenceHash, codeIds: job.manifest.codebook.definitions.filter(d => d.enabled && !d.archived).map(d => d.id), windows };
 }
 
