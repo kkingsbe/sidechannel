@@ -6,6 +6,7 @@ import { useApi, arrayOf } from '../lib/api';
 import type { Run, Draft } from '../lib/types';
 import { short, when } from '../lib/utils';
 import { RunTable } from '../App';
+import { PairTable } from '../components/pairs/PairTable';
 import './Overview.css';
 
 interface OverviewData {
@@ -40,7 +41,7 @@ function GettingStarted({ first }: { first: boolean }) {
   return <details className="card onboarding" open={open} onToggle={event => { const next = event.currentTarget.open; setOpen(next); try { localStorage.setItem(gettingStartedKey, next ? 'open' : 'closed'); } catch { /* Convenience only. */ } }}><summary>Getting started with the research workflow</summary><ol className="workflow-list">{steps.map(item => <li key={item.n}><NavLink to={item.to}><span>{item.n}</span><div><strong>{item.title}</strong><p>{item.text}</p></div><ArrowUpRight size={15} aria-hidden="true" /></NavLink></li>)}</ol></details>;
 }
 export default function Overview() {
-  const overview = useApi<OverviewData>('/overview', 5000), runs = useApi<{ items: Run[] }>('/runs?summary=true&limit=8', 5000);
+  const overview = useApi<OverviewData>('/overview', 5000), runs = useApi<{ items: Run[] }>('/runs?summary=true&limit=16', 5000);
   const drafts = useApi<Draft[]>('/drafts');
   const counts = overview.data?.counts, data = arrayOf(runs.data);
   const count = (...states: string[]) => counts ? states.reduce((sum, state) => sum + (counts[state] ?? 0), 0) : null;
@@ -59,8 +60,8 @@ export default function Overview() {
     <div className="stack overview-operational">
       {!!overview.data?.attention.length && <Card><CardHeading title="Requires attention" description="Failed or interrupted runs remain available with recorded evidence." /><RunTable runs={overview.data.attention} /></Card>}
       {!!overview.data?.activity.length && <Card><CardHeading title="In progress & queued" /><RunTable runs={overview.data.activity} /></Card>}
-      <Card><CardHeading title="Recent runs" actions={<Button variant="ghost" size="sm" asChild><NavLink to="/runs">View all runs <ArrowUpRight size={15} /></NavLink></Button>} />
-        {runs.loading ? <Loading /> : runs.error && !runs.data ? <ErrorState error={runs.error} retry={runs.refresh} /> : data.length ? <RunTable runs={data} /> : <Empty title="Your first experiment starts here" description="Create a draft, validate its configuration, and launch a matched pair."><Button asChild><NavLink to="/experiments/new">Create experiment</NavLink></Button></Empty>}
+      <Card><CardHeading title="Recent pairs" actions={<Button variant="ghost" size="sm" asChild><NavLink to="/runs">View all pairs <ArrowUpRight size={15} /></NavLink></Button>} />
+        {runs.loading ? <Loading /> : runs.error && !runs.data ? <ErrorState error={runs.error} retry={runs.refresh} /> : data.length ? <PairTable runs={data} label="Recent matched pairs" /> : <Empty title="Your first experiment starts here" description="Create a draft, validate its configuration, and launch a matched pair."><Button asChild><NavLink to="/experiments/new">Create experiment</NavLink></Button></Empty>}
         <div className="card-foot">{runs.error ? `Updates unavailable · last refreshed ${runs.updatedAt ? new Date(runs.updatedAt).toLocaleTimeString() : 'unknown'}` : runs.updatedAt ? `Evidence refreshed at ${new Date(runs.updatedAt).toLocaleTimeString()}` : 'Connecting to researcher API'}{runs.error && <Button size="sm" variant="secondary" onClick={runs.refresh}>Retry</Button>}</div>
       </Card>
       <div className="form-grid"><ResearchJobs title="Analyses" path="/analyses?limit=6" destination="/analysis" /><ResearchJobs title="Monitor evaluations" path="/monitor-evaluations?limit=6" destination="/oversight" /></div>

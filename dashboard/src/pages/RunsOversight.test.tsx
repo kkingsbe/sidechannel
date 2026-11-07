@@ -190,7 +190,7 @@ it("restores an evaluation cursor page after detail navigation and retains previ
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
   await screen.findByText("evaluation-third-full-id");
   const open = screen.getByRole("link", {
-    name: "Independent monitor - 1 source run - revision 7",
+    name: /^Independent monitor - 1 source run - revision 7/,
   });
   expect(open.getAttribute("href")).toContain(
     "jobCursor%3Dcursor-1%26jobCursor%3Dcursor-2",
@@ -198,7 +198,7 @@ it("restores an evaluation cursor page after detail navigation and retains previ
   fireEvent.click(open);
   expect(
     await screen.findByRole("heading", {
-      name: "Independent monitor - 1 source run - revision 7",
+      name: /^Independent monitor - 1 source run - revision 7/,
     }),
   ).toBeTruthy();
   expect(screen.getByText("evaluation-third-full-id")).toBeTruthy();

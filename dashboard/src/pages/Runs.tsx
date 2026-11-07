@@ -41,6 +41,7 @@ import { ApiError, arrayOf, post, useApi, useMutation } from "../lib/api";
 import type { ArtifactVersion, Draft, HarnessEvent, Run } from "../lib/types";
 import { pretty, short, when } from "../lib/utils";
 import { RunTable } from "../App";
+import { PairTable } from "../components/pairs/PairTable";
 import "./runs-oversight.css";
 import { ArtifactView } from "../components/artifact-view";
 import { BudgetSummary } from "../components/budget-summary";
@@ -83,6 +84,7 @@ type RecordPage<T> = {
   reporting?: { instructions: string; schemaVersion: string };
   deliveriesMayHaveMore?: boolean;
 };
+const RUNS_VIEW_KEY = "sidechannel-runs-view";
 export default function Runs() {
   return (
     <Routes>
@@ -100,6 +102,26 @@ function RunList() {
   query.set("limit", "25");
   const runs = useApi<RecordPage<Run>>("/runs?" + query, 5000);
   const items = arrayOf(runs.data);
+  const [view, setViewState] = useState<"pairs" | "runs">(() => {
+    try {
+      return localStorage.getItem(RUNS_VIEW_KEY) === "runs" ? "runs" : "pairs";
+    } catch {
+      return "pairs";
+    }
+  });
+  const setView = (next: "pairs" | "runs") => {
+    setViewState(next);
+    try {
+      localStorage.setItem(RUNS_VIEW_KEY, next);
+    } catch {
+      /* Convenience only. */
+    }
+  };
+  const returnSearch =
+    "?returnTo=" +
+    encodeURIComponent("/runs" + (params.size ? "?" + params.toString() : ""));
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilters = ["status", "model", "condition", "scenario", "designation"].filter((key) => params.get(key)).length;
   const filter = (key: string, value: string) => {
     setParams((previous) => {
       value ? previous.set(key, value) : previous.delete(key);
@@ -120,8 +142,23 @@ function RunList() {
         }
       />
       <Card>
-        <div className="filter-bar">
+        <Button
+          variant="secondary"
+          size="sm"
+          className="filters-toggle"
+          aria-expanded={filtersOpen}
+          aria-controls="run-filters"
+          onClick={() => setFiltersOpen(!filtersOpen)}
+        >
+          <Filter size={14} aria-hidden="true" />
+          Filters{activeFilters ? ` (${activeFilters})` : ""}
+        </Button>
+        <div
+          id="run-filters"
+          className={"filter-bar filter-bar-collapsible" + (filtersOpen ? " filters-open" : "")}
+        >
           <Filter size={16} className="muted" aria-hidden="true" />
+          <div className="filter-fields">
           <Field label="Execution state">
             <Select
               value={params.get("status") || ""}
@@ -180,6 +217,20 @@ function RunList() {
               <option>study</option>
             </Select>
           </Field>
+          </div>
+          <div className="view-toggle" role="group" aria-label="List view">
+            {(["pairs", "runs"] as const).map((option) => (
+              <Button
+                key={option}
+                variant={view === option ? "secondary" : "ghost"}
+                size="sm"
+                aria-pressed={view === option}
+                onClick={() => setView(option)}
+              >
+                {option === "pairs" ? "Pairs" : "Runs"}
+              </Button>
+            ))}
+          </div>
           <Button
             variant="ghost"
             size="icon"
@@ -193,15 +244,11 @@ function RunList() {
         {runs.loading ? (
           <Loading />
         ) : items.length ? (
-          <RunTable
-            runs={items}
-            detailSearch={
-              "?returnTo=" +
-              encodeURIComponent(
-                "/runs" + (params.size ? "?" + params.toString() : ""),
-              )
-            }
-          />
+          view === "pairs" ? (
+            <PairTable runs={items} detailSearch={returnSearch} />
+          ) : (
+            <RunTable runs={items} detailSearch={returnSearch} />
+          )
         ) : (
           <Empty
             title="No runs match these filters"
@@ -514,7 +561,9 @@ function RunDetail() {
   };
   const duplicate = async () => {
     const result = await mutation.run(() =>
-      post<Draft>("/runs/" + id + "/duplicate", {}),
+      post<Draft>("/runs/" + id + "/duplicate", {
+        name: "Copy of " + data!.config.label,
+      }),
     );
     if (result) navigate("/experiments?draft=" + result.id);
   };
@@ -577,17 +626,22 @@ function RunDetail() {
         <span>
           Config <strong className="mono">{short(data.configHash)}</strong>
         </span>
-        <span>
-          Phase{" "}
-          <strong>
-            {data.status === "reporting"
-              ? "Reporting"
-              : data.status === "completed"
-                ? "Complete"
-                : data.status === "running"
-                  ? "Action"
-                  : "No active phase recorded"}
-          </strong>
+        <span role="status" className="run-live-summary">
+          <span>
+            State <strong>{data.status}</strong>
+          </span>
+          <span>
+            Phase{" "}
+            <strong>
+              {data.status === "reporting"
+                ? "Reporting"
+                : data.status === "completed"
+                  ? "Complete"
+                  : data.status === "running"
+                    ? "Action"
+                    : "No active phase recorded"}
+            </strong>
+          </span>
         </span>
         <span>
           Round{" "}
@@ -1215,7 +1269,7 @@ function PairDetail() {
     runs: Run[];
     configurationDifferences: unknown[];
     matched: boolean;
-  }>("/pairs/" + id);
+  }>("/pairs/" + id, 5000);
   const mutation = useMutation();
   const navigate = useNavigate();
   if (pair.loading) return <Loading />;
@@ -1244,7 +1298,9 @@ function PairDetail() {
   const verdict = assessComparability(runs);
   const duplicatePair = async () => {
     const result = await mutation.run(() =>
-      post<Draft>("/pairs/" + id + "/duplicate", {}),
+      post<Draft>("/pairs/" + id + "/duplicate", {
+        name: "Copy of " + (runs[0]?.config?.label ?? id),
+      }),
     );
     if (result) navigate("/experiments?draft=" + result.id);
   };
@@ -1252,8 +1308,8 @@ function PairDetail() {
     <>
       <PageHeader
         eyebrow="MATCHED EXECUTIONS"
-        title="Pair comparison"
-        description={id!}
+        title={runs[0]?.config?.label || "Pair comparison"}
+        description={`Matched pair comparison · ${id}`}
         actions={
           <Button
             variant="secondary"
@@ -1266,6 +1322,14 @@ function PairDetail() {
         }
       />
       {mutation.error && <Notice kind="error">{mutation.error.message}</Notice>}
+      <p role="status" className="sr-only">
+        {runs
+          .map(
+            (run) =>
+              `${run.config.condition.id}: ${run.status}, round ${run.round} of ${run.config.scheduler.rounds}`,
+          )
+          .join("; ")}
+      </p>
       <Notice kind={verdict.comparable ? "success" : "warning"}>
         {verdict.message}
       </Notice>

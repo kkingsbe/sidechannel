@@ -30,6 +30,7 @@ import {
   Textarea,
 } from "../components/ui";
 import { api, post, useApi, useMutation } from "../lib/api";
+import { LaunchedExperiments } from "../components/pairs/LaunchedExperiments";
 import type { Draft, ExperimentConfig, Json, Run } from "../lib/types";
 import { pretty, when } from "../lib/utils";
 import {
@@ -634,6 +635,7 @@ export default function Experiments() {
             </p>
           )}
         </Card>
+        <LaunchedExperiments />
       </>
     );
   if (draftError)
