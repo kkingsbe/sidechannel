@@ -60,7 +60,7 @@ test('fixture run emits the recorded event-type sequence in memory', async () =>
     const repository = new InMemoryRepository();
     const run = createQueuedRun(resolveConfiguration(defaultFixtureConfiguration()), 'characterization');
     await repository.createRun(run);
-    const completed = await new HarnessScheduler({ repository, memory: new TestMemory(), adapter: new ScriptedAdapter(fixtureScript) }).run(run.id);
+    const completed = await new HarnessScheduler({ runState: repository, events: repository, memory: new TestMemory(), adapter: new ScriptedAdapter(fixtureScript) }).run(run.id);
     assert.equal(completed.status, 'completed', completed.failureReason ?? 'fixture must complete');
     const actual = (await repository.listEvents(run.id, 0, 10_000)).map(event => event.type);
     assert.deepEqual(actual, recordedTypes);

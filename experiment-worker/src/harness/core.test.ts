@@ -22,7 +22,7 @@ class TestMemory implements PrivateMemory {
     async save(r: string, a: string, s: MemorySnapshot) { this.values.set(`${r}/${a}`, structuredClone(s)); }
 }
 
-async function harness(script: (input: ModelInput, index: number) => ModelResponse | Promise<ModelResponse>, repo = new InMemoryRepository(), mutate?: (c: ReturnType<typeof defaultFixtureConfiguration>) => void) { const draft = defaultFixtureConfiguration(); mutate?.(draft); const run = createQueuedRun(resolveConfiguration(draft), 'test'); await repo.createRun(run); const memory = new TestMemory(); const adapter = new ScriptedAdapter(script); const scheduler = new HarnessScheduler({ repository: repo, memory, adapter }); return { repo, run, memory, adapter, scheduler }; }
+async function harness(script: (input: ModelInput, index: number) => ModelResponse | Promise<ModelResponse>, repo = new InMemoryRepository(), mutate?: (c: ReturnType<typeof defaultFixtureConfiguration>) => void) { const draft = defaultFixtureConfiguration(); mutate?.(draft); const run = createQueuedRun(resolveConfiguration(draft), 'test'); await repo.createRun(run); const memory = new TestMemory(); const adapter = new ScriptedAdapter(script); const scheduler = new HarnessScheduler({ runState: repo, events: repo, memory, adapter }); return { repo, run, memory, adapter, scheduler }; }
 
 const text = () => ({ text: 'done', toolCalls: [] });
 
@@ -163,7 +163,7 @@ test('report proposals are recorded but never execute or leak other reports', as
 test('unexpected scenario infrastructure errors stop execution with pending dispositions', async () => {
     const h = await harness(() => ({ text: '', toolCalls: [{ id: 'read', name: 'read_role_data', arguments: {} }, { id: 'post', name: 'post_board', arguments: { text: 'never' } }] }));
     const scenario = { ...fixtureScenario, execute() { throw new Error('Scenario storage unavailable'); } };
-    const scheduler = new HarnessScheduler({ repository: h.repo, memory: h.memory, adapter: h.adapter, scenario });
+    const scheduler = new HarnessScheduler({ runState: h.repo, events: h.repo, memory: h.memory, adapter: h.adapter, scenario });
     const run = await scheduler.run(h.run.id);
     assert.equal(run.status, 'failed');
     assert.equal(run.board.length, 0);

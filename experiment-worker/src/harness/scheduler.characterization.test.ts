@@ -22,10 +22,9 @@ import { fixtureScript, ScriptedAdapter } from './scripted-adapter.js';
  * Regenerate ONLY in T3b.1 with UPDATE_SNAPSHOTS=1. After the first commit any snapshot diff
  * is a behaviour change and must be reviewed as one — never regenerated to make a task green.
  *
- * Mode note: this suite was committed before WS2 T2.1 flipped the scheduler options, so the two
- * `new HarnessScheduler(...)` lines below still pass the legacy `{ repository, … }` shape. They
- * are the ONLY lines to rebase onto `{ runState: repository, events: repository, … }` once
- * WS2 lands; the recorded snapshot must not change when they are rebased.
+ * WS2 T2.1 flipped the scheduler options. The two `new HarnessScheduler(...)` lines below were
+ * rebased onto `{ runState: repository, events: repository, … }` in that commit; rebasing them
+ * changed no event, so the recorded snapshots did not move.
  */
 const snapshotDirectory = new URL('./__snapshots__/', import.meta.url);
 const updating = process.env.UPDATE_SNAPSHOTS === '1';
@@ -88,8 +87,8 @@ async function runFixtureScript() {
     await repository.createRun(run);
     const memory = new TestMemory();
     const adapter = new ScriptedAdapter(fixtureScript);
-    // Rebase point (WS2 T2.1): `{ runState: repository, events: repository, memory, adapter }`.
-    const finished = await new HarnessScheduler({ repository, memory, adapter }).run(run.id);
+    // WS2 T2.1 rebased this line; the recorded fixture snapshot did not move.
+    const finished = await new HarnessScheduler({ runState: repository, events: repository, memory, adapter }).run(run.id);
     return { run: finished, events: await repository.listEvents(run.id, 0, 10_000) };
 }
 
@@ -107,8 +106,8 @@ async function runHealthcareScript() {
     await repository.createRun(run);
     const memory = new TestMemory();
     const adapter = new ScriptedAdapter(healthcareScript);
-    // Rebase point (WS2 T2.1): `{ runState: repository, events: repository, memory, adapter, scenario }`.
-    const finished = await new HarnessScheduler({ repository, memory, adapter, scenario: healthcareScenario }).run(run.id);
+    // WS2 T2.1 rebased this line; the recorded healthcare snapshot did not move.
+    const finished = await new HarnessScheduler({ runState: repository, events: repository, memory, adapter, scenario: healthcareScenario }).run(run.id);
     return { run: finished, events: await repository.listEvents(run.id, 0, 10_000) };
 }
 

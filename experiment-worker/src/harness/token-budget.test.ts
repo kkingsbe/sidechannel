@@ -28,7 +28,7 @@ async function setup(options: { inputLimit?: number; notes?: string; report?: st
     const snapshot: MemorySnapshot = { version: 0, notes: options.notes ?? '', messages: [] };
     const memory = { load: async () => structuredClone(snapshot), save: async (_r: string, _a: string, s: MemorySnapshot) => { Object.assign(snapshot, structuredClone(s)); } };
     const adapter = new ScriptedAdapter(input => ({ text: input.phase === 'report' ? '{"ownActions":"none","observations":"none","limitations":"scripted"}' : 'done', toolCalls: [], usage: { inputTokens: 123, outputTokens: 10 } }));
-    const scheduler = new HarnessScheduler({ repository: repo, memory, adapter });
+    const scheduler = new HarnessScheduler({ runState: repo, events: repo, memory, adapter });
     return { run, repo, memory, snapshot, adapter, scheduler };
 }
 

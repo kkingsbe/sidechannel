@@ -31,14 +31,36 @@ export interface PrivateMemory {
     save(runId: string, agentId: string, snapshot: MemorySnapshot): Promise<void>;
 }
 
-export interface Repository {
+/** Run state: the scheduler's read/write/cas surface. */
+export interface RunStateStore {
     getRun(id: string): Promise<Run | null>;
     saveRun(run: Run): Promise<void>;
+    claimRun(runId: string, workerId: string): Promise<boolean>;
+    /** Cooperative cancellation: the worker uses this on SIGINT/SIGTERM; the API on POST /cancel. */
+    requestCancel(id: string): Promise<Run | null>;
+}
+
+/** Append-only evidence log. */
+export interface EventLog {
     appendEvent(event: NewEvent): Promise<HarnessEvent>;
     listEvents(runId: string, afterSequence?: number, limit?: number): Promise<HarnessEvent[]>;
-    listRuns(): Promise<Run[]>;
+}
+
+/** Work admission: enqueue and enumerate runs. */
+export interface RunQueue {
     createRun(run: Run): Promise<Run>;
-    claimRun(runId: string, workerId: string): Promise<boolean>;
+    createPair(runs: Run[]): Promise<Run[]>;
+    listRuns(): Promise<Run[]>;
+}
+
+/** Single-worker registration. Registration is a guard, not a heartbeat. */
+export interface WorkerGuard {
+    acquireWorker(owner: string): Promise<boolean>;
+    releaseWorker(owner: string): Promise<void>;
+}
+
+/** Composition of the harness slices used by the API, domain projections and contract tests. */
+export interface Repository extends RunStateStore, EventLog, RunQueue, WorkerGuard {
 }
 
 export interface Scenario {

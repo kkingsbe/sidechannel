@@ -24,7 +24,7 @@ export async function openRuntime() {
                 throw new Error(`Scenario runtime unavailable: ${run.config.scenario.version}`);
             if (healthcare && run.config.model.provider === 'scripted' && run.config.model.id !== HEALTHCARE_SCENARIO_VERSION)
                 throw new Error('Scripted model does not match the selected scenario');
-            return new HarnessScheduler({ repository,
+            return new HarnessScheduler({ runState: repository, events: repository,
                 scenario: healthcare ? healthcareScenario : fixtureScenario,
                 memory: new MastraPrivateMemory(memory.storage, run.config.memory.template),
                 adapter: run.config.model.provider === 'scripted' ? new ScriptedAdapter(healthcare ? healthcareScript : fixtureScript) : new MastraModelAdapter(),

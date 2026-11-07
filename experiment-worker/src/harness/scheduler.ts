@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { Run, Json, Message, NewEvent, Role } from '@sidechannel/contracts/harness/contracts';
-import type { Repository, PrivateMemory, ModelAdapter, Scenario, ModelInput } from '@sidechannel/contracts/harness/server';
+import type { EventLog, RunStateStore, PrivateMemory, ModelAdapter, Scenario, ModelInput } from '@sidechannel/contracts/harness/server';
 import { fixtureScenario } from './scenario.js';
 import { executeTool, toolCatalog } from './gateway.js';
 import { measureModelInput, validateTokenBudget } from '@sidechannel/domain/harness/token-budget';
 
 export interface SchedulerOptions {
-    repository: Repository;
+    runState: RunStateStore;
+    events: EventLog;
     memory: PrivateMemory;
     adapter: ModelAdapter;
     scenario?: Scenario;
@@ -15,7 +16,7 @@ export interface SchedulerOptions {
 export class HarnessScheduler {
     constructor(private readonly options: SchedulerOptions) { }
     async run(runId: string): Promise<Run> {
-        const { repository: repo, adapter } = this.options;
+        const { runState, events, adapter } = this.options;
         const underlyingMemory = this.options.memory;
         const memory: PrivateMemory = { load: (r, a) => underlyingMemory.load(r, a), save: async (r, a, v) => {
                 try {
@@ -27,19 +28,19 @@ export class HarnessScheduler {
                 }
             } };
         const scenario = this.options.scenario ?? fixtureScenario;
-        if (!await repo.claimRun(runId, randomUUID())) {
-            const existing = await repo.getRun(runId);
+        if (!await runState.claimRun(runId, randomUUID())) {
+            const existing = await runState.getRun(runId);
             if (!existing)
                 throw new Error('Run missing');
             return existing;
         }
-        const run = (await repo.getRun(runId))!;
+        const run = (await runState.getRun(runId))!;
         const started = Date.now();
         let evidenceFailed = false;
         let activeTurn = false;
         const event = async (type: string, data: unknown, extra: Partial<NewEvent> = {}) => {
             try {
-                return await repo.appendEvent({ runId, type, data, agentId: run.activeAgentId, round: run.round, turn: run.turn, ...extra });
+                return await events.appendEvent({ runId, type, data, agentId: run.activeAgentId, round: run.round, turn: run.turn, ...extra });
             }
             catch (e) {
                 evidenceFailed = true;
@@ -49,7 +50,7 @@ export class HarnessScheduler {
         const persist = async () => {
             run.updatedAt = new Date().toISOString();
             try {
-                await repo.saveRun(run);
+                await runState.saveRun(run);
             }
             catch (e) {
                 evidenceFailed = true;
@@ -57,7 +58,7 @@ export class HarnessScheduler {
             }
         };
         const boundary = async () => {
-            if ((await repo.getRun(runId))?.cancelRequested) {
+            if ((await runState.getRun(runId))?.cancelRequested) {
                 run.cancelRequested = true;
                 throw new Error('CANCELLED');
             }

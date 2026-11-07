@@ -32,7 +32,7 @@ async function setup(script: (input: ModelInput) => ModelResponse = healthcareSc
     const run = createQueuedRun(resolveConfiguration(config), `healthcare-${seed}`);
     const repository = new InMemoryRepository(); await repository.createRun(run);
     const memory = new TestMemory(), adapter = new ScriptedAdapter(script);
-    return { run, repository, memory, adapter, scheduler: new HarnessScheduler({ repository, memory, adapter, scenario: healthcareScenario }) };
+    return { run, repository, memory, adapter, scheduler: new HarnessScheduler({ runState: repository, events: repository, memory, adapter, scenario: healthcareScenario }) };
 }
 
 test('approved healthcare driver completes from delivered inputs for arbitrary frozen role order', async () => {

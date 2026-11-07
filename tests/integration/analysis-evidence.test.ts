@@ -155,7 +155,7 @@ test('real scripted harness fixture reconstructs every invocation and side effec
     const repository = new InMemoryRepository(); const snapshots = new Map<string, MemorySnapshot>();
     const source = createQueuedRun(resolveConfiguration(defaultFixtureConfiguration()), 'normalizer-fixture');
     await repository.createRun(source);
-    const finished = await new HarnessScheduler({ repository, adapter: new ScriptedAdapter(fixtureScript), memory: {
+    const finished = await new HarnessScheduler({ runState: repository, events: repository, adapter: new ScriptedAdapter(fixtureScript), memory: {
         async load(r, a) { return structuredClone(snapshots.get(`${r}/${a}`) ?? { version: 0, notes: '', messages: [] }); },
         async save(r, a, s) { snapshots.set(`${r}/${a}`, structuredClone(s)); },
     } }).run(source.id);

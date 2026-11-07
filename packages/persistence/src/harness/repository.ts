@@ -44,6 +44,7 @@ export class InMemoryRepository implements Repository {
     protected events: HarnessEvent[] = [];
     protected drafts = new Map<string, Draft>();
     private claims = new Set<string>();
+    private workerGuard: string | undefined;
     async getRun(id: string) { return clone(this.runs.get(id) ?? null); }
     async getRunByLaunchKey(launchKey: string) { return clone([...this.runs.values()].find(run => run.launchKey === launchKey) ?? null); }
     async listRuns() { return clone([...this.runs.values()].reverse()); }
@@ -115,7 +116,14 @@ export class InMemoryRepository implements Repository {
     async getEvidenceItem(id: string, kind: EvidenceKind, key: string): Promise<unknown | null> { const rows = this.runs.get(id)?.[kind] ?? []; const field = kind === 'board' ? 'id' : kind === 'artifacts' ? 'version' : 'agentId'; return clone(rows.find(row => String((row as unknown as Record<string, unknown>)[field]) === key) ?? null); }
     async queryEvents(id: string, query: EventQuery) { const offset = query.offset ?? 0; return clone(this.events.filter(event => event.runId === id && matchesEvent(event, query)).slice(offset, offset + (query.limit ?? 200))); }
     async getEvent(runId: string, eventId: string) { return clone(this.events.find(event => event.runId === runId && event.id === eventId) ?? null); }
-    async workerStatus(): Promise<WorkerStatus> { return { capacity: 1, available: null, status: 'unknown' }; }
+    async workerStatus(): Promise<WorkerStatus> { return { capacity: 1, available: null, status: this.workerGuard ? 'registered' : 'unknown', ...(this.workerGuard ? { startedAt: this.workerGuard } : {}), note: 'Worker registration has no heartbeat; current availability is unknown.' }; }
+    async acquireWorker(owner: string) {
+        if (this.workerGuard)
+            return false;
+        this.workerGuard = owner;
+        return true;
+    }
+    async releaseWorker(owner: string) { if (this.workerGuard === owner) this.workerGuard = undefined; }
     async requestCancel(id: string) {
         const run = this.runs.get(id);
         if (run && ['queued', 'running', 'reporting', 'stopping'].includes(run.status)) {

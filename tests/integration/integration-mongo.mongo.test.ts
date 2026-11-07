@@ -29,7 +29,7 @@ test('Mongo-backed API launch survives dashboard disconnect, exports six turns a
         assert.equal(await repo.acquireWorker('first'), true);
         assert.equal(await repo.acquireWorker('second'), false);
         await close();
-        const result = await new HarnessScheduler({ repository: repo, memory, adapter: new ScriptedAdapter(fixtureScript) }).run(first.id);
+        const result = await new HarnessScheduler({ runState: repo, events: repo, memory, adapter: new ScriptedAdapter(fixtureScript) }).run(first.id);
         assert.equal(result.status, 'completed', result.failureReason ?? 'fixture must complete');
         assert.equal(result.turn, 6);
         assert.equal(result.artifacts.at(-1)?.frozen, true);
