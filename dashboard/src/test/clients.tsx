@@ -40,7 +40,7 @@ export type ClientOverrides = { [K in keyof ApiClients]?: Partial<ApiClients[K]>
 
 /** WS6-compatible fake client set: real client behaviour over a fake requester, with member overrides. */
 export function fakeClients(overrides: ClientOverrides = {}, request?: Requester): ApiClients {
-    const clients = createClients(request ? { request } : {});
+    const clients = createClients({ request: request ?? fakeServer().request });
     for (const [key, value] of Object.entries(overrides))
         if (value) Object.assign(clients[key as keyof ApiClients], value);
     return clients;

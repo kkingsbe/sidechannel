@@ -3,6 +3,7 @@ import type { Requester } from '../transport';
 import { withQuery } from '../transport';
 import type { Draft } from '../types';
 import type { RunProgress } from '../contracts';
+import type { ArtifactPage, BoardPage, EvidencePages, ReportPage, RunTab } from '../contracts';
 
 /** Dashboard-owned evidence envelopes (typed per tab in T5.4). */
 export interface RecordPage<T> {
@@ -43,6 +44,8 @@ export interface RunsClient {
     events(id: string, query?: RunEventQuery): Promise<Page<HarnessEvent>>;
     event(id: string, eventId: string): Promise<HarnessEvent>;
     evidence(id: string, kind: EvidenceKind, query: EvidenceQuery): Promise<RecordPage<unknown>>;
+    /** Typed evidence envelope for one registry tab (`board`/`artifacts`/`memory`/`reports`). */
+    evidenceTab(id: string, tab: Exclude<RunTab, 'timeline' | 'traces'>, query: EvidenceQuery): Promise<EvidencePages[RunTab]>;
     evidenceItem(id: string, kind: EvidenceKind, key: string): Promise<unknown>;
     board(id: string, query: EvidenceQuery): Promise<RecordPage<BoardMessage>>;
     exportUrl(id: string): string;
@@ -68,6 +71,16 @@ export function createRunsClient(request: Requester): RunsClient {
         },
         event: (id, eventId) => request(runPaths.event(id, eventId)),
         evidence: async (id, kind, query) => await request<RecordPage<unknown>>(runPaths.evidence(id, kind, query)),
+        evidenceTab: async (id, tab, query) => {
+            const path = tab === 'memory'
+                ? withQuery('/runs/' + encodeURIComponent(id) + '/memory', { limit: query.limit, offset: query.offset })
+                : runPaths.evidence(id, tab, query);
+            const payload = await request<RecordPage<unknown>>(path);
+            if (tab === 'memory') return { items: (payload.items ?? []) as never, nextOffset: payload.nextOffset ?? null };
+            if (tab === 'board') return { ...payload, items: payload.items ?? [], total: payload.total ?? 0, nextOffset: payload.nextOffset ?? null } as BoardPage;
+            const page = { ...payload, items: payload.items ?? [], total: payload.total ?? 0, nextOffset: payload.nextOffset ?? null };
+            return (tab === 'artifacts' ? page as ArtifactPage : page as ReportPage);
+        },
         evidenceItem: (id, kind, key) => request(runPaths.evidenceItem(id, kind, key)),
         board: async (id, query) => await request<RecordPage<BoardMessage>>(runPaths.board(id, query)),
         exportUrl: id => '/api/runs/' + encodeURIComponent(id) + '/export',
