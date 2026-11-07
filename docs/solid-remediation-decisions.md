@@ -36,7 +36,7 @@ Measured by `npm run architecture` (`scripts/architecture-budget.mjs` against
 | Largest backend module | 264 (`scheduler.ts`, `persistence/repository.ts`) | 272 (`persistence/repository.ts`) | < 300 | tree advanced after the audit |
 | Page files defining data hooks | 4 | 4 | 0 | >1000-line page entries that fetch; WS5/WS6 |
 | Fetch-page implementations (dashboard) | 6 (2 hooks + 4 pagers) | 6 | 1 | WS5 |
-| Provider-settings policy sites | 9 sites / 7 files | 10 sites / 8 files | 1 | +1 is the dashboard `Experiments.tsx` copy, owned by WS6 |
+| Provider-settings policy sites | 9 sites / 7 files | 10 sites / 9 files | 1 | +1 is the dashboard `Experiments.tsx` copy, owned by WS6 |
 | Provider-name branch sites | 16 sites / 11 files | 20 sites / 14 files | 0 outside the registry | broader regex (includes dashboard/worker branches) |
 | Scenario-version literal sites | 30 sites / 14 files | 30 sites / 14 files | ≤ 6 | reproduces the audit exactly |
 | Byte-identical duplicated files | 2 | 2 | 0 | `inference-provider.ts` in two services |
@@ -89,12 +89,12 @@ Severity and titles are taken verbatim from the audit report.
 | S2 | critical | `HarnessScheduler.run()` is a 249-line method with thirteen responsibilities | WS3b T3b.2–T3b.6 | planned |
 | S3 | high | `HealthcareService` owns resolution, validation, provenance, routing, evaluation — and duplicated the validator | WS3c T3c.4 / WS4 T4.2 | planned (duplication already deleted at baseline; re-duplication guard added) |
 | S4 | medium | Common-tool dispatch is a name if-chain with a duplicated argument allowlist | backlog | deferred (covered functionally by WS3b T3b.4 tool admission; the dispatch table itself is polish) |
-| S5 | high | `ModelAdapter` implementations are not substitutable | WS2 T2.4 (inject the adapter) / WS4 T4.1 (shared transport policy) | planned |
+| S5 | high | `ModelAdapter` implementations are not substitutable | WS2 T2.4 (inject the adapter) / WS4 T4.1 (shared transport policy) | partially done: adapters are injected and `createMonitorProvider` requires a `ModelAdapter` (`447239b`); transport-policy unification is WS4 |
 | S6 | medium | Model-usage provenance is untyped and inferred from configuration | WS3b T3b.7 (gated) | deferred: typing `ModelResponse` provenance requires edits in WS2/WS4-owned contracts while keeping recorded `model_usage` payloads byte-identical |
 | S7 | medium | `PrivateMemory` is specified by two signatures only; implementations disagree on semantics | backlog | deferred (no correctness bug observed; typing it is a separate contract change) |
-| S8 | medium | The `Repository` port is too narrow for the worker loop and too wide for the scheduler | WS2 T2.3 | planned |
+| S8 | medium | The `Repository` port is too narrow for the worker loop and too wide for the scheduler | WS2 T2.3 | done (`e172b4a`) |
 | S9 | high | `AnalysisWorker` is a lease manager, scheduler, retry-budget accountant and progress ledger | WS3c T3c.3 | planned |
-| S10 | medium | Composition leaks into operations: concrete adapter built in a use case, global Mastra runtime mutated | WS2 T2.4 / WS0 T0.2 (orphan starter agent) | planned |
+| S10 | medium | Composition leaks into operations: concrete adapter built in a use case, global Mastra runtime mutated | WS2 T2.4 / WS0 T0.2 (orphan starter agent) | done (`447239b`; WS0 deleted the orphan starter agent) |
 | X1 | high | Provider capability and model-settings policy restated in 9 places, already drifted | WS4 T4.1 | planned |
 | X2 | high | Scenario selection by version string repeated across every tier | WS4 T4.2 | planned |
 | X3 | high | Domain layer encodes HTTP status codes; API guesses meaning from error message text | WS3a T3a.5 (mapper) / WS3c T3c.5 (producers) | planned |
