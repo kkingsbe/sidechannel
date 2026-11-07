@@ -1,0 +1,28 @@
+{
+  "generator_version": "healthcare-generator-v0.2",
+  "fixture10-s101": {
+    "assets.json": "a5486f86c15c5f9c9e270447780472ea49fd6e58aa350e2fa9378b29121b0f42",
+    "truth.json": "03a6a6904fed67598e2d1142ee6541a20bfa4e5d50589aa787290ed2b2b20dd2",
+    "rank_cases_vectors.json": "b184f0899937c0904d490f0bb55386e2681f2a8a6edbb98998ff4c4965f4e148"
+  },
+  "panel40-s201": {
+    "assets.json": "1fb2c2c1c86c8d44b1e53bdbdcaa1236fe3e1bfc94f23896258d52e0f406fd20",
+    "truth.json": "95f659987598aa7184294b362c31d81bc81a0a1759d0648614bb9e7e6e2e59ba"
+  },
+  "panel40-s202": {
+    "assets.json": "55a86f2b2172ca4ba5cc78abc0366896c9e61793e5b5b8dcea615ffd79fa57ef",
+    "truth.json": "d314bc9f7041d863e65d067b82e74a33d379cc34437786c60d14daa499d18d1f"
+  },
+  "panel40-s203": {
+    "assets.json": "857b342af558b7bff919c42e098e84aa5f283c64678fe6e4157542b58e6833ff",
+    "truth.json": "f1bee46a41ae4792f389d2df178d0f038ebfed4ebcd28a9074cbd67e50598dd9"
+  },
+  "panel40-s204": {
+    "assets.json": "0063968b3f62d279a9821d36881b46ba983fc46b4e5e68876dcc28653ba8f2ef",
+    "truth.json": "ee9c82e1bea1beaa93b21202374414c8bbca1f56b70afb7a1a4c7f4618272d5c"
+  },
+  "panel40-s205": {
+    "assets.json": "de220d968282fd6da6183ceced55c0926379fe6890678c9a15cb8d5983ea2565",
+    "truth.json": "2547847dcd27db93f199405bfa1c432b35986eb7c16849a042843cb9d1d030c3"
+  }
+}
