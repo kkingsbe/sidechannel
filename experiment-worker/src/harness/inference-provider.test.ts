@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveInferenceProvider } from './inference-provider.js';
-import { MastraModelAdapter } from './mastra-adapter.js';
+import { MastraModelAdapter, modelMessages } from './mastra-adapter.js';
 import type { ModelInput } from '@sidechannel/contracts/harness/server';
 import type { Json } from '@sidechannel/contracts/harness/contracts';
 import { defaultFixtureConfiguration, resolveConfiguration } from '@sidechannel/domain/harness/config';
@@ -74,6 +74,43 @@ test('token scheduler sends complete Adaption action/report payload and persists
     await repo.createRun(overflow);
     assert.equal((await new HarnessScheduler({ repository: repo, memory, adapter: new MastraModelAdapter() }).run(overflow.id)).status, 'failed');
     assert.equal(requests.length, 3);
+});
+
+test('Adaption replay of assistant preamble text with parallel tool calls carries item IDs Adaption accepts', async t => {
+    const previous = process.env.ADAPTION_API_KEY;
+    process.env.ADAPTION_API_KEY = 'synthetic-test-key';
+    t.after(() => { if (previous === undefined) delete process.env.ADAPTION_API_KEY; else process.env.ADAPTION_API_KEY = previous; });
+    const requests: any[] = [];
+    t.mock.method(globalThis, 'fetch', async (_url: any, options: any) => {
+        const body = JSON.parse(options.body);
+        requests.push(body);
+        // Mirrors Adaption's observed 400: list content on an assistant message needs `id` or `type`.
+        const invalid = body.input.findIndex((item: any) => item.role === 'assistant' && Array.isArray(item.content) && item.id == null && item.type == null);
+        if (invalid >= 0)
+            return Response.json({ error: { message: `body.input.${invalid}.EasyInputMessageParam.content Input should be a valid string`, type: 'invalid_request_error' } }, { status: 400 });
+        return Response.json({ id: `resp_${requests.length}`, object: 'response', created_at: 1, status: 'completed', model: body.model, error: null, incomplete_details: null,
+            output: [{ type: 'message', id: 'msg_out', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: 'ok', annotations: [] }] }],
+            usage: { input_tokens: 5, output_tokens: 1, total_tokens: 6, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } } });
+    });
+    const toolCalls = [{ id: 'call_a', name: 'list_agents', arguments: {} }, { id: 'call_b', name: 'read_role_data', arguments: {} }];
+    const input: ModelInput = { runId: 'preamble', agentId: 'clinical_records', threadId: 't', resourceId: 'r', invocationId: 'step-2', phase: 'action',
+        model: { provider: 'adaption', id: 'glm-53-flash', settings: { maxOutputTokens: 64 } }, timeoutMs: 10000,
+        tools: [{ name: 'list_agents', description: 'List agents', parameters: { type: 'object', properties: {}, additionalProperties: false } },
+            { name: 'read_role_data', description: 'Read role data', parameters: { type: 'object', properties: {}, additionalProperties: false } }],
+        messages: [{ role: 'system', content: 'You are clinical_records.' },
+            { role: 'assistant', content: "I'll check the roster and my table.", toolCalls },
+            ...toolCalls.map(call => ({ role: 'tool' as const, content: '{"ok":true}', toolCallId: call.id, toolName: call.name })),
+            { role: 'assistant', content: 'Noted.' },
+            { role: 'user', content: 'Continue your scheduled turn.' }] };
+    const result = await new MastraModelAdapter().complete(input);
+    assert.equal(result.text, 'ok');
+    assert.equal(requests.length, 1);
+    const assistantItems = requests[0].input.filter((item: any) => item.role === 'assistant');
+    assert.deepEqual(assistantItems.map((item: any) => [item.id, item.content[0].text]), [
+        ['msg_sidechannel_1', "I'll check the roster and my table."], ['msg_sidechannel_4', 'Noted.']]);
+    assert.deepEqual(requests[0].input.filter((item: any) => item.type === 'function_call').map((item: any) => item.call_id), ['call_a', 'call_b']);
+    // Other providers keep their original message shape (no item IDs that would become item references).
+    assert.equal(JSON.stringify(modelMessages(input.messages)).includes('itemId'), false);
 });
 
 test('actual Mastra Adaption route preserves tool proposals, history, reports and numeric usage', async t => {

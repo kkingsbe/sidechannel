@@ -7,6 +7,8 @@ export const adaptionBaseUrl = 'https://api.prod.adaptionlabs.ai/api/v1';
 export function resolveInferenceProvider(config: ExperimentConfig['model'], env: NodeJS.ProcessEnv = process.env): {
     model: ConstructorParameters<typeof Agent>[0]['model'];
     providerOptions: unknown;
+    /** Replayed assistant text must carry an item ID; see `modelMessages`. */
+    assistantTextItemIds?: boolean;
 } {
     if (config.provider !== 'adaption')
         return { model: `${config.provider}/${config.id}`, providerOptions: config.settings.providerOptions };
@@ -24,5 +26,9 @@ export function resolveInferenceProvider(config: ExperimentConfig['model'], env:
         model: { providerId: 'adaption', modelId: config.id, url: adaptionBaseUrl, apiKey, api: 'responses' },
         // History is owned by Sidechannel. Direct models have no stack agentic memory.
         providerOptions: { openai: { store: false } },
+        // Adaption's Responses validator rejects an assistant message whose content is an
+        // output_text list unless the item has an `id` (or explicit type), and the AI SDK
+        // omits both. Any assistant preamble text alongside tool calls hit this on step 2.
+        assistantTextItemIds: true,
     };
 }
