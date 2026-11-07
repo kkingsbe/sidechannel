@@ -1,0 +1,6 @@
+{
+ "evaluator_version": "healthcare-truth-signals-v0.1",
+ "refused": true,
+ "reason": "run assets differ from the package assets.json",
+ "export": "synthetic-exports/T7.export.json"
+}
