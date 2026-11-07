@@ -476,7 +476,7 @@ export function summarizeEvent(e: HarnessEvent, toolNames?: ReadonlyMap<string, 
       case 'model_requested': {
         const m = Array.isArray(d.messages) ? d.messages.length : undefined;
         const t = Array.isArray(d.tools) ? d.tools.length : undefined;
-        return `Model request${str(d.phase) ? ` · ${d.phase}` : ''}${m !== undefined ? ` · ${m} messages` : ''}${t !== undefined ? ` · ${t} tools` : ''}`;
+        return `Model request${str(d.phase) ? ` · ${d.phase}` : ''}${m !== undefined ? ` · ${plural(m, 'message')}` : ''}${t !== undefined ? ` · ${plural(t, 'tool')}` : ''}`;
       }
       case 'model_response': {
         const calls = Array.isArray(d.toolCalls) ? d.toolCalls.length : 0;

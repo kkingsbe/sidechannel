@@ -52,7 +52,7 @@ export default function Overview() {
     { label: 'Needs attention', value: count('failed', 'interrupted'), states: 'failed,interrupted', detail: 'Inspect failure or interruption', icon: ShieldCheck },
   ];
   const noCompletedRuns = count('completed') === 0;
-  return <><PageHeader eyebrow="THE RESEARCH DESK" title="Workspace overview" description="Resume research, inspect evidence, and follow independent jobs." actions={<Button asChild><NavLink to="/experiments/new"><FlaskConical size={16} aria-hidden="true" />New experiment</NavLink></Button>} />
+  return <><PageHeader title="Workspace overview" description="Resume research, inspect evidence, and follow independent jobs." actions={<Button asChild><NavLink to="/experiments/new"><FlaskConical size={16} aria-hidden="true" />New experiment</NavLink></Button>} />
     {noCompletedRuns && <GettingStarted first />}
     <div className="stat-grid compact-stats">{stats.map(({ label, value, detail, states, icon: Icon }) => <NavLink className="card stat-card" to={`/runs?status=${encodeURIComponent(states)}`} key={label}><div>{label}<Icon size={18} aria-hidden="true" /></div><strong>{value ?? '—'}</strong><p>{detail}{overview.error && ' · stale'}</p></NavLink>)}</div>
     {overview.error && <ErrorState error={overview.error} retry={overview.refresh} />}

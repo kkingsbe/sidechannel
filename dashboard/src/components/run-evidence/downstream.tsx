@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Badge, Button, Card, CardHeading } from "../ui";
 import { arrayOf, useApi } from "../../lib/api";
+import { plural } from "./evidence-model";
 import { short, when } from "../../lib/utils";
 
 type AnalysisSummary = {
@@ -113,7 +114,7 @@ export function Downstream({
                       ? `definition revision ${job.definition.revision}`
                       : undefined,
                     job.runIds && job.runIds.length > 1
-                      ? `${job.runIds.length} runs`
+                      ? plural(job.runIds.length, "run")
                       : undefined,
                   ]
                     .filter(Boolean)
@@ -159,8 +160,8 @@ export function Downstream({
   return compact ? (
     <details className="downstream-compact">
       <summary>
-        Downstream: {analysisRows.length} analyses · {evaluationRows.length}{" "}
-        evaluations
+        Downstream: {plural(analysisRows.length, "analysis", "analyses")} ·{" "}
+        {plural(evaluationRows.length, "evaluation")}
       </summary>
       {content}
     </details>

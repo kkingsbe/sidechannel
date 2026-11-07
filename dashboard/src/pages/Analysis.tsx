@@ -133,7 +133,7 @@ function AnalysisCollection() {
     <>
       <PageHeader
         title="Analyses"
-        description="Open saved screening results or prepare a new analysis."
+        description="Jev is the automated screener: it estimates, window by window, how likely each behavior code is present. Open saved results or prepare a new analysis."
         actions={
           <Button asChild>
             <Link to="/analysis/new">New analysis</Link>
@@ -219,7 +219,7 @@ function AnalysisCollectionRow({
           -step windows - revision {job.manifest.codebook.revision}
         </small>
         <details>
-          <summary>Canonical identifiers</summary>
+          <summary>Source identifiers</summary>
           <p className="mono">
             Analysis: {job.id}
             <br />
@@ -407,9 +407,9 @@ function AnalysisSetup() {
         <Link to="/analysis">All analyses</Link>
       </Button>
       <PageHeader
-        eyebrow="JEV · WINDOW-LEVEL SCREENING"
+        eyebrow="NEW ANALYSIS"
         title="Trace analysis"
-        description="Estimate behaviors in overlapping source windows, then inspect the actual evidence."
+        description="Jev is the automated screener: it estimates, window by window, how likely each behavior code is present in overlapping source windows. Then inspect the actual evidence."
       />
       {mutation.error && <Notice kind="error">{mutation.error.message}</Notice>}
       <Notice>
@@ -704,8 +704,8 @@ function AnalysisSetup() {
                   )}
                 </div>
                 <p className="helper" style={{ marginTop: 8 }}>
-                  Illustration: windows of {settings.windowSize} steps advance{" "}
-                  {settings.stride} steps. A classification step is different
+                  Illustration: windows of {plural(settings.windowSize, "step")} advance{" "}
+                  {plural(settings.stride, "step")}. A classification step is different
                   from an admitted tool-call budget unit.
                 </p>
               </div>
@@ -800,7 +800,7 @@ function AnalysisSetup() {
                     {suggestedSize !== undefined ? (
                       <>
                         {" "}
-                        Windows of about {suggestedSize} steps should fit
+                        Windows of about {plural(suggestedSize, "step")} should fit
                         (scaled from the measured tokens per step).{" "}
                         <Button
                           size="sm"
@@ -1205,7 +1205,7 @@ function AnalysisDetail() {
         </Link>
       </Button>
       <PageHeader
-        eyebrow="FROZEN ANALYSIS JOB"
+        eyebrow="JEV ANALYSIS"
         title={`${sourceRun.data?.config?.label || "Trace analysis"} - ${sourceRun.data?.config?.condition?.id || "Condition unavailable"} - ${data.manifest.settings.model} - ${data.manifest.settings.windowSize}-step windows`}
         description={`Source run ${data.runId} · ${data.manifest.settings.model}`}
         actions={
@@ -1338,7 +1338,7 @@ function AnalysisDetail() {
         {["probability", "heatmap", "table"].includes(tab) ? (
           <>
             <Notice>
-              Coverage on this page: {current.length} windows (labelled by source
+              Coverage on this page: {plural(current.length, "window")} (labelled by source
               steps, in run order) -{" "}
               {current.filter((w) => w.partial).length} partial -{" "}
               {current.filter((w) => !w.results?.length).length} without scores.
@@ -1685,7 +1685,7 @@ function AnalysisDetail() {
             ? `Window ${detail.data.window.index + 1} · steps ${detail.data.window.startStep}–${detail.data.window.endStep}`
             : "Analysis window"
         }
-        description="Exact normalized evidence and canonical source links."
+        description="Exact normalized evidence and source links."
       >
         {detail.loading ? (
           <Loading />
@@ -2148,7 +2148,7 @@ function ReviewWorkspace({
                   <span role="status" aria-live="polite">
                     <strong>
                       {filtered.filter((s) => complete[s.windowId]).length} /{" "}
-                      {filtered.length} windows complete
+                      {plural(filtered.length, "window")} complete
                     </strong>
                     {batch.data.selections.nextCursor
                       ? " on this page"
@@ -2401,7 +2401,7 @@ function CanonicalEvent({
       </div>
       <small className="mono">{eventId}</small>
       {event?.id === eventId && (
-        <JsonView value={event} title="Raw canonical payload" />
+        <JsonView value={event} title="Raw recorded payload" />
       )}
     </article>
   );
@@ -2568,9 +2568,9 @@ export function WindowInspector({
         <section
           id="analysis-evidence"
           tabIndex={-1}
-          aria-label="Canonical source evidence"
+          aria-label="Source evidence"
         >
-          <h3>Canonical source events ({detail.window.eventIds.length})</h3>
+          <h3>Source events ({detail.window.eventIds.length})</h3>
           <p className="helper">
             Recorded content in source order. Tool requests are proposals until
             their admission and result are recorded. Select citations to support
@@ -2578,7 +2578,7 @@ export function WindowInspector({
           </p>
           {!detail.window.eventIds.length && (
             <p>
-              No canonical events in this window.
+              No source events in this window.
               {detail.window.incomplete
                 ? " Source evidence is incomplete."
                 : ""}
@@ -2805,7 +2805,7 @@ export function WindowInspector({
           <p className="helper">
             {!reviewer.trim() ? "Enter a claimed reviewer identity. " : ""}
             {scope === "event" && list(eventIds).length !== 1
-              ? "Select exactly one canonical event for event scope. "
+              ? "Select exactly one source event for event scope. "
               : ""}
             {ownLatest.error
               ? "Latest revision unavailable; retry loading before saving. "

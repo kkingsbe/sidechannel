@@ -1278,7 +1278,7 @@ export default function Experiments() {
                 <dt>Rounds</dt>
                 <dd>
                   {valid(config.scheduler.rounds)} ×{" "}
-                  {valid(config.scheduler.toolCallsPerTurn)} calls / turn
+                  {valid(config.scheduler.toolCallsPerTurn)} {config.scheduler.toolCallsPerTurn === 1 ? "call" : "calls"} / turn
                 </dd>
                 <dt>Maximum duration</dt>
                 <dd>
@@ -1364,7 +1364,7 @@ export default function Experiments() {
                     <dt>Per run</dt>
                     <dd>
                       {budget
-                        ? `${budget.rounds} rounds × ${budget.calls} admitted tool calls / turn × ${budget.agents} agents`
+                        ? `${budget.rounds} ${budget.rounds === 1 ? "round" : "rounds"} × ${budget.calls} admitted tool ${budget.calls === 1 ? "call" : "calls"} / turn × ${budget.agents} ${budget.agents === 1 ? "agent" : "agents"}`
                         : "—"}
                     </dd>
                     <dt>Model steps / turn</dt>

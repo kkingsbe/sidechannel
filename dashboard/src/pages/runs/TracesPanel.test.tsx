@@ -107,7 +107,7 @@ describe('TracesPanel', () => {
   it('discloses input messages', async () => {
     setup();
     const card = screen.getAllByRole('article')[0];
-    const toggle = within(card).getByRole('button', { name: /Input · 2 messages · 1 tools available/ });
+    const toggle = within(card).getByRole('button', { name: /Input · 2 messages · 1 tool available/ });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     await userEvent.setup().click(toggle);
     expect(within(card).getByText('system')).toBeTruthy();

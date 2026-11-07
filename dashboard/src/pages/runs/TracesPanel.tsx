@@ -128,7 +128,7 @@ function CallCard({ call, query, matches, focused, quietHidden, onInspect, regis
   const stack = call.toolCalls.some(t => proseArgument(t.arguments) !== undefined);
   const messages = open ? inputMessages(call.request) : [];
   const inputLabel = call.inputSummary
-    ? `Input · ${call.inputSummary.messages} messages · ${call.inputSummary.tools} tools available`
+    ? `Input · ${call.inputSummary.messages} ${call.inputSummary.messages === 1 ? "message" : "messages"} · ${call.inputSummary.tools} ${call.inputSummary.tools === 1 ? "tool" : "tools"} available`
     : 'Input · not recorded';
   const link = (label: string, e: HarnessEvent | undefined) => e && (
     <button type="button" className="tr-link" onClick={() => onInspect(e.id, e.sequence)}>{label} #{e.sequence}</button>

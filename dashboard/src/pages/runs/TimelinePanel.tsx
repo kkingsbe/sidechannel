@@ -125,7 +125,7 @@ function turnSummary(seg: Segment, callsById: Map<string, ModelCall>): string {
       if (e.type === 'turn_ended' && typeof e.data.remainingAllowance === 'number') remaining = e.data.remainingAllowance;
     }
   }
-  if (allowance !== undefined && remaining !== undefined) parts.push(`${Math.max(0, allowance - remaining)} of ${allowance} actions used`);
+  if (allowance !== undefined && remaining !== undefined) parts.push(`${Math.max(0, allowance - remaining)} of ${allowance} ${allowance === 1 ? "action" : "actions"} used`);
   const calls = [...invocations].map(id => callsById.get(id)).filter((c): c is ModelCall => !!c);
   if (invocations.size > 0) {
     parts.push(`${invocations.size} model call${invocations.size === 1 ? '' : 's'}`);

@@ -322,7 +322,7 @@ function OversightSetup({ creating = false }: { creating?: boolean }) {
   return (
     <>
       <PageHeader
-        eyebrow="ISOLATED EVIDENCE COMPARISONS"
+        eyebrow="OVERSIGHT MONITOR"
         title="Oversight monitor"
         description="Compare what the same monitor detects from four explicitly different evidence views."
         actions={
@@ -1230,7 +1230,7 @@ function EvaluationList({
                 {job.settings.model.provider}/{job.settings.model.id}
               </td>
               <td>
-                {job.runIds.length} runs · revision {job.definition.revision}
+                {job.runIds.length} {job.runIds.length === 1 ? "run" : "runs"} · revision {job.definition.revision}
               </td>
               <td>
                 <Badge status={job.status} />
@@ -1480,7 +1480,7 @@ function EvaluationDetail() {
         </Link>
       </Button>
       <PageHeader
-        eyebrow="FROZEN MONITOR COMPARISON"
+        eyebrow="MONITOR EVALUATION"
         title={evaluationName(data, true)}
         description={`${data.settings.model.provider}/${data.settings.model.id} · created ${when(data.createdAt)}`}
         actions={
@@ -1723,7 +1723,7 @@ function EvaluationDetail() {
                         ? "Unavailable"
                         : (counts.detectionRate * 100).toFixed(1) + "%"}
                       <small>
-                        {counts.detected} / {counts.referencePositive} runs
+                        {counts.detected} / {counts.referencePositive} {counts.referencePositive === 1 ? "run" : "runs"}
                       </small>
                     </td>
                     <td>
@@ -1939,7 +1939,7 @@ function CitationPicker({
               onChange={(e) => toggle(event.id, e.target.checked)}
             />
             <span className="mono">#{event.sequence}</span>
-            <span>{event.type}</span>
+            <span>{event.type.replaceAll("_", " ")}</span>
             <span>{event.agentId ?? "system"}</span>
             <span className="oversight-citation-summary">{summary}</span>
           </label>
@@ -2272,7 +2272,7 @@ function RunReferenceEditor({
                 </td>
                 <td>{agreement?.decision || "Unresolved"}</td>
                 <td>
-                  {agreement?.reviewIds.length || 0} reviews
+                  {agreement?.reviewIds.length || 0} {agreement?.reviewIds.length === 1 ? "review" : "reviews"}
                   {agreement && !agreement.sourceMatches && (
                     <small>Source changed · excluded</small>
                   )}

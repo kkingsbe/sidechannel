@@ -628,7 +628,7 @@ it("shows per-window judgment progress in the review queue", async () => {
   );
   expect(await screen.findByText("1 / 2 behaviors judged")).toBeTruthy();
   expect(screen.getByText("In progress")).toBeTruthy();
-  expect(await screen.findByText(/0 \/ 1 windows complete/)).toBeTruthy();
+  expect(await screen.findByText(/0 \/ 1 window complete/)).toBeTruthy();
 });
 
 it("confirms a saved judgment, resets the draft and only asks for a rationale after a failed attempt", async () => {

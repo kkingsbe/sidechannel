@@ -152,7 +152,7 @@ export function RecordedEventContent({
         <RecordedValue label="Recorded content" value={data} />
       ) : (
         <p className="helper">
-          No readable message or result was recorded. Inspect the raw canonical
+          No readable message or result was recorded. Inspect the raw recorded
           payload for metadata.
         </p>
       )}

@@ -95,7 +95,7 @@ export function HealthcarePreset({
           <Field
             label="Validated healthcare dataset"
             error={errors?.["scenario.datasetId"]}
-            hint="Canonical package assets and provenance are resolved by the server at launch."
+            hint="Package assets and provenance are resolved by the server at launch."
           >
             <Select
               data-config-path="scenario.datasetId"
@@ -125,7 +125,7 @@ export function HealthcarePreset({
             </p>
           ) : (
             <Notice kind="warning">
-              This dataset is not installed. Import the canonical catalog before
+              This dataset is not installed. Import the catalog before
               launch.
             </Notice>
           )}

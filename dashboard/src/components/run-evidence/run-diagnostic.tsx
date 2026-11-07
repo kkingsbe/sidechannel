@@ -41,7 +41,7 @@ export function ContextSparkline({ points }: { points: ContextPoint[] }) {
         width={width}
         height={height}
         role="img"
-        aria-label={`Context size per model call: ${points.length} calls, peak ${max.toLocaleString()} ${unit}${failed ? `, ${failed} without a recorded response` : ""}`}
+        aria-label={`Context size per model call: ${points.length} ${points.length === 1 ? "call" : "calls"}, peak ${max.toLocaleString()} ${unit}${failed ? `, ${failed} without a recorded response` : ""}`}
       >
         <polyline
           fill="none"

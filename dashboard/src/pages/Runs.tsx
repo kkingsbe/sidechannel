@@ -132,7 +132,7 @@ function RunList() {
   return (
     <>
       <PageHeader
-        eyebrow="CANONICAL SOURCE RECORD"
+        eyebrow="RUN RECORDS"
         title="Experiment runs"
         description="Follow execution, inspect evidence, and navigate matched conditions."
         actions={
@@ -1307,7 +1307,7 @@ function PairDetail() {
   return (
     <>
       <PageHeader
-        eyebrow="MATCHED EXECUTIONS"
+        eyebrow="MATCHED PAIR"
         title={runs[0]?.config?.label || "Pair comparison"}
         description={`Matched pair comparison · ${id}`}
         actions={
@@ -1493,7 +1493,7 @@ function PairCondition({
               {plural(resource.data.artifacts?.length ?? 0, "artifact version")}{" "}
               - {plural(resource.data.reports?.length ?? 0, "final report")}.{" "}
               <Link to={"/runs/" + run.id + "?view=timeline" + suffix}>
-                Open canonical event timeline
+                Open event timeline
               </Link>
             </p>
           ) : (
