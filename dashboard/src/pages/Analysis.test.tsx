@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
+import { REVIEWER_STORAGE_KEY } from "../components/claimed-reviewer";
 import { activate, fakeServer, renderWithServer } from "../test/clients";
 import Analysis from "./Analysis";
 import { WindowInspector } from "./analysis/window-inspector";
@@ -107,7 +108,7 @@ it("fails closed when a path change temporarily retains metadata for a different
   mocks.batch = { id: "blind-batch", mode: "blind" };
 });
 it("revises the exact event subject rather than borrowing another event review revision", async () => {
-  localStorage.setItem("sidechannel-reviewer", "Reviewer A");
+  localStorage.setItem(REVIEWER_STORAGE_KEY, "Reviewer A");
   mocks.request.mockImplementation((path: string | null) => {
     if (!path) return undefined;
     if (path.includes("subjectId=event-b"))
@@ -169,7 +170,7 @@ it("revises the exact event subject rather than borrowing another event review r
 });
 
 it("selects multiple exact citations and preserves the draft when a save fails", async () => {
-  localStorage.setItem("sidechannel-reviewer", "Reviewer A");
+  localStorage.setItem(REVIEWER_STORAGE_KEY, "Reviewer A");
   const next = vi.fn();
   renderWithServer(
     <MemoryRouter>
@@ -309,7 +310,7 @@ it("explains preview prerequisites and distinguishes unscored records while inva
 });
 
 it("keeps later queue pages and filters after saving and advancing to the next item", async () => {
-  localStorage.setItem("sidechannel-reviewer", "Reviewer A");
+  localStorage.setItem(REVIEWER_STORAGE_KEY, "Reviewer A");
   const base = mocks.request.getMockImplementation()!;
   mocks.request.mockImplementation((path: string | null) => {
     if (path?.includes("/review-batches/blind-batch")) {

@@ -1,4 +1,5 @@
-﻿import { Button, Field, Input, Select } from "../../components/ui";
+﻿import { REVIEWER_STORAGE_KEY } from "../../components/claimed-reviewer";
+import { Button, Field, Input, Select } from "../../components/ui";
 import type { useCodebookDraft } from "./use-codebook-draft";
 
 /** Codebook choice, editable name and claimed revision author. */
@@ -61,7 +62,7 @@ export function CodebookSelector({
           value={draft.author}
           onChange={(e) => {
             draft.setAuthor(e.target.value);
-            localStorage.setItem("sidechannel-reviewer", e.target.value);
+            localStorage.setItem(REVIEWER_STORAGE_KEY, e.target.value);
           }}
         />
       </Field>

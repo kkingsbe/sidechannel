@@ -1,3 +1,4 @@
+import { REVIEWER_STORAGE_KEY } from "../../components/claimed-reviewer";
 import { Link } from "react-router-dom";
 import type { ReactElement } from "react";
 import { Download } from "lucide-react";
@@ -118,7 +119,7 @@ export function RunReferenceEditor({
               value={reference.reviewer}
               onChange={(e) => {
                 reference.setReviewer(e.target.value);
-                localStorage.setItem("sidechannel-reviewer", e.target.value);
+                localStorage.setItem(REVIEWER_STORAGE_KEY, e.target.value);
               }}
             />
           </Field>

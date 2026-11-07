@@ -1,4 +1,5 @@
 ﻿import { useEffect, useState } from "react";
+import { REVIEWER_STORAGE_KEY } from "../../components/claimed-reviewer";
 import { useCommand } from "../../components/use-command";
 import { useClients } from "../../lib/clients/context";
 import { useResource, useResourcePage } from "../../lib/clients/query";
@@ -26,7 +27,7 @@ export function useCodebookDraft() {
   const [selected, setSelected] = useState("");
   const [name, setName] = useState("");
   const [author, setAuthor] = useState(
-    () => localStorage.getItem("sidechannel-reviewer") || "",
+    () => localStorage.getItem(REVIEWER_STORAGE_KEY) || "",
   );
   const [dirty, setDirty] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);

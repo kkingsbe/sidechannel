@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { REVIEWER_STORAGE_KEY } from "../../components/claimed-reviewer";
 import { useCommand } from "../../components/use-command";
 import { useClients } from "../../lib/clients/context";
 import { useResource, useResourcePage } from "../../lib/clients/query";
@@ -36,7 +37,7 @@ export function useRunReference(runId: string, initialDefinitionRevisionId?: str
     { interval: 5000 },
   );
   const [reviewer, setReviewer] = useState(
-    () => localStorage.getItem("sidechannel-reviewer") || "",
+    () => localStorage.getItem(REVIEWER_STORAGE_KEY) || "",
   );
   const [outcomeId, setOutcomeId] = useState("");
   const [decision, setDecision] = useState<Verdict>("uncertain");

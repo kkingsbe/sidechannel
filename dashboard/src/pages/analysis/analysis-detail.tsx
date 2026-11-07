@@ -44,6 +44,7 @@ export function AnalysisDetail() {
   if (!job.job) return <ErrorState error={job.error} retry={job.refresh} />;
   const data = job.job;
   const tab = (params.get("view") || DEFAULT_ANALYSIS_TAB) as AnalysisTab;
+  const isReviewTab = ANALYSIS_VIEWS[tab]?.title === "Human review";
   const windowId = windows.windowId;
   const setTab = (view: AnalysisTab) =>
     setParams((prev) => {
@@ -183,7 +184,7 @@ export function AnalysisDetail() {
               job={data}
               onSaved={() => setVersion((v) => v + 1)}
               onNext={
-                tab === "review" && queue.includes(windowId!)
+                isReviewTab && queue.includes(windowId!)
                   ? () =>
                       setParams((prev) => {
                         const next = queue[queue.indexOf(windowId!) + 1];
@@ -195,7 +196,7 @@ export function AnalysisDetail() {
               }
               onReturn={windows.close}
               blind={
-                tab === "review" &&
+                isReviewTab &&
                 (batchId
                   ? persistedBatch.data?.batch.id !== batchId ||
                     persistedBatch.data?.batch.mode === "blind"
