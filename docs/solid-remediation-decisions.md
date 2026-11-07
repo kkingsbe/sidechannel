@@ -38,7 +38,8 @@ Measured by `npm run architecture` (`scripts/architecture-budget.mjs` against
 | Fetch-page implementations (dashboard) | 6 (2 hooks + 4 pagers) | 6 | 1 | WS5 |
 | Provider-settings policy sites | 9 sites / 7 files | 10 sites / 9 files | 1 | +1 is the dashboard `Experiments.tsx` copy, owned by WS6 |
 | Provider-name branch sites | 16 sites / 11 files | 20 sites / 14 files | 0 outside the registry | broader regex (includes dashboard/worker branches) |
-| Scenario-version literal sites | 30 sites / 14 files | 30 sites / 14 files | ≤ 6 | reproduces the audit exactly |
+| Scenario-version literal sites (literal strings) | 30 (audit census: literals + constant refs) | 14 sites / 11 files (literal strings only) | ≤ 6 | WS4 took it to 3 sites / 3 files; the constant references are counted separately below |
+| Scenario-version constant references (`HEALTHCARE_SCENARIO_VERSION`) | 16 (derived) | 22 | informational | single-source form, not a copy; capped so a second constant cannot hide |
 | Byte-identical duplicated files | 2 | 2 | 0 | `inference-provider.ts` in two services |
 | Status-vocabulary array sites | 8 (terminal subsets only) | 29 (all status arrays) | ≤ 6 | superset census; WS7 |
 | `AnalysisRepository` members | 28 | 28 | ≤ 8 per capability port | WS2 |
@@ -65,13 +66,13 @@ Severity and titles are taken verbatim from the audit report.
 | F7 | high | Dashboard view dispatch is an else-chain with a silent fallback | WS6 T6.8 | planned |
 | F8 | high | Two abstractions, six implementations of data hooks and pagers | WS5 T5.1 | done (`ce3664c`) — `fetchPageImplementations` 6→1 |
 | F9 | high | The two data hooks and two pagers are not substitutable | WS5 T5.1/T5.2 | hook/pager unification done (`ce3664c`); client substitutability in T5.2 |
-| F10 | high | The dashboard "port" is a URL string; five raw anchors bypass it | WS5 T5.2 | planned |
-| F11 | high | `jev-transport.ts` is a stateful repository, policy layer and route table | WS5 T5.3 | planned |
-| F12 | high | The adapter fabricates contract fields and invents constants | WS5 T5.3 | planned |
-| F13 | high | Shared type modules are server-contract dumps; one review input serves two domains | WS0 (dead exports) / WS5 T5.5 / WS6 | planned |
-| F14 | high | Provider/scenario capability rules hardcoded in 5–7 dashboard sites | WS4 T4.3 (metadata) / WS6 (wiring) | planned |
+| F10 | high | The dashboard "port" is a URL string; five raw anchors bypass it | WS5 T5.2 | done (`ff39399`) — zero raw `/api/` anchors, six typed clients |
+| F11 | high | `jev-transport.ts` is a stateful repository, policy layer and route table | WS5 T5.3 | done (`edaeb61`) |
+| F12 | high | The adapter fabricates contract fields and invents constants | WS5 T5.3 | done (`edaeb61`) |
+| F13 | high | Shared type modules are server-contract dumps; one review input serves two domains | WS0 (dead exports) / WS5 T5.5 / WS6 | dashboard part done (`9b356e5`, `ce3664c`); WS6 leftovers |
+| F14 | high | Provider/scenario capability rules hardcoded in 5–7 dashboard sites | WS4 T4.3 (metadata) / WS6 (wiring) | metadata endpoints done (`d443c77`); dashboard wiring is WS6 |
 | F15 | medium | Domain vocabularies bypassed by strings; `Badge` invents statuses | WS7 T7.1 | planned |
-| F16 | medium | No shared response-envelope contract; pages sniff payload shapes | WS5 T5.4 | planned |
+| F16 | medium | No shared response-envelope contract; pages sniff payload shapes | WS5 T5.4 | done (`f91e735`) — `arrayOf` deleted |
 | F17 | medium | App shell owns a domain table and forms an import cycle with the Runs page | WS6 T6.7 | planned |
 | F18 | medium | The two largest pages duplicate cancel, review-history and reviewer-identity code | WS6 T6.7 | planned |
 | F19 | low | Components take whole hook results as props; shared stylesheet imported by the wrong page | WS0 (unused imports) / WS6 T6.7 | planned |
@@ -87,7 +88,7 @@ Severity and titles are taken verbatim from the audit report.
 | P10 | high | Ports fat for narrow consumers, thin for their client; store ports leak a document-store protocol | WS1 (parity) / WS2 T2.1–T2.4 | done (`e172b4a`, `52040ed`, `e46c85c`); see the `JobLifecycleStore` sizing decision below |
 | S1 | high | API server module is transport, router, auth, parser, static host and launch service | WS3a T3a.2–T3a.3 | done (`29a4a6c`, `4320e5b`) |
 | S2 | critical | `HarnessScheduler.run()` is a 249-line method with thirteen responsibilities | WS3b T3b.2–T3b.6 | done (`69f0653`) — `scheduler.ts` 98 lines, `run()` 74 lines |
-| S3 | high | `HealthcareService` owns resolution, validation, provenance, routing, evaluation — and duplicated the validator | WS3c T3c.4 / WS4 T4.2 | planned (duplication already deleted at baseline; re-duplication guard added) |
+| S3 | high | `HealthcareService` owns resolution, validation, provenance, routing, evaluation — and duplicated the validator | WS3c T3c.4 / WS4 T4.2 | done (`f0b127c`) — facade over resolver/routes/provenance; single domain rule site |
 | S4 | medium | Common-tool dispatch is a name if-chain with a duplicated argument allowlist | backlog | deferred (covered functionally by WS3b T3b.4 tool admission; the dispatch table itself is polish) |
 | S5 | high | `ModelAdapter` implementations are not substitutable | WS2 T2.4 (inject the adapter) / WS4 T4.1 (shared transport policy) | partially done: adapters are injected and `createMonitorProvider` requires a `ModelAdapter` (`447239b`); transport-policy unification is WS4 |
 | S6 | medium | Model-usage provenance is untyped and inferred from configuration | WS3b T3b.7 (gated) | deferred: typing `ModelResponse` provenance requires edits in WS2/WS4-owned contracts while keeping recorded `model_usage` payloads byte-identical |
@@ -95,9 +96,9 @@ Severity and titles are taken verbatim from the audit report.
 | S8 | medium | The `Repository` port is too narrow for the worker loop and too wide for the scheduler | WS2 T2.3 | done (`e172b4a`) |
 | S9 | high | `AnalysisWorker` is a lease manager, scheduler, retry-budget accountant and progress ledger | WS3c T3c.3 | done (`7dbf591`) |
 | S10 | medium | Composition leaks into operations: concrete adapter built in a use case, global Mastra runtime mutated | WS2 T2.4 / WS0 T0.2 (orphan starter agent) | done (`447239b`; WS0 deleted the orphan starter agent) |
-| X1 | high | Provider capability and model-settings policy restated in 9 places, already drifted | WS4 T4.1 | planned |
-| X2 | high | Scenario selection by version string repeated across every tier | WS4 T4.2 | planned |
-| X3 | high | Domain layer encodes HTTP status codes; API guesses meaning from error message text | WS3a T3a.5 (mapper) / WS3c T3c.5 (producers) | review routes done (`b9d7ecf`); producer completion in WS3c T3c.5 |
+| X1 | high | Provider capability and model-settings policy restated in 9 places, already drifted | WS4 T4.1 | done (`ef3a4c9`) — 2 sites, target 1 when WS6 removes the dashboard copy |
+| X2 | high | Scenario selection by version string repeated across every tier | WS4 T4.2 | done (`4b85b98`) — 3 literal sites / 3 files, target ≤ 6 met |
+| X3 | high | Domain layer encodes HTTP status codes; API guesses meaning from error message text | WS3a T3a.5 (mapper) / WS3c T3c.5 (producers) | done (`b9d7ecf`, `13f424c`) — `DomainFailure` kinds everywhere; `OversightError`/`readonly status` deleted |
 | X4 | high | Three competing route-handler contracts, three body parsers, synthetic `IncomingMessage` | WS3a T3a.4 | done (`8f3436c`) |
 | X5 | medium | Generic "read every page" logic reimplemented eight times | WS3a T3a.6 | done (`6b73807`) |
 | X6 | medium | Two canonical-JSON hash families in five copies produce different digests | WS1 Task 1 (de-duplicate, byte-identical) / WS7 T7.4 (canonical, versioned) | de-duplication done (`37085bd`); canonical ordering deferred |
@@ -162,6 +163,14 @@ decisions made while executing:
 | 2026-11-07 (WS4) | Byte-identical duplicate resolver (SHA-256 `3100B349…D890C33`, 1659 bytes) collapsed: the analysis-worker copy is deleted and the experiment-worker copy is a Mastra-cast delegator to `@sidechannel/domain/providers` that keeps `adaptionBaseUrl` exported for `live-smoke.ts`. `byteIdenticalDuplicateFiles` census: **2 → 0** | S5's shared transport policy is now a single implementation with no service-to-service import; the recorded host-only cast remains at the SDK edge | WS4 |
 | 2026-11-07 (WS4) | The config form schema is a pure `buildConfigurationSchema(settings)` in `packages/contracts` bound in `packages/domain/src/harness/configuration-schema.ts` (contracts must not import domain), and the browser metadata DTOs mark `presentation.tabs` readonly because `ScenarioDescriptor.presentation` stays `readonly string[]` per conventions §3.3. `/api/config/schema` is byte-identical before/after: **5313 bytes, sha256 `25bba8b4d83eaebfab7c7c6474cd746fccb2fc4b96ad2f52312471958671151c`** | Payload stability is proven, not assumed; the DTO readonly marker changes no serialized byte while keeping the binding domain type | WS4 |
 | 2026-11-07 (WS4) | Plan deviations recorded: T4.1's fixture-literal/descriptor edits in `harness/config.ts` moved to T4.2 (they depend on the scenario module); the OCP test needed a catalog derivation and a scripted-driver fallback as above (the plan's literal `scriptedDriver(descriptor.version)` throws for a registered test scenario); the plan's T4.1 unit expectation `seed must be finite` for `{ seed: 1.5 }` was corrected to the historical `provider seed must be integer`, and its healthcare role-error expectation was corrected because the shipped fixture roles already use a subset of the healthcare tool list | Each correction preserves the pre-WS4 observable behaviour; the plan's fixture arithmetic was wrong, not the code | WS4 |
+| 2026-11-07 (WS5) | Dashboard data access is one requester seam: `lib/transport.ts` is the only `fetch`; six typed clients own every path/body/export URL; `ApiClientProvider` composes them; pure `translate`/`decodeJev` plus a provider-owned `JevSession` replace the module-global transport. Page tests inject `pageClients` over a fake requester with the adapter disabled; adapter mapping keeps its own characterization suite | F10/F11 close without payload changes and page tests stop stubbing global fetch | WS5 |
+| 2026-11-07 (WS5) | `AnalysisSettings.frozen` replaces `resolvedSettings`; new analyses use `adapters/defaults.ts`; fabricated `revision: 1`, `archived: false`, `ReviewBatch.creator` and cached window/review derivation are deleted; `toReview` derives `runId` from the review analysis context and window membership from review subject scope | F12 closes; duplicate-analysis payloads stay byte-identical | WS5 |
+| 2026-11-07 (WS5) | Client-side one-source-event review refusal deleted; server `ReviewService.save` owns it (D5.1). `WindowReviewInput`/`OutcomeReviewInput` split; `ReviewInput`/`ResearchRecord` deleted | F13/F11 close | WS5 |
+| 2026-11-07 (WS5) | `packages/contracts/src/browser.ts` exports `RunSummary` (D5.3, one line); dashboard `mergeProgress` makes progress-over-run authority explicit. `/runs/:id/events` keeps a pager shim that normalizes `{events,nextCursor,hasMore}` to `Page<T>` because the server cursor is never null | Removes the fifth `RunSummary` declaration and the `Partial<Run>` merge without changing evidence payloads | WS5 |
+| 2026-11-07 (WS3c, part 2) | `HealthcareService` is a four-method facade over resolver/route/provenance modules. Healthcare configuration rules exist only in the single domain scenario definition (WS4 moved them to `packages/domain/src/scenarios/healthcare.ts`); the re-duplication guard follows that definition site | S3 stays closed after the concurrent WS4 move; the guard now fails if a second domain copy appears | WS3c |
+| 2026-11-07 (WS3c, part 2) | X3 completion: domain failures carry `FailureKind`; `OversightError` and every `readonly status` are deleted; `AnalysisConflict`/`AnalysisNotFound`/`AnalysisValidation`/`AnalysisPayloadTooLarge`/`RepositoryConflict` extend `DomainFailure` and keep their names and messages. The API mapper is `HttpError`/`DomainFailure`/unknown→400 | One failure vocabulary across layers; the legacy branches the plan said to keep became unreachable once the classes stopped carrying `status`, so they were removed with the statuses | WS3c |
+| 2026-11-07 (WS3c, part 2) | Accepted status change: the two frozen-preview integrity failures now map to 503 (`unavailable`) instead of 500 | No test asserted 500 and 500 is not a failure kind; genuine unavailability/conflict conditions | WS3c |
+| 2026-11-07 (Lead) | Architecture census split for X2: `scenarioVersionLiteralSites` now counts literal version strings only (audit 30 → baseline 14 → 3 after WS4; target ≤ 6 met); references to `HEALTHCARE_SCENARIO_VERSION` are reported separately as `scenarioVersionConstantReferences` (baseline 16 → 22, informational, capped at 22) | The audit's 30-site census conflated literal copies with the single-source constant; counting them together would punish the refactor for adopting the constant. Literal copies are the drift risk and stay budgeted | Lead |
 
 ## Verification gates
 

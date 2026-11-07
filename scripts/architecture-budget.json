@@ -49,10 +49,16 @@
             "note": "Broader regex than the audit (includes dashboard and worker branches). WS4 removes provider-name branches outside the registry; dashboard sites are WS6."
         },
         "scenarioVersionLiteralSites": {
-            "max": 30,
+            "max": 14,
             "target": 6,
             "audit": 30,
-            "note": "30 sites / 14 files reproduces the audit exactly (import/export wiring excluded). WS4 brings the backend to ~3 sites; dashboard remainder is WS6."
+            "note": "Literal version strings in production source (measured 14 sites / 11 files at 5a31bf7). The audit's 30 sites / 14 files counted literal strings AND HEALTHCARE_SCENARIO_VERSION references; WS4 replaced the literals with one definition plus constant references (see scenarioVersionConstantReferences). 3 sites / 3 files after WS4; the dashboard remainder is WS6."
+        },
+        "scenarioVersionConstantReferences": {
+            "max": 22,
+            "target": 22,
+            "audit": 16,
+            "note": "References to the HEALTHCARE_SCENARIO_VERSION constant. This is the single-source form, not a copy of the policy; the count is expected to grow as consumers adopt the registry and is capped so a second scenario constant cannot hide here."
         },
         "byteIdenticalDuplicateFiles": {
             "max": 2,

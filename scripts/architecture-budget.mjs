@@ -126,26 +126,33 @@ const providerNameBranchSites = () => {
     return { metric: 'providerNameBranchSites', value: sites.reduce((sum, site) => sum + site.hits, 0), files: sites.length, sites: sites.map(site => `${site.file} (${site.hits})`) };
 };
 
-// Scenario-version literals in production source: the two installed version
-// identifiers and the healthcare version constant. Import/export-from lines
-// are wiring, not policy sites, so they are excluded (the audit's 30/14 count
-// reproduces exactly with this definition).
-const SCENARIO_LITERAL = /fixture-v1|healthcare-points-v0\.3|HEALTHCARE_SCENARIO_VERSION/g;
+// Scenario-version policy sites. The audit's "30 sites / 14 files" census
+// counted both literal version strings and references to the
+// HEALTHCARE_SCENARIO_VERSION constant. WS4 turned the literals into one
+// definition + constant references, so the two are reported separately:
+//   * literal sites are the drift risk and are budgeted to <= 6;
+//   * constant references are the single-source form and are expected to grow
+//     with registry adoption (they are never a second copy of the policy).
+// Import/export-from lines are wiring, not policy sites, and are excluded.
+const SCENARIO_LITERAL = /['"](?:fixture-v1|healthcare-points-v0\.3)['"]/g;
+const SCENARIO_CONSTANT = /\bHEALTHCARE_SCENARIO_VERSION\b/g;
 const IMPORT_LINE = /^\s*(?:import|export)\b[^;]*\bfrom\b/;
-const scenarioVersionLiterals = () => {
+function scenarioLineCensus(pattern, metric) {
     const sites = [];
     let value = 0;
     for (const file of PRODUCTION) {
         const hits = CONTENTS.get(file).text
             .split('\n')
             .filter(line => !IMPORT_LINE.test(line))
-            .reduce((sum, line) => sum + count(line, SCENARIO_LITERAL), 0);
+            .reduce((sum, line) => sum + count(line, pattern), 0);
         if (!hits) continue;
         value += hits;
         sites.push(`${file} (${hits})`);
     }
-    return { metric: 'scenarioVersionLiteralSites', value, files: sites.length, sites };
-};
+    return { metric, value, files: sites.length, sites };
+}
+const scenarioVersionLiterals = () => scenarioLineCensus(SCENARIO_LITERAL, 'scenarioVersionLiteralSites');
+const scenarioVersionConstantReferences = () => scenarioLineCensus(SCENARIO_CONSTANT, 'scenarioVersionConstantReferences');
 
 // Byte-identical duplicated production files (audit X6/S5): equal SHA-256 and
 // at least 200 bytes, so trivial `export {}` stubs are not counted.
@@ -208,6 +215,7 @@ const metrics = [
     providerSettingsPolicySites(),
     providerNameBranchSites(),
     scenarioVersionLiterals(),
+    scenarioVersionConstantReferences(),
     byteIdenticalDuplicates(),
     statusVocabularyArraySites(),
     portMembers('AnalysisRepository'),
