@@ -22,6 +22,7 @@ function batch(raw:JevBatch){return {...raw,revision:1,creator:'',randomCount:ra
 export async function jevTransport<T>(path:string,options:RequestInit|undefined,fetch:Fetch):Promise<{value:T}|undefined>{
  const url=new URL(path,'http://local');const p=url.pathname,method=(options?.method??'GET').toUpperCase(),b=bodyOf(options);let value:unknown;
  if(p==='/codebooks'&&method==='GET'){const page=await fetch<Page<JevCodebook>>('/jev'+path);value={...page,items:page.items.map(raw=>book(raw))};}
+ else if(p==='/analyses'&&method==='GET'){const page=await fetch<Page<JevJob>>('/jev'+path);value={...page,items:page.items.map(job)};}
  else if(p==='/codebooks'&&method==='POST'){const raw=await fetch<{codebook:JevCodebook;revision:JevRevision}>('/jev/codebooks',request({name:b.name,creator:b.author,definitions:b.codes??[]}));value={codebook:book(raw.codebook,raw.revision),revision:revision(raw.revision)};}
  else if(/^\/codebooks\/[^/]+\/revisions$/.test(p)&&method==='GET'){const page=await fetch<Page<JevRevision>>('/jev'+path);value={...page,items:page.items.map(revision)};}
  else if(/^\/codebooks\/[^/]+\/revisions\/[^/]+$/.test(p)&&method==='GET'){value=revision(await fetch<JevRevision>('/jev'+p));}

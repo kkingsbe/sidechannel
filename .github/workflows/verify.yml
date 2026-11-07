@@ -45,11 +45,11 @@ jobs:
           NX_SKIP_NX_CACHE: 'true'
         run: |
           npm run verify
-          npm run test:compiled
-          npm run test:equivalence
+          node scripts/verify-compiled.mjs
+          node scripts/verify-migration-equivalence.mjs
       - name: Validate boundary violations and the browser declaration graph
         run: node scripts/verify-boundaries.mjs
-      - name: Verify local cache restoration
+      - name: Verify repeated local cached build
         run: npm run build
       - name: Isolated MongoDB integration
         env:

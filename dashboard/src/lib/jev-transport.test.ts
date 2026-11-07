@@ -188,3 +188,15 @@ describe('canonical Jev transport', () => {
   expect(page.selections.nextCursor).toBe('filtered:cursor');
  });
 });
+
+it('adapts the global analysis collection and preserves pagination', async () => {
+ const f = fixture();
+ const mock = stub(path => {
+  expect(path).toBe('/jev/analyses?limit=30&after=saved-cursor');
+  return {items:[f.job],nextCursor:'next-page'};
+ });
+ const response = await jevTransport<Page<AnalysisJob>>('/analyses?limit=30&after=saved-cursor', undefined, mock.fetch);
+ expect(response?.value.nextCursor).toBe('next-page');
+ expect(response?.value.items[0].manifest.settings.windowSize).toBe(f.settings.window.size);
+ expect(response?.value.items[0].runId).toBe(f.runId);
+});

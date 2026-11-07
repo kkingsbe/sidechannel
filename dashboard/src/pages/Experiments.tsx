@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import {
   CheckCircle2,
   Copy,
@@ -27,6 +32,23 @@ import {
 import { api, post, useApi, useMutation } from "../lib/api";
 import type { Draft, ExperimentConfig, Json, Run } from "../lib/types";
 import { pretty, when } from "../lib/utils";
+import "./Experiments.css";
+const readableName = (value: string) =>
+  value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .replace(/^./, (letter) => letter.toUpperCase());
+const focusField = (path: string) => {
+  const control = document.querySelector<HTMLElement>(
+    `[data-config-path="${path}"]`,
+  );
+  let parent = control?.parentElement;
+  while (parent) {
+    if (parent instanceof HTMLDetailsElement) parent.open = true;
+    parent = parent.parentElement;
+  }
+  control?.focus();
+};
 type Validation = {
   valid: boolean;
   errors: string[];
@@ -140,8 +162,15 @@ export default function Experiments() {
   );
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const editing =
+    location.pathname.endsWith("/new") ||
+    params.has("draft") ||
+    params.has("recover");
+  const localRecovery = localStorage.getItem("sidechannel-experiment-draft");
   const [config, setConfig] = useState<ExperimentConfig>();
   const [draft, setDraft] = useState<Draft>();
+  const [draftError, setDraftError] = useState<Error>();
   const [validation, setValidation] = useState<Validation>();
   const [dirty, setDirty] = useState(false);
   const [launchReview, setLaunchReview] = useState(false);
@@ -150,15 +179,27 @@ export default function Experiments() {
   const [notes, setNotes] = useState("");
   const mutation = useMutation();
   const launchKey = useRef(crypto.randomUUID());
+  const initializedRoute = useRef("");
   useEffect(() => {
-    if (!defaults.data || config) return;
+    const routeKey = location.pathname + location.search;
+    if (!defaults.data || !editing || initializedRoute.current === routeKey)
+      return;
+    initializedRoute.current = routeKey;
+    if (params.has("draft")) return;
+    setDraft(undefined);
+    setNotes("");
+    setDirty(false);
+    setSavedLocal(false);
+    setValidation(undefined);
+    setLaunchReview(false);
+    launchKey.current = crypto.randomUUID();
     const saved = localStorage.getItem("sidechannel-experiment-draft");
-    if (saved) {
+    if (saved && params.has("recover") && !params.has("draft")) {
       try {
         const data = JSON.parse(saved);
         setConfig(data.config);
         setDraft(data.draft);
-        setNotes(data.notes || "");
+        setNotes((data as Draft & { notes?: string }).notes || "");
         setSavedLocal(true);
         setDirty(true);
         return;
@@ -167,16 +208,19 @@ export default function Experiments() {
       }
     }
     setConfig(structuredClone(defaults.data));
-  }, [defaults.data, config]);
+  }, [defaults.data, editing, location.pathname, location.search, params]);
   useEffect(() => {
     if (!params.get("draft")) return;
+    setDraftError(undefined);
     void api<Draft>("/drafts/" + encodeURIComponent(params.get("draft")!))
       .then((data) => {
         setConfig(data.config);
         setDraft(data);
+        setNotes((data as Draft & { notes?: string }).notes || "");
+        setSavedLocal(false);
         setDirty(false);
       })
-      .catch(() => {});
+      .catch((error: Error) => setDraftError(error));
   }, [params]);
   useEffect(() => {
     if (config && dirty)
@@ -205,14 +249,19 @@ export default function Experiments() {
       label={label}
       hint={hint}
       error={validation?.fieldErrors?.[path]}
+      required={schema.data?.fields.some(
+        (item) => item.path === path && item.required,
+      )}
     >
       {kind === "textarea" ? (
         <Textarea
+          data-config-path={path}
           value={String(valueAt(config!, path) ?? "")}
           onChange={(e) => change(path, e.target.value)}
         />
       ) : (
         <Input
+          data-config-path={path}
           type={kind}
           min={min}
           step={kind === "number" ? 1 : undefined}
@@ -255,6 +304,14 @@ export default function Experiments() {
     if (result) {
       setValidation(result);
       setLaunchReview(result.valid);
+      if (!result.valid) {
+        const path = Object.keys(result.fieldErrors || {})[0];
+        requestAnimationFrame(() =>
+          path
+            ? focusField(path)
+            : document.getElementById("experiment-errors")?.focus(),
+        );
+      }
     }
   };
   const launch = async () => {
@@ -284,6 +341,7 @@ export default function Experiments() {
       return;
     setConfig(structuredClone(item.config));
     setDraft(item);
+    setNotes((item as Draft & { notes?: string }).notes || "");
     setDirty(false);
     setSavedLocal(false);
     setValidation(undefined);
@@ -304,6 +362,91 @@ export default function Experiments() {
       void drafts.refresh();
     }
   };
+  const duration = (path: string, label: string, scale: number) => (
+    <Field
+      label={label}
+      error={validation?.fieldErrors?.[path]}
+      hint={`Stored in milliseconds (${String(valueAt(config!, path))} ms).`}
+    >
+      <Input
+        data-config-path={path}
+        type="number"
+        step="any"
+        min={1 / scale}
+        value={Number(valueAt(config!, path)) / scale}
+        onChange={(event) =>
+          change(path, Math.round(event.target.valueAsNumber * scale))
+        }
+      />
+    </Field>
+  );
+  if (!editing)
+    return (
+      <>
+        <PageHeader
+          title="Experiments"
+          description="Resume a shared configuration or create a matched pair."
+          actions={
+            <Button asChild>
+              <Link to="/experiments/new">
+                <Plus size={15} />
+                New experiment
+              </Link>
+            </Button>
+          }
+        />
+        {localRecovery && (
+          <Card>
+            <CardHeading
+              title="Local recovery"
+              description="Unsaved edits in this browser only. Shared drafts are listed separately."
+            />
+            <div className="card-body">
+              <Button asChild variant="secondary">
+                <Link to="/experiments/new?recover=1">Recover local edits</Link>
+              </Button>
+            </div>
+          </Card>
+        )}
+        <Card>
+          <CardHeading
+            title="Shared saved drafts"
+            description="Saved configurations available to collaborators; saving does not launch runs."
+          />
+          {drafts.loading ? (
+            <Loading />
+          ) : drafts.error ? (
+            <ErrorState error={drafts.error} retry={drafts.refresh} />
+          ) : drafts.data?.length ? (
+            drafts.data.map((item) => (
+              <Link
+                className="list-button"
+                key={item.id}
+                to={"/experiments?draft=" + encodeURIComponent(item.id)}
+              >
+                <div>
+                  <strong>{item.config?.label || item.id}</strong>
+                  <small>
+                    {when(item.updatedAt)} · revision {item.revision ?? 1}
+                  </small>
+                </div>
+              </Link>
+            ))
+          ) : (
+            <p className="card-body">
+              No shared drafts yet. Create an experiment to begin.
+            </p>
+          )}
+        </Card>
+      </>
+    );
+  if (draftError)
+    return (
+      <>
+        <Link to="/experiments">All experiments</Link>
+        <ErrorState error={draftError} />
+      </>
+    );
   if (defaults.loading || (!config && !defaults.error)) return <Loading />;
   if (!config)
     return <ErrorState error={defaults.error} retry={defaults.refresh} />;
@@ -362,7 +505,7 @@ export default function Experiments() {
                   setConfig(structuredClone(defaults.data!));
                   setDraft(undefined);
                   setDirty(false);
-                  navigate("/experiments");
+                  navigate("/experiments/new");
                 }}
               >
                 Start a new draft
@@ -386,6 +529,7 @@ export default function Experiments() {
       : null;
   return (
     <>
+      <Link to="/experiments">All experiments</Link>
       <PageHeader
         eyebrow="EXPERIMENT DESIGN"
         title="Configure a matched pair"
@@ -427,7 +571,19 @@ export default function Experiments() {
       {mutation.message && <Notice kind="success">{mutation.message}</Notice>}
       {validation && !validation.valid && (
         <Notice kind="error">
-          <strong>Configuration needs attention</strong>
+          <strong id="experiment-errors" tabIndex={-1}>
+            Configuration needs attention
+          </strong>
+          {Object.entries(validation.fieldErrors || {}).map(([path, error]) => (
+            <p key={path}>
+              <button
+                className="experiment-error-link"
+                onClick={() => focusField(path)}
+              >
+                {error}
+              </button>
+            </p>
+          ))}
           <ul>
             {validation.errors.map((error) => (
               <li key={error}>{error}</li>
@@ -457,7 +613,7 @@ export default function Experiments() {
         <div>
           <Card className="form-section">
             <CardHeading
-              title="Task & study"
+              title="Scenario & data"
               description="Versioned scenario and study metadata"
             />
             <div className="card-body form-grid">
@@ -518,7 +674,7 @@ export default function Experiments() {
               </div>
               {primitiveAssets ? (
                 primitiveAssets.map(([key, value]) => (
-                  <Field key={key} label={key}>
+                  <Field key={key} label={readableName(key)}>
                     {typeof value === "string" || typeof value === "number" ? (
                       <Input
                         type={typeof value === "number" ? "number" : "text"}
@@ -579,37 +735,44 @@ export default function Experiments() {
                 "Exact model identifier",
                 "Scripted models are clearly marked as fixtures.",
               )}
-              {supportedSettings.map((key) => (
-                <Field
-                  key={key}
-                  label={key}
-                  hint="Optional; leave blank to use the provider default."
-                >
-                  <Input
-                    type="number"
-                    step="any"
-                    value={
-                      typeof config.model.settings[key] === "number"
-                        ? config.model.settings[key]
-                        : ""
-                    }
-                    onChange={(e) => {
-                      const settings = { ...config.model.settings };
-                      if (e.target.value === "") delete settings[key];
-                      else settings[key] = e.target.valueAsNumber;
-                      change("model.settings", settings);
-                    }}
-                  />
-                </Field>
-              ))}
-              {Object.keys(config.model.settings)
-                .filter((key) => !supportedSettings.includes(key))
-                .map((key) => (
-                  <Notice key={key} kind="warning">
-                    The saved {key} setting is preserved, but its structured
-                    editor is unavailable.
-                  </Notice>
-                ))}
+              <details className="full experiment-details">
+                <summary>Advanced model parameters</summary>
+                <div className="form-grid">
+                  {supportedSettings.map((key) => (
+                    <Field
+                      key={key}
+                      label={readableName(key)}
+                      hint="Optional; leave blank to use the provider default."
+                      error={validation?.fieldErrors?.[`model.settings.${key}`]}
+                    >
+                      <Input
+                        data-config-path={`model.settings.${key}`}
+                        type="number"
+                        step="any"
+                        value={
+                          typeof config.model.settings[key] === "number"
+                            ? config.model.settings[key]
+                            : ""
+                        }
+                        onChange={(e) => {
+                          const settings = { ...config.model.settings };
+                          if (e.target.value === "") delete settings[key];
+                          else settings[key] = e.target.valueAsNumber;
+                          change("model.settings", settings);
+                        }}
+                      />
+                    </Field>
+                  ))}
+                  {Object.keys(config.model.settings)
+                    .filter((key) => !supportedSettings.includes(key))
+                    .map((key) => (
+                      <Notice key={key} kind="warning">
+                        The saved {key} setting is preserved, but its structured
+                        editor is unavailable.
+                      </Notice>
+                    ))}
+                </div>
+              </details>
               <div className="full">
                 <hr className="section-divider" />
                 {config.roles.map((role, index) => (
@@ -653,7 +816,7 @@ export default function Experiments() {
                             (tool) => (
                               <Check
                                 key={tool}
-                                label={tool}
+                                label={readableName(tool)}
                                 checked={role.allowedTools.includes(tool)}
                                 onChange={(e) =>
                                   change(
@@ -721,12 +884,10 @@ export default function Experiments() {
                 undefined,
                 "number",
               )}
-              {field(
+              {duration(
                 "limits.requestTimeoutMs",
-                "Request timeout (ms)",
-                undefined,
-                "number",
-                1,
+                "Request timeout (seconds)",
+                1000,
               )}
               {field(
                 "limits.maxModelStepsPerTurn",
@@ -735,12 +896,10 @@ export default function Experiments() {
                 "number",
                 1,
               )}
-              {field(
+              {duration(
                 "limits.maxDurationMs",
-                "Maximum run duration (ms)",
-                undefined,
-                "number",
-                1,
+                "Maximum run duration (minutes)",
+                60000,
               )}
               <p className="helper full">
                 One final report call per agent. Automatic retries are disabled.
@@ -748,70 +907,76 @@ export default function Experiments() {
               </p>
             </div>
           </Card>
-          <Card className="form-section">
-            <CardHeading
-              title="Board & private memory"
-              description="Single chronological board; private conversation and working memory remain agent scoped."
-            />
-            <div className="card-body form-grid three">
-              {field(
-                "board.defaultPageSize",
-                "Latest posts by default",
-                undefined,
-                "number",
-                1,
-              )}
-              {field(
-                "board.maxPageSize",
-                "Maximum board page size",
-                undefined,
-                "number",
-                1,
-              )}
-              {field(
-                "board.maxPostLength",
-                "Post limit (characters)",
-                undefined,
-                "number",
-                1,
-              )}
-              {field(
-                "memory.contextBudget",
-                "Memory context budget (characters)",
-                "Character bound, not a token limit.",
-                "number",
-                1,
-              )}
-              {field("memory.version", "Memory template version")}
-              <div className="full">
+          <details className="experiment-details form-section">
+            <summary>Advanced board & private memory</summary>
+            <Card className="form-section">
+              <CardHeading
+                title="Board & private memory"
+                description="Single chronological board; private conversation and working memory remain agent scoped."
+              />
+              <div className="card-body form-grid three">
                 {field(
-                  "memory.template",
-                  "Private working-memory template",
+                  "board.defaultPageSize",
+                  "Latest posts by default",
                   undefined,
-                  "textarea",
+                  "number",
+                  1,
                 )}
-              </div>
-              <p className="helper full">
-                Thread-isolated private memory. Semantic recall and
-                observational memory are disabled by the supported backend.
-              </p>
-            </div>
-          </Card>
-          <Card className="form-section">
-            <CardHeading title="Final artifact & reports" />
-            <div className="card-body form-grid">
-              {field("artifactSchemaVersion", "Artifact schema version")}
-              {field("reportSchemaVersion", "Report schema version")}
-              <div className="full">
                 {field(
-                  "reportInstructions",
-                  "Reporting instructions",
+                  "board.maxPageSize",
+                  "Maximum board page size",
                   undefined,
-                  "textarea",
+                  "number",
+                  1,
                 )}
+                {field(
+                  "board.maxPostLength",
+                  "Post limit (characters)",
+                  undefined,
+                  "number",
+                  1,
+                )}
+                {field(
+                  "memory.contextBudget",
+                  "Memory context budget (characters)",
+                  "Character bound, not a token limit.",
+                  "number",
+                  1,
+                )}
+                {field("memory.version", "Memory template version")}
+                <div className="full">
+                  {field(
+                    "memory.template",
+                    "Private working-memory template",
+                    undefined,
+                    "textarea",
+                  )}
+                </div>
+                <p className="helper full">
+                  Thread-isolated private memory. Semantic recall and
+                  observational memory are disabled by the supported backend.
+                </p>
               </div>
-            </div>
-          </Card>
+            </Card>
+          </details>
+          <details className="experiment-details form-section">
+            <summary>Artifact & report settings</summary>
+            <Card className="form-section">
+              <CardHeading title="Final artifact & reports" />
+              <div className="card-body form-grid">
+                {field("artifactSchemaVersion", "Artifact schema version")}
+                {field("reportSchemaVersion", "Report schema version")}
+                <div className="full">
+                  {field(
+                    "reportInstructions",
+                    "Reporting instructions",
+                    undefined,
+                    "textarea",
+                  )}
+                </div>
+              </div>
+            </Card>
+          </details>
         </div>
         <aside className="stack sticky">
           <Card>
@@ -838,8 +1003,6 @@ export default function Experiments() {
                 <dd>
                   <Badge>{config.phase}</Badge>
                 </dd>
-                <dt>Queue</dt>
-                <dd>Single experiment worker</dd>
               </dl>
               <hr className="section-divider" />
               <div className="stack" style={{ gap: 10 }}>
@@ -894,6 +1057,12 @@ export default function Experiments() {
                   Validate & review launch
                 </Button>
               )}
+              {!launchReview && (
+                <p>
+                  Launch requires successful validation of the current
+                  configuration. Saving a draft is available before validation.
+                </p>
+              )}
               <p className="helper" style={{ marginTop: 12 }}>
                 Reusing this submission after a network error returns the same
                 pair. Edits create a new launch request.
@@ -914,7 +1083,7 @@ export default function Experiments() {
                     setDirty(false);
                     setValidation(undefined);
                     setLaunchReview(false);
-                    navigate("/experiments");
+                    navigate("/experiments/new");
                   }}
                 >
                   <Plus size={16} />

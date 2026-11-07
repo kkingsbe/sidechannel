@@ -101,6 +101,28 @@ docker compose --env-file .env.compose ps
 
 Keep `--no-build` when using registry images. To return to local builds, clear those image overrides and use the earlier `up --build` command. The workflow publishes images; it does not deploy or restart running services.
 
+### Portainer stack
+
+For a fresh **Docker Standalone, Linux AMD64** deployment, paste [compose.portainer.yaml](../compose.portainer.yaml) into Portainer's **Stacks → Add stack → Web editor**. This file pulls GHCR images without a source checkout, build contexts, or host secret files. It includes MongoDB, the dashboard/API, both workers, an image updater, and Cloudflare Tunnel; optional Mastra Studio is not included.
+
+Set `OPENAI_API_KEY` and/or `ADAPTION_API_KEY` in the stack's environment variables for live inference, and `TYPESAFE_API_KEY` for Jev analysis. Scripted fixtures require no provider keys. `IMAGE_TAG` defaults to `latest`; set it to a published version or `sha-<full-commit>` to pin all three application images to one build. The publishing workflow must have successfully published that tag. Private GHCR packages require registry credentials with package read access in Portainer.
+
+Open `http://<docker-host>:4310` after deployment. `DASHBOARD_PORT` can change the host port; `DASHBOARD_BIND_ADDRESS` defaults to `0.0.0.0`. The dashboard follows the initial open deployment configuration (`RESEARCHER_TOKEN` is blank), so anyone who can reach that port can use it. MongoDB has no published host port. This stack creates a new stack-scoped `mongo-data` volume and does not copy the development database. Keep the stack name and volume when updating, and cancel active experiments before redeploying workers.
+
+#### Cloudflare Tunnel in Portainer
+
+Set `CLOUDFLARE_TUNNEL_TOKEN` in the same Portainer stack environment variables. Use the token from the dedicated remotely managed tunnel's connector installation command (the value after `--token`, not the whole command or a Cloudflare API token). Compose passes it to cloudflared as `TUNNEL_TOKEN`; no local secret file is needed. See [Cloudflare tunnel tokens](https://developers.cloudflare.com/tunnel/reference/tunnel-tokens/).
+
+In that tunnel's published application routes, map your public hostname to **HTTP**, service **`api:4310`**. Leave the path and HTTP Host Header override unset so the dashboard and `/api/*` share one origin. The compatibility origin `http://dashboard:4310` also works. Only the API and connector share the `tunnel` network. The connector is version/digest pinned and excluded from automatic updates. If access should go only through the tunnel, set `DASHBOARD_BIND_ADDRESS=127.0.0.1` to restrict the separate host port. For a deployment without Cloudflare, remove the `cloudflared` service before deploying; otherwise Compose requires its token.
+
+#### Automatic image updates
+
+The Portainer Compose includes [WUD](https://getwud.app/docs/configuration/triggers/docker/), pinned to `9.7.0`. It checks GHCR at startup and every five minutes (plus scheduler jitter), pulls changed image digests, and recreates the API and running workers with their existing configuration. It keeps the selected `IMAGE_TAG`: `latest` follows new main builds, while a commit tag remains on that commit. MongoDB, the updater itself, and unrelated containers are not opted into this update trigger. Stopped or crashed experiment workers are not automatically revived. WUD uses the Docker socket, which grants control of the host's containers; its UI is not published and it uses a separate network.
+
+Set `AUTO_UPDATE_CRON` to change the polling schedule (default `*/5 * * * *`). Set `AUTO_UPDATE_ENABLED=false` and redeploy to keep polling without automatic replacements, or stop `image-updater` in Portainer to pause immediately. Check that service's logs for detected updates and failures. Old images are retained. Private packages require the two commented `WUD_REGISTRY_GHCR_PRIVATE_*` environment lines to be uncommented and `GHCR_USERNAME` / `GHCR_TOKEN` supplied in Portainer; use a token with `read:packages`. Portainer registry credentials alone do not authenticate WUD. See [WUD GHCR authentication](https://getwud.app/docs/configuration/registries/ghcr/).
+
+**Updates can cancel an active experiment.** The worker requests cancellation on SIGTERM; it does not drain an entire run before exiting. Its existing two-minute stop grace period remains configured, and a forced stop may still require manual ownership recovery. Pause the updater during experiments that must finish uninterrupted. Updates replace individual containers, not an atomic release of the whole stack: the publishing workflow builds each service independently, so mixed versions can occur during publication and replacement. Compose/configuration changes still require editing and redeploying the Portainer stack.
+
 ## Optional dashboard-only Cloudflare Tunnel
 
 The `tunnel` profile is disabled by default and needs no credentials for local operation. It adds a connector on a network shared only with the dashboard. It publishes no Docker ports, adds no WARP or subnet routes, and supplies no MongoDB browser UI. No Cloudflare resource or public hostname is provisioned by this repository.

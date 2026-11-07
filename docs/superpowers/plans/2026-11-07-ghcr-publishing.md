@@ -1,3 +1,5 @@
+> Historical pre-workspace implementation plan. Paths and commands below record the earlier layout; use [current operations](../../harness-operations.md) for workspace commands and deployment.
+
 # GHCR Publishing Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

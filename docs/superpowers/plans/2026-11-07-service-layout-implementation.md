@@ -16,14 +16,16 @@
 ## Tasks and ownership
 
 - [x] Capture baseline checks and inventory existing entry points, deployment and dirty files.
-- [ ] Backend subagent: move backend source and tests; extract shared DTOs/ports, deterministic initialization/preparation, persistence and browser exports. Preserve exact scenario initialization and Jev request serialization.
-- [ ] Workspace subagent: create root/package manifests, Node ESM builds, Nx graph/cache/watch, lockfile, lint boundaries and affected CI. Check graph and negative boundary probes.
-- [ ] Deployment subagent: migrate dashboard imports, create separate images/root Compose, preserve volume/network/env behavior, migrate current operational documentation and instructions.
-- [ ] Parent: make source provenance available in compiled-only deployments; inspect integrated changes and run full verification.
+- [x] Backend subagent: move backend source and tests; extract shared DTOs/ports, deterministic initialization/preparation, persistence and browser exports. Preserve exact scenario initialization and Jev request serialization.
+- [x] Workspace subagent: create root/package manifests, Node ESM builds, Nx graph/cache/watch, lockfile, lint boundaries and affected CI. Check graph and negative boundary probes.
+- [x] Deployment subagent: migrate dashboard imports, create separate images/root Compose, preserve volume/network/env behavior, migrate current operational documentation and instructions.
+- [x] Parent: make source provenance available in compiled-only deployments; inspect integrated changes and run full verification.
 
 ## Verification commands
 
-Run root `npm ci`, `npm run build`, `npm run check`, `npm run lint`, and `npm test`. Repeat the build to check local caching. Inspect `nx graph` JSON for seven projects and allowed edges. Exercise boundary rejection probes and compiled API/static hosting with mocked providers. Run integration checks against isolated MongoDB data when Docker is available; never use active experiment data.
+Run root `npm ci`, `npm run build`, `npm run check`, `npm run lint`, and `npm test`. Repeat the build to check local caching. Inspect `nx graph` JSON for seven application/shared projects plus the integration test project and allowed edges. Exercise boundary rejection probes and compiled API/static hosting with mocked providers. Run integration checks against isolated MongoDB data when Docker is available; never use active experiment data.
+
+All verification completed. See [the verification record](../../service-layout-verification.md) for results, environment details, and deployment scope.
 
 ## Baseline (November 7, 2026)
 

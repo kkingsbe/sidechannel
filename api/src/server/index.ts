@@ -16,6 +16,8 @@ import type { ResearcherRepository, ResearchRouteHandler } from '@sidechannel/co
 export type { Draft } from '@sidechannel/contracts/harness/repository';
 
 export interface ResearcherServerOptions {
+    /** Explicitly identifies the simulated, reset-on-restart acceptance workspace. */
+    demoMode?: boolean;
     token?: string;
     host?: string;
     buildMetadata?: ExperimentConfig['build'];
@@ -79,6 +81,7 @@ export function createResearcherServer(repository: ResearcherRepository, options
                 const method = req.method ?? 'GET';
                 if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && req.headers.origin && req.headers.origin !== `http://${req.headers.host}` && req.headers.origin !== `https://${req.headers.host}`) throw new HttpError(403, 'Cross-origin writes are forbidden');
                 const path = url.pathname.slice(4), query = url.searchParams;
+                if (path === '/workspace' && method === 'GET') return send(200, { mode: options.demoMode ? 'demo' : 'research' });
                 let parsed: Record<string, unknown> | undefined;
                 const input = async () => parsed ??= await body(req);
                 if (method === 'GET' && path === '/config/default') return send(200, defaultFixtureConfiguration());

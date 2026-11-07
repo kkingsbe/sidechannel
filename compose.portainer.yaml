@@ -1,0 +1,128 @@
+# Paste into Portainer's stack Web editor (Docker Standalone, Linux AMD64).
+# Set credentials in the stack's Environment variables, not in this file.
+# CLOUDFLARE_TUNNEL_TOKEN is required for the included tunnel connector.
+# IMAGE_TAG defaults to latest; use a shared version or sha-<full-commit> to pin.
+# This creates a new stack-scoped database volume; it does not migrate local data.
+# Application images are polled every five minutes; updates can cancel active runs.
+x-app: &app
+  init: true
+  labels:
+    io.sidechannel.update-scope: ${COMPOSE_PROJECT_NAME:-sidechannel}
+    wud.watch.digest: "true"
+    # Keep the selected tag; detect a new digest instead of switching tags.
+    wud.tag.include: '^$${raw}$$'
+    wud.trigger.docker.sidechannel.enabled: "true"
+  depends_on:
+    mongo:
+      condition: service_healthy
+
+x-database: &database
+  MONGODB_URI: mongodb://mongo:27017/?directConnection=true&replicaSet=rs0
+  MONGODB_DB_NAME: ${MONGODB_DB_NAME:-sidechannel}
+  MASTRA_DB_NAME: ${MASTRA_DB_NAME:-sidechannel_mastra}
+
+services:
+  mongo:
+    image: mongo:8.0@sha256:b9924c330a8bbc5800fe9c69f04a84e221eca7b28fd049a0354147d9908fa142
+    labels:
+      wud.watch: "false"
+    command: [mongod, --replSet, rs0, --bind_ip_all]
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: [CMD-SHELL, "mongosh --quiet --eval 'try { rs.status() } catch { rs.initiate({_id:\"rs0\",members:[{_id:0,host:\"mongo:27017\"}]}) }; quit(db.hello().isWritablePrimary ? 0 : 1)'"]
+      interval: 3s
+      timeout: 10s
+      retries: 20
+
+  api:
+    <<: *app
+    image: ghcr.io/kkingsbe/sidechannel-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      <<: *database
+      HARNESS_HOST: 0.0.0.0
+      HARNESS_PORT: "4310"
+      DASHBOARD_DIST_DIR: /app/dashboard/dist
+      RESEARCHER_TOKEN: ${RESEARCHER_TOKEN:-}
+    ports:
+      - "${DASHBOARD_BIND_ADDRESS:-0.0.0.0}:${DASHBOARD_PORT:-4310}:4310"
+    networks:
+      default:
+      tunnel:
+        aliases: [dashboard]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4310/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 6
+
+  experiment-worker:
+    <<: *app
+    image: ghcr.io/kkingsbe/sidechannel-experiment-worker:${IMAGE_TAG:-latest}
+    environment:
+      <<: *database
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ADAPTION_API_KEY: ${ADAPTION_API_KEY:-}
+    # A crashed experiment worker requires manual ownership recovery.
+    restart: "no"
+    stop_grace_period: 2m
+
+  analysis-worker:
+    <<: *app
+    image: ghcr.io/kkingsbe/sidechannel-analysis-worker:${IMAGE_TAG:-latest}
+    environment:
+      <<: *database
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-${TYPESAFE_AI_API_KEY:-}}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ADAPTION_API_KEY: ${ADAPTION_API_KEY:-}
+    restart: unless-stopped
+    stop_grace_period: 2m
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.0@sha256:9b49eed8f62806d5d45ddf59ecefb5710429598ea6d3fcccd2af938f621b2b07
+    command: [tunnel, --no-autoupdate, run]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in Portainer stack environment variables}
+    labels:
+      wud.watch: "false"
+    networks: [tunnel]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  image-updater:
+    image: getwud/wud:9.7.0
+    restart: unless-stopped
+    labels:
+      wud.watch: "false"
+    environment:
+      WUD_WATCHER_LOCAL_CRON: ${AUTO_UPDATE_CRON:-*/5 * * * *}
+      WUD_WATCHER_LOCAL_WATCHBYDEFAULT: "false"
+      WUD_WATCHER_LOCAL_WATCHALL: "false"
+      WUD_WATCHER_LOCAL_INCLUDE: 'label:^io\.sidechannel\.update-scope=${COMPOSE_PROJECT_NAME:-sidechannel}$$'
+      WUD_TRIGGER_DOCKER_SIDECHANNEL_INCLUDEBYDEFAULT: "false"
+      WUD_TRIGGER_DOCKER_SIDECHANNEL_AUTO: ${AUTO_UPDATE_ENABLED:-true}
+      WUD_TRIGGER_DOCKER_SIDECHANNEL_PRUNE: "false"
+      # For private packages, uncomment these and set both in Portainer.
+      # Portainer's registry credentials are not inherited by this container.
+      # WUD_REGISTRY_GHCR_PRIVATE_USERNAME: ${GHCR_USERNAME}
+      # WUD_REGISTRY_GHCR_PRIVATE_TOKEN: ${GHCR_TOKEN}
+    volumes:
+      # Docker socket access permits container replacement on this host.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - updater-data:/store
+    # No updater UI port is published; inspect its logs through Portainer.
+    networks: [updater]
+
+networks:
+  default:
+  tunnel:
+  updater:
+
+volumes:
+  mongo-data:
+  updater-data:

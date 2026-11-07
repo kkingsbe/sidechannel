@@ -31,7 +31,7 @@ function mock(extra: (url: URL, options?: RequestInit) => unknown = () => undefi
 afterEach(() => { cleanup(); localStorage.clear(); vi.unstubAllGlobals(); });
 
 it('pages beyond one hundred source runs while retaining selections across source pages', async () => {
-  mock(); render(<MemoryRouter><Oversight /></MemoryRouter>); const user = userEvent.setup();
+  mock(); render(<MemoryRouter initialEntries={['/?view=setup']}><Oversight /></MemoryRouter>); const user = userEvent.setup();
   await user.click(await screen.findByLabelText(/Source 1 ·/));
   const sources = screen.getByText('Completed source runs').parentElement!;
   for (let pageNumber = 1; pageNumber <= 4; pageNumber++) { await user.click(within(sources).getByRole('button', {name: 'Next'})); await screen.findByLabelText(new RegExp(`Source ${pageNumber * 25 + 1} ·`)); }
@@ -76,7 +76,7 @@ it('pages definition history and evaluation jobs rather than silently limiting t
   await screen.findByText('fixture/Monitor 1');
   await user.click(screen.getByRole('button', {name: 'Next'})); await screen.findByText('fixture/Monitor 26');
   await user.click(screen.getByRole('button', {name: 'Next'})); await screen.findByText('fixture/Monitor 55');
-  await user.click(screen.getByRole('button', {name: 'Configure & preview'}));
+  await user.click(screen.getByRole('tab', {name: 'Configure & preview'}));
   const revision = await screen.findByRole('combobox', {name: 'Definition revision'}); const revisionField = revision.parentElement!;
   for(let index = 1; index <= 4; index++) { await user.click(within(revisionField).getByRole('button', {name: 'Next'})); await screen.findByRole('option', {name: new RegExp(`Revision ${index * 25 + 1} `)}); }
   expect(screen.getByRole('option', {name: /Revision 125 /})).toBeTruthy();

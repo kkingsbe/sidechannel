@@ -27,6 +27,14 @@ async function setup(options: ResearcherServerOptions = {}) {
     return { repository, request, post, get, close };
 }
 
+test('workspace mode explicitly distinguishes simulated acceptance data', async () => {
+    for (const demoMode of [false, true]) {
+        const app = await setup({ demoMode });
+        try { assert.deepEqual(await app.get('/workspace'), { mode: demoMode ? 'demo' : 'research' }); }
+        finally { await app.close(); }
+    }
+});
+
 test('launch snapshots, matching idempotent retries, conflicts, pair comparison, cancellation and source export', async () => {
     const app = await setup({ buildMetadata: { revision: 'actual-revision', packages: { test: '1.0.0' } } });
     try {

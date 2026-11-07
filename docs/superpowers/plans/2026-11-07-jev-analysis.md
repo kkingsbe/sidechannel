@@ -1,3 +1,5 @@
+> Historical pre-workspace implementation plan. Paths and commands below record the earlier layout; use [current operations](../../harness-operations.md) for workspace commands and deployment.
+
 # JEV Analysis Implementation Plan
 
 > **For agentic workers:** Use task-by-task subagent implementation and review. The referenced superpowers execution skills are not installed; the user explicitly selected GPT-6.1 Sol subagents.

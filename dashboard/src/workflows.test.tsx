@@ -84,7 +84,7 @@ describe("experiment form workflow", () => {
       }
     });
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/experiments/new"]}>
         <Experiments />
       </MemoryRouter>,
     );
@@ -289,6 +289,13 @@ describe("blinded evidence inspection", () => {
           ],
           nextCursor: null,
         };
+      if (path === "/runs/run-1/events/canonical-event-1")
+        return {
+          id: "canonical-event-1",
+          sequence: 1,
+          type: "assistant_message",
+          data: { message: "Recorded agent text" },
+        };
       throw new Error("Unexpected route " + path);
     });
     const job = {
@@ -334,9 +341,10 @@ describe("blinded evidence inspection", () => {
     expect(screen.getByText("Canonical source events (1)")).toBeTruthy();
     expect(
       screen
-        .getByRole("link", { name: "canonical-event-1" })
+        .getByRole("link", { name: "Exact source event" })
         .getAttribute("href"),
     ).toContain("evidence=canonical-event-1");
+    expect(await screen.findByText("Recorded agent text")).toBeTruthy();
     expect(screen.getByText(/Prior judgments are hidden/)).toBeTruthy();
   });
 });

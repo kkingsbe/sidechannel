@@ -4,6 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
 import { X, AlertCircle, Inbox, LoaderCircle } from "lucide-react";
 import { cn, pretty } from "../lib/utils";
+import { WorkspaceTitleContext } from "../lib/workspace-context";
 const buttonVariants = cva("button", {
   variants: {
     variant: {
@@ -91,27 +92,30 @@ export function Field({
   error,
   children,
   className,
+  required,
 }: {
   label: string;
   hint?: React.ReactNode;
   error?: string;
   children: React.ReactNode;
   className?: string;
+  required?: boolean;
 }) {
   const id = React.useId();
   return (
     <div className={cn("field", className)}>
-      <label htmlFor={id}>{label}</label>
-      {React.isValidElement(children)
+      <div><label htmlFor={id}>{label}</label>{required && <span className="required-label"> (required)</span>}</div>
+      {React.Children.map(children, (child, index) => React.isValidElement(child) && index === 0
         ? React.cloneElement(
-            children as React.ReactElement<Record<string, unknown>>,
+            child as React.ReactElement<Record<string, unknown>>,
             {
               id,
               "aria-describedby": hint || error ? id + "-hint" : undefined,
               "aria-invalid": !!error,
+              ...(required ? { required: true, "aria-required": true } : {}),
             },
           )
-        : children}
+        : child)}
       {(hint || error) && (
         <span
           id={id + "-hint"}
@@ -126,13 +130,17 @@ export function Field({
 export function Input(props: React.ComponentProps<"input">) {
   return <input {...props} className={cn("input", props.className)} />;
 }
-export function Textarea(props: React.ComponentProps<"textarea">) {
+export function Textarea({ expandable, editorLabel = "text", ...props }: React.ComponentProps<"textarea"> & { expandable?: boolean; editorLabel?: string }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const ref = React.useRef<HTMLTextAreaElement>(null);
+  const field = (
+    <textarea ref={ref} rows={5} {...props}
+      className={cn("input textarea", expanded && "textarea-expanded", props.className)} />
+  );
+  if (!expandable) return field;
   return (
-    <textarea
-      rows={3}
-      {...props}
-      className={cn("input textarea", props.className)}
-    />
+    <div className="prose-editor">{field}<Button type="button" size="sm" variant="ghost" aria-expanded={expanded}
+      onClick={() => { setExpanded(!expanded); ref.current?.focus(); }}>{expanded ? "Collapse" : "Expand"} {editorLabel} editor</Button></div>
   );
 }
 export function Select(props: React.ComponentProps<"select">) {
@@ -217,18 +225,27 @@ export function Drawer({
   open,
   onOpenChange,
   children,
+  wide = false,
 }: {
   title: string;
   description?: string;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   children: React.ReactNode;
+  wide?: boolean;
 }) {
+  const opener = React.useRef<HTMLElement | null>(null);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="drawer-overlay" />
-        <Dialog.Content className="drawer">
+        <Dialog.Content className={cn("drawer", wide && "drawer-wide")}
+          onOpenAutoFocus={() => { opener.current = document.activeElement as HTMLElement; }}
+          onCloseAutoFocus={event => {
+            event.preventDefault();
+            if (opener.current?.isConnected) opener.current.focus();
+            else document.getElementById("main")?.focus();
+          }}>
           <div className="drawer-heading">
             <div>
               <span className="eyebrow">Evidence inspector</span>
@@ -257,9 +274,11 @@ export function Drawer({
 export function JsonView({
   value,
   title = "Recorded payload",
+  open = false,
 }: {
   value: unknown;
   title?: string;
+  open?: boolean;
 }) {
   let display = value;
   if (typeof value === "string") {
@@ -270,7 +289,7 @@ export function JsonView({
     }
   }
   return (
-    <details className="json-view" open>
+    <details className="json-view" open={open}>
       <summary>{title}</summary>
       <pre>{pretty(display)}</pre>
     </details>
@@ -280,19 +299,35 @@ export function Tabs({
   value,
   onChange,
   items,
+  panelId = "workspace-view-panel",
 }: {
   value: string;
   onChange: (value: string) => void;
   items: { id: string; label: string; count?: number }[];
+  panelId?: string;
 }) {
   return (
-    <div className="tabs" aria-label="Workspace views">
-      {items.map((item) => (
+    <div className="tabs" role="tablist" aria-label="Workspace views">
+      {items.map((item, index) => (
         <button
           key={item.id}
-          aria-pressed={value === item.id}
+          type="button"
+          role="tab"
+          id={`${panelId}-tab-${item.id}`}
+          aria-controls={panelId}
+          aria-selected={value === item.id}
+          tabIndex={value === item.id ? 0 : -1}
           className={cn("tab", value === item.id && "active")}
           onClick={() => onChange(item.id)}
+          onKeyDown={(event) => {
+            const next = event.key === "ArrowRight" ? (index + 1) % items.length
+              : event.key === "ArrowLeft" ? (index - 1 + items.length) % items.length
+              : event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : undefined;
+            if (next === undefined) return;
+            event.preventDefault();
+            onChange(items[next].id);
+            document.getElementById(`${panelId}-tab-${items[next].id}`)?.focus();
+          }}
         >
           {item.label}
           {item.count !== undefined && <span>{item.count}</span>}
@@ -312,6 +347,8 @@ export function PageHeader({
   eyebrow?: string;
   actions?: React.ReactNode;
 }) {
+  const setWorkspaceTitle = React.useContext(WorkspaceTitleContext);
+  React.useEffect(() => { setWorkspaceTitle(title); }, [title, setWorkspaceTitle]);
   return (
     <header className="page-heading">
       <div>

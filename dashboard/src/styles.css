@@ -1397,3 +1397,39 @@ pre {
     scroll-behavior: auto !important;
   }
 }
+
+/* Research workspace: operational density, readable prose and accessible views. */
+.drawer-wide { width: min(1240px, 96vw); }
+.breadcrumbs { min-width: 0; flex-wrap: wrap; }
+.breadcrumbs strong { overflow-wrap: anywhere; }
+.topbar { min-height: 65px; height: auto; padding-top: 12px; padding-bottom: 12px; }
+.compact-stats .stat-card { padding: 16px 20px; }
+.compact-stats .stat-card > strong { font-size: 28px; }
+.resume-strip, .service-summary { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space-between; }
+.resume-strip { margin-bottom: 20px; }
+.resume-strip a { display: inline-flex; align-items: center; gap: 6px; }
+.service-summary > div { flex: 1; min-width: 220px; }
+.service-summary p { color: var(--muted); margin-top: 6px; font-size: 13px; }
+.onboarding > summary { padding: 18px 20px; cursor: pointer; font-weight: 600; }
+.demo-banner { border: 1px solid var(--warning); background: var(--warning-bg); padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; }
+.save-status { font-size: 13px; margin: 0 0 18px; }
+.save-status p { margin-top: 5px; }
+.required-label { color: var(--muted); font-weight: normal; font-size: 12px; }
+.prose-editor { min-width: 0; }
+.prose-editor > .button { margin-top: 4px; }
+.textarea { line-height: 1.65; font-size: 14px; resize: vertical; }
+.textarea-expanded { min-height: 45vh; }
+.prose-list { border: 1px solid var(--border); border-radius: 6px; padding: 16px; min-width: 0; }
+.prose-list legend { font-size: 13px; font-weight: 600; padding: 0 5px; }
+.prose-list-item { margin: 16px 0; }
+.editor-save-bar { position: sticky; bottom: 12px; background: var(--card); padding: 12px; border: 1px solid var(--border); border-radius: 6px; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; }
+[role="tabpanel"] { min-width: 0; }
+html { scroll-padding-block: 20px 90px; }
+.overview-operational table { min-width: 0; }
+.overview-operational td { overflow-wrap: anywhere; }
+@media (max-width: 680px) {
+  .overview-operational table { min-width: 600px; }
+  .drawer-wide { width: 100vw; }
+  .breadcrumbs { font-size: 11px; gap: 6px; }
+  .editor-save-bar { position: static; }
+}

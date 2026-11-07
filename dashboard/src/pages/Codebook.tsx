@@ -27,6 +27,7 @@ import {
   Textarea,
 } from "../components/ui";
 import { api, post, useApi, useMutation } from "../lib/api";
+import { ProseListEditor } from "../components/prose-list-editor";
 import { list, when } from "../lib/utils";
 import type {
   BehaviorCode,
@@ -204,6 +205,7 @@ export default function CodebookPage() {
     .filter((c) => !c.archived)
     .some((c, i, arr) => arr.findIndex((other) => other.code === c.code) !== i);
   const invalid =
+    !name.trim() ||
     codes.some(
       (c) =>
         !c.archived &&
@@ -236,6 +238,10 @@ export default function CodebookPage() {
           </>
         }
       />
+      <div className="save-status" role="status">
+        {mutation.busy ? 'Saving revision…' : !dirty ? 'No unsaved changes.' : !author.trim() ? 'Enter a revision author to save your changes.' : invalid ? 'Complete the name, display code and definition for every active behavior; display codes must be unique.' : 'Ready to save a new revision. Existing analyses keep their frozen definitions.'}
+        {dirty && <p>Save these edits before creating another codebook. Your recovery copy is local to this browser.</p>}
+      </div>
       {mutation.error && (
         <Notice kind="error">
           {mutation.error.message}
@@ -306,7 +312,7 @@ export default function CodebookPage() {
               </Select>
               {books.data.nextCursor && <Button variant="ghost" size="sm" onClick={() => setBookCursor(books.data!.nextCursor)}>Load more codebooks</Button>}
             </Field>
-            <Field label="Codebook name">
+            <Field label="Codebook name" required error={dirty && !name.trim() ? "Enter a codebook name." : undefined}>
               <Input
                 value={name}
                 onChange={(e) => {
@@ -316,6 +322,7 @@ export default function CodebookPage() {
               />
             </Field>
             <Field
+              required
               label="Revision author"
               hint="Claimed identity in this open workspace, not an authenticated account."
             >
@@ -411,7 +418,7 @@ export default function CodebookPage() {
                   />
                   <div className="card-body form-grid">
                     <Field
-                      label="Display code"
+                      required label="Display code"
                       error={
                         codes.some(
                           (c) =>
@@ -428,19 +435,21 @@ export default function CodebookPage() {
                         onChange={(e) => edit({ code: e.target.value })}
                       />
                     </Field>
-                    <Field label="Display name">
+                    <Field required label="Display name">
                       <Input
                         value={code.name}
                         onChange={(e) => edit({ name: e.target.value })}
                       />
                     </Field>
                     <Field
+                      required
                       label="Definition"
                       className="full"
                       hint="Required. Explain what this behavior means in this study."
                     >
                       <Textarea
-                        rows={4}
+                        rows={7}
+                        expandable editorLabel="Definition"
                         value={code.definition}
                         onChange={(e) => edit({ definition: e.target.value })}
                       />
@@ -454,27 +463,11 @@ export default function CodebookPage() {
                         "qualifyingEvidenceTypes",
                       ] as const
                     ).map((key) => (
-                      <Field
-                        key={key}
-                        label={
-                          {
-                            inclusionCriteria: "Inclusion criteria",
-                            exclusionCriteria: "Exclusion criteria",
-                            examples: "Examples",
-                            counterexamples: "Counterexamples",
-                            qualifyingEvidenceTypes:
-                              "Qualifying evidence / action types",
-                          }[key]
-                        }
-                        hint="One item per line."
-                      >
-                        <Textarea
-                          value={code[key].join("\n")}
-                          onChange={(e) =>
-                        edit({ [key]: e.target.value.split('\n') })
-                          }
-                        />
-                      </Field>
+                      <ProseListEditor key={key} label={{
+                        inclusionCriteria: "Inclusion criteria", exclusionCriteria: "Exclusion criteria",
+                        examples: "Examples", counterexamples: "Counterexamples",
+                        qualifyingEvidenceTypes: "Qualifying evidence / action types",
+                      }[key]} values={code[key]} onChange={values => edit({ [key]: values })} />
                     ))}
                     <Field
                       label="Chart color"
@@ -516,6 +509,7 @@ export default function CodebookPage() {
                       behavior label alone does not establish a violation or
                       misconduct.
                     </Notice>
+                    <div className="full editor-save-bar"><span>{dirty ? 'Unsaved changes' : 'Saved revision'}{mutation.error ? ' · Save failed; edits retained' : ''}</span><Button onClick={save} disabled={mutation.busy || current.loading || formBookId !== bookId || !dirty || invalid || !author.trim()}>Save codebook edits</Button></div>
                   </div>
                 </Card>
               ) : (

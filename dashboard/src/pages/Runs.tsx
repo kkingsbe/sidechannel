@@ -51,6 +51,7 @@ import type {
 } from "../lib/types";
 import { cn, pretty, short, when } from "../lib/utils";
 import { RunTable } from "../App";
+import "./runs-oversight.css";
 import { ArtifactView } from "../components/artifact-view";
 type RecordPage<T> = {
   items: T[];
@@ -93,7 +94,7 @@ function RunList() {
         description="Follow execution, inspect evidence, and navigate matched conditions."
         actions={
           <Button asChild>
-            <Link to="/experiments">New experiment</Link>
+            <Link to="/experiments/new">New experiment</Link>
           </Button>
         }
       />
@@ -106,6 +107,8 @@ function RunList() {
               onChange={(e) => filter("status", e.target.value)}
             >
               <option value="">All states</option>
+              <option value="running,reporting,stopping">Active runs</option>
+              <option value="failed,interrupted">Needs attention</option>
               {[
                 "queued",
                 "running",
@@ -169,7 +172,15 @@ function RunList() {
         {runs.loading ? (
           <Loading />
         ) : items.length ? (
-          <RunTable runs={items} />
+          <RunTable
+            runs={items}
+            detailSearch={
+              "?returnTo=" +
+              encodeURIComponent(
+                "/runs" + (params.size ? "?" + params.toString() : ""),
+              )
+            }
+          />
         ) : (
           <Empty
             title="No runs match these filters"
@@ -314,7 +325,7 @@ function RunDetail() {
   return (
     <>
       <Button variant="ghost" size="sm" asChild className="mb-4">
-        <Link to="/runs">
+        <Link to={safeRunReturn(params.get("returnTo"))}>
           <ArrowLeft size={14} />
           All runs
         </Link>
@@ -377,7 +388,9 @@ function RunDetail() {
               ? "Reporting"
               : data.status === "completed"
                 ? "Complete"
-                : "Action"}
+                : data.status === "running"
+                  ? "Action"
+                  : "No active phase recorded"}
           </strong>
         </span>
         <span>
@@ -393,7 +406,15 @@ function RunDetail() {
           </span>
         )}
         {data.pairId && (
-          <Link className="table-title" to={"/runs/pairs/" + data.pairId}>
+          <Link
+            className="table-title"
+            to={
+              "/runs/pairs/" +
+              data.pairId +
+              "?returnTo=" +
+              encodeURIComponent(safeRunReturn(params.get("returnTo")))
+            }
+          >
             Matched pair <ArrowUpRight size={12} />
           </Link>
         )}
@@ -413,6 +434,7 @@ function RunDetail() {
         <Notice kind="error">Run diagnostic: {data.failureReason}</Notice>
       )}
       <Tabs
+        panelId="run-evidence-panel"
         value={tab}
         onChange={setTab}
         items={[
@@ -425,341 +447,365 @@ function RunDetail() {
           { id: "configuration", label: "Configuration" },
         ]}
       />
-      {["timeline", "traces"].includes(tab) ? (
-        <Card>
-          <CardHeading
-            title={
-              tab === "timeline"
-                ? "Execution timeline"
-                : "Model invocations & trace references"
-            }
-            description="Proposed requests, admitted actions, side effects, and results remain distinct."
-            actions={
-              <Badge>
-                {progress.updatedAt
-                  ? "Live · " +
-                    new Date(progress.updatedAt).toLocaleTimeString()
-                  : "Connecting"}
-              </Badge>
-            }
-          />
-          <div className="filter-bar">
-            <Field label="Actor">
-              <Select value={actor} onChange={(e) => setActor(e.target.value)}>
-                <option value="">All actors</option>
-                {data.config.roles.map((role) => (
-                  <option key={role.id}>{role.id}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Phase">
-              <Select value={phase} onChange={(e) => setPhase(e.target.value)}>
-                <option value="">All phases</option>
-                <option value="action">Action</option>
-                <option value="report">Report</option>
-              </Select>
-            </Field>
-            <Field label="Event type">
-              <Input
-                value={eventType}
-                onChange={(e) => setEventType(e.target.value)}
-                placeholder="Exact type"
-              />
-            </Field>
-            <Field label="Sequence from">
-              <Input
-                type="number"
-                min="1"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-              />
-            </Field>
-            <Field label="Sequence through">
-              <Input
-                type="number"
-                min="1"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-              />
-            </Field>
-          </div>
-          {events.error && (
-            <ErrorState error={events.error} retry={events.refresh} />
-          )}
-          {events.loading ? (
-            <Loading />
-          ) : traceEvents.length ? (
-            <div className="timeline-list">
-              {traceEvents.map((e) => {
-                const Icon = /denied|error|fail/.test(e.type)
-                  ? XCircle
-                  : /board/.test(e.type)
-                    ? MessageSquare
-                    : /tool/.test(e.type)
-                      ? Wrench
-                      : /complete|success/.test(e.type)
-                        ? CheckCircle2
-                        : Play;
-                return (
-                  <button
-                    className="timeline-row"
-                    key={e.id}
-                    onClick={() => inspect(e.id, e.sequence)}
-                  >
-                    <span className="timeline-marker">
-                      <Icon size={13} aria-hidden="true" />
-                    </span>
-                    <div className="timeline-main">
-                      <div>
-                        <strong>{e.type.replaceAll("_", " ")}</strong>
-                        <Badge>{e.agentId || "system"}</Badge>
-                        <span className="helper">
-                          #{e.sequence} · R{e.round ?? "—"} / T{e.turn ?? "—"}
-                        </span>
-                        {/denied|error|fail/.test(e.type) && (
-                          <Badge status="failed">Diagnostic</Badge>
-                        )}
-                      </div>
-                      <p>{pretty(e.data).slice(0, 190)}</p>
-                    </div>
-                    <time className="timeline-time">
-                      {new Date(e.timestamp).toLocaleTimeString()}
-                    </time>
-                    <ArrowUpRight
-                      size={13}
-                      className="muted"
-                      aria-hidden="true"
-                    />
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <Empty
-              title="No matching events"
-              description="New recorded evidence will appear here without changing your selected object."
-            />
-          )}
-          <Pager
-            page={page}
-            hasMore={events.data?.hasMore ?? events.data?.events.length === 50}
-            onChange={(next) => {
-              if (next > page)
-                setCursors((prev) => [
-                  ...prev.slice(0, next),
-                  events.data?.nextCursor ?? 0,
-                ]);
-              setPage(next);
-            }}
-          />
-        </Card>
-      ) : tab === "configuration" ? (
-        <div className="editor-layout">
+      <section
+        role="tabpanel"
+        id="run-evidence-panel"
+        aria-labelledby={`run-evidence-panel-tab-${tab}`}
+        tabIndex={0}
+      >
+        {["timeline", "traces"].includes(tab) ? (
           <Card>
             <CardHeading
-              title="Frozen run configuration"
-              description="Editing a draft never changes this execution."
+              title={
+                tab === "timeline"
+                  ? "Execution timeline"
+                  : "Model invocations & trace references"
+              }
+              description="Proposed requests, admitted actions, side effects, and results remain distinct."
+              actions={
+                <Badge>
+                  {progress.updatedAt
+                    ? "Live · " +
+                      new Date(progress.updatedAt).toLocaleTimeString()
+                    : "Progress not yet received"}
+                </Badge>
+              }
             />
-            <div className="card-body">
-              <dl className="definition-list">
-                <dt>Scenario</dt>
-                <dd>
-                  {data.config.scenario.version} ·{" "}
-                  {data.config.scenario.datasetId}
-                </dd>
-                <dt>Task</dt>
-                <dd className="text-block">{data.config.scenario.task}</dd>
-                <dt>Policy</dt>
-                <dd className="text-block">{data.config.scenario.policy}</dd>
-                <dt>Condition wording</dt>
-                <dd>{data.config.condition.text}</dd>
-                <dt>Memory isolation</dt>
-                <dd>
-                  Private thread ·{" "}
-                  {data.config.memory.contextBudget.toLocaleString()} characters
-                </dd>
-                <dt>Agent order seed</dt>
-                <dd>{data.config.scheduler.seed}</dd>
-                <dt>Created</dt>
-                <dd>{when(data.createdAt)}</dd>
-                <dt>Config hash</dt>
-                <dd className="mono">{data.configHash}</dd>
-              </dl>
-              <hr className="section-divider" />
-              <JsonView
-                value={data.config}
-                title="Complete immutable configuration (developer view)"
+            <div className="filter-bar">
+              <Field label="Actor">
+                <Select
+                  value={actor}
+                  onChange={(e) => setActor(e.target.value)}
+                >
+                  <option value="">All actors</option>
+                  {data.config.roles.map((role) => (
+                    <option key={role.id}>{role.id}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Phase">
+                <Select
+                  value={phase}
+                  onChange={(e) => setPhase(e.target.value)}
+                >
+                  <option value="">All phases</option>
+                  <option value="action">Action</option>
+                  <option value="report">Report</option>
+                </Select>
+              </Field>
+              <Field label="Event type">
+                <Input
+                  value={eventType}
+                  onChange={(e) => setEventType(e.target.value)}
+                  placeholder="Exact type"
+                />
+              </Field>
+              <Field label="Sequence from">
+                <Input
+                  type="number"
+                  min="1"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                />
+              </Field>
+              <Field label="Sequence through">
+                <Input
+                  type="number"
+                  min="1"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                />
+              </Field>
+            </div>
+            {events.error && (
+              <ErrorState error={events.error} retry={events.refresh} />
+            )}
+            {events.loading ? (
+              <Loading />
+            ) : traceEvents.length ? (
+              <div className="timeline-list">
+                {traceEvents.map((e) => {
+                  const Icon = /denied|error|fail/.test(e.type)
+                    ? XCircle
+                    : /board/.test(e.type)
+                      ? MessageSquare
+                      : /tool/.test(e.type)
+                        ? Wrench
+                        : /complete|success/.test(e.type)
+                          ? CheckCircle2
+                          : Play;
+                  return (
+                    <button
+                      className="timeline-row"
+                      key={e.id}
+                      onClick={() => inspect(e.id, e.sequence)}
+                    >
+                      <span className="timeline-marker">
+                        <Icon size={13} aria-hidden="true" />
+                      </span>
+                      <div className="timeline-main">
+                        <div>
+                          <strong>{e.type.replaceAll("_", " ")}</strong>
+                          <Badge>{e.agentId || "system"}</Badge>
+                          <span className="helper">
+                            #{e.sequence} · R{e.round ?? "—"} / T{e.turn ?? "—"}
+                          </span>
+                          {/denied|error|fail/.test(e.type) && (
+                            <Badge status="failed">Diagnostic</Badge>
+                          )}
+                        </div>
+                        <p>{pretty(e.data).slice(0, 190)}</p>
+                      </div>
+                      <time className="timeline-time">
+                        {new Date(e.timestamp).toLocaleTimeString()}
+                      </time>
+                      <ArrowUpRight
+                        size={13}
+                        className="muted"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <Empty
+                title="No matching events"
+                description="New recorded evidence will appear here without changing your selected object."
               />
-            </div>
+            )}
+            <Pager
+              page={page}
+              hasMore={
+                events.data?.hasMore ?? events.data?.events.length === 50
+              }
+              onChange={(next) => {
+                if (next > page)
+                  setCursors((prev) => [
+                    ...prev.slice(0, next),
+                    events.data?.nextCursor ?? 0,
+                  ]);
+                setPage(next);
+              }}
+            />
           </Card>
-          <Card>
-            <CardHeading title="Usage & provenance" />
-            <div className="card-body">
-              <JsonView value={data.usage} title="Recorded provider usage" />
-              <p className="helper">
-                Recorded usage may be partial. Missing provider reasoning does
-                not establish that the agent had no reasoning or intent.
-              </p>
-            </div>
-          </Card>
-        </div>
-      ) : (
-        <Card>
-          <CardHeading
-            title={
-              {
-                board: "Chronological board & exact deliveries",
-                artifacts: "Artifact versions",
-                memory: "Private agent memory",
-                reports: "Individual final reports",
-              }[tab] || tab
-            }
-            description={
-              tab === "board"
-                ? "Posting does not imply every agent received a message. Inspect the exact read events."
-                : tab === "memory"
-                  ? "Thread-scoped notes and conversation snapshots; these are not shared with other agents."
-                  : "Recorded source evidence with immutable provenance."
-            }
-          />
-          {tab === "reports" &&
-            !Array.isArray(evidence.data) &&
-            evidence.data?.reporting && (
+        ) : tab === "configuration" ? (
+          <div className="editor-layout">
+            <Card>
+              <CardHeading
+                title="Frozen run configuration"
+                description="Editing a draft never changes this execution."
+              />
               <div className="card-body">
+                <dl className="definition-list">
+                  <dt>Scenario</dt>
+                  <dd>
+                    {data.config.scenario.version} ·{" "}
+                    {data.config.scenario.datasetId}
+                  </dd>
+                  <dt>Task</dt>
+                  <dd className="text-block">{data.config.scenario.task}</dd>
+                  <dt>Policy</dt>
+                  <dd className="text-block">{data.config.scenario.policy}</dd>
+                  <dt>Condition wording</dt>
+                  <dd>{data.config.condition.text}</dd>
+                  <dt>Memory isolation</dt>
+                  <dd>
+                    Private thread ·{" "}
+                    {data.config.memory.contextBudget.toLocaleString()}{" "}
+                    characters
+                  </dd>
+                  <dt>Agent order seed</dt>
+                  <dd>{data.config.scheduler.seed}</dd>
+                  <dt>Created</dt>
+                  <dd>{when(data.createdAt)}</dd>
+                  <dt>Config hash</dt>
+                  <dd className="mono">{data.configHash}</dd>
+                </dl>
+                <hr className="section-divider" />
                 <JsonView
-                  value={evidence.data.reporting}
-                  title="Exact reporting instructions and schema version"
+                  value={data.config}
+                  title="Complete immutable configuration (developer view)"
                 />
               </div>
-            )}
-          {tab === "board" &&
-            !Array.isArray(evidence.data) &&
-            evidence.data?.deliveriesMayHaveMore && (
-              <Notice kind="warning">
-                This response contains a page of delivery events. For a complete
-                delivery history, filter the timeline for board_delivery and
-                paginate through the source events.
-              </Notice>
-            )}
-          {evidence.error && (
-            <ErrorState error={evidence.error} retry={evidence.refresh} />
-          )}
-          {evidence.loading ? (
-            <Loading />
-          ) : items.length ? (
-            <div className="card-body stack">
-              {items.map((item, index) => {
-                const object = item as Record<string, unknown>;
-                const key = evidenceKey(item, index);
-                return (
-                  <Card key={key}>
-                    <div className="card-heading">
-                      <div>
-                        <h3>
-                          {tab === "board"
-                            ? `Post ${object.sequence ?? index + 1} · ${object.authorId ?? "Unknown author"}`
-                            : tab === "artifacts"
-                              ? `Version ${object.version ?? index + 1}`
-                              : tab === "memory"
-                                ? `${object.agentId ?? "Agent"} · ${object.type ?? "Memory snapshot"}`
-                                : `Report · ${object.agentId ?? "Unknown agent"}`}
-                        </h3>
-                        <p>
-                          {object.id
-                            ? short(String(object.id))
-                            : object.operationId
-                              ? String(object.operationId)
-                              : "Recorded evidence"}
-                        </p>
-                      </div>
-                      <div className="actions">
-                        {object.frozen === true && <Badge>Frozen final</Badge>}
-                        {tab === "reports" && object.parsed === null && (
-                          <Badge status="failed">Invalid / unparsed</Badge>
-                        )}
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() =>
-                            inspect(
-                              key,
-                              tab === "memory" &&
-                                typeof object.sequence === "number"
-                                ? object.sequence
-                                : undefined,
-                            )
-                          }
-                        >
-                          Inspect
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="card-body">
-                      {tab === "artifacts" ? (
-                        <ArtifactView
-                          value={object.value}
-                          schemaVersion={data.config.artifactSchemaVersion}
-                        />
-                      ) : (
-                        <p className="text-block">
-                          {tab === "board"
-                            ? String(object.text ?? "")
-                            : tab === "reports"
-                              ? String(object.raw ?? "")
-                              : pretty(
-                                  object.value ?? object.data ?? item,
-                                ).slice(0, 500)}
-                        </p>
-                      )}
-                      {tab === "board" && (
-                        <BoardDelivery
-                          id={String(object.id)}
-                          deliveries={
-                            !Array.isArray(evidence.data)
-                              ? evidence.data?.deliveries
-                              : undefined
-                          }
-                        />
-                      )}
-                      {tab === "artifacts" && index > 0 && (
-                        <details style={{ marginTop: 12 }}>
-                          <summary className="helper">
-                            Compare to previous version
-                          </summary>
-                          <div className="form-grid">
-                            <JsonView
-                              value={
-                                (items[index - 1] as ArtifactVersion).value
-                              }
-                              title="Previous version"
-                            />
-                            <JsonView
-                              value={object.value}
-                              title="Selected version"
-                            />
-                          </div>
-                        </details>
-                      )}
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          ) : (
-            <Empty
-              title={"No " + tab + " recorded on this page"}
-              description="Unavailable evidence is distinct from an empty agent action or a negative finding."
+            </Card>
+            <Card>
+              <CardHeading title="Usage & provenance" />
+              <div className="card-body">
+                <JsonView value={data.usage} title="Recorded provider usage" />
+                <p className="helper">
+                  Recorded usage may be partial. Missing provider reasoning does
+                  not establish that the agent had no reasoning or intent.
+                </p>
+              </div>
+            </Card>
+          </div>
+        ) : (
+          <Card>
+            <CardHeading
+              title={
+                {
+                  board: "Chronological board & exact deliveries",
+                  artifacts: "Artifact versions",
+                  memory: "Private agent memory",
+                  reports: "Individual final reports",
+                }[tab] || tab
+              }
+              description={
+                tab === "board"
+                  ? "Posting does not imply every agent received a message. Inspect the exact read events."
+                  : tab === "memory"
+                    ? "Thread-scoped notes and conversation snapshots; these are not shared with other agents."
+                    : "Recorded source evidence with immutable provenance."
+              }
             />
-          )}
-          <Pager
-            page={page}
-            hasMore={
-              !Array.isArray(evidence.data) && evidence.data?.nextOffset != null
-            }
-            onChange={setPage}
-          />
-        </Card>
-      )}
+            {tab === "reports" &&
+              !Array.isArray(evidence.data) &&
+              evidence.data?.reporting && (
+                <div className="card-body">
+                  <JsonView
+                    value={evidence.data.reporting}
+                    title="Exact reporting instructions and schema version"
+                  />
+                </div>
+              )}
+            {tab === "board" &&
+              !Array.isArray(evidence.data) &&
+              evidence.data?.deliveriesMayHaveMore && (
+                <Notice kind="warning">
+                  This response contains a page of delivery events. For a
+                  complete delivery history, filter the timeline for
+                  board_delivery and paginate through the source events.
+                </Notice>
+              )}
+            {evidence.error && (
+              <ErrorState error={evidence.error} retry={evidence.refresh} />
+            )}
+            {evidence.loading ? (
+              <Loading />
+            ) : items.length ? (
+              <div className="card-body stack">
+                {items.map((item, index) => {
+                  const object = item as Record<string, unknown>;
+                  const key = evidenceKey(item, index);
+                  return (
+                    <Card key={key}>
+                      <div className="card-heading">
+                        <div>
+                          <h3>
+                            {tab === "board"
+                              ? `Post ${object.sequence ?? index + 1} · ${object.authorId ?? "Unknown author"}`
+                              : tab === "artifacts"
+                                ? `Version ${object.version ?? index + 1}`
+                                : tab === "memory"
+                                  ? `${object.agentId ?? "Agent"} · ${object.type ?? "Memory snapshot"}`
+                                  : `Report · ${object.agentId ?? "Unknown agent"}`}
+                          </h3>
+                          <p>
+                            {object.id
+                              ? short(String(object.id))
+                              : object.operationId
+                                ? String(object.operationId)
+                                : "Recorded evidence"}
+                          </p>
+                        </div>
+                        <div className="actions">
+                          {object.frozen === true && (
+                            <Badge>Frozen final</Badge>
+                          )}
+                          {tab === "reports" && object.parsed === null && (
+                            <Badge status="failed">Invalid / unparsed</Badge>
+                          )}
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() =>
+                              inspect(
+                                key,
+                                tab === "memory" &&
+                                  typeof object.sequence === "number"
+                                  ? object.sequence
+                                  : undefined,
+                              )
+                            }
+                          >
+                            Inspect
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="card-body">
+                        {tab === "artifacts" ? (
+                          <ArtifactView
+                            value={object.value}
+                            schemaVersion={data.config.artifactSchemaVersion}
+                          />
+                        ) : (
+                          <p className="text-block">
+                            {tab === "board"
+                              ? String(object.text ?? "")
+                              : tab === "reports"
+                                ? String(object.raw ?? "")
+                                : pretty(
+                                    object.value ?? object.data ?? item,
+                                  ).slice(0, 500)}
+                          </p>
+                        )}
+                        {tab === "board" && (
+                          <BoardDelivery
+                            id={String(object.id)}
+                            deliveries={
+                              !Array.isArray(evidence.data)
+                                ? evidence.data?.deliveries
+                                : undefined
+                            }
+                          />
+                        )}
+                        {tab === "artifacts" && index > 0 && (
+                          <details style={{ marginTop: 12 }}>
+                            <summary className="helper">
+                              Compare to previous version
+                            </summary>
+                            <div className="form-grid">
+                              <JsonView
+                                value={
+                                  (items[index - 1] as ArtifactVersion).value
+                                }
+                                title="Previous version"
+                              />
+                              <JsonView
+                                value={object.value}
+                                title="Selected version"
+                              />
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <Empty
+                title={"No " + tab + " recorded on this page"}
+                description="Unavailable evidence is distinct from an empty agent action or a negative finding."
+              />
+            )}
+            <Pager
+              page={page}
+              hasMore={
+                !Array.isArray(evidence.data) &&
+                evidence.data?.nextOffset != null
+              }
+              onChange={setPage}
+            />
+          </Card>
+        )}
+      </section>
+      <p className="helper">
+        Execution state is the last recorded worker state. Fetch timestamps
+        indicate dashboard freshness, not worker health or proof of progress.
+        Run record updated {when(data.updatedAt)}.
+      </p>
       {data.status === "completed" && (
         <div className="actions" style={{ marginTop: 22 }}>
           <Button asChild>
@@ -891,7 +937,11 @@ function BoardDelivery({
     </div>
   );
 }
+function safeRunReturn(value: string | null) {
+  return value === "/runs" || value?.startsWith("/runs?") ? value : "/runs";
+}
 function PairDetail() {
+  const [params] = useSearchParams();
   const { id } = useParams();
   const pair = useApi<{
     runs: Run[];
@@ -912,13 +962,66 @@ function PairDetail() {
           ? "Frozen configurations match outside the intended condition difference."
           : "Configuration differences need review before treating these as matched conditions."}
       </Notice>
-      <Card>
-        <RunTable runs={pair.data.runs} />
-      </Card>
+      <Button asChild variant="ghost">
+        <Link to={safeRunReturn(params.get("returnTo"))}>
+          <ArrowLeft size={14} />
+          All runs
+        </Link>
+      </Button>
+      <div className="pair-condition-grid">
+        {pair.data.runs.map((run) => (
+          <PairCondition
+            key={run.id}
+            summary={run}
+            returnTo={safeRunReturn(params.get("returnTo"))}
+          />
+        ))}
+        {pair.data.runs.length < 2 && (
+          <Card>
+            <div className="card-body">
+              <h2>Other condition unavailable</h2>
+              <p>
+                The pair response does not contain a second run. The recorded
+                run remains available.
+              </p>
+            </div>
+          </Card>
+        )}
+      </div>
       <Card style={{ marginTop: 20 }}>
         <CardHeading title="Configuration differences" />
         <div className="card-body">
-          <JsonView value={pair.data.configurationDifferences} />
+          <p>
+            {pair.data.matched
+              ? "All settings outside the condition match, including scenario, model, roles, scheduling, memory and reporting."
+              : "Matching outside the condition has not been established."}
+          </p>
+          {pair.data.configurationDifferences.length ? (
+            <Table
+              label="Differing frozen settings"
+              headers={[
+                "Setting",
+                ...pair.data.runs.map((run) => run.config.condition.id),
+              ]}
+            >
+              {pair.data.configurationDifferences.map((path, index) => (
+                <tr key={index}>
+                  <th scope="row">{settingLabel(String(path))}</th>
+                  {pair.data!.runs.map((run) => (
+                    <td key={run.id} className="text-block">
+                      {configValue(run.config, String(path))}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </Table>
+          ) : (
+            <p>No configuration differences were returned.</p>
+          )}
+          <JsonView
+            value={pair.data.configurationDifferences}
+            title="Exact differing field paths"
+          />
           <p className="helper">
             This page compares execution and frozen settings. It does not
             establish model rankings or independent statistical evidence.
@@ -926,5 +1029,168 @@ function PairDetail() {
         </div>
       </Card>
     </>
+  );
+}
+
+function settingLabel(path: string) {
+  const labels: Record<string, string> = {
+    "condition.id": "Condition identifier",
+    "condition.text": "Exact condition wording",
+  };
+  return (
+    labels[path] ||
+    path
+      .split(".")
+      .map((part) => part.replace(/([A-Z])/g, " $1"))
+      .join(" / ")
+  );
+}
+function configValue(config: Run["config"], path: string) {
+  const value = path
+    .split(".")
+    .reduce<unknown>(
+      (current, key) =>
+        current && typeof current === "object"
+          ? (current as Record<string, unknown>)[key]
+          : undefined,
+      config,
+    );
+  return value === undefined
+    ? "Not recorded"
+    : typeof value === "string"
+      ? value
+      : JSON.stringify(value);
+}
+function PairCondition({
+  summary,
+  returnTo,
+}: {
+  summary: Run;
+  returnTo: string;
+}) {
+  const resource = useApi<Run>("/runs/" + summary.id, 5000);
+  const run = resource.data || summary;
+  const suffix = "&returnTo=" + encodeURIComponent(returnTo);
+  const finals = resource.data?.artifacts?.filter((item) => item.frozen) || [];
+  return (
+    <Card>
+      <CardHeading
+        title={run.config.condition.id}
+        actions={<Badge status={run.status} />}
+      />
+      <div className="card-body stack">
+        <div>
+          <h3>Exact condition wording</h3>
+          <p className="text-block">{run.config.condition.text}</p>
+        </div>
+        <dl className="definition-list">
+          <dt>Execution</dt>
+          <dd>
+            {run.status}  -  round {run.round} / {run.config.scheduler.rounds}  -
+            turn {run.turn}
+          </dd>
+          <dt>Recorded update</dt>
+          <dd>{when(run.updatedAt)}</dd>
+          <dt>Model</dt>
+          <dd>
+            {run.config.model.provider} / {run.config.model.id}
+          </dd>
+        </dl>
+        {run.failureReason && <Notice kind="error">{run.failureReason}</Notice>}
+        {resource.error && (
+          <Notice kind="warning">
+            Output availability could not be refreshed.{" "}
+            <Button variant="ghost" onClick={resource.refresh}>
+              Retry
+            </Button>
+          </Notice>
+        )}
+        <div>
+          <h3>Evidence availability</h3>
+          {resource.data ? (
+            <p>
+              {resource.data.board?.length ?? 0} board posts  - {" "}
+              {resource.data.artifacts?.length ?? 0} artifact versions  - {" "}
+              {resource.data.reports?.length ?? 0} final reports.{" "}
+              <Link to={"/runs/" + run.id + "?view=timeline" + suffix}>
+                Open canonical event timeline
+              </Link>
+            </p>
+          ) : (
+            <p>
+              Evidence availability{" "}
+              {resource.loading ? "is loading" : "is unknown"}.
+            </p>
+          )}
+        </div>
+        <div>
+          <h3>Final artifacts</h3>
+          {resource.loading ? (
+            <p>Checking recorded artifacts - </p>
+          ) : resource.data ? (
+            finals.length ? (
+              finals.map((item) => (
+                <div key={item.version}>
+                  <strong>Frozen version {item.version}</strong>
+                  <ArtifactView
+                    value={item.value}
+                    schemaVersion={run.config.artifactSchemaVersion}
+                  />
+                </div>
+              ))
+            ) : (
+              <p>No frozen final artifact recorded.</p>
+            )
+          ) : (
+            <p>Artifact availability unknown.</p>
+          )}
+        </div>
+        <div>
+          <h3>Final reports</h3>
+          {resource.loading ? (
+            <p>Checking recorded reports - </p>
+          ) : resource.data ? (
+            resource.data.reports?.length ? (
+              resource.data.reports.map((report) => (
+                <details key={report.agentId}>
+                  <summary>
+                    {report.agentId}  - {" "}
+                    {report.parsed === null
+                      ? "Invalid / unparsed"
+                      : "Recorded report"}
+                  </summary>
+                  <p className="text-block">{report.raw}</p>
+                </details>
+              ))
+            ) : (
+              <p>No final reports recorded.</p>
+            )
+          ) : (
+            <p>Report availability unknown.</p>
+          )}
+        </div>
+        <div className="actions">
+          <Button asChild variant="secondary">
+            <Link to={"/runs/" + run.id + "?view=timeline" + suffix}>
+              Inspect evidence
+            </Link>
+          </Button>
+          <Button asChild variant="secondary">
+            <Link to={"/runs/" + run.id + "?view=artifacts" + suffix}>
+              Artifact history
+            </Link>
+          </Button>
+          <Button asChild variant="secondary">
+            <Link to={"/runs/" + run.id + "?view=reports" + suffix}>
+              Reports
+            </Link>
+          </Button>
+        </div>
+        <p className="helper">
+          Missing outputs remain unavailable, including while a run is
+          incomplete. Fetching this record does not verify worker health.
+        </p>
+      </div>
+    </Card>
   );
 }

@@ -79,7 +79,7 @@ export async function createDashboardSmoke() {
         model: { provider: 'scripted', id: 'fixture-monitor-no-network', settings: {} }, maxInputChars: 1000000, contextWindowTokens: 1000000, outputAllowanceTokens: 2048, timeoutMs: 1000 });
     const evaluation = await launchMonitor(repository, researchStore, { previewId: preview.id, previewHash: preview.hash, idempotencyKey: 'dashboard-fixture-monitor' });
     await processNextMonitorJob(repository, researchStore, fakeMonitor, 'fixture-monitor-worker');
-    const server = createResearcherServer(repository, { extensionHandlers: [createJevRouteExtension(analysis, reviews), createOversightHandler(repository, researchStore)] });
+    const server = createResearcherServer(repository, { demoMode: true, extensionHandlers: [createJevRouteExtension(analysis, reviews), createOversightHandler(repository, researchStore)] });
     let busy = false;
     async function tick() {
         if (busy) return; busy = true;

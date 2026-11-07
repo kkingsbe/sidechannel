@@ -1,6 +1,6 @@
 # Service layout and Nx monorepo migration
 
-Status: proposed migration plan, not an implemented reorganization. Updated November 7, 2026.
+Status: implemented November 7, 2026. See [verification evidence](service-layout-verification.md) and [current operations](harness-operations.md). The sections below retain the original migration specification, including the pre-migration source inventory.
 
 ## 1. Objective
 

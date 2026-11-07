@@ -55,11 +55,11 @@ The researcher API accepts requests, freezes configuration, and queues work. A s
 
 | Existing component | Integration requirement |
 | --- | --- |
-| [Harness contracts](../agent/src/harness/contracts.ts) | Preserve run IDs, event IDs, sequence numbers, actor identity, and invocation/operation correlation. |
-| [Scheduler](../agent/src/harness/scheduler.ts) | Read its recorded events; do not change experiment scheduling to accommodate classification. |
-| [Gateway](../agent/src/harness/gateway.ts) | Interpret requests, results, board deliveries, memory updates, and artifact changes with their actual execution status. |
-| [Mongo repository](../agent/src/harness/repository.ts) | Add bounded evidence reads and separate analysis persistence. |
-| [Researcher API](../agent/src/server/index.ts) | Expose codebook, preview, job, result, and review contracts. |
+| [Harness contracts](../packages/contracts/src/harness/contracts.ts) | Preserve run IDs, event IDs, sequence numbers, actor identity, and invocation/operation correlation. |
+| [Scheduler](../experiment-worker/src/harness/scheduler.ts) | Read its recorded events; do not change experiment scheduling to accommodate classification. |
+| [Gateway](../experiment-worker/src/harness/gateway.ts) | Interpret requests, results, board deliveries, memory updates, and artifact changes with their actual execution status. |
+| [Mongo repository](../packages/persistence/src/harness/repository.ts) | Add bounded evidence reads and separate analysis persistence. |
+| [Researcher API](../api/src/server/index.ts) | Expose codebook, preview, job, result, and review contracts. |
 
 Mastra trace identifiers are useful cross-references. The analyzer's source of truth is the application event stream, not a Studio screen or an assumed external trace tree. Existing events contain the application-level evidence needed to reconstruct execution; provider-specific fields need explicit adapters.
 

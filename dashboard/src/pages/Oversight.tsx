@@ -4,6 +4,7 @@ import {
   Route,
   Routes,
   useNavigate,
+  useLocation,
   useParams,
   useSearchParams,
 } from "react-router-dom";
@@ -66,59 +67,149 @@ const viewNames: Record<MonitorView, string> = {
   board: "Reports + audit + board",
   full: "Full observable trace",
 };
+import "./runs-oversight.css";
 const views: MonitorView[] = ["reports", "audit", "board", "full"];
 type Page<T> = { items: T[]; nextCursor: string | null };
 /** Results carry their request path so changing identity or revision cannot expose stale form actions. */
 function useExactApi<T>(path: string | null, interval = 0) {
-  const [result, setResult] = useState<{path: string; data?: T; error?: Error}>();
+  const [result, setResult] = useState<{
+    path: string;
+    data?: T;
+    error?: Error;
+  }>();
   const generation = useRef(0);
   const refresh = useCallback(async () => {
     if (!path) return;
     const request = ++generation.current;
-    try { const data = await api<T>(path); if (request === generation.current) setResult({path, data}); }
-    catch (error) { if (request === generation.current) setResult(previous => ({path, data: previous?.path === path ? previous.data : undefined, error: error as Error})); }
+    try {
+      const data = await api<T>(path);
+      if (request === generation.current) setResult({ path, data });
+    } catch (error) {
+      if (request === generation.current)
+        setResult((previous) => ({
+          path,
+          data: previous?.path === path ? previous.data : undefined,
+          error: error as Error,
+        }));
+    }
   }, [path]);
-  useEffect(() => { void refresh(); const timer = interval ? setInterval(() => { if (!document.hidden) void refresh(); }, interval) : undefined; return () => { generation.current++; clearInterval(timer); }; }, [refresh, interval]);
+  useEffect(() => {
+    void refresh();
+    const timer = interval
+      ? setInterval(() => {
+          if (!document.hidden) void refresh();
+        }, interval)
+      : undefined;
+    return () => {
+      generation.current++;
+      clearInterval(timer);
+    };
+  }, [refresh, interval]);
   const current = result?.path === path ? result : undefined;
-  return {data: current?.data, error: current?.error, loading: !!path && !current, refresh};
+  return {
+    data: current?.data,
+    error: current?.error,
+    loading: !!path && !current,
+    refresh,
+  };
 }
-function useCursorPage<T>(path: string | null, interval = 0) {
+function useCursorPage<T>(path: string | null, interval = 0, urlKey?: string) {
+  const [params, setParams] = useSearchParams();
   const [page, setPage] = useState(0);
   const [cursors, setCursors] = useState<string[]>([""]);
-  useEffect(() => { setPage(0); setCursors([""]); }, [path]);
-  const resource = useApi<Page<T>>(path ? path + (path.includes("?") ? "&" : "?") + "after=" + encodeURIComponent(cursors[page] ?? "") : null, interval);
+  useEffect(() => {
+    setPage(0);
+    setCursors([""]);
+  }, [path]);
+  const savedCursors = urlKey ? ["", ...params.getAll(urlKey)] : cursors;
+  const currentPage = urlKey ? savedCursors.length - 1 : page;
+  const resource = useApi<Page<T>>(
+    path
+      ? path +
+          (path.includes("?") ? "&" : "?") +
+          "after=" +
+          encodeURIComponent(savedCursors[currentPage] ?? "")
+      : null,
+    interval,
+  );
   const onChange = (next: number) => {
-    if (next > page) { if (!resource.data?.nextCursor) return; setCursors(previous => [...previous.slice(0, next), resource.data!.nextCursor!]); }
+    if (urlKey) {
+      if (next > currentPage && !resource.data?.nextCursor) return;
+      const nextCursors =
+        next > currentPage
+          ? [...savedCursors.slice(1), resource.data!.nextCursor!]
+          : savedCursors.slice(1, next + 1);
+      setParams((previous) => {
+        previous.delete(urlKey);
+        nextCursors.forEach((cursor) => previous.append(urlKey, cursor));
+        return previous;
+      });
+      return;
+    }
+    if (next > page) {
+      if (!resource.data?.nextCursor) return;
+      setCursors((previous) => [
+        ...previous.slice(0, next),
+        resource.data!.nextCursor!,
+      ]);
+    }
     setPage(next);
   };
-  return { ...resource, pagination: { page, hasMore: !!resource.data?.nextCursor, onChange } };
+  return {
+    ...resource,
+    pagination: {
+      page: currentPage,
+      hasMore: !!resource.data?.nextCursor,
+      onChange,
+    },
+  };
 }
 function useRunPage(path: string | null) {
   const [page, setPage] = useState(0);
   useEffect(() => setPage(0), [path]);
-  const resource = useApi<{items: Run[]; total: number; nextOffset: number | null}>(path ? path + "&limit=25&offset=" + page * 25 : null);
-  return { ...resource, pagination: { page, hasMore: resource.data?.nextOffset != null, onChange: setPage } };
+  const resource = useApi<{
+    items: Run[];
+    total: number;
+    nextOffset: number | null;
+  }>(path ? path + "&limit=25&offset=" + page * 25 : null);
+  return {
+    ...resource,
+    pagination: {
+      page,
+      hasMore: resource.data?.nextOffset != null,
+      onChange: setPage,
+    },
+  };
 }
 
 export default function Oversight() {
   return (
     <Routes>
       <Route index element={<OversightSetup />} />
+      <Route path="new" element={<OversightSetup creating />} />
       <Route path=":id" element={<EvaluationDetail />} />
     </Routes>
   );
 }
-function OversightSetup() {
+function OversightSetup({ creating = false }: { creating?: boolean }) {
   const [params, setParams] = useSearchParams();
-  const tab = params.get("view") || "setup";
+  const tab =
+    params.get("view") || (creating || params.has("run") ? "setup" : "jobs");
   const current = useApi<MonitorDefinition>("/monitor-definitions");
-  const history = useCursorPage<MonitorDefinition>("/monitor-definitions/history?limit=25");
+  const history = useCursorPage<MonitorDefinition>(
+    "/monitor-definitions/history?limit=25",
+  );
   const runs = useRunPage("/runs?summary=true&status=completed");
-  const referenceRuns = useRunPage(tab === "references" ? "/runs?summary=true&status=completed,failed,cancelled,interrupted" : null);
+  const referenceRuns = useRunPage(
+    tab === "references"
+      ? "/runs?summary=true&status=completed,failed,cancelled,interrupted"
+      : null,
+  );
   const [referenceRunId, setReferenceRunId] = useState(params.get("run") || "");
   const jobs = useCursorPage<MonitorEvaluation>(
     "/monitor-evaluations?limit=25",
     5000,
+    "jobCursor",
   );
   const [selected, setSelected] = useState<string[]>(
     params.get("run") ? [params.get("run")!] : [],
@@ -145,6 +236,19 @@ function OversightSetup() {
     setPreview(undefined);
     launchKey.current = crypto.randomUUID();
   };
+  const prerequisites = [
+    !selected.length && "Select at least one completed source run.",
+    !settings.model.provider.trim() && "Enter a monitor provider.",
+    !settings.model.id.trim() && "Enter a monitor model.",
+    !definitionRevision && "Select a definition revision.",
+    ![
+      settings.contextWindowTokens,
+      settings.outputAllowanceTokens,
+      settings.maxInputChars,
+      settings.timeoutMs,
+    ].every((value) => Number.isFinite(value) && value > 0) &&
+      "Use positive values for all input limits and timeout.",
+  ].filter(Boolean) as string[];
   const doPreview = async () => {
     const result = await mutation.run(() =>
       post<MonitorPreview>("/monitor/preview", {
@@ -172,8 +276,14 @@ function OversightSetup() {
         eyebrow="ISOLATED EVIDENCE COMPARISONS"
         title="Oversight monitor"
         description="Compare what the same monitor detects from four explicitly different evidence views."
+        actions={
+          <Button asChild>
+            <Link to="/oversight/new">New evaluation</Link>
+          </Button>
+        }
       />
       <Tabs
+        panelId="oversight-view-panel"
         value={tab}
         onChange={(view) =>
           setParams((prev) => {
@@ -182,380 +292,471 @@ function OversightSetup() {
           })
         }
         items={[
+          { id: "jobs", label: "Evaluation jobs" },
           { id: "setup", label: "Configure & preview" },
           { id: "definitions", label: "Questions & outcome definitions" },
           { id: "references", label: "Human reference outcomes" },
-          { id: "jobs", label: "Evaluation jobs" },
         ]}
       />
       {mutation.error && <Notice kind="error">{mutation.error.message}</Notice>}
-      {tab === "definitions" ? (
-        <DefinitionEditor
-          current={current}
-          onSaved={() => {
-            setPreview(undefined);
-            void current.refresh();
-            void history.refresh();
-          }}
-        />
-      ) : tab === "references" ? (
-        <>
-          <Notice>
-            Human references are independent from Jev. Two distinct claimed
-            reviewers must agree on the same evidence and definition revision.
-            An agreed uncertain label remains a final uncertainty.
-          </Notice>
-          <Card>
-            <CardHeading title="Select a terminal source run" />
-            <div className="card-body">
-              <Field label="Run for outcome adjudication">
-                <Select
-                  value={referenceRunId}
-                  onChange={(e) =>
-                    setReferenceRunId(e.target.value)
-                  }
-                >
-                  <option value="">Select a run</option>
-                  {referenceRunId && !arrayOf(referenceRuns.data).some(run => run.id === referenceRunId) && <option value={referenceRunId}>{short(referenceRunId)} (selected source)</option>}
-                  {arrayOf(referenceRuns.data).map((run) => (
-                    <option key={run.id} value={run.id}>
-                      {run.config.label} · {short(run.id)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              {referenceRuns.error && <ErrorState error={referenceRuns.error} retry={referenceRuns.refresh} />}
-              <Pager {...referenceRuns.pagination} />
-            </div>
-          </Card>
-          {referenceRunId && <RunReferenceEditor key={referenceRunId + (params.get("definition") || "")} runId={referenceRunId} initialDefinitionRevisionId={params.get("definition") || undefined} />}
-        </>
-      ) : tab === "jobs" ? (
-        <EvaluationList jobs={jobs} />
-      ) : (
-        <>
-          <Notice>
-            Oversight runs only when explicitly launched. Each view receives one
-            isolated call with the same frozen model and questions. No Jev
-            classifications, human labels, other monitor results, or cross-view
-            synthesis are included.
-          </Notice>
-          <div className="editor-layout">
-            <div>
-              <Card className="form-section">
-                <CardHeading
-                  title="Source runs & monitor configuration"
-                  description="Monitor selection is independent from experiment models and Jev."
-                />
-                <div className="card-body form-grid">
-                  <Field label="Definition revision">
-                    <Select
-                      aria-label="Definition revision"
-                      value={definitionRevision}
-                      onChange={(e) => {
-                        setDefinitionRevision(Number(e.target.value));
-                        setPreview(undefined);
-                      }}
-                    >
-                      {history.data?.items.map((item) => (
-                        <option key={item.id} value={item.revision}>
-                          Revision {item.revision} · {when(item.createdAt)}
+      <section
+        role="tabpanel"
+        id="oversight-view-panel"
+        aria-labelledby={`oversight-view-panel-tab-${tab}`}
+        tabIndex={0}
+      >
+        {tab === "definitions" ? (
+          <DefinitionEditor
+            current={current}
+            onSaved={() => {
+              setPreview(undefined);
+              void current.refresh();
+              void history.refresh();
+            }}
+          />
+        ) : tab === "references" ? (
+          <>
+            <Notice>
+              Human references are independent from Jev. Two distinct claimed
+              reviewers must agree on the same evidence and definition revision.
+              An agreed uncertain label remains a final uncertainty.
+            </Notice>
+            <Card>
+              <CardHeading title="Select a terminal source run" />
+              <div className="card-body">
+                <Field label="Run for outcome adjudication">
+                  <Select
+                    value={referenceRunId}
+                    onChange={(e) => setReferenceRunId(e.target.value)}
+                  >
+                    <option value="">Select a run</option>
+                    {referenceRunId &&
+                      !arrayOf(referenceRuns.data).some(
+                        (run) => run.id === referenceRunId,
+                      ) && (
+                        <option value={referenceRunId}>
+                          {short(referenceRunId)} (selected source)
                         </option>
-                      ))}
-                      {!history.data?.items.some(item => item.revision === definitionRevision) && <option value={definitionRevision}>Revision {definitionRevision} (selected)</option>}
-                    </Select>
-                    {history.error && <ErrorState error={history.error} retry={history.refresh} />}
-                    <Pager {...history.pagination} />
-                  </Field>
-                  <div>
-                    <span className="helper">Completed source runs</span>
-                    <div
-                      style={{ maxHeight: 210, overflow: "auto", marginTop: 8 }}
-                    >
-                      {runs.loading ? (
-                        <Loading />
-                      ) : runs.error ? (
-                        <ErrorState error={runs.error} retry={runs.refresh} />
-                      ) : arrayOf(runs.data).length ? (
-                        arrayOf(runs.data).map((run) => (
-                          <Check
-                            key={run.id}
-                            label={`${run.config.label} · ${run.config.condition.id} · ${short(run.id)}`}
-                            checked={selected.includes(run.id)}
-                            onChange={(e) => {
-                              setSelected(
-                                e.target.checked
-                                  ? [...selected, run.id]
-                                  : selected.filter((id) => id !== run.id),
-                              );
-                              setPreview(undefined);
-                            }}
-                          />
-                        ))
-                      ) : (
-                        <p className="helper">No completed source runs yet.</p>
                       )}
-                    </div>
-                    <Pager {...runs.pagination} />
-                    {selected.length > 0 && <p className="helper">Selected across pages: {selected.map(id => <span key={id}>{short(id)} <Button size="sm" variant="ghost" aria-label={"Remove source " + id} onClick={() => { setSelected(previous => previous.filter(value => value !== id)); setPreview(undefined); }}>Remove</Button></span>)}</p>}
-                  </div>
-                  <Field
-                    label="Monitor provider"
-                    hint="Explicitly choose a provider; never inherited from source runs."
-                  >
-                    <Input
-                      value={settings.model.provider}
-                      onChange={(e) =>
-                        change({
-                          model: {
-                            ...settings.model,
-                            provider: e.target.value,
-                          },
-                        })
-                      }
-                      placeholder="Provider identifier"
-                    />
-                  </Field>
-                  <Field
-                    label="Monitor model"
-                    hint="Exact independently selected model identifier."
-                  >
-                    <Input
-                      value={settings.model.id}
-                      onChange={(e) =>
-                        change({
-                          model: { ...settings.model, id: e.target.value },
-                        })
-                      }
-                      placeholder="Exact model identifier"
-                    />
-                  </Field>
-                  {["temperature", "maxOutputTokens", "topP", "seed"].map(
-                    (key) => (
-                      <Field key={key} label={key + " (optional)"}>
-                        <Input
-                          type="number"
-                          step="any"
-                          value={
-                            typeof settings.model.settings[key] === "number"
-                              ? settings.model.settings[key]
-                              : ""
-                          }
-                          onChange={(e) => {
-                            const options = { ...settings.model.settings };
-                            e.target.value === ""
-                              ? delete options[key]
-                              : (options[key] = e.target.valueAsNumber);
-                            change({
-                              model: { ...settings.model, settings: options },
-                            });
-                          }}
-                        />
-                      </Field>
-                    ),
-                  )}
-                  <Field
-                    label="Model context window (tokens)"
-                    hint="Complete instructions, evidence, and output allowance are preflighted."
-                  >
-                    <Input
-                      type="number"
-                      min="1"
-                      value={settings.contextWindowTokens}
-                      onChange={(e) =>
-                        change({ contextWindowTokens: e.target.valueAsNumber })
-                      }
-                    />
-                  </Field>
-                  <Field label="Output allowance (tokens)">
-                    <Input
-                      type="number"
-                      min="1"
-                      value={settings.outputAllowanceTokens}
-                      onChange={(e) =>
-                        change({
-                          outputAllowanceTokens: e.target.valueAsNumber,
-                        })
-                      }
-                    />
-                  </Field>
-                  <Field label="Maximum serialized input (characters)">
-                    <Input
-                      type="number"
-                      min="1"
-                      value={settings.maxInputChars}
-                      onChange={(e) =>
-                        change({ maxInputChars: e.target.valueAsNumber })
-                      }
-                    />
-                  </Field>
-                  <Field label="Per-view timeout (ms)">
-                    <Input
-                      type="number"
-                      min="1"
-                      value={settings.timeoutMs}
-                      onChange={(e) =>
-                        change({ timeoutMs: e.target.valueAsNumber })
-                      }
-                    />
-                  </Field>
-                </div>
-              </Card>
-              <div className="projection-grid" style={{ marginBottom: 22 }}>
-                {views.map((view) => (
-                  <div className="projection-card" key={view}>
-                    <span className="eyebrow">
-                      VIEW {views.indexOf(view) + 1}
-                    </span>
-                    <h3>{viewNames[view]}</h3>
-                    <p>
-                      {
-                        {
-                          reports:
-                            "Final reports, submitted artifact, and task/policy context.",
-                          audit:
-                            "Adds approved actor, tool, timing, and resource metadata only.",
-                          board:
-                            "Adds board posts and exact read/delivery evidence.",
-                          full: "Adds tool payloads, assistant outputs, artifacts, private memory, and available reasoning.",
-                        }[view]
-                      }
-                    </p>
-                    <Badge>
-                      {view === "full"
-                        ? "Reasoning availability recorded"
-                        : "No private memory or reasoning"}
-                    </Badge>
-                  </div>
-                ))}
+                    {arrayOf(referenceRuns.data).map((run) => (
+                      <option key={run.id} value={run.id}>
+                        {run.config.label} · {short(run.id)}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                {referenceRuns.error && (
+                  <ErrorState
+                    error={referenceRuns.error}
+                    retry={referenceRuns.refresh}
+                  />
+                )}
+                <Pager {...referenceRuns.pagination} />
               </div>
-              {preview && (
+            </Card>
+            {referenceRunId && (
+              <RunReferenceEditor
+                key={referenceRunId + (params.get("definition") || "")}
+                runId={referenceRunId}
+                initialDefinitionRevisionId={
+                  params.get("definition") || undefined
+                }
+              />
+            )}
+          </>
+        ) : tab === "jobs" ? (
+          <EvaluationList jobs={jobs} />
+        ) : (
+          <>
+            <Notice>
+              Oversight runs only when explicitly launched. Each view receives
+              one isolated call with the same frozen model and questions. No Jev
+              classifications, human labels, other monitor results, or
+              cross-view synthesis are included.
+            </Notice>
+            <div className="editor-layout">
+              <div>
                 <Card className="form-section">
                   <CardHeading
-                    title="Exact server-generated projections"
-                    description={`Definition revision ${preview.definition.revision} · ${preview.settings.model.provider}/${preview.settings.model.id} · frozen across views`}
+                    title="Source runs & monitor configuration"
+                    description="Monitor selection is independent from experiment models and Jev."
                   />
+                  <div className="card-body form-grid">
+                    <Field label="Definition revision" required>
+                      <Select
+                        aria-label="Definition revision"
+                        value={definitionRevision}
+                        onChange={(e) => {
+                          setDefinitionRevision(Number(e.target.value));
+                          setPreview(undefined);
+                        }}
+                      >
+                        {history.data?.items.map((item) => (
+                          <option key={item.id} value={item.revision}>
+                            Revision {item.revision} · {when(item.createdAt)}
+                          </option>
+                        ))}
+                        {!history.data?.items.some(
+                          (item) => item.revision === definitionRevision,
+                        ) && (
+                          <option value={definitionRevision}>
+                            Revision {definitionRevision} (selected)
+                          </option>
+                        )}
+                      </Select>
+                      {history.error && (
+                        <ErrorState
+                          error={history.error}
+                          retry={history.refresh}
+                        />
+                      )}
+                      <Pager {...history.pagination} />
+                    </Field>
+                    <div>
+                      <span className="helper">Completed source runs</span>
+                      <div
+                        style={{
+                          maxHeight: 210,
+                          overflow: "auto",
+                          marginTop: 8,
+                        }}
+                      >
+                        {runs.loading ? (
+                          <Loading />
+                        ) : runs.error ? (
+                          <ErrorState error={runs.error} retry={runs.refresh} />
+                        ) : arrayOf(runs.data).length ? (
+                          arrayOf(runs.data).map((run) => (
+                            <Check
+                              key={run.id}
+                              label={`${run.config.label} · ${run.config.condition.id} · ${short(run.id)}`}
+                              checked={selected.includes(run.id)}
+                              onChange={(e) => {
+                                setSelected(
+                                  e.target.checked
+                                    ? [...selected, run.id]
+                                    : selected.filter((id) => id !== run.id),
+                                );
+                                setPreview(undefined);
+                              }}
+                            />
+                          ))
+                        ) : (
+                          <p className="helper">
+                            No completed source runs yet.
+                          </p>
+                        )}
+                      </div>
+                      <Pager {...runs.pagination} />
+                      {selected.length > 0 && (
+                        <p className="helper">
+                          Selected across pages:{" "}
+                          {selected.map((id) => (
+                            <span key={id}>
+                              {short(id)}{" "}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                aria-label={"Remove source " + id}
+                                onClick={() => {
+                                  setSelected((previous) =>
+                                    previous.filter((value) => value !== id),
+                                  );
+                                  setPreview(undefined);
+                                }}
+                              >
+                                Remove
+                              </Button>
+                            </span>
+                          ))}
+                        </p>
+                      )}
+                    </div>
+                    <Field
+                      required
+                      label="Monitor provider"
+                      hint="Explicitly choose a provider; never inherited from source runs."
+                    >
+                      <Input
+                        value={settings.model.provider}
+                        onChange={(e) =>
+                          change({
+                            model: {
+                              ...settings.model,
+                              provider: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="Provider identifier"
+                      />
+                    </Field>
+                    <Field
+                      required
+                      label="Monitor model"
+                      hint="Exact independently selected model identifier."
+                    >
+                      <Input
+                        value={settings.model.id}
+                        onChange={(e) =>
+                          change({
+                            model: { ...settings.model, id: e.target.value },
+                          })
+                        }
+                        placeholder="Exact model identifier"
+                      />
+                    </Field>
+                    {["temperature", "maxOutputTokens", "topP", "seed"].map(
+                      (key) => (
+                        <Field
+                          key={key}
+                          label={
+                            {
+                              temperature: "Temperature",
+                              maxOutputTokens: "Maximum output tokens",
+                              topP: "Top-p sampling",
+                              seed: "Sampling seed",
+                            }[key] + " (optional)"
+                          }
+                        >
+                          <Input
+                            type="number"
+                            step="any"
+                            value={
+                              typeof settings.model.settings[key] === "number"
+                                ? settings.model.settings[key]
+                                : ""
+                            }
+                            onChange={(e) => {
+                              const options = { ...settings.model.settings };
+                              e.target.value === ""
+                                ? delete options[key]
+                                : (options[key] = e.target.valueAsNumber);
+                              change({
+                                model: { ...settings.model, settings: options },
+                              });
+                            }}
+                          />
+                        </Field>
+                      ),
+                    )}
+                    <Field
+                      label="Model context window (tokens)"
+                      hint="Complete instructions, evidence, and output allowance are preflighted."
+                    >
+                      <Input
+                        type="number"
+                        min="1"
+                        value={settings.contextWindowTokens}
+                        onChange={(e) =>
+                          change({
+                            contextWindowTokens: e.target.valueAsNumber,
+                          })
+                        }
+                      />
+                    </Field>
+                    <Field label="Output allowance (tokens)">
+                      <Input
+                        type="number"
+                        min="1"
+                        value={settings.outputAllowanceTokens}
+                        onChange={(e) =>
+                          change({
+                            outputAllowanceTokens: e.target.valueAsNumber,
+                          })
+                        }
+                      />
+                    </Field>
+                    <Field label="Maximum serialized input (characters)">
+                      <Input
+                        type="number"
+                        min="1"
+                        value={settings.maxInputChars}
+                        onChange={(e) =>
+                          change({ maxInputChars: e.target.valueAsNumber })
+                        }
+                      />
+                    </Field>
+                    <Field
+                      label="Per-view timeout (seconds)"
+                      hint="Stored exactly in milliseconds."
+                    >
+                      <Input
+                        type="number"
+                        min="0.001"
+                        step="0.001"
+                        value={settings.timeoutMs / 1000}
+                        onChange={(e) =>
+                          change({ timeoutMs: e.target.valueAsNumber * 1000 })
+                        }
+                      />
+                    </Field>
+                  </div>
+                </Card>
+                <div className="projection-grid" style={{ marginBottom: 22 }}>
+                  {views.map((view) => (
+                    <div className="projection-card" key={view}>
+                      <span className="eyebrow">
+                        VIEW {views.indexOf(view) + 1}
+                      </span>
+                      <h3>{viewNames[view]}</h3>
+                      <p>
+                        {
+                          {
+                            reports:
+                              "Final reports, submitted artifact, and task/policy context.",
+                            audit:
+                              "Adds approved actor, tool, timing, and resource metadata only.",
+                            board:
+                              "Adds board posts and exact read/delivery evidence.",
+                            full: "Adds tool payloads, assistant outputs, artifacts, private memory, and available reasoning.",
+                          }[view]
+                        }
+                      </p>
+                      <Badge>
+                        {view === "full"
+                          ? "Reasoning availability recorded"
+                          : "No private memory or reasoning"}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+                {preview && (
+                  <Card className="form-section">
+                    <CardHeading
+                      title="Exact server-generated projections"
+                      description={`Definition revision ${preview.definition.revision} · ${preview.settings.model.provider}/${preview.settings.model.id} · frozen across views`}
+                    />
+                    <div className="card-body">
+                      <p className="helper">
+                        Unavailable reasoning is not evidence of absent intent.
+                        Oversized views are not truncated or summarized; the
+                        comparison remains partial.
+                      </p>
+                    </div>
+                    <Table
+                      label="Monitor evidence projection previews"
+                      headers={[
+                        "Source run",
+                        "Evidence view",
+                        "Input size",
+                        "Availability",
+                        "",
+                      ]}
+                    >
+                      {preview.runs.flatMap((run) =>
+                        run.projections.map((p) => (
+                          <tr key={run.runId + p.view}>
+                            <td>
+                              <Link
+                                className="table-title"
+                                to={"/runs/" + run.runId}
+                              >
+                                {short(run.runId)}
+                              </Link>
+                            </td>
+                            <td>
+                              {viewNames[p.view]}
+                              <small>{p.version}</small>
+                            </td>
+                            <td>
+                              {p.characters.toLocaleString()} characters
+                              <small>
+                                {p.estimatedInputTokens.toLocaleString()}{" "}
+                                estimated input tokens
+                              </small>
+                            </td>
+                            <td>
+                              <Badge
+                                status={
+                                  p.status === "oversized"
+                                    ? "failed"
+                                    : "completed"
+                                }
+                              >
+                                {p.status}
+                              </Badge>
+                              {p.reason && <small>{p.reason}</small>}
+                            </td>
+                            <td>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => setProjection(p)}
+                              >
+                                Exact input
+                              </Button>
+                            </td>
+                          </tr>
+                        )),
+                      )}
+                    </Table>
+                  </Card>
+                )}
+              </div>
+              <aside className="sticky stack">
+                <Card>
+                  <CardHeading title="Preview before execution" />
                   <div className="card-body">
-                    <p className="helper">
-                      Unavailable reasoning is not evidence of absent intent.
-                      Oversized views are not truncated or summarized; the
-                      comparison remains partial.
+                    <dl className="definition-list">
+                      <dt>Selected sources</dt>
+                      <dd>{selected.length} completed runs</dd>
+                      <dt>Evidence views</dt>
+                      <dd>Four isolated invocations / run</dd>
+                      <dt>Definitions</dt>
+                      <dd>Revision {definitionRevision || "not selected"}</dd>
+                      <dt>Inference model</dt>
+                      <dd>{settings.model.id || "Choose explicitly"}</dd>
+                    </dl>
+                    <hr className="section-divider" />
+                    <Button
+                      disabled={mutation.busy || prerequisites.length > 0}
+                      onClick={doPreview}
+                      style={{ width: "100%" }}
+                    >
+                      <Eye size={15} />
+                      {mutation.busy ? "Preparing…" : "Preview four views"}
+                    </Button>
+                    {prerequisites.length > 0 && (
+                      <div className="action-prerequisites">
+                        <strong>Before previewing</strong>
+                        <ul>
+                          {prerequisites.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {mutation.busy && (
+                      <p role="status" className="helper">
+                        A request is in progress. Wait for it to finish before
+                        continuing.
+                      </p>
+                    )}
+                    {preview && (
+                      <Button
+                        disabled={mutation.busy}
+                        onClick={launch}
+                        style={{ width: "100%", marginTop: 10 }}
+                      >
+                        <ShieldCheck size={15} />
+                        Launch monitor comparison
+                      </Button>
+                    )}
+                    <p className="helper" style={{ marginTop: 12 }}>
+                      Preview makes no model calls. Launch freezes the complete
+                      definitions and model/settings. Jobs continue after
+                      closing this tab.
                     </p>
                   </div>
-                  <Table
-                    label="Monitor evidence projection previews"
-                    headers={[
-                      "Source run",
-                      "Evidence view",
-                      "Input size",
-                      "Availability",
-                      "",
-                    ]}
-                  >
-                    {preview.runs.flatMap((run) =>
-                      run.projections.map((p) => (
-                        <tr key={run.runId + p.view}>
-                          <td>
-                            <Link
-                              className="table-title"
-                              to={"/runs/" + run.runId}
-                            >
-                              {short(run.runId)}
-                            </Link>
-                          </td>
-                          <td>
-                            {viewNames[p.view]}
-                            <small>{p.version}</small>
-                          </td>
-                          <td>
-                            {p.characters.toLocaleString()} characters
-                            <small>
-                              {p.estimatedInputTokens.toLocaleString()}{" "}
-                              estimated input tokens
-                            </small>
-                          </td>
-                          <td>
-                            <Badge
-                              status={
-                                p.status === "oversized"
-                                  ? "failed"
-                                  : "completed"
-                              }
-                            >
-                              {p.status}
-                            </Badge>
-                            {p.reason && <small>{p.reason}</small>}
-                          </td>
-                          <td>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => setProjection(p)}
-                            >
-                              Exact input
-                            </Button>
-                          </td>
-                        </tr>
-                      )),
-                    )}
-                  </Table>
                 </Card>
-              )}
-              <EvaluationList jobs={jobs} />
+                {current.error && (
+                  <ErrorState error={current.error} retry={current.refresh} />
+                )}
+              </aside>
             </div>
-            <aside className="sticky stack">
-              <Card>
-                <CardHeading title="Preview before execution" />
-                <div className="card-body">
-                  <dl className="definition-list">
-                    <dt>Selected sources</dt>
-                    <dd>{selected.length} completed runs</dd>
-                    <dt>Evidence views</dt>
-                    <dd>Four isolated invocations / run</dd>
-                    <dt>Definitions</dt>
-                    <dd>Revision {definitionRevision || "not selected"}</dd>
-                    <dt>Inference model</dt>
-                    <dd>{settings.model.id || "Choose explicitly"}</dd>
-                  </dl>
-                  <hr className="section-divider" />
-                  <Button
-                    disabled={
-                      mutation.busy ||
-                      !selected.length ||
-                      !settings.model.provider.trim() ||
-                      !settings.model.id.trim() ||
-                      !definitionRevision
-                    }
-                    onClick={doPreview}
-                    style={{ width: "100%" }}
-                  >
-                    <Eye size={15} />
-                    {mutation.busy ? "Preparing…" : "Preview four views"}
-                  </Button>
-                  {preview && (
-                    <Button
-                      disabled={mutation.busy}
-                      onClick={launch}
-                      style={{ width: "100%", marginTop: 10 }}
-                    >
-                      <ShieldCheck size={15} />
-                      Launch monitor comparison
-                    </Button>
-                  )}
-                  <p className="helper" style={{ marginTop: 12 }}>
-                    Preview makes no model calls. Launch freezes the complete
-                    definitions and model/settings. Jobs continue after closing
-                    this tab.
-                  </p>
-                </div>
-              </Card>
-              {current.error && (
-                <ErrorState error={current.error} retry={current.refresh} />
-              )}
-            </aside>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </section>
       <Drawer
         open={!!projection}
         onOpenChange={(open) => {
@@ -580,7 +781,9 @@ function DefinitionEditor({
   const [selected, setSelected] = useState("");
   const [dirty, setDirty] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const history = useCursorPage<MonitorDefinition>(showHistory ? "/monitor-definitions/history?limit=25" : null);
+  const history = useCursorPage<MonitorDefinition>(
+    showHistory ? "/monitor-definitions/history?limit=25" : null,
+  );
   const [historical, setHistorical] = useState<MonitorDefinition>();
   const mutation = useMutation();
   useEffect(() => {
@@ -703,7 +906,21 @@ function DefinitionEditor({
           }
         />
         <div className="card-body">
+          <p className="helper">
+            {mutation.busy
+              ? "Saving revision - "
+              : !dirty
+                ? "Edit definitions to enable saving a new revision."
+                : !draft.questions.trim() ||
+                    draft.outcomes.some(
+                      (o) =>
+                        !o.archived && (!o.name.trim() || !o.definition.trim()),
+                    )
+                  ? "Before saving: enter evaluation questions and a name and definition for every active outcome."
+                  : "Ready to save a new immutable revision."}
+          </p>
           <Field
+            required
             label="Evaluation questions / instructions"
             hint="The complete wording is frozen at launch and shared across the four isolated views."
           >
@@ -789,7 +1006,7 @@ function DefinitionEditor({
               }
             />
             <div className="card-body form-grid">
-              <Field label="Display name" className="full">
+              <Field required label="Display name" className="full">
                 <Input
                   value={outcome.name}
                   onChange={(e) => edit({ name: e.target.value })}
@@ -808,7 +1025,8 @@ function DefinitionEditor({
               ).map((key) => (
                 <Field
                   key={key}
-                  className={key === "definition" ? "full" : ""}
+                  required={key === "definition"}
+                  className="full"
                   label={
                     {
                       definition: "Definition",
@@ -822,7 +1040,7 @@ function DefinitionEditor({
                   }
                 >
                   <Textarea
-                    rows={4}
+                    rows={7}
                     value={outcome[key]}
                     onChange={(e) => edit({ [key]: e.target.value })}
                   />
@@ -854,7 +1072,9 @@ function DefinitionEditor({
           </button>
         ))}
         {history.loading && <Loading />}
-        {history.error && <ErrorState error={history.error} retry={history.refresh} />}
+        {history.error && (
+          <ErrorState error={history.error} retry={history.refresh} />
+        )}
         <Pager {...history.pagination} />
         {historical && (
           <JsonView
@@ -866,11 +1086,24 @@ function DefinitionEditor({
     </>
   );
 }
+function evaluationName(job: MonitorEvaluation) {
+  return `${job.settings.model.id} - ${job.runIds.length} source ${job.runIds.length === 1 ? "run" : "runs"} - revision ${job.definition.revision}`;
+}
+function evaluationReturn(value: string | null) {
+  return value === "/oversight" ||
+    value?.startsWith("/oversight?") ||
+    value?.startsWith("/oversight/new?")
+    ? value
+    : "/oversight?view=jobs";
+}
 function EvaluationList({
   jobs,
 }: {
   jobs: ReturnType<typeof useCursorPage<MonitorEvaluation>>;
 }) {
+  const location = useLocation();
+  const returnSearch =
+    "?returnTo=" + encodeURIComponent(location.pathname + location.search);
   return (
     <Card>
       <CardHeading
@@ -896,9 +1129,17 @@ function EvaluationList({
           {jobs.data.items.map((job) => (
             <tr key={job.id}>
               <td>
-                <Link className="table-title" to={"/oversight/" + job.id}>
-                  {short(job.id)}
+                <Link
+                  className="table-title"
+                  to={"/oversight/" + job.id + returnSearch}
+                >
+                  {evaluationName(job)}
                 </Link>
+                <small>{when(job.createdAt)}</small>
+                <details>
+                  <summary>Evaluation identifier</summary>
+                  <span className="mono">{job.id}</span>
+                </details>
               </td>
               <td>
                 {job.settings.model.provider}/{job.settings.model.id}
@@ -912,7 +1153,9 @@ function EvaluationList({
               <td>{when(job.createdAt)}</td>
               <td>
                 <Button asChild variant="ghost" size="sm">
-                  <Link to={"/oversight/" + job.id}>Inspect</Link>
+                  <Link to={"/oversight/" + job.id + returnSearch}>
+                    Inspect
+                  </Link>
                 </Button>
               </td>
             </tr>
@@ -975,6 +1218,7 @@ function ProjectionInspector({ projection }: { projection: Projection }) {
   );
 }
 function EvaluationDetail() {
+  const [params] = useSearchParams();
   const { id } = useParams();
   const evaluation = useApi<MonitorEvaluation>(
     "/monitor-evaluations/" + id,
@@ -1012,15 +1256,15 @@ function EvaluationDetail() {
   return (
     <>
       <Button asChild variant="ghost" size="sm" className="mb-4">
-        <Link to="/oversight">
+        <Link to={evaluationReturn(params.get("returnTo"))}>
           <ArrowLeft size={14} />
           Oversight workspace
         </Link>
       </Button>
       <PageHeader
         eyebrow="FROZEN MONITOR COMPARISON"
-        title={"Evaluation " + short(data.id)}
-        description={`${data.settings.model.provider}/${data.settings.model.id} · definition revision ${data.definition.revision} · ${data.runIds.length} source runs`}
+        title={evaluationName(data)}
+        description={`${data.settings.model.provider}/${data.settings.model.id} · created ${when(data.createdAt)}`}
         actions={
           <>
             <Badge status={data.status} />
@@ -1056,6 +1300,10 @@ function EvaluationDetail() {
           </>
         }
       />
+      <details style={{ marginBottom: 20 }}>
+        <summary>Evaluation identifier</summary>
+        <p className="mono">{data.id}</p>
+      </details>
       {evaluation.error && (
         <Notice kind="warning">
           Connection stale: {evaluation.error.message}. Last loaded job state is
@@ -1065,8 +1313,8 @@ function EvaluationDetail() {
       {mutation.error && <Notice kind="error">{mutation.error.message}</Notice>}
       {comparison.error && (
         <Notice kind="warning">
-          Human references unavailable: {comparison.error.message}. No detection rates can
-          be inferred from missing labels.
+          Human references unavailable: {comparison.error.message}. No detection
+          rates can be inferred from missing labels.
         </Notice>
       )}
       <Notice>
@@ -1081,7 +1329,14 @@ function EvaluationDetail() {
             description="Human reference on the left; isolated monitor evidence views on the right."
             actions={
               <Button asChild variant="ghost" size="sm">
-                <Link to={"/oversight?view=references&run=" + runId + "&definition=" + encodeURIComponent(data.definition.id)}>
+                <Link
+                  to={
+                    "/oversight?view=references&run=" +
+                    runId +
+                    "&definition=" +
+                    encodeURIComponent(data.definition.id)
+                  }
+                >
                   Adjudicate source outcomes
                 </Link>
               </Button>
@@ -1098,7 +1353,9 @@ function EvaluationDetail() {
             {data.definition.outcomes
               .filter((o) => !o.archived)
               .map((outcome) => {
-                const referenceRow=comparison.data?.comparisons.find(c=>c.outcome.id===outcome.id)?.rows.find(row=>row.runId===runId);
+                const referenceRow = comparison.data?.comparisons
+                  .find((c) => c.outcome.id === outcome.id)
+                  ?.rows.find((row) => row.runId === runId);
                 const reference = referenceRow?.reference;
                 return (
                   <tr key={outcome.id}>
@@ -1113,12 +1370,11 @@ function EvaluationDetail() {
                       {reference?.decision && (
                         <small>{reference.decision}</small>
                       )}
-                      {reference &&
-                        (!reference.sourceMatches) && (
-                          <small>
-                            Incompatible or stale reference · excluded
-                          </small>
-                        )}
+                      {reference && !reference.sourceMatches && (
+                        <small>
+                          Incompatible or stale reference · excluded
+                        </small>
+                      )}
                     </td>
                     {views.map((view) => {
                       const result = data.results.find(
@@ -1342,11 +1598,31 @@ function EvaluationDetail() {
     </>
   );
 }
-function RunReferenceEditor({ runId, initialDefinitionRevisionId }: { runId: string; initialDefinitionRevisionId?: string }) {
-  const [definitionRevisionId, setDefinitionRevisionId] = useState(initialDefinitionRevisionId || "");
-  const definitionHistory = useCursorPage<MonitorDefinition>("/monitor-definitions/history?limit=25");
-  const context = useExactApi<RunReviewContext>("/runs/" + runId + "/reviews/context" + (definitionRevisionId ? "?definitionRevisionId=" + encodeURIComponent(definitionRevisionId) : ""));
-  const reviews = useCursorPage<RunOutcomeReview>("/runs/" + runId + "/reviews?limit=25", 5000);
+function RunReferenceEditor({
+  runId,
+  initialDefinitionRevisionId,
+}: {
+  runId: string;
+  initialDefinitionRevisionId?: string;
+}) {
+  const [definitionRevisionId, setDefinitionRevisionId] = useState(
+    initialDefinitionRevisionId || "",
+  );
+  const definitionHistory = useCursorPage<MonitorDefinition>(
+    "/monitor-definitions/history?limit=25",
+  );
+  const context = useExactApi<RunReviewContext>(
+    "/runs/" +
+      runId +
+      "/reviews/context" +
+      (definitionRevisionId
+        ? "?definitionRevisionId=" + encodeURIComponent(definitionRevisionId)
+        : ""),
+  );
+  const reviews = useCursorPage<RunOutcomeReview>(
+    "/runs/" + runId + "/reviews?limit=25",
+    5000,
+  );
   const agreements = useApi<RunOutcomeAgreement[]>(
     "/runs/" + runId + "/outcomes",
     5000,
@@ -1359,8 +1635,17 @@ function RunReferenceEditor({ runId, initialDefinitionRevisionId }: { runId: str
   const [rationale, setRationale] = useState("");
   const [evidence, setEvidence] = useState("");
   const mutation = useMutation();
-  const latestQuery = new URLSearchParams({ reviewer: reviewer.trim().normalize("NFKC").toLocaleLowerCase("en-US"), outcomeId, definitionRevisionId: context.data?.definition.id || "" });
-  const latest = useExactApi<RunOutcomeReview | null>(context.data && reviewer.trim() && outcomeId ? "/runs/" + runId + "/reviews/latest?" + latestQuery : null, 5000);
+  const latestQuery = new URLSearchParams({
+    reviewer: reviewer.trim().normalize("NFKC").toLocaleLowerCase("en-US"),
+    outcomeId,
+    definitionRevisionId: context.data?.definition.id || "",
+  });
+  const latest = useExactApi<RunOutcomeReview | null>(
+    context.data && reviewer.trim() && outcomeId
+      ? "/runs/" + runId + "/reviews/latest?" + latestQuery
+      : null,
+    5000,
+  );
   useEffect(() => {
     if (context.data)
       setOutcomeId(
@@ -1401,31 +1686,74 @@ function RunReferenceEditor({ runId, initialDefinitionRevisionId }: { runId: str
       <CardHeading
         title="Run-level reference adjudication"
         description={`Source ${short(runId)} · definition revision ${data.definition.revision} · ${data.eventCount} source events`}
-        actions={<>
-          <Button asChild variant="secondary" size="sm"><Link to={"/runs/" + runId}>Inspect full source evidence</Link></Button>
-          <Button asChild variant="secondary" size="sm"><a download href={"/api/runs/" + runId + "/reviews/export?definitionRevisionId=" + encodeURIComponent(data.definition.id)}><Download size={14} />Reference export</a></Button>
-        </>}
+        actions={
+          <>
+            <Button asChild variant="secondary" size="sm">
+              <Link to={"/runs/" + runId}>Inspect full source evidence</Link>
+            </Button>
+            <Button asChild variant="secondary" size="sm">
+              <a
+                download
+                href={
+                  "/api/runs/" +
+                  runId +
+                  "/reviews/export?definitionRevisionId=" +
+                  encodeURIComponent(data.definition.id)
+                }
+              >
+                <Download size={14} />
+                Reference export
+              </a>
+            </Button>
+          </>
+        }
       />
       <div className="card-body">
         {mutation.error && (
           <Notice kind="error">{mutation.error.message}</Notice>
         )}
         {mutation.message && <Notice kind="success">{mutation.message}</Notice>}
-        {latest.error && <ErrorState error={latest.error} retry={latest.refresh} />}
+        {latest.error && (
+          <ErrorState error={latest.error} retry={latest.refresh} />
+        )}
         <div className="form-grid">
-          <Field label="Reference definition revision" hint="Historical evaluations must be reviewed against their own immutable outcome definitions.">
-            <Select aria-label="Reference definition revision" value={data.definition.id} onChange={e => setDefinitionRevisionId(e.target.value)}>
-              {!definitionHistory.data?.items.some(item => item.id === data.definition.id) && <option value={data.definition.id}>Revision {data.definition.revision} (selected)</option>}
-              {definitionHistory.data?.items.map(item => <option key={item.id} value={item.id}>Revision {item.revision} / {when(item.createdAt)}</option>)}
+          <Field
+            label="Reference definition revision"
+            hint="Historical evaluations must be reviewed against their own immutable outcome definitions."
+          >
+            <Select
+              aria-label="Reference definition revision"
+              value={data.definition.id}
+              onChange={(e) => setDefinitionRevisionId(e.target.value)}
+            >
+              {!definitionHistory.data?.items.some(
+                (item) => item.id === data.definition.id,
+              ) && (
+                <option value={data.definition.id}>
+                  Revision {data.definition.revision} (selected)
+                </option>
+              )}
+              {definitionHistory.data?.items.map((item) => (
+                <option key={item.id} value={item.id}>
+                  Revision {item.revision} / {when(item.createdAt)}
+                </option>
+              ))}
             </Select>
             <Pager {...definitionHistory.pagination} />
-            {definitionHistory.error && <ErrorState error={definitionHistory.error} retry={definitionHistory.refresh} />}
+            {definitionHistory.error && (
+              <ErrorState
+                error={definitionHistory.error}
+                retry={definitionHistory.refresh}
+              />
+            )}
           </Field>
           <Field
+            required
             label="Claimed reviewer identity"
             hint="Names are self-entered, not authenticated accounts."
           >
             <Input
+              aria-label="Claimed reviewer identity"
               value={reviewer}
               onChange={(e) => {
                 setReviewer(e.target.value);
@@ -1433,7 +1761,7 @@ function RunReferenceEditor({ runId, initialDefinitionRevisionId }: { runId: str
               }}
             />
           </Field>
-          <Field label="Outcome definition">
+          <Field required label="Outcome definition">
             <Select
               value={outcomeId}
               onChange={(e) => setOutcomeId(e.target.value)}
@@ -1465,6 +1793,7 @@ function RunReferenceEditor({ runId, initialDefinitionRevisionId }: { runId: str
             </Select>
           </Field>
           <Field
+            required={decision === "present"}
             label="Supporting source event IDs"
             hint="One actual event ID per line. Present judgments require at least one citation."
             className="full"
@@ -1474,16 +1803,50 @@ function RunReferenceEditor({ runId, initialDefinitionRevisionId }: { runId: str
               onChange={(e) => setEvidence(e.target.value)}
             />
           </Field>
-          <Field label="Rationale / unresolved questions" className="full">
+          <Field
+            required
+            label="Rationale / unresolved questions"
+            className="full"
+          >
             <Textarea
+              rows={8}
+              aria-label="Rationale / unresolved questions"
               value={rationale}
               onChange={(e) => setRationale(e.target.value)}
             />
           </Field>
+          <div className="full action-prerequisites">
+            <strong>Reference save requirements</strong>
+            <ul>
+              {[
+                !reviewer.trim() && "Enter your claimed reviewer identity.",
+                !outcomeId && "Select an active outcome definition.",
+                !rationale.trim() &&
+                  "Write a rationale or unresolved questions.",
+                decision === "present" &&
+                  !evidence.trim() &&
+                  "Cite at least one actual source event for a present judgment.",
+                latest.loading && "Checking your latest revision - ",
+                latest.error &&
+                  "Retry loading your latest revision before saving.",
+                mutation.busy && "Saving your review - ",
+              ]
+                .filter(Boolean)
+                .map((item) => (
+                  <li key={String(item)}>{item}</li>
+                ))}
+            </ul>
+            <p className="helper">
+              Two distinct reviewers must agree on the same evidence and
+              definition revision to finalize a reference.
+            </p>
+          </div>
           <div className="full actions">
             <Button
               disabled={
-                mutation.busy || latest.loading || !!latest.error ||
+                mutation.busy ||
+                latest.loading ||
+                !!latest.error ||
                 !reviewer.trim() ||
                 !rationale.trim() ||
                 !outcomeId ||
@@ -1515,8 +1878,7 @@ function RunReferenceEditor({ runId, initialDefinitionRevisionId }: { runId: str
             const agreement = agreements.data?.find(
               (a) =>
                 a.outcomeId === outcome.id &&
-                a.definitionRevisionId ===
-                  data.definition.id,
+                a.definitionRevisionId === data.definition.id,
             );
             return (
               <tr key={outcome.id}>
@@ -1539,7 +1901,11 @@ function RunReferenceEditor({ runId, initialDefinitionRevisionId }: { runId: str
         </Table>
         <hr className="section-divider" />
         <h3>Preserved review history</h3>
-        <p className="helper">All outcome and definition revisions remain available through these pages and the complete reference export. Your latest revision is resolved independently by reviewer identity, outcome, and definition.</p>
+        <p className="helper">
+          All outcome and definition revisions remain available through these
+          pages and the complete reference export. Your latest revision is
+          resolved independently by reviewer identity, outcome, and definition.
+        </p>
         {reviews.error ? (
           <ErrorState error={reviews.error} retry={reviews.refresh} />
         ) : (

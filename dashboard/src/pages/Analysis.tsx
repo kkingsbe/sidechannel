@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Link,
   Route,
@@ -43,6 +43,9 @@ import {
 import { api, arrayOf, post, useApi, useMutation } from "../lib/api";
 import { useCursorApi, useOffsetApi } from "../lib/paging";
 import { list, pretty, short, when } from "../lib/utils";
+import "./Analysis.css";
+import { RecordedEventContent } from "./analysis/RecordedEventContent";
+import type { HarnessEvent } from "@sidechannel/contracts/browser";
 import type { Run } from "../lib/types";
 import type {
   AnalysisJob,
@@ -73,9 +76,130 @@ const decisions: Decision[] = ["present", "absent", "uncertain"];
 export default function Analysis() {
   return (
     <Routes>
-      <Route index element={<AnalysisSetup />} />
+      <Route index element={<AnalysisEntry />} />
+      <Route path="new" element={<AnalysisSetup />} />
       <Route path=":id" element={<AnalysisDetail />} />
     </Routes>
+  );
+}
+function AnalysisEntry() {
+  const [params] = useSearchParams();
+  return params.has("run") || params.has("clone") ? (
+    <AnalysisSetup />
+  ) : (
+    <AnalysisCollection />
+  );
+}
+function AnalysisCollection() {
+  const [params, setParams] = useSearchParams();
+  const cursors = params.getAll("cursor");
+  const jobs = useApi<Page<AnalysisJob>>(
+    "/analyses?limit=30" +
+      (cursors.length ? "&after=" + encodeURIComponent(cursors.at(-1)!) : ""),
+    5000,
+  );
+  const returnTo = "/analysis" + (params.size ? "?" + params.toString() : "");
+  return (
+    <>
+      <PageHeader
+        title="Analyses"
+        description="Open saved screening results or prepare a new analysis."
+        actions={
+          <Button asChild>
+            <Link to="/analysis/new">New analysis</Link>
+          </Button>
+        }
+      />
+      <Card>
+        <CardHeading title="Saved analyses" />
+        {jobs.loading ? (
+          <Loading />
+        ) : jobs.error ? (
+          <ErrorState error={jobs.error} retry={jobs.refresh} />
+        ) : !jobs.data?.items.length ? (
+          <Empty
+            title="No analyses yet"
+            description="Choose New analysis to select a source run and frozen definitions."
+          />
+        ) : (
+          <Table
+            label="Saved analyses"
+            headers={["Source and settings", "State", "Created", ""]}
+          >
+            {jobs.data.items.map((job) => (
+              <AnalysisCollectionRow
+                key={job.id}
+                job={job}
+                returnTo={returnTo}
+              />
+            ))}
+          </Table>
+        )}
+        <Pager
+          page={cursors.length}
+          hasMore={!!jobs.data?.nextCursor}
+          onChange={(next) =>
+            setParams((previous) => {
+              const chain =
+                next > cursors.length
+                  ? [...cursors, jobs.data!.nextCursor!]
+                  : cursors.slice(0, next);
+              previous.delete("cursor");
+              chain.forEach((cursor) => previous.append("cursor", cursor));
+              return previous;
+            })
+          }
+        />
+      </Card>
+    </>
+  );
+}
+function AnalysisCollectionRow({
+  job,
+  returnTo,
+}: {
+  job: AnalysisJob;
+  returnTo: string;
+}) {
+  const source = useApi<Run>("/runs/" + job.runId);
+  const target = `/analysis/${job.id}?return=${encodeURIComponent(returnTo)}`;
+  return (
+    <tr>
+      <td>
+        <Link className="table-title" to={target}>
+          {source.data?.config?.label || "Source run"} -{" "}
+          {source.data?.config?.condition?.id || "Condition unavailable"}
+        </Link>
+        <small className="analysis-id">
+          {job.manifest.settings.model} - {job.manifest.settings.windowSize}
+          -step windows - revision {job.manifest.codebook.revision}
+        </small>
+        <details>
+          <summary>Canonical identifiers</summary>
+          <p className="mono">
+            Analysis: {job.id}
+            <br />
+            Source: {job.runId}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigator.clipboard.writeText(job.id)}
+          >
+            Copy analysis ID
+          </Button>
+        </details>
+      </td>
+      <td>
+        <Badge status={job.status} />
+      </td>
+      <td>{when(job.createdAt)}</td>
+      <td>
+        <Button asChild variant="ghost" size="sm">
+          <Link to={target}>Open results</Link>
+        </Button>
+      </td>
+    </tr>
   );
 }
 function AnalysisSetup() {
@@ -117,7 +241,12 @@ function AnalysisSetup() {
     AnalysisPreview["windows"][number] & { state?: string }
   >();
   const mutation = useMutation();
+  const settingsGeneration = useRef(0);
   const navigate = useNavigate();
+  useEffect(() => {
+    settingsGeneration.current++;
+    setPreview(undefined);
+  }, [runId]);
   useEffect(() => {
     if (!settings.codebookId && books.data?.items[0])
       setSettings((old) => ({
@@ -128,6 +257,8 @@ function AnalysisSetup() {
   }, [books.data, settings.codebookId]);
   useEffect(() => {
     if (cloned.data) {
+      settingsGeneration.current++;
+      setPreview(undefined);
       setSettings({
         ...cloned.data.manifest.settings,
         parentAnalysisId: cloned.data.id,
@@ -140,6 +271,7 @@ function AnalysisSetup() {
     }
   }, [cloned.data]);
   const change = (patch: Partial<AnalysisSettings>) => {
+    settingsGeneration.current++;
     setSettings((previous) => ({ ...previous, ...patch }));
     setPreview(undefined);
   };
@@ -154,17 +286,39 @@ function AnalysisSetup() {
     if (result) navigate("/analysis/" + result.id);
   };
   const doPreview = async () => {
+    const generation = settingsGeneration.current;
     const result = await mutation.run(() =>
       post<AnalysisPreview>("/runs/" + runId + "/analyses/preview", settings),
     );
-    if (result) setPreview(result);
+    if (result && generation === settingsGeneration.current) setPreview(result);
   };
   const currentRevision =
     revisionHistory.data?.items.find(
       (r) => r.id === settings.codebookRevisionId,
     ) ?? revision.data?.revision;
+  const prerequisites = [
+    !runId && "Select a source run.",
+    source.data &&
+      !["completed", "failed", "cancelled"].includes(source.data.status) &&
+      "Wait for the source run to finish before previewing.",
+    !settings.codebookRevisionId && "Select a codebook revision.",
+    !settings.creator.trim() && "Enter a researcher / creator identity.",
+    (!Number.isFinite(settings.windowSize) || settings.windowSize < 1) &&
+      "Enter a positive window size.",
+    (!Number.isFinite(settings.stride) || settings.stride < 1) &&
+      "Enter a positive step interval.",
+    !settings.evidence.length && "Select at least one evidence category.",
+    !settings.phases.length && "Select at least one phase.",
+  ].filter(Boolean);
+  const scoreable =
+    preview?.windows.filter(
+      (w) => !w.budget.oversized && !w.empty && w.budget.batches.length > 0,
+    ).length ?? 0;
   return (
     <>
+      <Button asChild variant="ghost">
+        <Link to="/analysis">All analyses</Link>
+      </Button>
       <PageHeader
         eyebrow="JEV · WINDOW-LEVEL SCREENING"
         title="Trace analysis"
@@ -183,6 +337,7 @@ function AnalysisSetup() {
             <div className="card-body form-grid">
               <div>
                 <Field
+                  required
                   label="Source run"
                   hint="Only terminal runs can be analyzed."
                 >
@@ -213,7 +368,7 @@ function AnalysisSetup() {
                 <Pager {...runs.pagination} />
               </div>
               <div>
-                <Field label="Codebook">
+                <Field label="Codebook" required>
                   <Select
                     value={settings.codebookId}
                     onChange={(e) => {
@@ -246,6 +401,7 @@ function AnalysisSetup() {
               </div>
               <div>
                 <Field
+                  required
                   label="Codebook revision"
                   hint="Historical definitions remain read-only. New analyses use the current codebook revision."
                 >
@@ -277,6 +433,7 @@ function AnalysisSetup() {
                 <Pager {...revisionHistory.pagination} />
               </div>
               <Field
+                required
                 label="Researcher / creator"
                 hint="Claimed identity in the open workspace."
               >
@@ -318,7 +475,7 @@ function AnalysisSetup() {
               description="Boundaries stay fixed. Oversized windows remain visible with missing scores."
             />
             <div className="card-body form-grid three">
-              <Field label="Window size (classification steps)">
+              <Field label="Window size (classification steps)" required>
                 <Input
                   type="number"
                   min="1"
@@ -330,7 +487,8 @@ function AnalysisSetup() {
                 />
               </Field>
               <Field
-                label="Stride (classification steps)"
+                required
+                label="Window advance (classification steps)"
                 hint={`Derived overlap: ${Math.max(0, settings.windowSize - settings.stride)} steps`}
               >
                 <Input
@@ -377,7 +535,10 @@ function AnalysisSetup() {
                   }
                 />
               </Field>
-              <Field label="Provider input headroom">
+              <Field
+                label="Reserved input space (tokens)"
+                hint="Tokens reserved for provider overhead; reduces the evidence budget."
+              >
                 <Input
                   type="number"
                   min="0"
@@ -457,13 +618,17 @@ function AnalysisSetup() {
                   from an admitted tool-call budget unit.
                 </p>
               </div>
-              <Field label="Request timeout (ms)">
+              <Field
+                label="Request timeout (seconds)"
+                hint="Maximum wait per request; stored exactly in milliseconds."
+              >
                 <Input
                   type="number"
-                  min="1"
-                  value={settings.timeoutMs}
+                  min="0.001"
+                  step="0.001"
+                  value={settings.timeoutMs / 1000}
                   onChange={(e) =>
-                    change({ timeoutMs: e.target.valueAsNumber })
+                    change({ timeoutMs: e.target.valueAsNumber * 1000 })
                   }
                 />
               </Field>
@@ -644,18 +809,44 @@ function AnalysisSetup() {
                 </dd>
               </dl>
               <hr className="section-divider" />
+              {prerequisites.length > 0 && (
+                <div className="helper" id="analysis-prerequisites">
+                  <strong>Before previewing:</strong>
+                  <ul>
+                    {prerequisites.map((item) => (
+                      <li key={String(item)}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {preview && (
+                <div role="status" className="analysis-preflight">
+                  <strong>{scoreable} scoreable windows</strong>
+                  <p>
+                    {preview.windows.filter((w) => w.budget.oversized).length}{" "}
+                    oversized -{" "}
+                    {preview.windows.filter((w) => w.partial).length} partial -{" "}
+                    {preview.windows.length - scoreable} unscored
+                  </p>
+                  {scoreable === 0 ? (
+                    <p>
+                      No scores will be produced. Adjust Windowing &amp;
+                      evidence, or explicitly save an unscored record.
+                    </p>
+                  ) : (
+                    <p>
+                      {scoreable} windows will be scored;{" "}
+                      {preview.windows.length - scoreable} remain unscored.
+                    </p>
+                  )}
+                </div>
+              )}
               <Button
-                onClick={doPreview}
-                disabled={
-                  mutation.busy ||
-                  !runId ||
-                  !settings.codebookRevisionId ||
-                  !settings.creator.trim() ||
-                  settings.windowSize < 1 ||
-                  settings.stride < 1 ||
-                  !settings.evidence.length ||
-                  !settings.phases.length
+                aria-describedby={
+                  prerequisites.length ? "analysis-prerequisites" : undefined
                 }
+                onClick={doPreview}
+                disabled={mutation.busy || prerequisites.length > 0}
                 style={{ width: "100%" }}
               >
                 <Eye size={15} />
@@ -668,7 +859,9 @@ function AnalysisSetup() {
                   style={{ width: "100%", marginTop: 10 }}
                 >
                   <Play size={14} />
-                  Launch analysis job
+                  {scoreable
+                    ? "Launch analysis job"
+                    : "Save unscored analysis record"}
                 </Button>
               )}
               <p className="helper" style={{ marginTop: 12 }}>
@@ -766,9 +959,10 @@ function PreviewWindowInput({
 function AnalysisDetail() {
   const { id } = useParams();
   const [params, setParams] = useSearchParams();
-  const tab = params.get("view") || "probability";
+  const tab = params.get("view") || "heatmap";
   const windowId = params.get("window");
   const job = useApi<AnalysisJob>("/analyses/" + id, 4000);
+  const sourceRun = useApi<Run>(job.data ? "/runs/" + job.data.runId : null);
   const [page, setPage] = useState(0),
     [cursors, setCursors] = useState<(string | null)[]>([null]);
   const windows = useApi<Page<AnalysisWindow>>(
@@ -786,6 +980,8 @@ function AnalysisDetail() {
       ? `/analyses/${id}/review-batches/${params.get("batch")}?limit=1`
       : null,
   );
+  const [reviewQueue, setReviewQueue] = useState<string[]>([]);
+  const [queueVersion, setQueueVersion] = useState(0);
   const [threshold, setThreshold] = useState(0.7);
   const [visible, setVisible] = useState<string[]>();
   const mutation = useMutation();
@@ -821,14 +1017,20 @@ function AnalysisDetail() {
   return (
     <>
       <Button asChild variant="ghost" size="sm" className="mb-4">
-        <Link to={"/analysis?run=" + data.runId}>
+        <Link
+          to={
+            params.get("return")?.startsWith("/analysis?")
+              ? params.get("return")!
+              : "/analysis"
+          }
+        >
           <ArrowLeft size={14} />
-          Source analysis workspace
+          All analyses
         </Link>
       </Button>
       <PageHeader
         eyebrow="FROZEN ANALYSIS JOB"
-        title={"Analysis " + short(data.id)}
+        title={`${sourceRun.data?.config?.label || "Trace analysis"} - ${sourceRun.data?.config?.condition?.id || "Condition unavailable"} - ${data.manifest.settings.model} - ${data.manifest.settings.windowSize}-step windows`}
         description={`Source run ${data.runId} · ${data.manifest.settings.model}`}
         actions={
           <>
@@ -889,6 +1091,13 @@ function AnalysisDetail() {
         <Link className="table-title" to={"/runs/" + data.runId}>
           Open source run
         </Link>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigator.clipboard.writeText(data.id)}
+        >
+          Copy full analysis ID
+        </Button>
         <span>
           Codebook <strong>revision {data.manifest.codebook.revision}</strong>
         </span>
@@ -918,314 +1127,330 @@ function AnalysisDetail() {
       {mutation.error && <Notice kind="error">{mutation.error.message}</Notice>}
       {mutation.message && <Notice kind="success">{mutation.message}</Notice>}
       <Tabs
+        panelId="analysis-view-panel"
         value={tab}
         onChange={setTab}
         items={[
           { id: "probability", label: "Probability timeline" },
           { id: "heatmap", label: "Heatmap" },
-          { id: "table", label: "Accessible scores" },
+          { id: "table", label: "Score table" },
           { id: "review", label: "Human review" },
           { id: "compare", label: "Compare analyses" },
           { id: "provenance", label: "Provenance & exports" },
         ]}
       />
-      {["probability", "heatmap", "table"].includes(tab) ? (
-        <>
-          <Notice>
-            Estimated probability the behavior occurs in this window. Values are
-            exploratory estimates, not calibrated accuracy or run-level
-            reference labels. Missing results are gaps, never zero.
-          </Notice>
-          <Card>
-            <div className="filter-bar">
-              <Field label="Highlight threshold (display only)">
-                <Input
-                  type="number"
-                  min="0"
-                  max="1"
-                  step=".05"
-                  value={threshold}
-                  onChange={(e) => setThreshold(e.target.valueAsNumber)}
-                />
-              </Field>
-              <div className="actions" style={{ flex: 1 }}>
-                {codes.map((code) => (
-                  <Check
-                    key={code.id}
-                    label={code.code}
-                    checked={!visible || visible.includes(code.id)}
-                    onChange={(e) =>
-                      setVisible(
-                        e.target.checked
-                          ? [...(visible ?? codes.map((c) => c.id)), code.id]
-                          : (visible ?? codes.map((c) => c.id)).filter(
-                              (id) => id !== code.id,
-                            ),
-                      )
-                    }
+      <section
+        role="tabpanel"
+        id="analysis-view-panel"
+        aria-labelledby={`analysis-view-panel-tab-${tab}`}
+        tabIndex={0}
+      >
+        {["probability", "heatmap", "table"].includes(tab) ? (
+          <>
+            <Notice>
+              Coverage on this page: {current.length} windows -{" "}
+              {current.filter((w) => w.partial).length} partial -{" "}
+              {current.filter((w) => !w.results?.length).length} without scores.
+              Estimated probability the behavior occurs in this window. Values
+              are exploratory estimates, not calibrated accuracy or run-level
+              reference labels. Missing results are gaps, never zero.
+            </Notice>
+            <Card>
+              <div className="filter-bar">
+                <Field label="Highlight threshold (display only)">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="1"
+                    step=".05"
+                    value={threshold}
+                    onChange={(e) => setThreshold(e.target.valueAsNumber)}
                   />
-                ))}
-              </div>
-            </div>
-            {windows.loading ? (
-              <Loading />
-            ) : !current.length ? (
-              <Empty
-                title="Windows are being prepared"
-                description="The worker persists progress; this page can be closed safely."
-              />
-            ) : tab === "probability" ? (
-              <div className="card-body" style={{ paddingTop: 20 }}>
-                <p className="helper" style={{ marginBottom: 14 }}>
-                  Points sit at window ends. Segments connect overlapping-window
-                  estimates; they do not measure an instantaneous signal.
-                </p>
-                {shown.map((code) => (
-                  <ProbabilityPlot
-                    key={code.id}
-                    code={code}
-                    windows={current}
-                    onSelect={openWindow}
-                  />
-                ))}
-              </div>
-            ) : tab === "heatmap" ? (
-              <div className="card-body" style={{ paddingTop: 20 }}>
-                <div className="heatmap">
-                  <table aria-label="Behavior probability heatmap">
-                    <thead>
-                      <tr>
-                        <th>Behavior</th>
-                        {current.map((w) => (
-                          <th key={w.id}>
-                            {w.startStep}–{w.endStep}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {shown.map((code) => (
-                        <tr key={code.id}>
-                          <th scope="row">{code.code}</th>
-                          {current.map((w) => {
-                            const score = w.results?.find(
-                              (r) => r.codeId === code.id,
-                            )?.probability;
-                            return (
-                              <td key={w.id}>
-                                <button
-                                  className={
-                                    "heat-cell " +
-                                    (score == null
-                                      ? "missing"
-                                      : score >= threshold
-                                        ? "high"
-                                        : "medium")
-                                  }
-                                  title={`${code.code}, steps ${w.startStep}–${w.endStep}: ${score == null ? w.error || w.status : (score * 100).toFixed(1) + "%"}`}
-                                  onClick={() => openWindow(w)}
-                                >
-                                  {score == null
-                                    ? "—"
-                                    : Math.round(score * 100) + "%"}
-                                </button>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                </Field>
+                <div className="actions" style={{ flex: 1 }}>
+                  {codes.map((code) => (
+                    <Check
+                      key={code.id}
+                      label={code.code}
+                      checked={!visible || visible.includes(code.id)}
+                      onChange={(e) =>
+                        setVisible(
+                          e.target.checked
+                            ? [...(visible ?? codes.map((c) => c.id)), code.id]
+                            : (visible ?? codes.map((c) => c.id)).filter(
+                                (id) => id !== code.id,
+                              ),
+                        )
+                      }
+                    />
+                  ))}
                 </div>
               </div>
-            ) : (
-              <ScoreTable
-                windows={current}
-                codes={shown}
-                onSelect={openWindow}
-              />
-            )}
-            <Pager
-              page={page}
-              hasMore={!!windows.data?.nextCursor}
-              onChange={(next) => {
-                if (next > page)
-                  setCursors((prev) => [
-                    ...prev.slice(0, next),
-                    windows.data?.nextCursor ?? null,
-                  ]);
-                setPage(next);
-              }}
-            />
-          </Card>
-        </>
-      ) : tab === "review" ? (
-        <ReviewWorkspace
-          job={data}
-          onSelect={(window) =>
-            setParams((prev) => {
-              prev.set("window", window);
-              return prev;
-            })
-          }
-        />
-      ) : tab === "compare" ? (
-        <Card>
-          <CardHeading
-            title="Compare two analyses of the same source"
-            description="Actual source-step grids remain separate. Values are never interpolated."
-          />
-          <div className="card-body">
-            <Field label="Comparison analysis">
-              <Select
-                value={compareId}
-                onChange={(e) => {
-                  setCompareId(e.target.value);
-                  setParams((prev) => {
-                    prev.set("compare", e.target.value);
-                    return prev;
-                  });
-                }}
-              >
-                <option value="">Choose another saved analysis</option>
-                {sourceJobs.data?.items
-                  .filter((j) => j.id !== data.id)
-                  .map((j) => (
-                    <option key={j.id} value={j.id}>
-                      {short(j.id)} · {j.manifest.settings.model} ·{" "}
-                      {j.manifest.settings.windowSize}/
-                      {j.manifest.settings.stride}
-                    </option>
+              {windows.loading ? (
+                <Loading />
+              ) : !current.length ? (
+                <Empty
+                  title="Windows are being prepared"
+                  description="The worker persists progress; this page can be closed safely."
+                />
+              ) : tab === "probability" ? (
+                <div className="card-body" style={{ paddingTop: 20 }}>
+                  <p className="helper" style={{ marginBottom: 14 }}>
+                    Points sit at window ends. Segments connect
+                    overlapping-window estimates; they do not measure an
+                    instantaneous signal.
+                  </p>
+                  {shown.map((code) => (
+                    <ProbabilityPlot
+                      key={code.id}
+                      code={code}
+                      windows={current}
+                      onSelect={openWindow}
+                    />
                   ))}
-              </Select>
-            </Field>
-            <Pager {...sourceJobs.pagination} />
-            {comparison.data && (
-              <>
-                <hr className="section-divider" />
-                {comparison.data.runId !== data.runId ||
-                comparison.data.manifest.evidenceHash !==
-                  data.manifest.evidenceHash ||
-                comparison.data.manifest.configHash !==
-                  data.manifest.configHash ? (
-                  <Notice kind="error">
-                    These analyses have different source runs, configurations,
-                    or recorded evidence snapshots. Direct score comparison is
-                    unsupported.
-                  </Notice>
-                ) : (
-                  <>
-                    {comparison.data.manifest.codebook.id !==
-                      data.manifest.codebook.id && (
-                      <Notice kind="warning">
-                        Codebook definitions differ. Shared display names do not
-                        imply semantic equivalence.
-                      </Notice>
-                    )}
-                    <Table
-                      label="Analysis configuration differences"
-                      headers={["Setting", "This analysis", "Comparison"]}
-                    >
-                      {(
-                        [
-                          "model",
-                          "windowSize",
-                          "stride",
-                          "codebookRevisionId",
-                          "evidence",
-                          "phases",
-                        ] as const
-                      ).map((key) => (
-                        <tr key={key}>
-                          <th scope="row">{key}</th>
-                          <td>{pretty(data.manifest.settings[key])}</td>
-                          <td>
-                            {pretty(comparison.data!.manifest.settings[key])}
-                          </td>
+                </div>
+              ) : tab === "heatmap" ? (
+                <div className="card-body" style={{ paddingTop: 20 }}>
+                  <div className="heatmap">
+                    <table aria-label="Behavior probability heatmap">
+                      <thead>
+                        <tr>
+                          <th>Behavior</th>
+                          {current.map((w) => (
+                            <th key={w.id}>
+                              {w.startStep}–{w.endStep}
+                            </th>
+                          ))}
                         </tr>
-                      ))}
-                    </Table>
-                    <div className="form-grid" style={{ marginTop: 20 }}>
-                      <div>
-                        <h3>This analysis · actual windows</h3>
-                        <ScoreTable
-                          windows={current}
-                          codes={shown}
-                          onSelect={openWindow}
-                        />
-                      </div>
-                      <div>
-                        <h3>Comparison · actual windows</h3>
-                        <ScoreTable
-                          windows={otherWindows.data?.items ?? []}
-                          codes={comparison.data.manifest.codebook.codes.filter(
-                            (c) => c.enabled && !c.archived,
-                          )}
-                          onSelect={(w) => {
-                            window.location.href =
-                              "/analysis/" +
-                              comparison.data!.id +
-                              "?window=" +
-                              w.id;
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <p className="helper">
-                      Each side shows its current first page. Open the
-                      comparison analysis for pagination and complete evidence.
-                    </p>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeading
-            title="Reproducible provenance"
-            description="Frozen configuration, evidence boundaries, definitions, and missingness."
+                      </thead>
+                      <tbody>
+                        {shown.map((code) => (
+                          <tr key={code.id}>
+                            <th scope="row">{code.code}</th>
+                            {current.map((w) => {
+                              const score = w.results?.find(
+                                (r) => r.codeId === code.id,
+                              )?.probability;
+                              return (
+                                <td key={w.id}>
+                                  <button
+                                    className={
+                                      "heat-cell " +
+                                      (score == null
+                                        ? "missing"
+                                        : score >= threshold
+                                          ? "high"
+                                          : "medium")
+                                    }
+                                    title={`${code.code}, steps ${w.startStep}–${w.endStep}: ${score == null ? w.error || w.status : (score * 100).toFixed(1) + "%"}`}
+                                    onClick={() => openWindow(w)}
+                                  >
+                                    {score == null
+                                      ? "—"
+                                      : Math.round(score * 100) + "%"}
+                                  </button>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <ScoreTable
+                  windows={current}
+                  codes={shown}
+                  onSelect={openWindow}
+                />
+              )}
+              <Pager
+                page={page}
+                hasMore={!!windows.data?.nextCursor}
+                onChange={(next) => {
+                  if (next > page)
+                    setCursors((prev) => [
+                      ...prev.slice(0, next),
+                      windows.data?.nextCursor ?? null,
+                    ]);
+                  setPage(next);
+                }}
+              />
+            </Card>
+          </>
+        ) : tab === "review" ? (
+          <ReviewWorkspace
+            reviewVersion={queueVersion}
+            onQueue={setReviewQueue}
+            job={data}
+            onSelect={(window) =>
+              setParams((prev) => {
+                prev.set("window", window);
+                return prev;
+              })
+            }
           />
-          <div className="card-body">
-            <dl className="definition-list">
-              <dt>Source completeness</dt>
-              <dd>{data.manifest.sourceStatus}</dd>
-              <dt>Evidence hash</dt>
-              <dd className="mono">{data.manifest.evidenceHash}</dd>
-              <dt>Normalizer</dt>
-              <dd>{data.manifest.normalizerVersion}</dd>
-              <dt>SDK / adapter</dt>
-              <dd>
-                {data.manifest.sdkVersion} / {data.manifest.adapterVersion}
-              </dd>
-            </dl>
-            <hr className="section-divider" />
-            <div className="actions">
-              {["analysis"].map((dataset) => (
-                <Button key={dataset} asChild variant="secondary" size="sm">
-                  <a
-                    href={`/api/analyses/${id}/export?dataset=${dataset}&limit=100`}
-                    download
-                  >
-                    Complete linked datasets
-                  </a>
-                </Button>
-              ))}
-            </div>
-            <p className="helper" style={{ margin: "12px 0" }}>
-              The NDJSON export streams the complete frozen source, inputs,
-              scores, attempts, and review provenance as separate linked record
-              types.
-            </p>
-            <JsonView
-              value={data.manifest}
-              title="Complete frozen analysis manifest"
+        ) : tab === "compare" ? (
+          <Card>
+            <CardHeading
+              title="Compare two analyses of the same source"
+              description="Actual source-step grids remain separate. Values are never interpolated."
             />
-          </div>
-        </Card>
-      )}
+            <div className="card-body">
+              <Field label="Comparison analysis">
+                <Select
+                  value={compareId}
+                  onChange={(e) => {
+                    setCompareId(e.target.value);
+                    setParams((prev) => {
+                      prev.set("compare", e.target.value);
+                      return prev;
+                    });
+                  }}
+                >
+                  <option value="">Choose another saved analysis</option>
+                  {sourceJobs.data?.items
+                    .filter((j) => j.id !== data.id)
+                    .map((j) => (
+                      <option key={j.id} value={j.id}>
+                        {short(j.id)} · {j.manifest.settings.model} ·{" "}
+                        {j.manifest.settings.windowSize}/
+                        {j.manifest.settings.stride}
+                      </option>
+                    ))}
+                </Select>
+              </Field>
+              <Pager {...sourceJobs.pagination} />
+              {comparison.data && (
+                <>
+                  <hr className="section-divider" />
+                  {comparison.data.runId !== data.runId ||
+                  comparison.data.manifest.evidenceHash !==
+                    data.manifest.evidenceHash ||
+                  comparison.data.manifest.configHash !==
+                    data.manifest.configHash ? (
+                    <Notice kind="error">
+                      These analyses have different source runs, configurations,
+                      or recorded evidence snapshots. Direct score comparison is
+                      unsupported.
+                    </Notice>
+                  ) : (
+                    <>
+                      {comparison.data.manifest.codebook.id !==
+                        data.manifest.codebook.id && (
+                        <Notice kind="warning">
+                          Codebook definitions differ. Shared display names do
+                          not imply semantic equivalence.
+                        </Notice>
+                      )}
+                      <Table
+                        label="Analysis configuration differences"
+                        headers={["Setting", "This analysis", "Comparison"]}
+                      >
+                        {(
+                          [
+                            "model",
+                            "windowSize",
+                            "stride",
+                            "codebookRevisionId",
+                            "evidence",
+                            "phases",
+                          ] as const
+                        ).map((key) => (
+                          <tr key={key}>
+                            <th scope="row">{key}</th>
+                            <td>{pretty(data.manifest.settings[key])}</td>
+                            <td>
+                              {pretty(comparison.data!.manifest.settings[key])}
+                            </td>
+                          </tr>
+                        ))}
+                      </Table>
+                      <div className="form-grid" style={{ marginTop: 20 }}>
+                        <div>
+                          <h3>This analysis · actual windows</h3>
+                          <ScoreTable
+                            windows={current}
+                            codes={shown}
+                            onSelect={openWindow}
+                          />
+                        </div>
+                        <div>
+                          <h3>Comparison · actual windows</h3>
+                          <ScoreTable
+                            windows={otherWindows.data?.items ?? []}
+                            codes={comparison.data.manifest.codebook.codes.filter(
+                              (c) => c.enabled && !c.archived,
+                            )}
+                            onSelect={(w) => {
+                              window.location.href =
+                                "/analysis/" +
+                                comparison.data!.id +
+                                "?window=" +
+                                w.id;
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <p className="helper">
+                        Each side shows its current first page. Open the
+                        comparison analysis for pagination and complete
+                        evidence.
+                      </p>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeading
+              title="Reproducible provenance"
+              description="Frozen configuration, evidence boundaries, definitions, and missingness."
+            />
+            <div className="card-body">
+              <dl className="definition-list">
+                <dt>Source completeness</dt>
+                <dd>{data.manifest.sourceStatus}</dd>
+                <dt>Evidence hash</dt>
+                <dd className="mono">{data.manifest.evidenceHash}</dd>
+                <dt>Normalizer</dt>
+                <dd>{data.manifest.normalizerVersion}</dd>
+                <dt>SDK / adapter</dt>
+                <dd>
+                  {data.manifest.sdkVersion} / {data.manifest.adapterVersion}
+                </dd>
+              </dl>
+              <hr className="section-divider" />
+              <div className="actions">
+                {["analysis"].map((dataset) => (
+                  <Button key={dataset} asChild variant="secondary" size="sm">
+                    <a
+                      href={`/api/analyses/${id}/export?dataset=${dataset}&limit=100`}
+                      download
+                    >
+                      Complete linked datasets
+                    </a>
+                  </Button>
+                ))}
+              </div>
+              <p className="helper" style={{ margin: "12px 0" }}>
+                The NDJSON export streams the complete frozen source, inputs,
+                scores, attempts, and review provenance as separate linked
+                record types.
+              </p>
+              <JsonView
+                value={data.manifest}
+                title="Complete frozen analysis manifest"
+              />
+            </div>
+          </Card>
+        )}
+      </section>
       <Drawer
+        wide
         open={!!windowId}
         onOpenChange={(open) => {
           if (!open)
@@ -1251,6 +1476,25 @@ function AnalysisDetail() {
               key={detail.data.window.id}
               detail={detail.data}
               job={data}
+              onSaved={() => setQueueVersion((v) => v + 1)}
+              onNext={
+                tab === "review" && reviewQueue.includes(windowId!)
+                  ? () =>
+                      setParams((prev) => {
+                        const next =
+                          reviewQueue[reviewQueue.indexOf(windowId!) + 1];
+                        if (next) prev.set("window", next);
+                        else prev.delete("window");
+                        return prev;
+                      })
+                  : undefined
+              }
+              onReturn={() =>
+                setParams((prev) => {
+                  prev.delete("window");
+                  return prev;
+                })
+              }
               blind={
                 tab === "review" &&
                 (params.get("batch")
@@ -1428,9 +1672,13 @@ function ScoreTable({
 function ReviewWorkspace({
   job,
   onSelect,
+  onQueue,
+  reviewVersion = 0,
 }: {
+  reviewVersion?: number;
   job: AnalysisJob;
   onSelect: (windowId: string) => void;
+  onQueue?: (ids: string[]) => void;
 }) {
   const [params, setParams] = useSearchParams();
   const batchId = params.get("batch") || "";
@@ -1464,6 +1712,11 @@ function ReviewWorkspace({
           (batchCursor ? "&after=" + encodeURIComponent(batchCursor) : "")
       : null,
   );
+  const refreshBatch = useRef(batch.refresh);
+  refreshBatch.current = batch.refresh;
+  useEffect(() => {
+    if (reviewVersion > 0) void refreshBatch.current();
+  }, [reviewVersion]);
   useEffect(() => {
     if (batch.data?.batch.id === batchId) setMode(batch.data.batch.mode);
   }, [batch.data, batchId]);
@@ -1471,7 +1724,9 @@ function ReviewWorkspace({
     setBatchCursor(null);
   }, [queueFilter, reviewer, batchId]);
   const mutation = useMutation();
-  const blind = mode === "blind";
+  const blind = batchId
+    ? batch.data?.batch.id !== batchId || batch.data?.batch.mode === "blind"
+    : mode === "blind";
   const create = async () => {
     const result = await mutation.run(() =>
       post<ReviewBatch>("/analyses/" + job.id + "/review-batches", {
@@ -1493,6 +1748,10 @@ function ReviewWorkspace({
     }
   };
   const filtered = batch.data?.selections.items ?? [];
+  const queueIds = JSON.stringify(filtered.map((item) => item.windowId));
+  useEffect(() => {
+    onQueue?.(JSON.parse(queueIds) as string[]);
+  }, [queueIds, onQueue]);
   return (
     <>
       <Notice>
@@ -1502,79 +1761,94 @@ function ReviewWorkspace({
       </Notice>
       <div className="editor-layout">
         <Card>
-          <CardHeading
-            title="Durable review selection"
-            description="Flagged candidates and random samples share one queue without duplicate tasks."
-          />
-          <div className="card-body form-grid">
-            <Field
-              label="Reviewer identity"
-              hint="Self-entered and unverified in this open workspace."
-            >
-              <Input
-                value={reviewer}
-                onChange={(e) => {
-                  setReviewer(e.target.value);
-                  localStorage.setItem("sidechannel-reviewer", e.target.value);
-                }}
-              />
-            </Field>
-            <Field label="Initial review mode">
-              <Select
-                value={mode}
-                onChange={(e) => {
-                  const value = e.target.value as "blind" | "assisted";
-                  setMode(value);
-                  setParams((prev) => {
-                    prev.set("blind", String(value === "blind"));
-                    return prev;
-                  });
-                }}
+          <details open={!batchId}>
+            <summary className="analysis-disclosure">
+              Create a new review selection
+            </summary>
+            <CardHeading
+              title="Durable review selection"
+              description="Flagged candidates and random samples share one queue without duplicate tasks."
+            />
+            <div className="card-body form-grid">
+              <Field
+                label="Reviewer identity"
+                hint="Self-entered and unverified in this open workspace."
               >
-                <option value="assisted">Assisted · predictions visible</option>
-                <option value="blind">
-                  Blind · hide predictions until judgment
-                </option>
-              </Select>
-            </Field>
-            <Field label="Flag threshold">
-              <Input
-                type="number"
-                min="0"
-                max="1"
-                step=".05"
-                value={threshold}
-                onChange={(e) => setThreshold(e.target.valueAsNumber)}
-              />
-            </Field>
-            <Field label="Random windows">
-              <Input
-                type="number"
-                min="0"
-                max="1000"
-                value={randomCount}
-                onChange={(e) => setRandomCount(e.target.valueAsNumber)}
-              />
-            </Field>
-            <Field label="Random sampling seed">
-              <Input value={seed} onChange={(e) => setSeed(e.target.value)} />
-            </Field>
-            <div className="actions">
-              <Button
-                onClick={create}
-                disabled={mutation.busy || !reviewer.trim()}
-              >
-                Create selection batch
-              </Button>
+                <Input
+                  value={reviewer}
+                  onChange={(e) => {
+                    setReviewer(e.target.value);
+                    localStorage.setItem(
+                      "sidechannel-reviewer",
+                      e.target.value,
+                    );
+                  }}
+                />
+              </Field>
+              <Field label="Initial review mode">
+                <Select
+                  value={mode}
+                  onChange={(e) => {
+                    const value = e.target.value as "blind" | "assisted";
+                    setMode(value);
+                    setParams((prev) => {
+                      prev.set("blind", String(value === "blind"));
+                      return prev;
+                    });
+                  }}
+                >
+                  <option value="assisted">
+                    Assisted · predictions visible
+                  </option>
+                  <option value="blind">
+                    Blind · hide predictions until judgment
+                  </option>
+                </Select>
+              </Field>
+              <Field label="Flag threshold">
+                <Input
+                  type="number"
+                  min="0"
+                  max="1"
+                  step=".05"
+                  value={threshold}
+                  onChange={(e) => setThreshold(e.target.valueAsNumber)}
+                />
+              </Field>
+              <Field label="Random windows">
+                <Input
+                  type="number"
+                  min="0"
+                  max="1000"
+                  value={randomCount}
+                  onChange={(e) => setRandomCount(e.target.valueAsNumber)}
+                />
+              </Field>
+              <Field label="Random sampling seed">
+                <Input value={seed} onChange={(e) => setSeed(e.target.value)} />
+              </Field>
+              <div className="actions">
+                <Button
+                  onClick={create}
+                  disabled={mutation.busy || !reviewer.trim()}
+                >
+                  Create selection batch
+                </Button>
+              </div>
+              <p className="helper full">
+                Refresh retrieves the same stored batch. Selection reasons,
+                settings, population hash, seed, and eligible count are
+                preserved for export. Random windows within a run are correlated
+                observations.
+              </p>
             </div>
-            <p className="helper full">
-              Refresh retrieves the same stored batch. Selection reasons,
-              settings, population hash, seed, and eligible count are preserved
-              for export. Random windows within a run are correlated
-              observations.
-            </p>
-          </div>
-          {mutation.error && <ErrorState error={mutation.error} />}
+            {mutation.error && <ErrorState error={mutation.error} />}
+            {!reviewer.trim() && (
+              <p className="card-body helper">
+                Enter a reviewer identity to create a selection batch.
+              </p>
+            )}
+          </details>
           {batchId && (
             <>
               <div className="filter-bar">
@@ -1606,30 +1880,23 @@ function ReviewWorkspace({
               ) : (
                 <Table
                   label="Persisted review queue"
-                  headers={["Selected window", "Sampling provenance", ""]}
+                  headers={[
+                    "Window and source range",
+                    "Review progress",
+                    "Sampling provenance",
+                    "",
+                  ]}
                 >
                   {filtered.map((selection, index) => (
-                    <tr key={selection.id}>
-                      <td>
-                        {blind
-                          ? "Review item " + (index + 1)
-                          : short(selection.windowId)}
-                      </td>
-                      <td>
-                        {selection.reasons?.length
-                          ? selection.reasons.join(" + ")
-                          : "Hidden until initial judgment"}
-                      </td>
-                      <td>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => onSelect(selection.windowId)}
-                        >
-                          Review evidence
-                        </Button>
-                      </td>
-                    </tr>
+                    <ReviewQueueRow
+                      key={`${selection.id}-${reviewVersion}`}
+                      job={job}
+                      selection={selection}
+                      index={index}
+                      reviewer={reviewer}
+                      blind={blind}
+                      onSelect={onSelect}
+                    />
                   ))}
                 </Table>
               )}
@@ -1679,11 +1946,155 @@ function ReviewWorkspace({
     </>
   );
 }
+function ReviewQueueRow({
+  job,
+  selection,
+  index,
+  reviewer,
+  blind,
+  onSelect,
+}: {
+  job: AnalysisJob;
+  selection: ReviewSelection;
+  index: number;
+  reviewer: string;
+  blind: boolean;
+  onSelect: (id: string) => void;
+}) {
+  const detail = useApi<WindowDetail>(
+    `/analyses/${job.id}/windows/${selection.windowId}`,
+  );
+  const reviews = useApi<Page<HumanReview>>(
+    reviewer.trim()
+      ? `/analyses/${job.id}/reviews?windowId=${selection.windowId}&reviewer=${encodeURIComponent(reviewer)}&latest=true&limit=30`
+      : null,
+  );
+  const own =
+    reviews.data?.items.filter(
+      (r) =>
+        r.reviewer === reviewer.trim() && r.windowId === selection.windowId,
+    ) ?? [];
+  return (
+    <tr>
+      <td>
+        <strong>
+          {detail.data
+            ? `Window ${detail.data.window.index + 1}  -  steps ${detail.data.window.startStep} - ${detail.data.window.endStep}`
+            : `Review item ${index + 1}`}
+        </strong>
+        {detail.data && (
+          <small className="analysis-id">
+            {detail.data.window.partial ? "Partial window" : "Full boundaries"}
+            {detail.data.window.incomplete ? "  -  Incomplete evidence" : ""}
+          </small>
+        )}
+      </td>
+      <td>
+        {!reviewer.trim()
+          ? "Enter reviewer identity"
+          : reviews.loading
+            ? "Loading review progress"
+            : reviews.error || !reviews.data
+              ? "Progress unavailable"
+              : own.length
+                ? own.some((r) => r.revision > 1)
+                  ? "Revised"
+                  : "Saved"
+                : "Unreviewed"}
+      </td>
+      <td>
+        {blind
+          ? "Hidden in blind mode"
+          : selection.reasons?.join(" + ") || "Unavailable"}
+      </td>
+      <td>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => onSelect(selection.windowId)}
+        >
+          Review evidence
+        </Button>
+      </td>
+    </tr>
+  );
+}
+
+function CanonicalEvent({
+  eventId,
+  runId,
+  supplied,
+  selected,
+  onToggle,
+  onAnnotate,
+}: {
+  eventId: string;
+  runId: string;
+  supplied?: HarnessEvent;
+  selected: boolean;
+  onToggle: () => void;
+  onAnnotate: () => void;
+}) {
+  const source = useApi<HarnessEvent>(
+    supplied ? null : `/runs/${runId}/events/${encodeURIComponent(eventId)}`,
+  );
+  const event = supplied ?? source.data;
+  return (
+    <article className="analysis-event" id={`citation-${eventId}`}>
+      <h4>{event?.type ? event.type.replaceAll("_", " ") : "Source event"}</h4>
+      {event?.sequence != null && (
+        <p className="helper">
+          Sequence {event.sequence} - actor {event.agentId || "system"}
+          {event.round != null ? `  -  round ${event.round}` : ""}
+          {event.turn != null ? `  -  turn ${event.turn}` : ""}
+        </p>
+      )}
+      {source.loading ? (
+        <Loading />
+      ) : source.error ? (
+        <ErrorState error={source.error} retry={source.refresh} />
+      ) : event?.id === eventId ? (
+        <RecordedEventContent type={event.type} data={event.data} />
+      ) : (
+        <p className="helper">
+          Recorded content unavailable. Open the exact source event to inspect
+          it.
+        </p>
+      )}
+      <div className="actions">
+        <Check
+          label={`Cite ${event?.type || "event"} ${event?.sequence ?? eventId}`}
+          checked={selected}
+          onChange={onToggle}
+        />
+        <Button variant="ghost" size="sm" onClick={onAnnotate}>
+          Annotate this event
+        </Button>
+        <Link
+          className="table-title"
+          to={`/runs/${runId}?view=timeline&evidence=${encodeURIComponent(eventId)}`}
+        >
+          Exact source event
+        </Link>
+      </div>
+      <small className="mono">{eventId}</small>
+      {event?.id === eventId && (
+        <JsonView value={event} title="Raw canonical payload" />
+      )}
+    </article>
+  );
+}
 export function WindowInspector({
   detail,
   job,
   blind,
+  onSaved,
+  onNext,
+  onReturn,
 }: {
+  onSaved?: () => void;
+  onNext?: () => void;
+  onReturn?: () => void;
   detail: WindowDetail;
   job: AnalysisJob;
   blind: boolean;
@@ -1739,7 +2150,7 @@ export function WindowInspector({
           : r.subjectId === list(eventIds)[0]),
     )
     .at(-1);
-  const save = async () => {
+  const save = async (advance = false) => {
     const result = await mutation.run(
       () =>
         post<HumanReview>("/analyses/" + job.id + "/reviews", {
@@ -1761,6 +2172,8 @@ export function WindowInspector({
       void ownPresence.refresh();
       void ownLatest.refresh();
       setRationale("");
+      onSaved?.();
+      if (advance) onNext?.();
     }
   };
   return (
@@ -1812,117 +2225,247 @@ export function WindowInspector({
       {detail.window.error && (
         <Notice kind="warning">{detail.window.error}</Notice>
       )}
-      <JsonView
-        value={detail.window.state}
-        title="Exact normalized evidence used for this window"
-      />
-      <details>
-        <summary className="helper">
-          Canonical source events ({detail.window.eventIds.length})
-        </summary>
-        {detail.window.eventIds.map((eventId) => (
-          <div key={eventId} style={{ marginTop: 10 }}>
-            <Link
-              className="table-title mono"
-              to={
-                "/runs/" +
-                job.runId +
-                "?view=timeline&evidence=" +
-                encodeURIComponent(eventId)
+      <nav className="analysis-review-nav" aria-label="Review sections">
+        <a href="#analysis-evidence">Read evidence</a>
+        <a href="#analysis-judgment">Jump to judgment</a>
+      </nav>
+      <div className="analysis-review-layout">
+        <section
+          id="analysis-evidence"
+          tabIndex={-1}
+          aria-label="Canonical source evidence"
+        >
+          <h3>Canonical source events ({detail.window.eventIds.length})</h3>
+          <p className="helper">
+            Recorded content in source order. Tool requests are proposals until
+            their admission and result are recorded. Select citations to support
+            your judgment.
+          </p>
+          {!detail.window.eventIds.length && (
+            <p>
+              No canonical events in this window.
+              {detail.window.incomplete
+                ? " Source evidence is incomplete."
+                : ""}
+            </p>
+          )}
+          {detail.window.eventIds.map((eventId) => (
+            <CanonicalEvent
+              key={eventId}
+              eventId={eventId}
+              runId={job.runId}
+              supplied={detail.events?.find((e) => e.id === eventId)}
+              selected={list(eventIds).includes(eventId)}
+              onToggle={() =>
+                setEventIds((previous) =>
+                  list(previous).includes(eventId)
+                    ? list(previous)
+                        .filter((id) => id !== eventId)
+                        .join("\n")
+                    : [...list(previous), eventId].join("\n"),
+                )
               }
-            >
-              {eventId}
-            </Link>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
+              onAnnotate={() => {
                 setScope("event");
                 setEventIds(eventId);
               }}
-            >
-              Annotate this event
-            </Button>
-          </div>
-        ))}
-      </details>
-      <hr className="section-divider" />
-      <h3 style={{ marginBottom: 15 }}>Record a human judgment</h3>
-      {mutation.error && <Notice kind="error">{mutation.error.message}</Notice>}
-      {mutation.message && <Notice kind="success">{mutation.message}</Notice>}
-      <div className="form-grid">
-        <Field label="Claimed reviewer identity">
-          <Input
-            value={reviewer}
-            onChange={(e) => {
-              setReviewer(e.target.value);
-              localStorage.setItem("sidechannel-reviewer", e.target.value);
-            }}
+            />
+          ))}
+          <JsonView
+            value={detail.window.state}
+            title="Exact normalized evidence used for this window"
           />
-        </Field>
-        <Field label="Judgment scope">
-          <Select
-            value={scope}
-            onChange={(e) => setScope(e.target.value as "window" | "event")}
-          >
-            <option value="window">Whole window</option>
-            <option value="event">One source event</option>
-          </Select>
-        </Field>
-        <Field label="Behavior definition">
-          <Select value={codeId} onChange={(e) => setCodeId(e.target.value)}>
-            {job.manifest.codebook.codes.map((code) => (
-              <option key={code.id} value={code.id}>
-                {code.code}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Judgment">
-          <Select
-            value={decision}
-            onChange={(e) => setDecision(e.target.value as Decision)}
-          >
-            {decisions.map((d) => (
-              <option key={d}>{d}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field
-          label="Linked evidence event IDs"
-          hint="Window scope: supporting event IDs, one per line. Event scope: exactly one canonical event ID."
-          className="full"
+        </section>
+        <section
+          id="analysis-judgment"
+          tabIndex={-1}
+          aria-label="Human judgment"
+          className="analysis-judgment"
         >
-          <Textarea
-            value={eventIds}
-            onChange={(e) => setEventIds(e.target.value)}
-          />
-        </Field>
-        <Field label="Rationale / limitations" className="full">
-          <Textarea
-            value={rationale}
-            onChange={(e) => setRationale(e.target.value)}
-          />
-        </Field>
-        <div className="full actions">
-          <Button
-            disabled={
-              mutation.busy ||
-              ownLatest.loading ||
-              !!ownLatest.error ||
-              !reviewer.trim() ||
-              !rationale.trim() ||
-              !codeId ||
-              (scope === "event" && list(eventIds).length !== 1)
-            }
-            onClick={save}
-          >
-            {latest ? "Append revised judgment" : "Save judgment"}
-          </Button>
-          <Badge>
-            {predictionsVisible ? "Suggestions visible" : "Suggestions hidden"}
-          </Badge>
-        </div>
+          <hr className="section-divider" />
+          <h3 style={{ marginBottom: 15 }}>Record a human judgment</h3>
+          <a className="table-title" href="#analysis-evidence">
+            Back to evidence
+          </a>
+          {mutation.error && (
+            <Notice kind="error">{mutation.error.message}</Notice>
+          )}
+          {mutation.message && (
+            <Notice kind="success">{mutation.message}</Notice>
+          )}
+          <div className="form-grid">
+            <Field label="Claimed reviewer identity" required>
+              <Input
+                value={reviewer}
+                onChange={(e) => {
+                  setReviewer(e.target.value);
+                  localStorage.setItem("sidechannel-reviewer", e.target.value);
+                }}
+              />
+            </Field>
+            <Field label="Judgment scope">
+              <Select
+                value={scope}
+                onChange={(e) => setScope(e.target.value as "window" | "event")}
+              >
+                <option value="window">Whole window</option>
+                <option value="event">One source event</option>
+              </Select>
+            </Field>
+            <Field label="Behavior definition">
+              <Select
+                value={codeId}
+                onChange={(e) => setCodeId(e.target.value)}
+              >
+                {job.manifest.codebook.codes.map((code) => (
+                  <option key={code.id} value={code.id}>
+                    {code.code}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <div className="full analysis-definition">
+              {job.manifest.codebook.codes
+                .filter((c) => c.id === codeId)
+                .map((code) => (
+                  <div key={code.id}>
+                    <h4>{code.name || code.code}</h4>
+                    <p className="text-block">{code.definition}</p>
+                    {[
+                      ["Include", code.inclusionCriteria],
+                      ["Exclude", code.exclusionCriteria],
+                      ["Examples", code.examples],
+                      ["Counterexamples", code.counterexamples],
+                    ].map(
+                      ([label, values]) =>
+                        Array.isArray(values) &&
+                        values.length > 0 && (
+                          <div key={String(label)}>
+                            <strong>{String(label)}</strong>
+                            <ul>
+                              {values.map((value) => (
+                                <li key={value}>{value}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ),
+                    )}
+                  </div>
+                ))}
+            </div>
+            <Field label="Judgment">
+              <Select
+                value={decision}
+                onChange={(e) => setDecision(e.target.value as Decision)}
+              >
+                {decisions.map((d) => (
+                  <option key={d}>{d}</option>
+                ))}
+              </Select>
+            </Field>
+            <div className="full">
+              <strong>Selected citations ({list(eventIds).length})</strong>
+              {list(eventIds).map((id) => (
+                <div className="actions" key={id}>
+                  <a className="table-title" href={`#citation-${id}`}>
+                    Source event {detail.window.eventIds.indexOf(id) + 1} - {id}
+                  </a>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setEventIds((previous) =>
+                        list(previous)
+                          .filter((value) => value !== id)
+                          .join("\n"),
+                      )
+                    }
+                  >
+                    Remove citation
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <Field label="Rationale / limitations" className="full" required>
+              <Textarea
+                value={rationale}
+                onChange={(e) => setRationale(e.target.value)}
+              />
+            </Field>
+            <div className="full actions">
+              <Button
+                disabled={
+                  mutation.busy ||
+                  ownLatest.loading ||
+                  !!ownLatest.error ||
+                  !reviewer.trim() ||
+                  !rationale.trim() ||
+                  !codeId ||
+                  (scope === "event" && list(eventIds).length !== 1)
+                }
+                onClick={() => save()}
+              >
+                {latest ? "Append revised judgment" : "Save judgment"}
+              </Button>
+              {onNext && (
+                <Button
+                  variant="secondary"
+                  disabled={
+                    mutation.busy ||
+                    ownLatest.loading ||
+                    !!ownLatest.error ||
+                    !reviewer.trim() ||
+                    !rationale.trim() ||
+                    !codeId ||
+                    (scope === "event" && list(eventIds).length !== 1)
+                  }
+                  onClick={() => save(true)}
+                >
+                  Save and next
+                </Button>
+              )}
+              {onReturn && (
+                <Button variant="ghost" onClick={onReturn}>
+                  Return to queue
+                </Button>
+              )}
+              {onNext && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    if (
+                      !rationale.trim() ||
+                      window.confirm(
+                        "Keep this item unreviewed and discard this unsaved draft?",
+                      )
+                    )
+                      onNext();
+                  }}
+                >
+                  Skip for now
+                </Button>
+              )}
+              <Badge>
+                {predictionsVisible
+                  ? "Suggestions visible"
+                  : "Suggestions hidden"}
+              </Badge>
+            </div>
+          </div>
+          <p className="helper">
+            {!reviewer.trim() ? "Enter a claimed reviewer identity. " : ""}
+            {!rationale.trim() ? "Add a rationale before saving. " : ""}
+            {scope === "event" && list(eventIds).length !== 1
+              ? "Select exactly one canonical event for event scope. "
+              : ""}
+            {ownLatest.error
+              ? "Latest revision unavailable; retry loading before saving. "
+              : ""}
+            {onNext
+              ? "Skip for now leaves the item unreviewed; it does not record a judgment."
+              : ""}
+          </p>
+        </section>
       </div>
       <hr className="section-divider" />
       <h3>Review history</h3>

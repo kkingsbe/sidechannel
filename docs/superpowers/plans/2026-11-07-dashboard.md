@@ -1,3 +1,5 @@
+> Historical pre-workspace implementation plan. Paths and commands below record the earlier layout; use [current operations](../../harness-operations.md) for workspace commands and deployment.
+
 # Researcher dashboard implementation plan
 
 > **For agentic workers:** Execute task-by-task with the requested GPT-6.1 Sol subagents; the referenced superpowers execution skills are not installed in this checkout.

@@ -1,0 +1,21 @@
+.experiment-details {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.experiment-details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 32px;
+}
+.experiment-details[open] > summary {
+  margin-bottom: 16px;
+}
+.experiment-error-link {
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  text-align: left;
+}
