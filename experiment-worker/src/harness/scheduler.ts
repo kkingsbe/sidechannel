@@ -18,11 +18,11 @@ export interface SchedulerOptions {
 }
 
 export class HarnessScheduler {
-    constructor(private readonly options: SchedulerOptions) { }
+    private readonly ports: SchedulerOptions;
+    constructor(options: SchedulerOptions) { this.ports = options; }
     async run(runId: string): Promise<Run> {
-        const { runState, events, adapter } = this.options;
-        const underlyingMemory = this.options.memory;
-        const scenario = this.options.scenario ?? fixtureScenario;
+        const { runState, events, adapter, memory: underlyingMemory } = this.ports;
+        const scenario = this.ports.scenario ?? fixtureScenario;
         if (!await runState.claimRun(runId, randomUUID())) {
             const existing = await runState.getRun(runId);
             if (!existing)
