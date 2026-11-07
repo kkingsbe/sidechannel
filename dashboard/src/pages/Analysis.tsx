@@ -1210,7 +1210,7 @@ function AnalysisDetail() {
         description={`Source run ${data.runId} · ${data.manifest.settings.model}`}
         actions={
           <>
-            <Badge status={data.status} />
+            <span role="status"><Badge status={data.status} /></span>
             <Button asChild variant="secondary">
               <Link to={"/analysis?run=" + data.runId + "&clone=" + data.id}>
                 <Copy size={14} />
@@ -1291,7 +1291,7 @@ function AnalysisDetail() {
           Source boundary (event sequence){" "}
           <strong>#{data.manifest.sequenceBoundary}</strong>
         </span>
-        <span>
+        <span role="status">
           Windows prepared <strong>{data.counters.prepared}</strong> · finished{" "}
           <strong>{data.counters.finished}</strong> · failed{" "}
           <strong>{data.counters.failed}</strong>

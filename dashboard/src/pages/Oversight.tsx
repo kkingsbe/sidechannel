@@ -1485,7 +1485,7 @@ function EvaluationDetail() {
         description={`${data.settings.model.provider}/${data.settings.model.id} · created ${when(data.createdAt)}`}
         actions={
           <>
-            <Badge status={data.status} />
+            <span role="status"><Badge status={data.status} /></span>
             <Button asChild variant="secondary">
               <a href={"/api/monitor-evaluations/" + id + "/export"} download>
                 <Download size={14} />
