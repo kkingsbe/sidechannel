@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import type { Run, Json, Message } from '@sidechannel/contracts/harness/contracts';
+import type { Run, Message } from '@sidechannel/contracts/harness/contracts';
 import type { EventLog, RunStateStore, PrivateMemory, ModelAdapter, Scenario } from '@sidechannel/contracts/harness/server';
 import { fixtureScenario } from './scenario.js';
 import { validateTokenBudget } from '@sidechannel/domain/harness/token-budget';
 import { EventRecorder } from './event-recorder.js';
 import { InferenceGateway, modelInputFor } from './inference-gateway.js';
+import { ReportPhase } from './report-phase.js';
 import { ToolAdmission, type TurnState } from './tool-admission.js';
 import { RunTermination } from './termination.js';
 
@@ -43,6 +44,7 @@ export class HarnessScheduler {
         };
         const gateway = new InferenceGateway({ runId, run, adapter, recorder, checkpoint: boundary, startedAt: started });
         const admission = new ToolAdmission({ runId, run, scenario, memory, recorder, checkpoint: boundary });
+        const report = new ReportPhase({ runId, run, scenario, memory, gateway, recorder, checkpoint: boundary });
         try {
             const budgetErrors = validateTokenBudget(run.config);
             if (budgetErrors.length) throw new Error(budgetErrors.join('; '));
@@ -80,36 +82,7 @@ export class HarnessScheduler {
                     termination.activeTurn = false;
                     await recorder.persist();
                 }
-            await boundary();
-            const final = scenario.finalize(run);
-            await recorder.emit('artifact_frozen', final);
-            run.status = 'reporting';
-            run.activeAgentId = undefined;
-            await recorder.persist();
-            for (const role of run.config.roles) {
-                await boundary();
-                run.activeAgentId = role.id;
-                const snapshot = await memory.load(runId, role.id);
-                const input = modelInputFor(run, runId, scenario, role, [{ role: 'system', content: `${scenario.initialContext(run.config, role)}\n${run.config.condition.text}\nPrivate working memory:\n${snapshot.notes}` }, ...snapshot.messages, { role: 'user', content: run.config.reportInstructions }], 'report', `${runId}:report:${role.id}:0`);
-                const response = await gateway.infer(input);
-                for (const [index, call] of response.toolCalls.entries()) {
-                    const extra = { invocationId: input.invocationId, toolCallId: call.id, operationId: `${input.invocationId}:call:${call.id}` };
-                    await recorder.emit('tool_requested', { call, index, phase: 'report' }, extra);
-                    await recorder.emit('tool_unexecuted', { call, reason: 'reporting_tools_disabled', phase: 'report' }, extra);
-                }
-                let parsed: Json | null = null;
-                try {
-                    if (!response.toolCalls.length) {
-                        const candidate = JSON.parse(response.text);
-                        if (candidate && typeof candidate === 'object' && !Array.isArray(candidate) && typeof candidate.ownActions === 'string' && typeof candidate.observations === 'string' && typeof candidate.limitations === 'string' && Object.keys(candidate).length === 3)
-                            parsed = candidate;
-                    }
-                }
-                catch { }
-                run.reports.push({ agentId: role.id, raw: response.text, parsed });
-                await recorder.emit('report_submitted', { raw: response.text, parsed, invalid: parsed === null, toolCalls: response.toolCalls });
-                await recorder.persist();
-            }
+            await report.run();
             await boundary();
             run.status = 'completed';
             run.activeAgentId = undefined;
