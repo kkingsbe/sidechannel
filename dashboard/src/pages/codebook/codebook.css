@@ -26,3 +26,9 @@
 .codebook-lists > .two > fieldset, .codebook-lists > fieldset { margin: 0; }
 .codebook-lists legend { font-size: 14px; font-weight: 500; }
 .codebook-lists fieldset.full { grid-column: auto; }
+.studio-controls { display: grid; gap: 16px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--rule); }
+.studio-controls h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; padding: 0; list-style: none; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border: 1px solid var(--rule); border-radius: 999px; font-size: 13px; }
+.chip button { all: unset; cursor: pointer; padding: 0 6px; min-height: 24px; color: var(--muted); }
+.chip button:focus-visible { outline: 2px solid var(--ring); }

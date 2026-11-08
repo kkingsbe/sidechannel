@@ -8,7 +8,7 @@ it("names every blocking reason in a single status string", () => {
   const missingName = validateCodebook({ name: "", author: "Reviewer", codes: [code()], baseRevisionId: "revision-1" }, { dirty: true, baseLoaded: true });
   expect(missingName.invalid).toBe(true);
   expect(missingName.nameError).toBe("Enter a codebook name.");
-  expect(missingName.status).toBe("Complete the name, display code and definition for every active behavior; display codes must be unique.");
+  expect(missingName.status).toBe("Complete the name, display code and definition for every active behavior; display codes must be unique and question settings valid.");
   expect(validateCodebook({ name: "Study", author: "", codes: [code()], baseRevisionId: "r" }, { dirty: true, baseLoaded: true }).status).toBe("Enter a revision author to save your changes.");
   expect(validateCodebook({ name: "Study", author: "A", codes: [code()], baseRevisionId: "r" }, { dirty: false, baseLoaded: true }).status).toBe("No unsaved changes.");
   expect(validateCodebook({ name: "Study", author: "A", codes: [code()], baseRevisionId: "r" }, { dirty: true, baseLoaded: true }).status).toBe("Ready to save a new revision. Existing analyses keep their frozen definitions.");
