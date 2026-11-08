@@ -24,6 +24,8 @@ const apiKey = process.env.TYPESAFE_API_KEY ?? process.env.TYPESAFE_AI_API_KEY;
 if (!path) throw new Error('Usage: jev-leak-smoke.ts <analysis-export.ndjson> [--sample N] [--seed S] [--model M]');
 if (!apiKey?.trim()) throw new Error('Configure TYPESAFE_API_KEY or TYPESAFE_AI_API_KEY for the live leak A/B.');
 const sampleSize = Number(flag('sample', '12')), seed = flag('seed', 'leak-ab-1'), model = flag('model', DEFAULT_JEV_MODEL);
+/** `--ablate` also scores the two intermediate shapings, to attribute a shift to the state change or the question change. */
+const ablate = args.includes('--ablate');
 
 // Rebuild artifacts from the export: group artifact_chunk records by id, order by index, concatenate, parse.
 const chunks = new Map<string, { index: number; text: string }[]>();
@@ -73,24 +75,40 @@ async function score(serialized: SerializedWindow, questions: JevQuestion[], for
 }
 
 const v1 = new Map<string, number[]>(), v2 = new Map<string, number[]>(), push = (map: Map<string, number[]>, key: string, value: number) => map.set(key, [...(map.get(key) ?? []), value]);
+// Ablation shapings: v2 state with v1 prose questions (isolates the serialization), and v1 state minus the condition with v2 questions (isolates the questions).
+const v2StateV1Q = new Map<string, number[]>(), v1NoCondV2Q = new Map<string, number[]>(), stateBgNoQBg = new Map<string, number[]>();
+const noConditionContext = JSON.stringify({ task: context.task, policy: context.policy });
+/** Variant E: v2 evidence state carrying a shared `background` block (task and policy, never the condition), v2 questions without any background. */
+const withStateBackground = (serialized: SerializedWindow): SerializedWindow => {
+    const state = JSON.stringify({ ...JSON.parse(serialized.state), background: { task: context.task, policy: context.policy } });
+    return { ...serialized, state, bytes: Buffer.byteLength(state), estimatedTokens: Math.ceil(Buffer.byteLength(state) * 0.6) };
+};
+const noBackgroundDefinitions = definitions.map(definition => ({ ...definition, background: [] as [] }));
 for (const record of sample) {
     const steps = record.stepIds.map(id => byId.get(id)!);
     const window = { id: record.id, index: record.index, startOrdinal: record.startOrdinal, endOrdinal: record.endOrdinal, stepIds: record.stepIds, eventIds: record.eventIds, partial: record.partial, incomplete: record.incomplete };
     const old = serializeWindowV1(window, steps, settings.evidence, source.staticContext.text, settings.inputLimits.estimatorVersion);
     const next = serializeWindowV2(window, steps, settings.evidence, settings.inputLimits.estimatorVersion);
-    const [a, b] = await Promise.all([
-        score(old, buildBehaviorQuestionsV1(definitions)),
-        score(next, buildBehaviorQuestions(definitions, { activeAgents: next.activeAgents ?? [], background }), [context.condition]),
-    ]);
+    const v2Questions = buildBehaviorQuestions(definitions, { activeAgents: next.activeAgents ?? [], background });
+    const [a, b] = await Promise.all([score(old, buildBehaviorQuestionsV1(definitions)), score(next, v2Questions, [context.condition])]);
     for (const [key, value] of a) push(v1, key.split('@')[0]!, value);
     for (const [key, value] of b) push(v2, key.split('@')[0]!, value);
+    if (ablate) {
+        const oldNoCondition = serializeWindowV1(window, steps, settings.evidence, noConditionContext, settings.inputLimits.estimatorVersion);
+        const plainQuestions = buildBehaviorQuestions(noBackgroundDefinitions, { activeAgents: next.activeAgents ?? [], background });
+        const [c, d, e] = await Promise.all([score(next, buildBehaviorQuestionsV1(definitions)), score(oldNoCondition, v2Questions, [context.condition]), score(withStateBackground(next), plainQuestions, [context.condition])]);
+        for (const [key, value] of c) push(v2StateV1Q, key.split('@')[0]!, value);
+        for (const [key, value] of d) push(v1NoCondV2Q, key.split('@')[0]!, value);
+        for (const [key, value] of e) push(stateBgNoQBg, key.split('@')[0]!, value);
+    }
     process.stderr.write(`scored ${record.id}\n`);
 }
 
 const mean = (values: number[] | undefined): number | undefined => values?.length ? values.reduce((total, value) => total + value, 0) / values.length : undefined;
 const rows = definitions.map(definition => {
     const before = mean(v1.get(definition.id)), after = mean(v2.get(definition.id));
-    return { code: definition.id, v1: before?.toFixed(3) ?? '-', v2: after?.toFixed(3) ?? '-', shift: before !== undefined && after !== undefined ? +(after - before).toFixed(3) : null };
+    return { code: definition.id, v1: before?.toFixed(3) ?? '-', v2: after?.toFixed(3) ?? '-', shift: before !== undefined && after !== undefined ? +(after - before).toFixed(3) : null,
+        ...(ablate ? { v2stateV1q: mean(v2StateV1Q.get(definition.id))?.toFixed(3) ?? '-', v1nocondV2q: mean(v1NoCondV2Q.get(definition.id))?.toFixed(3) ?? '-', stateBgNoQBg: mean(stateBgNoQBg.get(definition.id))?.toFixed(3) ?? '-' } : {}) };
 });
 console.table(rows);
 const visibility = rows.find(row => row.code === 'visibility');
