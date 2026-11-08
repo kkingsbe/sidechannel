@@ -9,6 +9,9 @@ import { ReportPhase } from './report-phase.js';
 import { ToolAdmission, type TurnState } from './tool-admission.js';
 import { RunTermination } from './termination.js';
 
+/** Main exported this from the scheduler; the report phase owns it after the WS3b decomposition. */
+export { REPORT_RETRY_PROMPT } from './report-phase.js';
+
 export interface SchedulerOptions {
     runState: RunStateStore;
     events: EventLog;

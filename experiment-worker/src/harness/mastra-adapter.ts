@@ -53,7 +53,9 @@ export class MastraModelAdapter implements ModelAdapter {
         const errors = providerProfile(input.model.provider).validateSettings(settings);
         if (errors.length)
             throw new Error(`${errors[0]}; provider-specific controls must use providerOptions`);
-        const tools = proposalTools(input.phase === 'report' ? [] : input.tools);
+        // Main 0d96464: the report phase carries its own submit_report tool, so the adapter must
+        // stop suppressing tools for `phase === 'report'` (the input factory decides the catalog).
+        const tools = proposalTools(input.tools);
         const resolved = this.modelOverride ? { model: this.modelOverride, providerOptions } : resolveInferenceProvider(input.model);
         const agent = this.trace.register(new Agent({ id: `experiment-${JSON.stringify([input.runId, input.agentId])}`, name: input.agentId,
             instructions: '', model: resolved.model, tools, maxRetries: 0 }), tools);

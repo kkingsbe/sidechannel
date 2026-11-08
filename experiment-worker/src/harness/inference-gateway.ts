@@ -3,7 +3,7 @@ import type { ModelAdapter, ModelInput, ModelResponse, Scenario } from '@sidecha
 import { measureModelInput } from '@sidechannel/domain/harness/token-budget';
 import { usageSource } from '@sidechannel/domain/providers';
 import type { EventSink } from './event-recorder.js';
-import { toolCatalog } from './gateway.js';
+import { reportToolCatalog, toolCatalog } from './gateway.js';
 
 export interface Inferencer {
     infer(input: ModelInput): Promise<ModelResponse>;
@@ -61,7 +61,7 @@ export class InferenceGateway implements Inferencer {
     }
 }
 
-/** Pure input factory shared by the action loop and the report phase; `report` sends no tools. */
+/** Pure input factory shared by the action loop and the report phase; `report` sends only the submit_report tool. */
 export function modelInputFor(run: Run, runId: string, scenario: Scenario, role: Role, messages: Message[], phase: 'action' | 'report', invocationId: string): ModelInput {
-    return { runId, agentId: role.id, threadId: `experiment-thread:${JSON.stringify([runId, role.id])}`, resourceId: `experiment-resource:${JSON.stringify([runId, role.id])}`, invocationId, phase, model: run.config.model, messages, tools: phase === 'report' ? [] : toolCatalog(run, role, scenario), timeoutMs: run.config.limits.requestTimeoutMs };
+    return { runId, agentId: role.id, threadId: `experiment-thread:${JSON.stringify([runId, role.id])}`, resourceId: `experiment-resource:${JSON.stringify([runId, role.id])}`, invocationId, phase, model: run.config.model, messages, tools: phase === 'report' ? reportToolCatalog() : toolCatalog(run, role, scenario), timeoutMs: run.config.limits.requestTimeoutMs };
 }
