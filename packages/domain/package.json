@@ -87,6 +87,10 @@
       "types": "./dist/analysis/windows.d.ts",
       "import": "./dist/analysis/windows.js"
     },
+    "./harness/conditions": {
+      "types": "./dist/harness/conditions.d.ts",
+      "import": "./dist/harness/conditions.js"
+    },
     "./harness/config": {
       "types": "./dist/harness/config.d.ts",
       "import": "./dist/harness/config.js"

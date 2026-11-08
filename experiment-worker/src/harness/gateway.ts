@@ -2,6 +2,7 @@ import { ScenarioValidationError } from './scenario.js';
 import { z } from 'zod';
 import type { ToolDefinition, Run, Role, MemorySnapshot, Json, Actor } from '@sidechannel/contracts/harness/contracts';
 import type { Scenario, PrivateMemory } from '@sidechannel/contracts/harness/server';
+import { effectiveAllowedTools } from '@sidechannel/domain/harness/conditions';
 
 const object = (properties: Record<string, unknown> = {}, required: string[] = []) => ({ type: 'object', properties, required, additionalProperties: false });
 
@@ -13,7 +14,10 @@ export const commonTools: ToolDefinition[] = [
     { name: 'end_turn', description: 'Yield your current turn', parameters: object() },
 ];
 
-export function toolCatalog(run: Run, role: Role, scenario: Scenario): ToolDefinition[] { return [...commonTools, ...scenario.tools(run.config, role)].filter(t => role.allowedTools.includes(t.name)); }
+export function toolCatalog(run: Run, role: Role, scenario: Scenario): ToolDefinition[] {
+    const allowed = effectiveAllowedTools(run.config, role);
+    return [...commonTools, ...scenario.tools(run.config, role)].filter(t => allowed.includes(t.name));
+}
 
 export interface GatewayResult {
     result: Json;
@@ -24,7 +28,7 @@ export interface GatewayResult {
 }
 
 export async function executeTool(run: Run, role: Role, scenario: Scenario, memory: PrivateMemory, snapshot: MemorySnapshot, actor: Actor, name: string, args: unknown): Promise<GatewayResult> {
-    if (!role.allowedTools.includes(name))
+    if (!effectiveAllowedTools(run.config, role).includes(name))
         return { result: { ok: false, error: 'Tool denied', disposition: 'denied' }, yielded: false };
     if (!args || typeof args !== 'object' || Array.isArray(args))
         return { result: { ok: false, error: 'Arguments must be an object' }, yielded: false };

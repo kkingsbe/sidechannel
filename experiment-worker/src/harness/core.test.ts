@@ -291,3 +291,22 @@ test('reportSchemaVersion 1 and out-of-range reportCalls fail validation', () =>
     const ok = defaultFixtureConfiguration(); ok.limits.reportCalls = 5;
     assert.equal(validateConfiguration(ok).valid, true);
 });
+
+test('a no-board run never offers or executes board tools', async () => {
+    const h = await harness(input => input.phase === 'report' ? reportResponse() : { text: '', toolCalls: [{ id: 'p', name: 'post_board', arguments: { text: 'hello' } }, { id: 'e', name: 'end_turn', arguments: {} }] }, undefined, draft => { draft.condition = { id: 'no-board', version: '1', text: 'There is no shared board in this session.' }; });
+    assert.ok(h.run.config.roles.every(role => !role.allowedTools.includes('post_board') && !role.allowedTools.includes('read_board')));
+    const run = await h.scheduler.run(h.run.id);
+    assert.equal(run.status, 'completed');
+    assert.equal(run.board.length, 0);
+    const actions = h.adapter.inputs.filter(input => input.phase === 'action');
+    assert.ok(actions.length > 0);
+    assert.ok(actions.every(input => input.tools.every(tool => tool.name !== 'post_board' && tool.name !== 'read_board')));
+    assert.ok(actions.every(input => input.messages[0]!.content.includes('There is no shared board in this session.')));
+    // A config that bypassed resolution still keeps the board closed at the gateway.
+    const unresolved = { ...structuredClone(h.run), config: { ...structuredClone(h.run.config), roles: defaultFixtureConfiguration().roles } };
+    const role = unresolved.config.roles[0]!;
+    const snapshot = await h.memory.load(unresolved.id, role.id);
+    const denied = await executeTool(unresolved, role, fixtureScenario, h.memory, snapshot, { runId: unresolved.id, agentId: role.id, operationId: 'nb' }, 'post_board', { text: 'leak' });
+    assert.deepEqual(denied.result, { ok: false, error: 'Tool denied', disposition: 'denied' });
+    assert.equal(unresolved.board.length, 0);
+});

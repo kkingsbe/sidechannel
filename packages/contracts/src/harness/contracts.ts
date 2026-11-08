@@ -15,6 +15,14 @@ export interface Role {
     allowedTools: string[];
 }
 
+/** Every condition a configuration may carry. */
+export const CONDITION_IDS = ['reviewed', 'excluded', 'no-board'] as const;
+export type ConditionId = typeof CONDITION_IDS[number];
+/** The two conditions a matched pair compares; no-board is a single-run baseline. */
+export const PAIR_CONDITION_IDS = ['reviewed', 'excluded'] as const satisfies readonly ConditionId[];
+/** Shared-board tools, removed from every role under the no-board condition. */
+export const BOARD_TOOLS = ['post_board', 'read_board'] as const;
+
 export interface ModelCapacity {
     modelId: string;
     tokens: number;
@@ -62,7 +70,7 @@ export interface ExperimentConfig {
     };
     tokenBudget?: TokenBudget;
     condition: {
-        id: 'reviewed' | 'excluded';
+        id: ConditionId;
         version: string;
         text: string;
     };
