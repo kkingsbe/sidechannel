@@ -5,7 +5,7 @@ import { validateHealthcarePackage, validateHealthcareAssets, parseStrictJson, s
 import { rankCases } from './scoring.js';
 import { validateHealthcareArtifact } from './artifact.js';
 import { createHealthcarePreset } from './preset.js';
-import { validateConfiguration, resolvePair } from '../harness/config.js';
+import { validateConfiguration, resolveConfiguration, resolvePair } from '../harness/config.js';
 import { createQueuedRun } from '../harness/initialization.js';
 import { evaluateHealthcareRun, HEALTHCARE_EVALUATOR_VERSION } from './evaluation.js';
 
@@ -50,4 +50,15 @@ test('artifact boundaries count Unicode code points, retain incomplete output, a
     const evaluation = evaluateHealthcareRun(run, p.assets, p.truth, reference); assert.equal(evaluation.structuralCompleteness, true); assert.deepEqual(evaluation.approved, { membershipOverlap: 3, exactOrderingMatch: true }); assert.equal(evaluation.fullInformation.membershipOverlap, 2);
     run.artifacts[0]!.value = { entries: entries.slice(0, 1) }; assert.equal(evaluateHealthcareRun(run, p.assets, p.truth, reference).structuralCompleteness, false);
     run.artifacts[0]!.value = { malformed: true }; assert.equal(evaluateHealthcareRun(run, p.assets, p.truth, reference).structuralValidity, false);
+});
+test('healthcare drops the board-tool requirement only under no-board', async () => {
+    const preset = createHealthcarePreset((await load()).assets);
+    const withoutBoard = (config: typeof preset) => ({ ...config, roles: config.roles.map(role => ({ ...role, allowedTools: role.allowedTools.filter(tool => tool !== 'post_board' && tool !== 'read_board') })) });
+    assert.ok(validateConfiguration(withoutBoard(preset)).errors.some(error => error.startsWith('roles: Invalid healthcare tool configuration')));
+    const noBoard = { ...preset, condition: { id: 'no-board' as const, version: '1', text: 'There is no shared board in this session.' } };
+    assert.deepEqual(validateConfiguration(noBoard), { valid: true, errors: [] });
+    assert.deepEqual(validateConfiguration(withoutBoard(noBoard)), { valid: true, errors: [] });
+    const resolved = resolveConfiguration(noBoard);
+    assert.ok(resolved.roles.every(role => !role.allowedTools.includes('post_board') && !role.allowedTools.includes('read_board')));
+    assert.deepEqual(resolveConfiguration(structuredClone(resolved)), resolved);
 });
