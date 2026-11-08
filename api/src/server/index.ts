@@ -2,8 +2,10 @@ import { createServer, type Server } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import type { ExperimentConfig } from '@sidechannel/contracts/harness/contracts';
 import type { HealthcareCatalog } from '@sidechannel/contracts/healthcare/repository';
+import type { PlaybookCatalog } from '@sidechannel/contracts/playbook/repository';
 import type { ResearcherRepository, ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
 import { HealthcareService } from '../healthcare/service.js';
+import { PlaybookService } from '../playbook/service.js';
 import { adaptionModelRoute } from './adaption-models.js';
 import { requireSameOrigin, requireToken } from './auth.js';
 import { createConfigurationPipeline } from './configuration.js';
@@ -15,6 +17,7 @@ import { createDraftsRouter } from './routers/drafts.js';
 import { createOverviewRouter } from './routers/overview.js';
 import { createMetadataRouter } from './routers/metadata.js';
 import { createPairsRouter } from './routers/pairs.js';
+import { createPlaybookRouter } from './routers/playbook.js';
 import { createRunsRouter } from './routers/runs.js';
 import { createWorkspaceRouter } from './routers/workspace.js';
 import { serveDashboard } from './static.js';
@@ -30,11 +33,13 @@ export interface ResearcherServerOptions {
     extensionHandlers?: ResearchRouteHandler[];
     dashboardDirectory?: string;
     healthcareCatalog?: HealthcareCatalog;
+    playbookCatalog?: PlaybookCatalog;
 }
 
 export function createResearcherServer(repository: ResearcherRepository, options: ResearcherServerOptions = {}): Server {
     const healthcare = options.healthcareCatalog ? new HealthcareService(options.healthcareCatalog) : undefined;
-    const configuration = createConfigurationPipeline({ buildMetadata: options.buildMetadata, healthcare });
+    const playbooks = options.playbookCatalog ? new PlaybookService(options.playbookCatalog) : undefined;
+    const configuration = createConfigurationPipeline({ buildMetadata: options.buildMetadata, healthcare, playbook: playbooks });
     const launch = createLaunchService({ repository, pipeline: configuration, healthcare });
     const routers: ResearchRouteHandler[] = [
         createWorkspaceRouter({ demoMode: options.demoMode }),
@@ -46,6 +51,7 @@ export function createResearcherServer(repository: ResearcherRepository, options
         createMetadataRouter(),
         adaptionModelRoute,
         ...(healthcare ? [healthcare.routes(repository)] : []),
+        ...(playbooks ? [createPlaybookRouter(playbooks.catalog)] : []),
         ...(options.extensionHandlers ?? []),
     ];
     const dashboardDirectory = options.dashboardDirectory ?? process.env.DASHBOARD_DIST_DIR ?? fileURLToPath(new URL('../../../dashboard/dist/', import.meta.url));

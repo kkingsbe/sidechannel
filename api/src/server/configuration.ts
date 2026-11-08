@@ -1,17 +1,20 @@
 import type { ExperimentConfig } from '@sidechannel/contracts/harness/contracts';
 import { validateConfiguration } from '@sidechannel/domain/harness/config';
 import { fieldErrors } from '@sidechannel/contracts/server/config-schema';
+import { PLAYBOOK_PROVIDER } from '@sidechannel/contracts/playbook/contracts';
 import { healthcareDescriptor, scenarioDescriptor } from '@sidechannel/domain/scenarios';
 import type { HealthcareService } from '../healthcare/service.js';
+import type { PlaybookService } from '../playbook/service.js';
 import { validateAdaptionModelSelection } from './adaption-models.js';
 
 export interface ConfigurationPipelineOptions {
     buildMetadata?: ExperimentConfig['build'];
     healthcare?: HealthcareService;
+    playbook?: PlaybookService;
 }
 
-/** Build-metadata stamping, healthcare dataset resolution, schema validation and adaption-model admission. */
-export function createConfigurationPipeline({ buildMetadata, healthcare }: ConfigurationPipelineOptions) {
+/** Build-metadata stamping, healthcare dataset resolution, playbook resolution, schema validation and adaption-model admission. */
+export function createConfigurationPipeline({ buildMetadata, healthcare, playbook }: ConfigurationPipelineOptions) {
     const withBuild = (input: unknown): unknown => input && typeof input === 'object' && !Array.isArray(input) ? { ...input, ...(buildMetadata ? { build: buildMetadata } : {}) } : input;
     /** Scenario-keyed dataset preparation; a scenario joins only if it owns a dataset catalog. */
     const datasetPreparers = new Map<string, (input: unknown) => Promise<unknown>>(healthcare ? [[healthcareDescriptor.version, input => healthcare.resolveConfiguration(input)]] : []);
@@ -29,7 +32,13 @@ export function createConfigurationPipeline({ buildMetadata, healthcare }: Confi
                 const descriptor = typeof version === 'string' ? scenarioDescriptor(version) : undefined;
                 if (descriptor?.presentation.hasDatasetPreset) throw new Error(`scenario.datasetId: ${descriptor.label} catalog is unavailable; bootstrap the datasets`);
             }
-        } catch (error) { const message = error instanceof Error ? error.message : 'Dataset resolution failed'; return { config, validation: { valid: false, errors: [message], fieldErrors: { 'scenario.datasetId': message }, fieldIssues: [{ path: 'scenario.datasetId', message }] } }; }
+            if (playbook) config = await playbook.resolveConfiguration(config);
+            else if ((config as ExperimentConfig | undefined)?.model?.provider === PLAYBOOK_PROVIDER) throw new Error('model.id: Playbook catalog is unavailable');
+        } catch (error) {
+            // The field key is derived from the `path: message` prefix every resolution failure uses.
+            const message = error instanceof Error ? error.message : 'Dataset resolution failed', path = /^([a-zA-Z][\w.]*): /s.exec(message)?.[1] ?? 'scenario.datasetId';
+            return { config, validation: { valid: false, errors: [message], fieldErrors: { [path]: message }, fieldIssues: [{ path, message }] } };
+        }
         const base = validate(config);
         const additional = base.valid ? await validateAdaptionModelSelection(config as ExperimentConfig) : [];
         if (!additional.length) return { config, validation: base };
