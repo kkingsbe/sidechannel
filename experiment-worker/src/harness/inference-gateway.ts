@@ -38,6 +38,11 @@ export class InferenceGateway implements Inferencer {
             throw new Error(`${input.phase} context budget exceeded (${accounting.unit}); no silent trimming`);
         }
         await recorder.emit('model_requested', input, { invocationId: input.invocationId });
+        // LOCAL CHANGE (Shreya's team, Sun Nov 8): retry a model call that fails at the provider's gateway
+        // (Adaption cuts a request at ~3 min with "Gateway Time-out"). No tool has run yet for this response, so
+        // nothing the agent did is repeated. Protocol: "Infrastructure retries do not consume another unit and must
+        // not duplicate successful writes." Each retry is logged as a model_retry event.
+        for (let attempt = 0; ; attempt++) {
         input.timeoutMs = Math.max(1, Math.min(input.timeoutMs, run.config.limits.maxDurationMs - (Date.now() - this.options.startedAt)));
         const controller = new AbortController();
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -54,12 +59,27 @@ export class InferenceGateway implements Inferencer {
                     run.usage[k] = (run.usage[k] ?? 0) + v;
             return response;
         }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (attempt < MAX_GATEWAY_RETRIES && GATEWAY_ERROR.test(message)) {
+                await recorder.emit('model_retry', { attempt: attempt + 1, maxRetries: MAX_GATEWAY_RETRIES, error: message, phase: input.phase },
+                    { invocationId: input.invocationId });
+                await this.options.checkpoint();
+                continue;
+            }
+            throw error;
+        }
         finally {
             if (timer)
                 clearTimeout(timer);
         }
+        }
     }
 }
+
+/** Provider gateway failures only; agent-caused errors, our own timeout and bad responses are never retried. */
+export const GATEWAY_ERROR = /gateway time-?out|bad gateway|service unavailable|\b50[234]\b/i;
+export const MAX_GATEWAY_RETRIES = 2;
 
 /** Pure input factory shared by the action loop and the report phase; `report` sends only the submit_report tool. */
 export function modelInputFor(run: Run, runId: string, scenario: Scenario, role: Role, messages: Message[], phase: 'action' | 'report', invocationId: string): ModelInput {
