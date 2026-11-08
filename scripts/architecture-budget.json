@@ -50,11 +50,11 @@
             "note": "packages/domain/src/providers/settings.ts is the only supported-sampling-control list; WS6 removed the dashboard copy."
         },
         "providerNameBranchSites": {
-            "max": 5,
-            "target": 5,
+            "max": 6,
+            "target": 6,
             "audit": 16,
             "baseline": 20,
-            "note": "Dashboard presentation checks (fixture badge, capacity copy) plus three backend capability checks that read registry data; no provider-name policy is restated."
+            "note": "Recorded integration change (2026-11-07): main's model-call timeline adds one dashboard presentation branch (`provider === 'scripted'` chooses the 'scripted' reasoning label in lib/model-calls.ts). Like the fixture badge and capacity copy it reads an already-resolved run configuration to pick copy; it is not provider policy. Final sites: 2 dashboard presentation checks, 1 model-call reasoning label, and 3 backend capability checks that read registry data."
         },
         "scenarioVersionLiteralSites": {
             "max": 6,

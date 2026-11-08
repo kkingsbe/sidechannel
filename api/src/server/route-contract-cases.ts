@@ -9,6 +9,7 @@ import { InMemoryHealthcareCatalog } from '@sidechannel/persistence/healthcare/c
 import { InMemoryPlaybookCatalog } from '@sidechannel/persistence/playbook/catalog';
 import { defaultFixtureConfiguration } from '@sidechannel/domain/harness/config';
 import { createQueuedRun } from '@sidechannel/domain/harness/initialization';
+import { FIXTURE_SCENARIO_VERSION } from '@sidechannel/domain/scenarios';
 import type { HarnessEvent } from '@sidechannel/contracts/harness/contracts';
 import type { ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
 import { createResearcherServer, type ResearcherServerOptions } from './index.js';
@@ -67,7 +68,7 @@ const playbookTurn = { steps: [{ calls: [{ name: 'read_role_data' }, { name: 'en
 /** Deterministic playbook body and the configuration that selects it by id+version only. */
 const playbookDocument = (over: Record<string, unknown> = {}) => ({
     format_version: 'sidechannel-playbook-v1', playbook_id: 'contract-play', playbook_version: '1', display_name: 'Route contract playbook',
-    scenario_version: 'fixture-v1',
+    scenario_version: FIXTURE_SCENARIO_VERSION,
     roles: { alpha: { turns: [playbookTurn], report: playbookReport }, beta: { turns: [playbookTurn], report: playbookReport } },
     ...over,
 });
