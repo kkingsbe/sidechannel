@@ -1,4 +1,4 @@
-/** The Timeline / Model & traces body: turn navigator, turn-aligned event window, load controls and live follow. */
+/** The Timeline / Model calls body: turn navigator, turn-aligned event window, load controls and live follow. */
 import * as React from 'react';
 import type { TurnSummary } from '@sidechannel/contracts/browser';
 import { Badge, Button, Empty, ErrorState, Loading } from '../../components/ui';
@@ -29,9 +29,11 @@ export interface RunEventsViewProps {
   onInspect: (eventId: string, sequence?: number) => void;
   onOpenTraces: (invocationId: string) => void;
   onJump: (at: number | 'end') => void;
+  /** Filter controls, shown on one row with the turn navigator. */
+  filters?: React.ReactNode;
 }
 
-export function RunEventsView({ tab, runEvents, follow, turns, start, provider, focusCall, onInspect, onOpenTraces, onJump }: RunEventsViewProps) {
+export function RunEventsView({ tab, runEvents, follow, turns, start, provider, focusCall, onInspect, onOpenTraces, onJump, filters }: RunEventsViewProps) {
   const endRef = React.useRef<HTMLDivElement>(null);
   const { unseen, arrived, jump } = useFollowScroll(endRef, runEvents.events, follow);
   // Keep the reader's place when earlier turns are inserted above (Safari has no overflow-anchor).
@@ -49,6 +51,7 @@ export function RunEventsView({ tab, runEvents, follow, turns, start, provider, 
   return (
     <div className="run-events">
       <div className="run-events-bar">
+        {filters}
         <TurnNavigator turns={turns} start={start} onJump={onJump} />
       </div>
       {runEvents.error && <ErrorState error={runEvents.error} retry={runEvents.reload} />}

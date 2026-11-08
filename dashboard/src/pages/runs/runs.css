@@ -169,3 +169,62 @@
 .results-interpretation {
   margin: 0;
 }
+
+/* Run list: compound filters in one row */
+.rl-filters { align-items: center; flex-wrap: wrap; gap: 8px; }
+.rl-filters .filter-fields { display: contents; }
+.rl-filters .cf { height: 30px; }
+.rl-filters .cf input { border: 0; background: transparent; height: 26px; width: 9ch; padding: 0 9px; font-weight: 500; font-size: 13px; color: var(--foreground); min-width: 0; }
+.rl-filters .cf input::placeholder { color: var(--foreground); opacity: 1; font-weight: 500; }
+.rl-filters .cf select, .rl-filters .cf input { outline-offset: 0; }
+.rl-filters .seg { margin-left: auto; }
+@media (max-width: 640px) {
+  .rl-filters .filter-fields { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+  .rl-filters .seg { margin-left: 0; }
+}
+
+/* Matched pair: strict side-by-side comparison, rows shared by both conditions */
+.pair-finding { margin: 0 0 16px; max-width: 90ch; }
+.pair-compare { margin-bottom: var(--gap); }
+.pair-grid { display: grid; grid-template-columns: 180px minmax(0, 1fr) minmax(0, 1fr); }
+.pair-row { display: contents; }
+.pair-label { padding: 12px var(--card-pad); border-bottom: 1px solid var(--rule); }
+.pair-side { padding: 12px var(--card-pad); border-bottom: 1px solid var(--rule); border-left: 1px solid var(--border); min-width: 0; overflow-wrap: anywhere; display: flex; flex-direction: column; gap: 6px; justify-content: flex-start; }
+.pair-row:last-child > * { border-bottom: 0; }
+.pair-side .cond-head { display: flex; align-items: center; gap: 10px; }
+.pair-side .cond-name { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 600; }
+.pair-side .cond-name::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--blue); }
+.pair-side.excluded .cond-name::before { background: var(--amber); }
+.pair-side .lane-line { display: grid; grid-template-columns: minmax(0, 1fr) 64px; align-items: center; gap: 10px; }
+.pair-side .track, .count-bar .track { position: relative; height: 6px; border-radius: 3px; background: var(--rule); overflow: hidden; min-width: 40px; display: block; }
+.pair-side .track i, .count-bar .track i { position: absolute; inset: 0 auto 0 0; background: var(--blue); border-radius: 3px; display: block; }
+.pair-side .track i.hatch { background: repeating-linear-gradient(135deg, var(--muted) 0 2px, transparent 2px 5px); opacity: 0.7; }
+.pair-side .prog { font-size: 12px; color: var(--muted); text-align: right; white-space: nowrap; }
+.count-bar { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: center; }
+.count-bar .num { font-size: 20px; line-height: 24px; }
+.count-bar .track { height: 10px; border-radius: 2px; }
+.count-bar .track i { border-radius: 2px; }
+.pair-artifact { overflow-x: auto; margin: 0 calc(var(--card-pad) * -1); padding: 0; }
+.pair-artifact > span { padding: 0 var(--card-pad); }
+.pair-artifact .table-scroll { overflow: visible; }
+.pair-side details { padding-block: 4px; }
+.pair-links { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.link.plain { font-weight: 400; text-decoration: underline; text-underline-offset: 3px; }
+.setting-name { font-weight: 400; color: var(--muted); font-size: 14px; text-align: left; height: auto; padding: 11px 12px 11px var(--card-pad); border-bottom: 1px solid var(--rule); white-space: normal; }
+.pair-kv { grid-template-columns: 120px minmax(0, 1fr); }
+@media (max-width: 760px) {
+  .pair-grid { grid-template-columns: minmax(0, 1fr); }
+  .pair-label { padding-bottom: 2px; border-bottom: 0; }
+  .pair-side { border-left: 0; padding-top: 4px; }
+  .pair-side::before { content: attr(data-cond); font-size: 12px; color: var(--muted); }
+  .pair-row:first-child .pair-side::before { display: none; }
+}
+
+.pair-artifact > p, .pair-artifact > [role="alert"] { padding: 0 var(--card-pad); }
+.pair-artifact td.mono { white-space: nowrap; }
+.pair-cmp-cell small, .pair-cmp-cell { min-width: 150px; }
+@media (max-width: 760px) {
+  .objhead { flex-wrap: wrap; }
+  .objhead > .actions { width: 100%; }
+  .objhead .titleline h1 { white-space: normal; }
+}

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import {
-  Button,
   Drawer,
   JsonView,
   Notice,
@@ -22,6 +22,7 @@ import { PreparedWindows } from "./prepared-windows";
 import { SavedAnalyses } from "./saved-analyses";
 import { PreviewLaunch } from "./preview-launch";
 import { PreviewWindowInput } from "./preview-window-input";
+import "./analysis.css";
 
 /** The analysis setup shell: composes the three draft hooks and the section views. */
 function useAnalysisSetup() {
@@ -113,30 +114,36 @@ export type AnalysisSetupState = ReturnType<typeof useAnalysisSetup>;
 
 export function AnalysisSetup() {
   const state = useAnalysisSetup();
-  const { mutation, preview, previewWindow, setPreviewWindow } = state;
+  const { mutation, preview, previewWindow, setPreviewWindow, source } = state;
   return (
     <>
-      <Button asChild variant="ghost">
-        <Link to="/analysis">All analyses</Link>
-      </Button>
+      <Link className="crumb-back" to="/analysis">
+        <ArrowLeft size={14} />
+        All analyses
+      </Link>
       <PageHeader
-        eyebrow="NEW ANALYSIS"
-        title="Trace analysis"
-        description="Jev is the automated screener: it estimates, window by window, how likely each behavior code is present in overlapping source windows. Then inspect the actual evidence."
+        title="New analysis"
+        description={
+          source.data ? (
+            <>
+              Analyzing <strong>{source.data.config.label || "the selected run"}</strong>
+              {source.data.config.condition?.id ? ` (${source.data.config.condition.id})` : ""}, a{" "}
+              {source.data.status} run: Jev will screen it window by window for the codebook's behaviors.
+            </>
+          ) : (
+            "Choose a source run, then set the windows Jev will screen for behavior codes."
+          )
+        }
       />
       {mutation.error && <Notice kind="error">{mutation.error.message}</Notice>}
-      <Notice>
-        Jev estimates support researcher exploration. They are never delivered to
-        agents or oversight monitors, and do not establish run-level outcomes.
-      </Notice>
-      <div className="editor-layout">
-        <div>
+      <div className="g12">
+        <div className="c8 stack">
           <SourceSection state={state} />
           <WindowingSection state={state} />
           <PreparedWindows state={state} />
           <SavedAnalyses state={state} />
         </div>
-        <aside className="stack sticky">
+        <aside className="c4 stack sticky">
           <PreviewLaunch state={state} />
         </aside>
       </div>
@@ -153,7 +160,7 @@ export function AnalysisSetup() {
       >
         {previewWindow && (
           <>
-            <dl className="definition-list">
+            <dl className="kv">
               <dt>Source range</dt>
               <dd>
                 {previewWindow.startStep}–{previewWindow.endStep}

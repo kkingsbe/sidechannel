@@ -5,15 +5,11 @@ import { useScenarios } from "../lib/descriptors";
 import { useClients } from "../lib/clients/context";
 import { Button, Field, Loading, Notice, Select } from "./ui";
 
-export function HealthcarePreset({
-  config,
-  replace,
-  errors,
-}: {
-  config: ExperimentConfig;
-  replace: (config: ExperimentConfig) => void;
-  errors?: Record<string, string>;
-}) {
+/** Catalog, apply and availability logic shared by the dataset picker and the "Start from" selector. */
+function useHealthcarePreset(
+  config: ExperimentConfig,
+  replace: (config: ExperimentConfig) => void,
+) {
   const clients = useClients();
   const scenarios = useScenarios();
   const catalog = useApi<DatasetCatalogItem[]>(clients.workspace.paths.datasets());
@@ -58,9 +54,59 @@ export function HealthcarePreset({
         : !presetReady
           ? "The healthcare smoke dataset isn't installed in this workspace."
           : undefined;
+  return { catalog, mutation, healthcare, selected, apply, unavailable, presetReady, presetReason };
+}
+
+/** The header "Start from" compound selector: current configuration or the healthcare smoke preset. */
+export function PresetPicker({
+  config,
+  replace,
+}: {
+  config: ExperimentConfig;
+  replace: (config: ExperimentConfig) => void;
+}) {
+  const { mutation, healthcare, apply, presetReady, presetReason } = useHealthcarePreset(config, replace);
+  return (
+    <>
+      <span className="cf" title={presetReason}>
+        <span>Start from</span>
+        <select
+          aria-label="Start from"
+          value={healthcare ? "preset" : "current"}
+          disabled={mutation.busy}
+          onChange={(event) => {
+            if (event.target.value === "preset") void apply("fixture10-s101-points");
+          }}
+        >
+          <option value="current">Current configuration</option>
+          <option value="preset" disabled={!presetReady && !healthcare}>
+            Healthcare smoke preset
+          </option>
+        </select>
+      </span>
+      {mutation.error && <span className="field-error">{mutation.error.message}</span>}
+    </>
+  );
+}
+
+export function HealthcarePreset({
+  config,
+  replace,
+  errors,
+  showStart = true,
+}: {
+  config: ExperimentConfig;
+  replace: (config: ExperimentConfig) => void;
+  errors?: Record<string, string>;
+  /** The "Use healthcare smoke preset" button; the editor shows the header selector instead. */
+  showStart?: boolean;
+}) {
+  const { catalog, mutation, healthcare, selected, apply, unavailable, presetReady, presetReason } =
+    useHealthcarePreset(config, replace);
+  if (!showStart && !healthcare) return null;
   return (
     <div className="full stack">
-      {!healthcare && (
+      {showStart && !healthcare && (
         <div className="stack" style={{ gap: 6 }}>
           <Button
             variant="secondary"
@@ -140,7 +186,7 @@ export function HealthcarePreset({
           </Notice>
         )
       )}
-      {mutation.error && <Notice kind="error">{mutation.error.message}</Notice>}
+      {showStart && mutation.error && <Notice kind="error">{mutation.error.message}</Notice>}
     </div>
   );
 }

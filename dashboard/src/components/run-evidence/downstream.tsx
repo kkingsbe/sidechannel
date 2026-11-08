@@ -69,7 +69,7 @@ export function Downstream({
   const completed = status === "completed";
   const agreed = references.filter((item) => item.state === "agreed").length;
   const content = (
-    <div className={compact ? "stack" : "card-body stack"}>
+    <div className="card-body stack">
       <div>
         <h3>Jev analyses</h3>
         {analyses.loading ? (
@@ -170,19 +170,13 @@ export function Downstream({
       </div>
     </div>
   );
-  return compact ? (
-    <details className="downstream-compact">
-      <summary>
-        Downstream: {plural(analysisRows.length, "analysis", "analyses")} ·{" "}
-        {plural(evaluationRows.length, "evaluation")}
-      </summary>
-      {content}
-    </details>
-  ) : (
-    <Card className="downstream-panel">
+  const total = analysisRows.length + evaluationRows.length;
+  return (
+    <Card className={compact ? "downstream-rail" : "downstream-panel"}>
       <CardHeading
         title="Downstream"
-        description="Analyses, oversight evaluations and reference status built on this run."
+        count={analyses.loading || evaluations.loading ? undefined : total}
+        description={compact ? undefined : "Analyses, oversight evaluations and reference status built on this run."}
       />
       {content}
     </Card>

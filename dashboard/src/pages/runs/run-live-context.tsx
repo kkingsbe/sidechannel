@@ -1,6 +1,7 @@
 import { createContext, useContext } from "react";
 import type { TurnSummary } from "@sidechannel/contracts/browser";
 import type { EventStart, RunEvents } from "../../lib/use-run-events";
+import type { Run } from "../../lib/types";
 
 export interface RunLiveFilters {
   actor: string;
@@ -16,7 +17,14 @@ export interface RunLiveFilters {
  */
 export interface RunLiveContextValue {
   runEvents: RunEvents;
+  /** The frozen record merged with live progress. */
+  run: Run;
+  /** The run is queued, running, reporting or stopping. */
+  active: boolean;
+  /** Every turn of the run, from the turns resource; undefined until it loads or when it is unavailable. */
   turns: TurnSummary[] | undefined;
+  /** `turns`, or the turns visible in the loaded events window when that resource is unavailable. */
+  turnList: TurnSummary[] | undefined;
   follow: boolean;
   start: EventStart;
   provider: string;

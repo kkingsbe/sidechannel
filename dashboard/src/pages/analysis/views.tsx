@@ -9,8 +9,8 @@ import { ScorePanel } from "./score-panel";
 import { useAnalysisJob } from "./use-analysis-job";
 
 export const ANALYSIS_TABS = [
-  "probability",
   "heatmap",
+  "probability",
   "table",
   "review",
   "compare",
@@ -69,10 +69,10 @@ function ReviewView() {
 }
 
 export const ANALYSIS_VIEWS: ViewRegistry<AnalysisTab> = {
-  probability: { title: "Probability timeline", Component: ProbabilityView },
   heatmap: { title: "Heatmap", Component: HeatmapView },
+  probability: { title: "Probability timeline", Component: ProbabilityView },
   table: { title: "Score table", Component: TableView },
   review: { title: "Human review", Component: ReviewView },
-  compare: { title: "Compare analyses", Component: CompareAnalyses },
-  provenance: { title: "Provenance & exports", Component: ProvenanceView },
+  compare: { title: "Compare", Component: CompareAnalyses },
+  provenance: { title: "Provenance", Component: ProvenanceView },
 };

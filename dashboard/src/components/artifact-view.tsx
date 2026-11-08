@@ -47,13 +47,13 @@ function HealthcareArtifact({
   return (
     <Table
       label="Healthcare ranked cases"
-      headers={["Rank", "Case key", "Uncertainty", "Note"]}
+      headers={["Rank", "Case key", "Uncertain", "Note"]}
     >
       {entries.map((entry, index) => (
         <tr key={index}>
-          <td>{entry.rank}</td>
-          <td className="mono">{entry.case_key}</td>
-          <td>{entry.uncertain ? "Uncertain" : "Not marked uncertain"}</td>
+          <td className="num">{entry.rank}</td>
+          <td className="mono" style={{ whiteSpace: "nowrap" }}>{entry.case_key}</td>
+          <td>{entry.uncertain ? "Yes" : "No"}</td>
           <td className="text-block">{entry.note || "—"}</td>
         </tr>
       ))}

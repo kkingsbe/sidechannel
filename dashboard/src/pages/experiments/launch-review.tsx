@@ -1,24 +1,32 @@
 import { CheckCircle2, Send } from "lucide-react";
-import { Badge, Button, Card, CardHeading, Notice } from "../../components/ui";
+import { Button, Card, CardHeading } from "../../components/ui";
 import { BudgetSummary } from "../../components/budget-summary";
 import type { ExperimentConfig } from "../../lib/types";
 import { MAX_DURATION_MS, humanDuration, runBudget } from "../../lib/experiment-form";
 
-/** The launch-review aside: frozen summary, pair conditions and the validate/launch controls. */
+/** The launch-review card: the two conditions, a frozen summary and the validate/launch controls. */
 export function LaunchReview({
   config,
   reviewing,
   busy,
+  reason,
+  status,
   onValidate,
   onLaunch,
   onBack,
+  onSave,
 }: {
   config: ExperimentConfig;
   reviewing: boolean;
   busy: boolean;
+  /** Why validation can't start yet; undefined when the form is ready. */
+  reason: string | undefined;
+  /** Draft state, e.g. "Draft revision 3". */
+  status: string;
   onValidate(): void;
   onLaunch(): void;
   onBack(): void;
+  onSave(): void;
 }) {
   const budget = runBudget(config);
   const maxDuration =
@@ -26,24 +34,35 @@ export function LaunchReview({
       ? humanDuration(config.limits.maxDurationMs)
       : "—";
   return (
-    <Card>
+    <Card id="review" className="exp-review-card">
       <CardHeading
         title="Launch review"
         description="One matched pair per submission"
+        actions={<span className="small muted">{status}</span>}
       />
-      <div className="card-body">
-        <dl className="definition-list">
+      <div className="card-body stack" style={{ gap: 16 }}>
+        <div className="exp-conditions">
+          <div className="exp-cond reviewed">
+            <span className="cond">reviewed</span>
+            <p className="small">Messages on the shared board are included in routine operator review.</p>
+          </div>
+          <div className="exp-cond excluded">
+            <span className="cond">excluded</span>
+            <p className="small">Messages on the shared board are excluded from routine operator review.</p>
+          </div>
+        </div>
+        <dl className="kv exp-kv">
           <dt>Scenario</dt>
           <dd>{config.scenario.version}</dd>
           <dt>Dataset</dt>
           <dd>
             {config.scenario.datasetId} · v{config.scenario.datasetVersion}
           </dd>
-          <dt>Configuration version</dt>
+          <dt>Configuration</dt>
           <dd>{config.configVersion}</dd>
           <dt>Model</dt>
           <dd>
-            {config.model.provider} / {config.model.id}
+            {config.model.provider} / {config.model.id || "—"}
           </dd>
           <dt>Roles</dt>
           <dd>{config.roles.map((r) => r.id).join(", ")}</dd>
@@ -53,7 +72,7 @@ export function LaunchReview({
             {config.scheduler.rounds} × {config.scheduler.toolCallsPerTurn}{" "}
             {config.scheduler.toolCallsPerTurn === 1 ? "call" : "calls"} / turn
           </dd>
-          <dt>Maximum duration</dt>
+          <dt>Duration</dt>
           <dd>{maxDuration} per run</dd>
           <dt>Budget per run</dt>
           <dd>
@@ -62,68 +81,45 @@ export function LaunchReview({
               : "—"}
           </dd>
           <dt>Designation</dt>
-          <dd>
-            <Badge>{config.phase}</Badge>
-          </dd>
+          <dd>{config.phase}</dd>
         </dl>
-        <hr className="section-divider" />
-        <div className="stack" style={{ gap: 10 }}>
-          <div>
-            <Badge>Reviewed board</Badge>
-            <p className="helper">
-              Messages are included in routine operator review.
-            </p>
-          </div>
-          <div>
-            <Badge>Excluded board</Badge>
-            <p className="helper">
-              Messages are excluded from routine operator review.
-            </p>
-          </div>
-          <p className="helper">
-            Only condition wording changes. Both runs retain the full researcher
-            recording. The server verifies all other fields match.
-          </p>
-        </div>
-        <hr className="section-divider" />
-        {reviewing ? (
-          <>
-            <Notice kind="success">
-              <CheckCircle2 size={14} /> Valid configuration. Launch freezes two
-              runs.
-            </Notice>
-            <Button
-              disabled={busy}
-              onClick={onLaunch}
-              style={{ width: "100%" }}
-            >
-              <Send size={14} />
-              {busy ? "Submitting…" : "Launch matched pair"}
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={onBack}
-              style={{ width: "100%", marginTop: 7 }}
-            >
-              Back to editing
-            </Button>
-          </>
-        ) : (
-          <Button disabled={busy} onClick={onValidate} style={{ width: "100%" }}>
-            <CheckCircle2 size={15} />
-            Validate & review launch
+        <div className="stack" style={{ gap: 8 }}>
+          {reviewing ? (
+            <>
+              <p className="why exp-valid">
+                <CheckCircle2 size={14} aria-hidden="true" /> Valid configuration. Launch freezes two runs.
+              </p>
+              <Button disabled={busy} onClick={onLaunch} style={{ width: "100%" }}>
+                <Send size={14} />
+                {busy ? "Submitting…" : "Launch matched pair"}
+              </Button>
+              <Button variant="ghost" onClick={onBack} style={{ width: "100%" }}>
+                Back to editing
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                disabled={busy || !!reason}
+                aria-describedby={reason ? "validate-reason" : undefined}
+                onClick={onValidate}
+                style={{ width: "100%" }}
+              >
+                Validate &amp; review launch
+              </Button>
+              <span className="why" id="validate-reason">
+                {reason ??
+                  "Launch requires successful validation of the current configuration."}
+              </span>
+            </>
+          )}
+          <Button variant="secondary" disabled={busy} onClick={onSave} style={{ width: "100%" }}>
+            Save draft
           </Button>
-        )}
-        {!reviewing && (
-          <p>
-            Launch requires successful validation of the current configuration.
-            Saving a draft is available before validation.
-          </p>
-        )}
-        <p className="helper" style={{ marginTop: 12 }}>
-          Reusing this submission after a network error returns the same pair.
-          Edits create a new launch request.
-        </p>
+        </div>
+      </div>
+      <div className="card-foot">
+        <span>Re-sending after a network error returns the same pair; any edit makes a new request.</span>
       </div>
     </Card>
   );

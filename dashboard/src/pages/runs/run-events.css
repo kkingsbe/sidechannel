@@ -1,12 +1,25 @@
 .run-events { position: relative; }
-.run-events-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 12px; }
-.turn-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
-.turn-nav select { max-width: min(100%, 440px); }
-.run-events-more { margin: 8px 0; }
+/* filters and the turn jump share one padded row inside the card */
+.run-events-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px var(--card-pad); }
+.run-filters { display: contents; }
+.run-events-bar .cf select { min-width: 0; max-width: 112px; }
+.run-events-bar .cf input { border: 0; background: transparent; height: 26px; width: 52px; padding: 0 6px; font-size: 13px; font-weight: 500; color: var(--foreground); min-width: 0; }
+.run-events-bar .cf input[type="number"] { width: 48px; padding: 0 4px; }
+.run-events-bar .cf input::placeholder { color: var(--foreground); opacity: 1; font-weight: 500; }
+.run-events-bar .cf i { font-style: normal; color: var(--faint); }
+.run-events-bar .cf:focus-within { border-color: var(--blue); }
+.turn-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; min-width: 0; margin-left: auto; }
+.turn-nav select { height: 28px; min-height: 28px; font-size: 13px; max-width: min(100%, 300px); padding-top: 0; padding-bottom: 0; }
+.turn-nav .helper { color: var(--muted); font-size: 12px; }
+.run-events-more { margin: 8px var(--card-pad); }
 .run-events-pill {
   /* fixed, not sticky: the enclosing .card has overflow: hidden, which would trap a sticky element */
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 20; padding: 6px 14px;
   border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--foreground);
-  box-shadow: 0 4px 14px rgb(0 0 0 / 0.12); font-size: 13px; cursor: pointer;
+  font-size: 13px; cursor: pointer;
 }
 .run-events-pill:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+@media (max-width: 640px) {
+  .turn-nav { margin-left: 0; width: 100%; }
+  .turn-nav select { max-width: 100%; flex: 1; }
+}

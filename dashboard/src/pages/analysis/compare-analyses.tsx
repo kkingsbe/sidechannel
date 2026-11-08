@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import {
   Card,
   CardHeading,
+  Empty,
   ErrorState,
   Field,
   Loading,
@@ -55,10 +56,11 @@ export function CompareAnalyses() {
   return (
     <Card>
       <CardHeading
+        ruled
         title="Compare two analyses of the same source"
         description="Actual source-step grids remain separate. Values are never interpolated."
       />
-      <div className="card-body">
+      <div className="card-body an-body">
         <Field label="Comparison analysis">
           <Select
             value={compareId}
@@ -81,11 +83,23 @@ export function CompareAnalyses() {
               ))}
           </Select>
         </Field>
-        <Pager
-          page={sourceJobs.page}
-          hasMore={sourceJobs.hasMore}
-          onChange={sourceJobs.onChange}
-        />
+        {(sourceJobs.page > 0 || sourceJobs.hasMore) && (
+          <Pager
+            page={sourceJobs.page}
+            hasMore={sourceJobs.hasMore}
+            onChange={sourceJobs.onChange}
+          />
+        )}
+        {!compareId && (
+          <Empty
+            title="Choose a second analysis to compare"
+            description={
+              sourceJobs.data.filter((j) => j.id !== data.id).length
+                ? "Comparing sets two analyses of this source run side by side: their settings, then their scores window by window."
+                : "This source run has no other analysis yet. Use Duplicate settings with a different window size or model, then compare the two here."
+            }
+          />
+        )}
         {comparison.data && (
           <>
             <hr className="section-divider" />

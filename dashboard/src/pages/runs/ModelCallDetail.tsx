@@ -132,7 +132,7 @@ export function ModelCallDetail({ event, events, provider, onNavigate, onOpenTra
       </div>
 
       {onOpenTraces && (
-        <button type="button" className="tr-btn" onClick={() => onOpenTraces(call.invocationId)}>Open in Model &amp; traces</button>
+        <button type="button" className="tr-btn" onClick={() => onOpenTraces(call.invocationId)}>Open in Model calls</button>
       )}
     </div>
   );

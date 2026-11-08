@@ -1,6 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { ArrowUpRight } from "lucide-react";
-import { Badge, Button, Table } from "./ui";
+import { Badge, ConditionPill, Table } from "./ui";
 import type { Run } from "../lib/types";
 import { runStatusMeta } from "../lib/status";
 import { short, when } from "../lib/utils";
@@ -23,13 +22,23 @@ export function RunTable({
         "State",
         "Progress",
         "Updated",
-        "",
       ]}
     >
       {runs.map((run) => (
         <tr key={run.id}>
           <td>
-            <NavLink className="table-title" to={"/runs/" + run.id + detailSearch}>
+            <NavLink
+              className="table-title"
+              to={"/runs/" + run.id + detailSearch}
+              aria-label={
+                "Inspect " +
+                (run.config?.label || "run") +
+                " · " +
+                (run.config?.condition?.id || "") +
+                " · " +
+                run.id
+              }
+            >
               {run.config?.label || short(run.id)}
             </NavLink>
             <small>
@@ -41,7 +50,7 @@ export function RunTable({
             )}
           </td>
           <td>
-            <Badge>{run.config?.condition?.id || "Unknown"}</Badge>
+            <ConditionPill condition={run.config?.condition?.id || "Unknown"} />
             <small>{run.config?.phase || "Unspecified"}</small>
           </td>
           <td>
@@ -59,23 +68,6 @@ export function RunTable({
             </small>
           </td>
           <td className="muted nowrap">{when(run.updatedAt)}</td>
-          <td>
-            <Button asChild variant="ghost" size="icon">
-              <NavLink
-                aria-label={
-                  "Inspect " +
-                  (run.config?.label || "run") +
-                  " · " +
-                  (run.config?.condition?.id || "") +
-                  " · " +
-                  run.id
-                }
-                to={"/runs/" + run.id + detailSearch}
-              >
-                <ArrowUpRight size={18} />
-              </NavLink>
-            </Button>
-          </td>
         </tr>
       ))}
     </Table>

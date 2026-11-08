@@ -22,10 +22,10 @@ export const viewNames: Record<MonitorView, string> = {
 export const views: MonitorView[] = ["reports", "audit", "board", "full"];
 
 export const OVERSIGHT_VIEWS: ViewRegistry<OversightTab> = {
-  jobs: { title: "Evaluation jobs", Component: JobsTab },
+  jobs: { title: "Evaluations", Component: JobsTab },
   setup: { title: "Configure & preview", Component: MonitorSetupTab },
   definitions: {
-    title: "Questions & outcome definitions",
+    title: "Outcome definitions",
     Component: DefinitionsTab,
   },
   references: { title: "Human reference outcomes", Component: ReferencesTab },

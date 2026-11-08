@@ -63,3 +63,62 @@
   display: grid;
   gap: 12px;
 }
+
+/* ---------- editor layout ---------- */
+.exp-layout { display: grid; grid-template-columns: 168px minmax(0, 1fr) 288px; gap: 24px; align-items: start; }
+.exp-layout > fieldset { display: grid; gap: 32px; }
+.exp-steps { position: sticky; top: 16px; display: grid; gap: 2px; }
+.exp-steps a { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 4px 8px; margin: 0 -8px; border-radius: var(--radius-control); font-size: 13px; line-height: 18px; color: var(--muted); }
+.exp-steps a:hover { background: var(--subtle); color: var(--foreground); }
+.exp-steps i { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--control); font-size: 11px; font-style: normal; background: var(--card); color: var(--muted); }
+.exp-steps a.done i { background: var(--success-fg); border-color: var(--success-fg); color: #fff; }
+.exp-steps a.todo i { border-color: var(--amber); color: var(--amber-ink); }
+.exp-steps a[aria-current="step"] { color: var(--foreground); font-weight: 500; }
+.exp-steps a[aria-current="step"] i { background: var(--foreground); border-color: var(--foreground); color: var(--card); }
+
+.exp-sec { display: grid; gap: 14px; scroll-margin-top: 16px; }
+.exp-sec h2 { font-size: 16px; line-height: 22px; font-weight: 500; }
+.exp-sec .sd { font-size: 13px; line-height: 18px; color: var(--muted); margin: 2px 0 0; max-width: 72ch; }
+.exp-sec .sd.status { margin-top: 10px; }
+.exp-sec .sd.status .who-chip { color: var(--foreground); font-weight: 500; }
+.exp-sec .field-error { color: var(--amber-ink); }
+.exp-sec .input[readonly] { color: var(--muted); }
+.exp-label { font-size: 14px; font-weight: 500; color: var(--foreground); }
+.exp-label .opt { font-weight: 400; color: var(--muted); font-size: 13px; }
+
+.exp-kv { grid-template-columns: 180px minmax(0, 1fr); }
+.exp-clamp { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.exp-edit > summary { cursor: pointer; font-size: 13px; font-weight: 400; list-style: none; width: fit-content; }
+.exp-edit > summary::-webkit-details-marker { display: none; }
+
+.exp-role { background: var(--card); border: 1px solid var(--border); border-radius: 6px; }
+.exp-role > summary { list-style: none; cursor: pointer; grid-template-columns: 170px minmax(0, 1fr) 48px; min-height: 40px; padding: 0 12px; border-top: 0; }
+.exp-role > summary::-webkit-details-marker { display: none; }
+.exp-toggle { justify-self: end; font-size: 13px; font-weight: 400; }
+.exp-role .when-open, .exp-role[open] .when-closed { display: none; }
+.exp-role[open] .when-open { display: inline; }
+.exp-role-body { padding: 4px 12px 14px; border-top: 1px solid var(--rule); padding-top: 14px; }
+.exp-remove { align-self: end; justify-self: end; }
+.exp-tools { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px 16px; }
+
+.exp-aside { position: sticky; top: 16px; display: grid; gap: 12px; max-height: calc(100vh - 32px); overflow: auto; }
+.exp-conditions { display: grid; gap: 10px; }
+.exp-cond { padding: 10px 12px; border-radius: 6px; display: grid; gap: 4px; }
+.exp-cond .cond { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; }
+.exp-cond .cond::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: currentColor; }
+.exp-cond.reviewed { background: var(--accent); color: var(--accent-ink); }
+.exp-cond.excluded { background: var(--amber-bg); color: var(--amber-ink); }
+.exp-valid { display: flex; align-items: center; gap: 6px; color: var(--success-fg); }
+.exp-draft-actions { justify-content: flex-start; }
+.exp-aside .exp-kv { grid-template-columns: 96px minmax(0, 1fr); }
+
+@media (max-width: 950px) {
+  .exp-layout { grid-template-columns: minmax(0, 1fr); }
+  .exp-steps { position: static; display: flex; overflow-x: auto; gap: 4px; margin: 0; }
+  .exp-steps a { white-space: nowrap; margin: 0; }
+  .exp-aside { position: static; max-height: none; overflow: visible; }
+  .exp-kv { grid-template-columns: 120px minmax(0, 1fr); }
+  .two, .three { grid-template-columns: minmax(0, 1fr); }
+  .exp-role > summary { grid-template-columns: minmax(0, 1fr) 40px; }
+  .exp-role > summary .exp-clamp { grid-column: 1 / -1; grid-row: 2; }
+}

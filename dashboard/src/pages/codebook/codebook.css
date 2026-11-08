@@ -1,0 +1,28 @@
+/* Codebook page chrome the foundation does not carry: the enabled switch, the behaviour rows and the identity line. */
+.switch { position: relative; display: inline-block; width: 36px; height: 20px; flex: none; }
+.switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+.switch i { position: absolute; inset: 0; border-radius: 10px; background: var(--control); transition: background 150ms; }
+.switch i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 150ms; }
+.switch input:checked + i { background: var(--primary); }
+.switch input:checked + i::after { transform: translateX(16px); }
+.switch input:disabled { cursor: not-allowed; }
+.switch input:disabled + i { opacity: 0.5; }
+.switch input:focus-visible + i { outline: 2px solid var(--ring); outline-offset: 2px; }
+.behaviour-row { position: relative; border-top: 1px solid var(--rule); }
+.behaviour-row:first-child { border-top: 0; }
+.behaviour-row .trow { border-top: 0; }
+.behaviour-row.active { background: var(--active); }
+.behaviour-pick { all: unset; box-sizing: border-box; display: block; cursor: pointer; min-width: 0; width: 100%; padding: 8px 64px 8px var(--card-pad); min-height: 44px; }
+.behaviour-pick:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.behaviour-pick b { display: block; font-weight: 500; }
+.behaviour-pick span { display: block; color: var(--muted); font-size: 12px; line-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.behaviour-row .switch { position: absolute; right: var(--card-pad); top: 50%; margin-top: -10px; }
+.behaviour-row.archived .behaviour-pick b { color: var(--muted); }
+.editor-meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.editor-meta .mono { font-size: 12px; }
+.list-name { padding: 0 var(--card-pad) 12px; }
+.editor-foot { flex-wrap: wrap; justify-content: space-between; }
+.codebook-lists { display: grid; gap: 16px; margin-top: 16px; }
+.codebook-lists > .two > fieldset, .codebook-lists > fieldset { margin: 0; }
+.codebook-lists legend { font-size: 14px; font-weight: 500; }
+.codebook-lists fieldset.full { grid-column: auto; }

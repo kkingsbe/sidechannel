@@ -1,4 +1,4 @@
-import { History, Plus, Save } from "lucide-react";
+import { History, Plus } from "lucide-react";
 import {
   Button,
   Card,
@@ -12,57 +12,67 @@ import {
 } from "../components/ui";
 import { BehaviorEditor } from "./codebook/behavior-editor";
 import { BehaviorList } from "./codebook/behavior-list";
-import { CodebookSelector } from "./codebook/codebook-selector";
+import { CodebookPicker } from "./codebook/codebook-selector";
 import { RevisionHistoryDrawer } from "./codebook/revision-history-drawer";
 import { useCodebookDraft } from "./codebook/use-codebook-draft";
+import "./codebook/codebook.css";
 
 export default function CodebookPage() {
   const draft = useCodebookDraft();
   const { command, validation, current } = draft;
   const saveDisabled = command.busy || draft.loading || !validation.readyToSave || draft.readOnly;
+  const saved = current?.revision.codes ?? [];
+  const changed = draft.dirty
+    ? draft.codes.filter((code) => {
+        const before = saved.find((item) => item.id === code.id);
+        return !before || JSON.stringify(before) !== JSON.stringify(code);
+      }).length + saved.filter((item) => !draft.codes.some((code) => code.id === item.id)).length
+    : 0;
+  const enabled = draft.codes.filter((code) => code.enabled && !code.archived).length;
+  const revisionNumber = current?.revision.revision;
+  const nextRevision = (revisionNumber ?? 0) + 1;
+  const finding = draft.books.length && current ? (
+    <>
+      <strong>
+        {draft.name || current.codebook.name} · revision {revisionNumber} · {draft.codes.length} behaviours, {enabled} enabled.
+      </strong>{" "}
+      Jev scores every analysis window against these definitions; they are separate from run-level outcomes in Oversight.
+    </>
+  ) : (
+    <>Jev scores every analysis window against these behaviour definitions; they are separate from run-level outcomes in Oversight.</>
+  );
+  const why = command.busy
+    ? "Saving revision…"
+    : draft.readOnly
+      ? "This codebook is archived; its definitions are frozen."
+      : draft.dirty
+        ? validation.readyToSave
+          ? `Unsaved changes in ${changed} ${changed === 1 ? "behaviour" : "behaviours"}`
+          : validation.status
+        : "No unsaved changes";
   return (
     <>
       <PageHeader
-        eyebrow="VERSIONED BEHAVIOR DEFINITIONS"
-        title="Research codebook"
-        description="Define what Jev screens for. These exploratory codes are separate from run-level outcomes."
+        title="Codebook"
+        description={finding}
         actions={
           <>
-            <Button
-              variant="secondary"
-              onClick={draft.create}
-              disabled={command.busy || draft.dirty}
-            >
-              <Plus size={15} />
-              New codebook
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => draft.setHistoryOpen(true)}
-              disabled={!draft.bookId}
-            >
+            {draft.books.length > 0 && <CodebookPicker draft={draft} />}
+            <Button variant="secondary" onClick={() => draft.setHistoryOpen(true)} disabled={!draft.bookId}>
               <History size={15} />
               Revision history
             </Button>
-            <Button onClick={draft.save} disabled={saveDisabled}>
-              <Save size={15} />
-              Save revision
+            <Button variant="secondary" onClick={draft.create} disabled={command.busy || draft.dirty}>
+              <Plus size={15} />
+              New codebook
+            </Button>
+            <span className="why" role="status">{why}</span>
+            <Button onClick={draft.save} disabled={saveDisabled} aria-label="Save revision">
+              Save revision {nextRevision}
             </Button>
           </>
         }
       />
-      <div className="save-status" role="status">
-        {command.busy ? "Saving revision…" : validation.status}
-        {draft.readOnly
-          ? " This codebook is archived. Archive or restore actions do not change its frozen definitions."
-          : " Saving creates a new immutable revision; it never overwrites an existing one."}
-        {draft.dirty && (
-          <p>
-            Save these edits before creating another codebook. Your recovery copy
-            is local to this browser.
-          </p>
-        )}
-      </div>
       {command.error && (
         <Notice kind="error">
           {command.error.message}
@@ -82,7 +92,7 @@ export default function CodebookPage() {
       )}
       {command.message && <Notice kind="success">{command.message}</Notice>}
       {draft.recovery && (
-        <Card>
+        <Card style={{ marginBottom: 24 }}>
           <CardHeading
             title="Recover edits from an older revision"
             description={`Your local edits started at revision ${draft.recovery.baseRevision}. The form below shows the latest saved revision ${current?.revision.revision}. Review both before saving.`}
@@ -100,12 +110,6 @@ export default function CodebookPage() {
           </div>
         </Card>
       )}
-      {draft.dirty && (
-        <Notice>
-          Unsaved codebook changes are kept in this browser. Saving creates a
-          revision for future analyses only.
-        </Notice>
-      )}
       {validation.duplicateNames && (
         <Notice kind="error">
           Display codes must be unique among active definitions.
@@ -119,7 +123,7 @@ export default function CodebookPage() {
         <Card>
           <Empty
             title="Create the study codebook"
-            description="Create an empty study codebook and add behavior definitions through the editor."
+            description="Create an empty study codebook, then add the behaviours Jev should screen for."
           >
             <Button onClick={draft.create} disabled={command.busy}>
               <Plus size={14} />
@@ -127,24 +131,28 @@ export default function CodebookPage() {
             </Button>
           </Empty>
         </Card>
+      ) : draft.loading ? (
+        <Loading />
+      ) : draft.error ? (
+        <ErrorState error={draft.error} retry={draft.loadLatest} />
       ) : (
-        <>
-          <CodebookSelector draft={draft} />
-          {draft.loading ? (
-            <Loading />
-          ) : draft.error ? (
-            <ErrorState error={draft.error} retry={draft.loadLatest} />
-          ) : (
-            <div className="split">
-              <BehaviorList draft={draft} />
-              {draft.code ? (
-                <BehaviorEditor draft={draft} />
-              ) : (
-                <Empty title="Select a behavior definition" />
-              )}
-            </div>
-          )}
-        </>
+        <div className="g12">
+          <div className="c5">
+            <BehaviorList draft={draft} />
+          </div>
+          <div className="c7">
+            {draft.code ? (
+              <BehaviorEditor draft={draft} />
+            ) : (
+              <Card>
+                <Empty
+                  title="Select a behaviour"
+                  description="Choose a behaviour on the left to edit its definition."
+                />
+              </Card>
+            )}
+          </div>
+        </div>
       )}
       <RevisionHistoryDrawer draft={draft} />
     </>

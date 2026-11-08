@@ -26,22 +26,23 @@ function clients() {
   });
 }
 
-it("keeps the frozen job header, coverage notice and heatmap scores", async () => {
+it("keeps the frozen job header, coverage strip and heatmap scores", async () => {
   renderWithClients(detail, {
     route: "/analysis/analysis-a",
     clients: clients(),
   });
   expect(
-    await screen.findByText(/Coverage on this page: 1 window .* 1 partial window/),
+    await screen.findByRole("img", { name: /1 source-step windows: 1 scored, 0 skipped, 0 failed/ }),
   ).toBeTruthy();
+  expect(screen.getByRole("heading", { level: 1, name: "Study" })).toBeTruthy();
   expect(
     screen.getByRole("tab", { name: "Heatmap" }).getAttribute("aria-selected"),
   ).toBe("true");
   expect(
     screen.getByRole("table", { name: "Behavior probability heatmap" }),
   ).toBeTruthy();
-  expect(screen.getByText("0%")).toBeTruthy();
-  expect(screen.getByText("Source boundary")).toBeTruthy();
+  expect(screen.getByRole("button", { name: /VISIBILITY, steps 1–12: 0%/ })).toBeTruthy();
+  expect(screen.getByText(/up to event 35/)).toBeTruthy();
 });
 
 it("renders not-found for an unknown view instead of the provenance panel", async () => {

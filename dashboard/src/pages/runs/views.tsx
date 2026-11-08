@@ -17,11 +17,11 @@ export const DEFAULT_RUN_TAB: RunsTab = "timeline";
 export function runsViews(hasResults: boolean): ViewRegistry<RunsTab> {
   return {
     timeline: { title: "Timeline", Component: TimelinePanel },
-    board: { title: "Board & deliveries", Component: BoardPanel },
+    board: { title: "Board", Component: BoardPanel },
     artifacts: { title: "Artifacts", Component: ArtifactsPanel },
     memory: { title: "Private memory", Component: MemoryPanel },
     reports: { title: "Reports", Component: ReportsPanel },
-    traces: { title: "Model & traces", Component: TracesPanel },
+    traces: { title: "Model calls", Component: TracesPanel },
     configuration: { title: "Configuration", Component: ConfigurationPanel },
     ...(hasResults ? { results: { title: "Researcher results", Component: ResultsPanel } } : {}),
   } as ViewRegistry<RunsTab>;

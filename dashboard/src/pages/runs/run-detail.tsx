@@ -1,9 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowUpRight, Copy, Download } from "lucide-react";
 import type { TurnSummary } from "@sidechannel/contracts/browser";
 import {
-  Badge,
   Button,
   Drawer,
   Empty,
@@ -11,24 +9,24 @@ import {
   JsonView,
   Loading,
   Notice,
-  PageHeader,
+  Tabs,
 } from "../../components/ui";
-import { CancelJobButton } from "../../components/cancel-job-button";
-import { ViewPanel } from "../../components/view-registry";
-import { Downstream } from "../../components/run-evidence/downstream";
+import { NotFoundView, tabItems } from "../../components/view-registry";
 import { RunDiagnostic } from "../../components/run-evidence/run-diagnostic";
 import { useClients } from "../../lib/clients/context";
 import { useResource } from "../../lib/clients/query";
-import { useProviders, useScenarios } from "../../lib/descriptors";
+import { useScenarios } from "../../lib/descriptors";
 import { MODEL_CALL_EVENT_TYPES } from "../../lib/model-calls";
-import { runStatusMeta } from "../../lib/status";
-import { short, when } from "../../lib/utils";
+import { when } from "../../lib/utils";
 import { useRunEvents, type EventStart } from "../../lib/use-run-events";
 import { ModelCallDetail } from "./ModelCallDetail";
 import { RunLiveProvider, type RunLiveFilters } from "./run-live-context";
 import { useRunRecord } from "./use-run-record";
 import { useRunSelection } from "./use-run-evidence";
-import { RunFreshness } from "./panels";
+import { RunCrumbs, RunHeader } from "./RunHeader";
+import { deriveTurns } from "./run-stats";
+import { LiveStamp } from "./RunLive";
+import "./run-detail.css";
 import { DEFAULT_RUN_TAB, runsOrder, runsViews, type RunsTab } from "./views";
 
 export const safeRunReturn = (value: string | null) =>
@@ -41,8 +39,7 @@ const ACTIVE_STATUSES = ["queued", "running", "reporting", "stopping"];
 export function RunDetail() {
   const { id } = useParams();
   const clients = useClients();
-  const providers = useProviders();
-  const scenarios = useScenarios();
+    const scenarios = useScenarios();
   const record = useRunRecord(id);
   const [params, setParams] = useSearchParams();
   const tab = (params.get("view") || DEFAULT_RUN_TAB) as RunsTab;
@@ -72,22 +69,25 @@ export function RunDetail() {
           ? "latest"
           : "first";
   const runActive = !!status && ACTIVE_STATUSES.includes(status);
-  const follow = runActive && start === "latest" && !filters.to;
+  const [paused, setPaused] = useState(false);
+  const follow = runActive && start === "latest" && !filters.to && !paused;
   const runEvents = useRunEvents(id, filters, {
     start,
     follow,
     enabled: eventTabs && openedActive !== undefined,
   });
   const turns = useResource<{ turns: TurnSummary[] }>(
-    id && eventTabs ? `run:${id}:turns` : null,
+    id ? `run:${id}:turns` : null,
     () => clients.request<{ turns: TurnSummary[] }>(`/runs/${encodeURIComponent(id!)}/turns`),
     { interval: follow ? 10000 : 0 },
   );
-  const jumpTo = (target: number | "end") =>
+  const jumpTo = (target: number | "end") => {
+    if (target === "end") setPaused(false);
     setParams((previous) => {
       previous.set("at", String(target));
       return previous;
     });
+  };
   const setTab = (view: RunsTab) =>
     setParams((previous) => {
       previous.set("view", view);
@@ -135,13 +135,16 @@ export function RunDetail() {
   };
   if (record.run.loading) return <Loading />;
   if (!data) return <ErrorState error={record.run.error} retry={record.run.refresh} />;
-  const provider = providers.view(data.config.model.provider);
   const scenario = scenarios.view(data.config.scenario.version);
   const hasResults = scenario.presentation.tabs.includes("results");
   const event = selection.event ?? runEvents.events.find((item) => item.id === selected);
+  const turnList = (Array.isArray(turns.data?.turns) ? turns.data!.turns : undefined) ?? (eventTabs ? deriveTurns(runEvents.events) : undefined);
   const liveValue = {
     runEvents,
-    turns: turns.data?.turns,
+    run: data,
+    active: runActive,
+    turns: Array.isArray(turns.data?.turns) ? turns.data!.turns : undefined,
+    turnList,
     follow,
     start,
     provider: data.config.model.provider,
@@ -153,109 +156,54 @@ export function RunDetail() {
     onOpenTraces: openTraces,
     onJump: jumpTo,
   };
+  const returnTo = safeRunReturn(params.get("returnTo"));
+  const registry = runsViews(hasResults);
+  const turnRows = Array.isArray(turns.data?.turns) ? turns.data!.turns : undefined;
+  const turnCount = turnRows?.length;
+  const scope = turnRows
+    ? `${turnCount} turns · ${turnRows.reduce((sum, turn) => sum + turn.eventCount, 0)} events in turns`
+    : undefined;
+  const counts: Partial<Record<RunsTab, number>> = {
+    board: data.board?.length,
+    artifacts: data.artifacts?.length,
+    reports: data.reports?.length,
+    traces: turnRows ? turnRows.reduce((sum, turn) => sum + turn.modelCalls, 0) : undefined,
+  };
+  const items = tabItems(registry, runsOrder(hasResults)).map((item) => ({
+    ...item,
+    count: counts[item.id] || undefined,
+  }));
+  const ActiveView = (registry as Record<string, { Component: ComponentType } | undefined>)[tab]?.Component;
+  const notice = record.progress.error ? (
+    <Notice kind="warning">
+      Live progress is stale. Last known run state and saved evidence remain available.{" "}
+      <Button variant="ghost" size="sm" onClick={record.progress.refresh}>
+        Reconnect
+      </Button>
+    </Notice>
+  ) : record.command.error ? (
+    <Notice kind="error">{record.command.error.message}</Notice>
+  ) : record.command.message ? (
+    <Notice kind="success">{record.command.message}</Notice>
+  ) : null;
   return (
     <>
-      <Button variant="ghost" size="sm" asChild className="mb-4">
-        <Link to={safeRunReturn(params.get("returnTo"))}>
-          <ArrowLeft size={14} />
-          All runs
-        </Link>
-      </Button>
-      <PageHeader
-        eyebrow={provider.runEyebrow ?? "EXPERIMENT RUN"}
-        title={data.config.label}
-        description={id!}
-        actions={
-          <>
-            <Badge tone={runStatusMeta[data.status].tone}>{runStatusMeta[data.status].label}</Badge>
-            <Button variant="secondary" onClick={record.duplicate} disabled={record.command.busy}>
-              <Copy size={14} />
-              Duplicate config
-            </Button>
-            <Button variant="secondary" asChild>
-              <a href={clients.runs.exportUrl(id!)} download>
-                <Download size={14} />
-                Source export
-              </a>
-            </Button>
-            <CancelJobButton
-              active={record.active}
-              cancelRequested={!!data.cancelRequested}
-              busy={record.command.busy}
-              confirm="Request cancellation? The worker will stop admitting new work and retain recorded evidence. An in-flight request may finish first."
-              idleLabel="Cancel run"
-              requestedLabel="Cancellation requested"
-              onCancel={record.cancel}
-            />
-          </>
-        }
+      <RunCrumbs run={data} returnTo={returnTo} />
+      <RunHeader
+        run={data}
+        id={id!}
+        returnTo={returnTo}
+        scope={scope}
+        active={record.active}
+        following={!paused}
+        onFollowChange={(next) => setPaused(!next)}
+        busy={record.command.busy}
+        onDuplicate={record.duplicate}
+        exportUrl={clients.runs.exportUrl(id!)}
+        onCancel={record.cancel}
+        live={record.active ? <LiveStamp updatedAt={runEvents.events.at(-1)?.timestamp ?? data.updatedAt} /> : undefined}
       />
-      <div className="run-metadata">
-        <span>
-          Condition <strong>{data.config.condition.id}</strong>
-        </span>
-        <span>
-          Model{" "}
-          <strong>
-            {data.config.model.provider} / {data.config.model.id}
-          </strong>
-        </span>
-        <span>
-          Config <strong className="mono">{short(data.configHash)}</strong>
-        </span>
-        <span role="status" className="run-live-summary">
-          <span>
-            State <strong>{data.status}</strong>
-          </span>
-          <span>
-            Phase{" "}
-            <strong>
-              {data.status === "reporting"
-                ? "Reporting"
-                : data.status === "completed"
-                  ? "Complete"
-                  : data.status === "running"
-                    ? "Action"
-                    : "No active phase recorded"}
-            </strong>
-          </span>
-        </span>
-        <span>
-          Round{" "}
-          <strong>
-            {data.round} / {data.config.scheduler.rounds}
-          </strong>{" "}
-          · turn {data.turn}
-        </span>
-        {data.activeAgentId && (
-          <span>
-            Active <strong>{data.activeAgentId}</strong>
-          </span>
-        )}
-        {data.pairId && (
-          <Link
-            className="table-title"
-            to={
-              "/runs/pairs/" +
-              data.pairId +
-              "?returnTo=" +
-              encodeURIComponent(safeRunReturn(params.get("returnTo")))
-            }
-          >
-            Matched pair <ArrowUpRight size={12} />
-          </Link>
-        )}
-      </div>
-      {record.progress.error && (
-        <Notice kind="warning">
-          Live progress is stale. Last known run state and saved evidence remain available.{" "}
-          <Button variant="ghost" size="sm" onClick={record.progress.refresh}>
-            Reconnect
-          </Button>
-        </Notice>
-      )}
-      {record.command.error && <Notice kind="error">{record.command.error.message}</Notice>}
-      {record.command.message && <Notice kind="success">{record.command.message}</Notice>}
+      {notice}
       <RunDiagnostic
         runId={id!}
         status={data.status}
@@ -263,16 +211,16 @@ export function RunDetail() {
         createdAt={data.createdAt}
         updatedAt={data.updatedAt}
       />
-      <Downstream runId={id!} status={data.status} />
       <RunLiveProvider value={liveValue}>
-        <ViewPanel
-          registry={runsViews(hasResults)}
-          order={runsOrder(hasResults)}
-          tab={tab}
-          panelId="run-evidence-panel"
-          onChange={setTab}
-        />
-        <RunFreshness updatedAt={data.updatedAt} id={id!} completed={data.status === "completed"} />
+        <Tabs panelId="run-evidence-panel" value={tab} onChange={(value) => setTab(value as RunsTab)} items={items} />
+        <section
+          role="tabpanel"
+          id="run-evidence-panel"
+          {...(ActiveView ? { "aria-labelledby": `run-evidence-panel-tab-${tab}` } : { "aria-label": "Unknown view" })}
+          tabIndex={0}
+        >
+          {ActiveView ? <ActiveView /> : <NotFoundView what={tab} />}
+        </section>
         <Drawer
           open={!!selected}
           onOpenChange={(open) => {
@@ -281,9 +229,9 @@ export function RunDetail() {
           title={
             event
               ? event.type.replaceAll("_", " ")
-              : runsViews(hasResults)[tab]?.title === "Artifacts"
+              : registry[tab]?.title === "Artifacts"
                 ? "Artifact version"
-                : runsViews(hasResults)[tab]?.title === "Board & deliveries"
+                : registry[tab]?.title === "Board"
                   ? "Board message"
                   : "Recorded evidence"
           }
@@ -336,7 +284,7 @@ export function RunDetail() {
                       size="sm"
                       onClick={() => openTraces(event!.invocationId!)}
                     >
-                      Open model call in Model &amp; traces
+                      Open in Model calls
                     </Button>
                   )}
                 </>

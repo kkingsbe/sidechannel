@@ -1,4 +1,5 @@
 import type { HarnessEvent, Run } from "../../lib/types";
+import { roleHue } from "../../pages/runs/role-color";
 
 export const TERMINAL_STATUSES = [
   "completed",
@@ -223,3 +224,196 @@ export function orderByCondition<T extends { config: { condition: { id: string }
 
 export const plural = (count: number, singular: string, pluralForm = singular + "s") =>
   `${count} ${count === 1 ? singular : pluralForm}`;
+
+/* ------------------------------------------------------------------- roles */
+
+const ROLE_COLORS: Record<string, string> = {
+  clinical_records: "#a86f0c",
+  outside_analytics: "#7a3fb8",
+  pharmacy: "#1e7b4f",
+  care_manager: "#2456b8",
+  diagnostics: "#c4242a",
+  system: "#5b5f66",
+};
+const FALLBACK_COLORS = ["#0e7490", "#9d3a6b", "#5b6b1f", "#8a4b12", "#3f5fa0", "#6b4fa0"];
+
+/** A stable dot colour per role: the five scenario roles are fixed, anything else hashes into a small palette. */
+export function roleColor(role?: string | null): string {
+  if (!role || role === "system") return ROLE_COLORS.system!;
+  const fixed =
+    ROLE_COLORS[role] ??
+    FALLBACK_COLORS[(roleHue(role) - 1) % FALLBACK_COLORS.length]!;
+  // The shared role tokens win when the app defines them, so a role keeps one colour on every screen.
+  return `var(--role-${roleHue(role)}, ${fixed})`;
+}
+
+/** "R1 · T3" from an event, "—" when it carries no round/turn. */
+export const rt = (event?: { round?: number; turn?: number }) =>
+  event && event.round !== undefined && event.turn !== undefined
+    ? `R${event.round} · T${event.turn}`
+    : event && event.round !== undefined
+      ? `R${event.round}`
+      : "—";
+
+/* ------------------------------------------------------------------- board */
+
+export interface BoardPost {
+  id: string;
+  authorId: string;
+  sequence: number;
+  timestamp: string;
+  text: string;
+}
+
+export const asPost = (item: unknown, index = 0): BoardPost => {
+  const o = isRecord(item) ? item : {};
+  return {
+    id: String(o.id ?? "post-" + index),
+    authorId: String(o.authorId ?? "unknown author"),
+    sequence: typeof o.sequence === "number" ? o.sequence : index + 1,
+    timestamp: typeof o.timestamp === "string" ? o.timestamp : "",
+    text: String(o.text ?? ""),
+  };
+};
+
+const deliveredIds = (event: HarnessEvent): string[] => {
+  const after = isRecord(event.data) ? event.data.after : undefined;
+  return Array.isArray(after)
+    ? after.flatMap((message) =>
+        isRecord(message) && typeof message.id === "string" ? [message.id] : [],
+      )
+    : [];
+};
+
+export interface PostReads {
+  post: BoardPost;
+  event?: HarnessEvent;
+  /** Roles other than the author, in scenario order, each with its read events in sequence order. */
+  readers: { role: string; reads: HarnessEvent[] }[];
+}
+
+export interface BoardModel {
+  posts: PostReads[];
+  /** Pair reads (one post delivered to one non-author role) per turn. */
+  readsPerTurn: Map<number, number>;
+  maxTurn: number;
+  deliveryEvents: number;
+  firstReads: number;
+  reReads: number;
+  /** (post, role) pairs with no read recorded. */
+  unread: { post: BoardPost; role: string }[];
+  longestWait?: { post: BoardPost; role: string; turns: number; event: HarnessEvent };
+  mostReRead?: { post: BoardPost; count: number; topRole: string; topCount: number };
+}
+
+/** Who read each post and when, computed only from recorded board_delivery events. */
+export function boardModel(
+  rawPosts: unknown[],
+  postEvents: Map<string, HarnessEvent>,
+  deliveries: HarnessEvent[],
+  roles: string[],
+): BoardModel {
+  const sorted = [...deliveries].sort((a, b) => a.sequence - b.sequence);
+  const posts = rawPosts.map(asPost);
+  const known = [...roles];
+  for (const event of sorted)
+    if (event.agentId && !known.includes(event.agentId)) known.push(event.agentId);
+  const byPost = new Map<string, HarnessEvent[]>();
+  const readsPerTurn = new Map<number, number>();
+  let maxTurn = 0;
+  for (const event of sorted) {
+    if (event.turn) maxTurn = Math.max(maxTurn, event.turn);
+    for (const id of new Set(deliveredIds(event))) {
+      const list = byPost.get(id) ?? [];
+      list.push(event);
+      byPost.set(id, list);
+    }
+  }
+  for (const event of postEvents.values()) if (event.turn) maxTurn = Math.max(maxTurn, event.turn);
+  const model: BoardModel = {
+    posts: [],
+    readsPerTurn,
+    maxTurn,
+    deliveryEvents: sorted.length,
+    firstReads: 0,
+    reReads: 0,
+    unread: [],
+  };
+  let wait = -1;
+  let rereadBest = 0;
+  for (const post of posts) {
+    const event = postEvents.get(post.id);
+    const matches = (byPost.get(post.id) ?? []).filter((e) => e.agentId !== post.authorId);
+    const readers = known
+      .filter((role) => role !== post.authorId)
+      .map((role) => ({ role, reads: matches.filter((e) => e.agentId === role) }));
+    model.posts.push({ post, event, readers });
+    let reread = 0;
+    let topRole = "";
+    let topCount = 0;
+    for (const reader of readers) {
+      if (!reader.reads.length) {
+        model.unread.push({ post, role: reader.role });
+        continue;
+      }
+      model.firstReads++;
+      model.reReads += reader.reads.length - 1;
+      reread += reader.reads.length - 1;
+      if (reader.reads.length - 1 > topCount) {
+        topCount = reader.reads.length - 1;
+        topRole = reader.role;
+      }
+      const first = reader.reads[0]!;
+      if (event?.turn && first.turn && first.turn - event.turn > wait) {
+        wait = first.turn - event.turn;
+        model.longestWait = { post, role: reader.role, turns: wait, event: first };
+      }
+    }
+    if (reread > rereadBest) {
+      rereadBest = reread;
+      model.mostReRead = { post, count: reread, topRole, topCount };
+    }
+    for (const read of matches)
+      if (read.turn) readsPerTurn.set(read.turn, (readsPerTurn.get(read.turn) ?? 0) + 1);
+  }
+  return model;
+}
+
+/** The one-sentence finding for the board tab, in plain facts. */
+export function boardFinding(model: BoardModel, roles: string[]) {
+  const total = model.posts.length;
+  if (!total) return { strong: "No board posts were recorded", rest: "" };
+  const incomplete = model.posts.filter((p) => p.readers.some((r) => !r.reads.length));
+  const others = Math.max(roles.length - 1, 1);
+  if (!incomplete.length)
+    return {
+      strong: `Every post was read by all ${others} other roles.`,
+      rest: " Posting never implies receipt: the exact read events are recorded per role.",
+    };
+  const label = (p: PostReads) => `post ${p.post.sequence}`;
+  if (incomplete.length === total)
+    return {
+      strong: "No post was read by every other role.",
+      rest: " Posting never implies receipt: the exact read events are recorded per role.",
+    };
+  if (incomplete.length <= 2) {
+    const only =
+      incomplete.length === 1
+        ? incomplete[0]!.readers.filter((r) => r.reads.length).map((r) => r.role)
+        : [];
+    const tail =
+      incomplete.length === 1
+        ? only.length
+          ? `, which only ${only.join(" and ")} read`
+          : ", which no one read"
+        : "";
+    return {
+      strong: `Every post was read by all ${others} other roles except ${incomplete.map(label).join(" and ")}${tail}.`,
+      rest: " Posting never implies receipt: the exact read events are recorded per role.",
+    };
+  }
+  return {
+    strong: `${incomplete.length} of ${total} posts were not read by every other role.`,
+    rest: " Posting never implies receipt: the exact read events are recorded per role.",
+  };
+}

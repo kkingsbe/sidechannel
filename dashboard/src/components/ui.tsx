@@ -3,8 +3,9 @@ import { Slot } from "@radix-ui/react-slot";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
 import { X, XCircle, MessageSquare, Wrench, CheckCircle2, Play, AlertCircle, Inbox, LoaderCircle, type LucideIcon } from "lucide-react";
+import { NavLink } from "react-router-dom";
 import { cn, pretty } from "../lib/utils";
-import type { IconName, Tone } from "../lib/status";
+import { runStatusMetaFor, type IconName, type Tone } from "../lib/status";
 import { WorkspaceTitleContext } from "../lib/workspace-context";
 const buttonVariants = cva("button", {
   variants: {
@@ -39,26 +40,111 @@ export function Card({ className, ...props }: React.ComponentProps<"section">) {
 }
 export function CardHeading({
   title,
+  count,
   description,
   actions,
+  ruled,
 }: {
   title: React.ReactNode;
+  /** A grey count after the title ("Recent pairs 4"), never a badge above it. */
+  count?: React.ReactNode;
   description?: React.ReactNode;
   actions?: React.ReactNode;
+  /** A rule under the heading when the body is a form or a chart rather than rows. */
+  ruled?: boolean;
 }) {
   return (
-    <div className="card-heading">
+    <div className={cn("card-heading", ruled && "ruled")}>
       <div>
-        <h2>{title}</h2>
+        <h2>{title}{count !== undefined && count !== null && <span className="n">{count}</span>}</h2>
         {description && <p>{description}</p>}
       </div>
       {actions && <div className="actions">{actions}</div>}
     </div>
   );
 }
+
+/** One container split by hairlines: a label over a figure, no icons, no tiles. */
+export function KpiStrip({ children, className, ...props }: React.ComponentProps<"div">) {
+  return <div className={cn("kpis", className)} {...props}>{children}</div>;
+}
+export function Kpi({
+  label,
+  value,
+  unit,
+  detail,
+  tone,
+  to,
+}: {
+  label: React.ReactNode;
+  value: React.ReactNode;
+  unit?: React.ReactNode;
+  detail?: React.ReactNode;
+  tone?: "bad";
+  /** A route makes the cell a link to the list it counts. */
+  to?: string;
+}) {
+  const body = (
+    <>
+      <div className="kpi-label">{label}</div>
+      <div className="kpi-value num">{value}{unit && <small>{unit}</small>}</div>
+      {detail && <div className={cn("kpi-detail", tone === "bad" && "bad")}>{detail}</div>}
+    </>
+  );
+  return to ? <NavLink className="kpi" to={to}>{body}</NavLink> : <div className="kpi">{body}</div>;
+}
+
+/** The condition of a run as a pill: reviewed blue, excluded amber, anything else neutral. */
+export function ConditionPill({ condition }: { condition?: string }) {
+  const id = condition ?? "unknown";
+  return <span className={cn("badge", id === "reviewed" && "badge-reviewed", id === "excluded" && "badge-excluded")}>{id}</span>;
+}
+
+/**
+ * One lane of a matched pair: the condition, its state, a track of rounds and turns completed,
+ * and the "R2 · T6" figure. Rounds come from the frozen scheduler; a failed or interrupted run
+ * hatches its track so it reads apart from one still in progress.
+ */
+export function Lane({
+  condition,
+  status,
+  round,
+  rounds,
+  turn,
+  turnsPerRound,
+  children,
+  stateLink,
+}: {
+  condition: string;
+  status: string;
+  round?: number;
+  rounds?: number;
+  turn?: number;
+  turnsPerRound?: number;
+  /** Extra line under the lane (a failure reason). */
+  children?: React.ReactNode;
+  /** Wraps the state pill in a link to the run. */
+  stateLink?: (pill: React.ReactNode) => React.ReactNode;
+}) {
+  const meta = runStatusMetaFor(status);
+  const totalTurns = rounds && turnsPerRound ? rounds * turnsPerRound : undefined;
+  const share = totalTurns && turn !== undefined ? Math.min(1, turn / totalTurns)
+    : rounds && round !== undefined ? Math.min(1, round / rounds) : 0;
+  const pill = <Badge tone={meta.tone}>{meta.label}</Badge>;
+  const broken = status === "failed" || status === "interrupted";
+  return (
+    <div className={cn("lane", condition === "excluded" && "excluded")}>
+      <span className="cond">{condition}</span>
+      {stateLink ? stateLink(pill) : pill}
+      <span className="track" aria-hidden="true"><i className={cn(broken && "hatch")} style={{ width: `${Math.max(broken ? 7 : 0, Math.round(share * 100))}%` }} /></span>
+      <span className="prog">{round !== undefined || turn !== undefined ? `R${round ?? 0} · T${turn ?? 0}` : "—"}</span>
+      {children}
+    </div>
+  );
+}
 const toneClass: Record<Tone, string> = {
   neutral: "",
-  info: "",
+  info: "badge-info",
   success: "badge-success",
   warning: "badge-warning",
   danger: "badge-danger",
@@ -335,14 +421,19 @@ export function Tabs({
     </div>
   );
 }
+/**
+ * The page title is a noun; the line under it is the finding — the fact in today's data that most
+ * needs attention, with the fact itself in ink (`<strong>`) — never a sentence about the interface.
+ * `eyebrow` is accepted for older callers and no longer rendered: the information belongs in the
+ * title or the finding.
+ */
 export function PageHeader({
   title,
   description,
-  eyebrow,
   actions,
 }: {
   title: string;
-  description: string;
+  description: React.ReactNode;
   eyebrow?: string;
   actions?: React.ReactNode;
 }) {
@@ -351,13 +442,18 @@ export function PageHeader({
   return (
     <header className="page-heading">
       <div>
-        {eyebrow && <span className="eyebrow">{eyebrow}</span>}
         <h1>{title}</h1>
-        <p>{description}</p>
+        <p className="finding">{description}</p>
       </div>
       {actions && <div className="actions">{actions}</div>}
     </header>
   );
+}
+
+/** A freshness stamp: a green dot and "Refreshed 7:48 PM" in small grey. */
+export function Stamp({ at, label = "Refreshed", stale }: { at?: string | number | Date | null; label?: string; stale?: boolean }) {
+  const time = at ? new Date(at).toLocaleTimeString(undefined, { timeStyle: "short" }) : null;
+  return <span className="stamp"><span className={cn("status-dot", stale && "danger")} />{stale ? "Updates unavailable" : label}{time && ` ${time}`}</span>;
 }
 export function Table({
   headers,

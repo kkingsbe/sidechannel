@@ -11,6 +11,7 @@ export interface ConfigFieldFactory {
     hint?: string,
     kind?: "text" | "textarea" | "number",
     min?: number,
+    readOnly?: boolean,
   ): ReactElement;
 }
 
@@ -25,20 +26,19 @@ export interface DurationFieldFactory {
 export function useConfigField(
   config: ExperimentConfig,
   errors: Record<string, string> | undefined,
-  required: (path: string) => boolean,
   change: (path: string, value: unknown) => void,
 ): { field: ConfigFieldFactory; duration: DurationFieldFactory } {
-  const field: ConfigFieldFactory = (path, label, hint, kind = "text", min) => (
+  const field: ConfigFieldFactory = (path, label, hint, kind = "text", min, readOnly) => (
     <Field
       key={path}
       label={label}
       hint={hint}
       error={errors?.[path]}
-      required={required(path)}
     >
       {kind === "textarea" ? (
         <Textarea
           data-config-path={path}
+          readOnly={readOnly}
           value={String(valueAt(config, path) ?? "")}
           onChange={(e) => change(path, e.target.value)}
         />
@@ -72,7 +72,7 @@ export function useConfigField(
             About {humanDuration(ms)}. Runs this long spend more model budget; the limit is 24 hours.
           </span>
         ) : (
-          `Stored in milliseconds (${String(valueAt(config, path))} ms).`
+          `${scale === 1000 ? "seconds" : scale === 60000 ? "minutes" : "units"} · stored as ${String(valueAt(config, path))} ms`
         )
       }
     >

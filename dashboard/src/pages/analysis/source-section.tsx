@@ -1,19 +1,25 @@
-import { Badge, Card, CardHeading, ErrorState, Field, Input, Pager, Select } from "../../components/ui";
+import { useState } from "react";
+import { Badge, ErrorState, Field, Input, Pager, Select } from "../../components/ui";
+import { useClaimedReviewer } from "../../components/claimed-reviewer";
 import { short, when } from "../../lib/utils";
 import type { AnalysisSetupState } from "./analysis-setup";
 
 export function SourceSection({ state }: { state: AnalysisSetupState }) {
   const { runId, runs, source, books, revision, revisionHistory, settings, change, currentRevision, setParams, setPreview } = state;
+  const { identifyReviewer } = useClaimedReviewer();
+  const [changingIdentity, setChangingIdentity] = useState(!settings.creator.trim());
   return (
     <>
-          <Card className="form-section">
-            <CardHeading title="Source & frozen definitions" />
-            <div className="card-body form-grid">
+          <section className="well an-well" aria-labelledby="an-source-h">
+            <div className="an-well-head">
+              <h2 id="an-source-h">Source & frozen definitions</h2>
+              <p>Only terminal runs can be analyzed. Definitions are frozen when the analysis launches.</p>
+            </div>
+            <div className="form-grid">
               <div>
                 <Field
                   required
                   label="Source run"
-                  hint="Only terminal runs can be analyzed."
                 >
                   <Select
                     value={runId}
@@ -39,7 +45,7 @@ export function SourceSection({ state }: { state: AnalysisSetupState }) {
                     ))}
                   </Select>
                 </Field>
-                <Pager page={runs.page} hasMore={runs.hasMore} onChange={runs.onChange} />
+                {(runs.page > 0 || runs.hasMore) && <Pager page={runs.page} hasMore={runs.hasMore} onChange={runs.onChange} />}
               </div>
               <div>
                 <Field label="Codebook" required>
@@ -71,7 +77,7 @@ export function SourceSection({ state }: { state: AnalysisSetupState }) {
                     ))}
                   </Select>
                 </Field>
-                <Pager page={books.page} hasMore={books.hasMore} onChange={books.onChange} />
+                {(books.page > 0 || books.hasMore) && <Pager page={books.page} hasMore={books.hasMore} onChange={books.onChange} />}
               </div>
               <div>
                 <Field
@@ -104,18 +110,35 @@ export function SourceSection({ state }: { state: AnalysisSetupState }) {
                     ))}
                   </Select>
                 </Field>
-                <Pager page={revisionHistory.page} hasMore={revisionHistory.hasMore} onChange={revisionHistory.onChange} />
+                {(revisionHistory.page > 0 || revisionHistory.hasMore) && <Pager page={revisionHistory.page} hasMore={revisionHistory.hasMore} onChange={revisionHistory.onChange} />}
               </div>
-              <Field
-                required
-                label="Researcher / creator"
-                hint="Claimed identity in the open workspace."
-              >
-                <Input
-                  value={settings.creator}
-                  onChange={(e) => change({ creator: e.target.value })}
-                />
-              </Field>
+              {changingIdentity ? (
+                <Field
+                  required
+                  label="Researcher / creator"
+                  hint="Claimed identity in the open workspace."
+                >
+                  <Input
+                    value={settings.creator}
+                    onChange={(e) => {
+                      change({ creator: e.target.value });
+                      identifyReviewer(e.target.value);
+                    }}
+                  />
+                </Field>
+              ) : (
+                <div className="field">
+                  <div>
+                    <label>Researcher / creator</label>
+                  </div>
+                  <p className="an-identity">
+                    Saving as <strong>{settings.creator}</strong> ·{" "}
+                    <button type="button" className="an-linkbtn" onClick={() => setChangingIdentity(true)}>
+                      change
+                    </button>
+                  </p>
+                </div>
+              )}
               {currentRevision && (
                 <div className="full actions">
                   {currentRevision.codes
@@ -126,12 +149,10 @@ export function SourceSection({ state }: { state: AnalysisSetupState }) {
                 </div>
               )}
               {source.data && (
-                <div className="helper full">
-                  Source {source.data.status} ·{" "}
-                  {source.data.config.model.provider}/
+                <div className="small muted full">
+                  Source {source.data.status} · {source.data.config.model.provider}/
                   {source.data.config.model.id} · config{" "}
-                  {short(source.data.configHash)}. Missing evidence is recorded
-                  separately from excluded categories.
+                  <span className="mono">{short(source.data.configHash)}</span>
                 </div>
               )}
               {(runs.error || books.error || source.error) && (
@@ -142,7 +163,7 @@ export function SourceSection({ state }: { state: AnalysisSetupState }) {
                 </div>
               )}
             </div>
-          </Card>
+          </section>
     </>
   );
 }
