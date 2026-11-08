@@ -18,10 +18,15 @@ export type BatchStrategy =
     | { kind: 'stratified'; bins: number[]; perBin: number }
     | { kind: 'disagreement'; minGap: number };
 
+/** A stratified bin that held fewer windows than `perBin` for a code; `bin` indexes the strategy's `bins` edges. */
+export interface BatchShortfall { codeId: string; bin: number; requested: number; drawn: number }
+
 export interface ReviewBatch {
     id: string; analysisId: string; createdAt: string; definitionRevision: string; evidenceRevision: string; populationHash: string; populationSize: number;
     seed: string; randomSize: number; threshold: number; codeIds: string[]; selectedCount: number; mode: 'assisted' | 'blind';
     strategy?: BatchStrategy;
+    /** Stratified batches only: bins that could not be filled. Hidden from blind reviewers (it names codes). */
+    shortfalls?: BatchShortfall[];
 }
 
 export type ValidationStatus = 'unvalidated' | 'tentative' | 'validated' | 'unreliable';

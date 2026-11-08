@@ -87,6 +87,10 @@
       "types": "./dist/analysis/store.d.ts",
       "import": "./dist/analysis/store.js"
     },
+    "./analysis/validation": {
+      "types": "./dist/analysis/validation.d.ts",
+      "import": "./dist/analysis/validation.js"
+    },
     "./analysis/windows": {
       "types": "./dist/analysis/windows.d.ts",
       "import": "./dist/analysis/windows.js"

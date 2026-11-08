@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { reviewRevisionKey, type MemberQuery, type ReviewKind, type ReviewQuery, type ReviewStore } from '@sidechannel/contracts/analysis/review-repository';
 import { AnalysisConflict, AnalysisNotFound, AnalysisValidation } from '@sidechannel/contracts/analysis/jev-repository';
-import type { Decision, Review, ReviewMember, ReviewQueueItem, ReviewWindow, ReviewContext, ReviewBatch, ReviewListFilter, ReviewQueueFilter } from '@sidechannel/contracts/analysis/jev-reviews';
+import type { BatchStrategy, BatchShortfall, Decision, Review, ReviewMember, ReviewQueueItem, ReviewReason, ReviewWindow, ReviewContext, ReviewBatch, ReviewListFilter, ReviewQueueFilter } from '@sidechannel/contracts/analysis/jev-reviews';
 import { jsonHash } from '../hashing.js';
 
 const hash = jsonHash;
@@ -10,6 +10,68 @@ const text = (value: unknown, name: string, max = 200) => { if (typeof value !==
 
 const strings = (value: unknown, name: string) => { if (!Array.isArray(value) || value.length > 10000 || value.some(x => typeof x !== 'string')) throw new AnalysisValidation(`Invalid ${name}`); return [...new Set(value as string[])]; };
 
+/** Default stratification (v2 spec section 9.2): confident negatives, the undecided band, confident positives. */
+export const DEFAULT_STRATIFIED_BINS = [0, 0.3, 0.7, 1];
+export const DEFAULT_PER_BIN = 10;
+export const DEFAULT_MIN_GAP = 0.5;
+
+/** Validates and normalizes a request `strategy`; absent means the v1 flagged-plus-random selection. */
+export function parseBatchStrategy(value: unknown): BatchStrategy | undefined {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value !== 'object' || Array.isArray(value)) throw new AnalysisValidation('Invalid strategy');
+    const input = value as Record<string, unknown>;
+    if (input.kind === 'flagged-plus-random') return { kind: 'flagged-plus-random' };
+    if (input.kind === 'stratified') {
+        const bins = input.bins ?? DEFAULT_STRATIFIED_BINS, perBin = input.perBin ?? DEFAULT_PER_BIN;
+        if (!Array.isArray(bins) || bins.length < 2 || bins.length > 21 || bins.some((edge, i) => typeof edge !== 'number' || !Number.isFinite(edge) || edge < 0 || edge > 1 || i > 0 && edge <= (bins[i - 1] as number)))
+            throw new AnalysisValidation('bins must be 2 to 21 strictly increasing edges within 0 and 1');
+        if (!Number.isSafeInteger(perBin) || Number(perBin) < 1 || Number(perBin) > 1000) throw new AnalysisValidation('perBin must be an integer from 1 to 1000');
+        return { kind: 'stratified', bins: bins as number[], perBin: Number(perBin) };
+    }
+    if (input.kind === 'disagreement') {
+        const minGap = input.minGap ?? DEFAULT_MIN_GAP;
+        if (typeof minGap !== 'number' || !Number.isFinite(minGap) || minGap <= 0 || minGap > 1) throw new AnalysisValidation('minGap must be greater than 0 and at most 1');
+        return { kind: 'disagreement', minGap };
+    }
+    throw new AnalysisValidation('Unknown batch strategy');
+}
+
+/** Index of the bin holding `probability`; bins are [e0,e1), ..., [e(n-2),e(n-1)] with the last edge inclusive. -1 when outside every bin. */
+export function binIndex(bins: readonly number[], probability: number): number {
+    if (probability < bins[0]! || probability > bins[bins.length - 1]!) return -1;
+    for (let i = 0; i < bins.length - 1; i++) if (probability < bins[i + 1]!) return i;
+    return bins.length - 2;
+}
+
+/**
+ * Stratified draw: per code, windows with a score are bucketed into `bins` and up to `perBin` are drawn from each
+ * bin in seeded hash order. A bin with fewer windows than `perBin` yields a shortfall. Only primary scores are
+ * considered; the caller passes context probabilities that exclude probe results.
+ */
+export function stratifiedSelection(windows: readonly ReviewWindow[], codeIds: readonly string[], strategy: { bins: number[]; perBin: number }, seed: string) {
+    const selected = new Set<string>(), shortfalls: BatchShortfall[] = [], binCount = strategy.bins.length - 1;
+    for (const codeId of codeIds) {
+        const buckets: ReviewWindow[][] = Array.from({ length: binCount }, () => []);
+        for (const window of windows) { const p = window.probabilities[codeId]; if (p != null) { const i = binIndex(strategy.bins, p); if (i >= 0) buckets[i]!.push(window); } }
+        buckets.forEach((bucket, bin) => {
+            const drawn = bucket.map(w => ({ id: w.id, rank: hash([seed, codeId, bin, w.id]) })).sort((a, b) => a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : a.id.localeCompare(b.id)).slice(0, strategy.perBin);
+            for (const row of drawn) selected.add(row.id);
+            if (drawn.length < strategy.perBin) shortfalls.push({ codeId, bin, requested: strategy.perBin, drawn: drawn.length });
+        });
+    }
+    return { selected, shortfalls };
+}
+
+/** Windows where some reviewer's latest decision (present 1, absent 0) and the score differ by at least `minGap`; uncertain labels never qualify. */
+export function disagreementSelection(windows: readonly ReviewWindow[], codeIds: readonly string[], labels: readonly Pick<Review, 'subjectId' | 'codeId' | 'decision'>[], minGap: number): Set<string> {
+    const byId = new Map(windows.map(w => [w.id, w])), selected = new Set<string>();
+    for (const label of labels) {
+        if (label.decision === 'uncertain' || !codeIds.includes(label.codeId)) continue;
+        const score = byId.get(label.subjectId)?.probabilities[label.codeId];
+        if (score != null && Math.abs((label.decision === 'present' ? 1 : 0) - score) >= minGap - 1e-9) selected.add(label.subjectId);
+    }
+    return selected;
+}
 
 /** Review history is append-only. Claimed names are never presented as verified accounts. */
 export class ReviewService {
@@ -67,17 +129,31 @@ export class ReviewService {
         const codeIds = strings(input.codeIds ?? ctx.codeIds, 'codeIds'), manual = strings(input.manualWindowIds ?? [], 'manualWindowIds');
         if (codeIds.some(id => !ctx.codeIds.includes(id)) || manual.some(id => !ctx.windows.some(w => w.id === id))) throw new AnalysisValidation('Unknown code or window');
         if (input.mode !== undefined && !['assisted', 'blind'].includes(String(input.mode))) throw new AnalysisValidation('Invalid review mode');
+        const strategy = parseBatchStrategy(input.strategy), driven = strategy?.kind === 'stratified' || strategy?.kind === 'disagreement';
         const population = [...ctx.windows].sort((a, b) => a.id.localeCompare(b.id)), rank = (id: string) => hash([seed, id]);
-        const random = new Set([...population].sort((a, b) => rank(a.id).localeCompare(rank(b.id))).slice(0, Number(randomSize)).map(w => w.id));
+        // A stratified or disagreement strategy replaces the v1 flagged and random selection; manual picks still apply.
+        const random = new Set(driven ? [] : [...population].sort((a, b) => rank(a.id).localeCompare(rank(b.id))).slice(0, Number(randomSize)).map(w => w.id));
+        let shortfalls: BatchShortfall[] | undefined, strategic = new Set<string>();
+        if (strategy?.kind === 'stratified') ({ selected: strategic, shortfalls } = stratifiedSelection(population, codeIds, strategy, seed));
+        if (strategy?.kind === 'disagreement') strategic = disagreementSelection(population, codeIds, await this.latestWindowLabels(analysisId, ctx), strategy.minGap);
         const members: ReviewMember[] = population.map(window => {
-            const reasons: ('flagged' | 'random' | 'manual')[] = [];
-            if (codeIds.some(code => window.probabilities[code] != null && window.probabilities[code]! >= threshold)) reasons.push('flagged');
-            if (random.has(window.id)) reasons.push('random'); if (manual.includes(window.id)) reasons.push('manual');
+            const reasons: ReviewReason[] = [];
+            if (!driven && codeIds.some(code => window.probabilities[code] != null && window.probabilities[code]! >= threshold)) reasons.push('flagged');
+            if (random.has(window.id)) reasons.push('random'); if (strategic.has(window.id)) reasons.push(strategy!.kind as 'stratified' | 'disagreement'); if (manual.includes(window.id)) reasons.push('manual');
             return { windowId: window.id, eligible: true, selected: reasons.length > 0, reasons, order: hash(['order', seed, window.id]) };
         });
-        const batch: ReviewBatch = { id: randomUUID(), analysisId, createdAt: new Date().toISOString(), definitionRevision: ctx.definitionRevision, evidenceRevision: ctx.evidenceRevision, populationHash: hash(population.map(w => w.id)), populationSize: population.length, seed, randomSize: Number(randomSize), threshold, codeIds, selectedCount: members.filter(m => m.selected).length, mode: input.mode === 'blind' ? 'blind' : 'assisted' };
+        const batch: ReviewBatch = { id: randomUUID(), analysisId, createdAt: new Date().toISOString(), definitionRevision: ctx.definitionRevision, evidenceRevision: ctx.evidenceRevision, populationHash: hash(population.map(w => w.id)), populationSize: population.length, seed, randomSize: driven ? 0 : Number(randomSize), threshold, codeIds, selectedCount: members.filter(m => m.selected).length, mode: input.mode === 'blind' ? 'blind' : 'assisted', ...(strategy ? { strategy } : {}), ...(shortfalls ? { shortfalls } : {}) };
         for (const member of members) await this.store.insert('members', batch.id, member.order + ':' + member.windowId, member);
         await this.store.insert('batches', analysisId, batch.id, batch); return batch;
+    }
+    /** Latest per-reviewer window decisions for the context's definition and evidence revisions. */
+    private async latestWindowLabels(analysisId: string, ctx: ReviewContext): Promise<Review[]> {
+        const labels: Review[] = []; let after: string | undefined;
+        do {
+            const page = await this.store.queryReviews<Review>(analysisId, { scope: 'window', latest: true, definitionRevision: ctx.definitionRevision, evidenceRevision: ctx.evidenceRevision }, after, 500);
+            labels.push(...page.items.map(row => row.value)); after = page.nextCursor ?? undefined;
+        } while (after);
+        return labels;
     }
     async getBatch(analysisId: string, batchId: string, options: { after?: string; limit?: number; reviewer?: string; provenance?: boolean; filter?: ReviewQueueFilter } = {}) {
         const stored = await this.store.get<ReviewBatch>('batches', analysisId, batchId); if (!stored) throw new AnalysisNotFound('Review batch not found');
@@ -117,7 +193,7 @@ export class ReviewService {
         const items: ReviewQueueItem[] = page.items.filter(m => m.selected).map(m => {
             return blind && !reviewed.has(String(m.windowId)) ? { windowId: m.windowId, selected: true } : m;
         });
-        const { threshold, codeIds, seed, ...publicBatch } = batch; return { batch: blind ? publicBatch : batch, items, nextCursor: page.nextCursor };
+        const { threshold, codeIds, seed, shortfalls, ...publicBatch } = batch; return { batch: blind ? publicBatch : batch, items, nextCursor: page.nextCursor };
     }
     async allReviews(analysisId: string): Promise<Review[]> {
         const all: Review[] = []; let after: string | undefined;
