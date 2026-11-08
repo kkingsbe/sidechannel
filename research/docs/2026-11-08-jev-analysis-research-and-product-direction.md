@@ -50,6 +50,20 @@ Six identical requests for three windows. Jev has no temperature setting, and th
 
 TypeSafe's own consistency cookbook reports the same order of variance. Any threshold within about 0.1 of a score is a coin flip for that window, and `accept` is the noisiest code we have.
 
+### 1.5 Where the background should live (added after the v2 build)
+
+The live leak A/B in `tests/integration/jev-leak-smoke.ts` was run with `--ablate` on 12 seeded windows of the size-1 analysis, model `jev-1.14.0`. Means per code; shifts are against v1 (old shaping, condition included).
+
+| Shaping | visibility | accept | join | challenge |
+|---|---|---|---|---|
+| v1 (static context with condition in state, prose questions) | 0.53 | 0.23 | 0.08 | 0.14 |
+| v2 evidence-only state, background inside each question | 0.31 | 0.37 | 0.14 | 0.15 |
+| v2 state, v1 prose questions (no background anywhere) | 0.27 | 0.36 | 0.19 | 0.09 |
+| v1 state without condition, v2 questions (background in both) | 0.43 | 0.26 | 0.08 | 0.22 |
+| v2 state with shared `background` block, questions without background | 0.31 | 0.33 | 0.07 | 0.20 |
+
+Three conclusions. First, the visibility leak is closed by removing the condition, however the rest is arranged: every variant without it lands at 0.27 to 0.31. Second, per-question background does not do the job that shared background does for `join`, and putting it in both places is worse. The shared block is the production shaping. Third, two residual shifts survive every variant: the v2 state raises `accept` by about 0.10 and the v2 question format raises `challenge` by about 0.06. These are differences between two classifiers of unknown accuracy, not errors, and the labelled set in phase 4 is what decides them. Both codes were already the least stable in the noise probe.
+
 ## 2. What the TypeSafe docs say that matters
 
 - Question types are `noul` (yes/no probability), `choice` (pick one of up to 255 labels, with per-label probabilities), `score` (2 to 10 ordered levels, expected value and per-level probabilities) and `box` (image only). Nothing returns free text, a count, or a span. Jev "does not count reliably".

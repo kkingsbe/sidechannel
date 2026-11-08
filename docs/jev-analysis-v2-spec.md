@@ -126,7 +126,7 @@ Serialization version becomes `jev-state-v2`. The shared state contains only evi
 
 Differences from v1:
 
-- No `staticContext` field. Task and policy move to the question (5.2). The condition is never sent.
+- No `staticContext` field. The condition is never sent. Task and policy stay in the shared state, as a top-level `background: { task, policy }` block holding the union of the parts the enabled codes request (5.2 explains why this is not per question).
 - Identifiers are window-local aliases (`s14`, `e3`, `c1`) rather than UUIDs and run-scoped IDs. The serialized window stores an `aliasMap` from alias to real ID so review, evidence links and exports resolve exactly. This reclaims roughly 30% of window bytes.
 - Step metadata that only served reconstruction (`sequenceStart`, `sequenceEnd`, `invocationId`, `eventIds` per tool call) is dropped from the model-facing state and kept in the window record.
 
@@ -151,7 +151,7 @@ Question template version becomes `jev-behavior-v2`. Instructions are a JSON obj
 }
 ```
 
-- `background` is present only for codes whose `background` field is non-empty, and only with the listed parts. The condition has no path into any request. The request builder asserts this with a string check against the run's condition text before sending, as a last line of defence.
+- The question carries no background text. A code's `background` field declares which parts it needs, and the union of those parts is written once into the shared state's `background` block (5.1). This was decided by measurement on November 8, 2026 (brief 1.5): with the background inside each question instead, `join` rose by 0.06 and `accept` by 0.14 against v1 on the same windows, and duplicating it in both places pushed `visibility` back up to 0.43. With the block in the state and nothing in the question, `visibility` sits at 0.31, within 0.05 of the no-condition baseline, and `join` is unchanged. The condition has no path into any request. The request builder asserts this with a string check against the run's condition text over everything the pipeline adds (questions, criteria, the state's background block) before sending, as a last line of defence. Evidence in which an agent quotes the condition is the agents' own words: it is scored, and the preview flags those windows.
 - `focus` is present only for actor-scoped codes. One question is generated per agent active in the window, with the `codeId` suffixed by the agent (`delegate@care_manager`). Results store `codeId` and `actorId` separately.
 - `choice` codes send `type: "choice"` with `criteria` built from the options. Option order is shuffled per request with a recorded seed, and the shuffle is stored in the request artifact, because Jev leans toward the first option.
 - `score` codes send `type: "score"` with `criteria` as the ordered levels.
@@ -159,7 +159,7 @@ Question template version becomes `jev-behavior-v2`. Instructions are a JSON obj
 
 ### 5.3 Batching
 
-The v1 batcher splits questions only when the combined limit is exceeded. In v2 it also groups questions by their `background` set, so that a request carries one background per distinct set. Questions with no background go in their own request. This keeps background out of requests that do not need it, following the docs' advice to include only the context each question needs, and it is the natural place for the Section 12 leak test to measure per-group effects.
+The v1 batcher splits questions only when the combined limit is exceeded. v2 keeps that behavior. Because the background lives in the shared state (5.1), every question in a window shares one background and the group machinery collapses to a single group per window; it stays in the code so that a per-group split can be reinstated if a future measurement favours it.
 
 ### 5.4 Token accounting
 
@@ -353,7 +353,7 @@ Each phase ships independently and leaves the system usable.
 
 ## 15. Risks and open questions
 
-- Per-question background may prime a question the way shared background primed `visibility`. The phase 1 A/B measures this directly; if it leaks, the fallback is to drop policy text from questions and rely on the codes' own criteria, with examples of legitimate routes in the criteria instead.
+- Resolved on November 8, 2026: per-question background was measured and rejected in favour of a shared `background` block in the state (5.2, brief 1.5). What remains open is that the v2 state raises `accept` by about 0.10 against v1 on the same windows in every variant, and the v2 question format raises `challenge` by about 0.06. A shift is not an error; the phase 4 labels decide which side is right. Until then both codes carry a note in the studio.
 - Organization rate limits are unknown and gate the concurrency setting for batch runs across many runs. Read them from the console before phase 5.
 - The `accept` code may be genuinely ambiguous in these runs rather than badly defined. Phase 4 labels decide whether to split it (agreement in words against execution in tool calls) or drop it.
 - Scenario vocabulary (case keys, "protected adjustment", "legacy archive") appears in several definitions and in the policy. Phase 1's sentinel test covers the condition only; a vocabulary audit of definitions against the task text belongs in phase 3.
