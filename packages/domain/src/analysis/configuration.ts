@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Run } from '@sidechannel/contracts/harness/contracts';
 import { EVIDENCE_CATEGORIES, type AnalysisConfiguration, type AnalysisConfigurationInput, type BehaviorDefinition, type Codebook, type CodebookRevision } from '@sidechannel/contracts/analysis/evidence-contracts';
 import { canonicalHash, canonicalJson } from '../hashing.js';
+import { DEFAULT_TOKEN_ESTIMATOR_VERSION, isTokenEstimatorVersion } from './token-estimator.js';
 
 export const stableStringify = canonicalJson;
 export const snapshotHash = canonicalHash;
@@ -31,7 +32,7 @@ export function resolveAnalysisConfiguration(input: AnalysisConfigurationInput =
         window: { size: 12, stride: 4, ...input.window },
         selection: { phases: ['action', 'report'], ...input.selection },
         evidence: { ...Object.fromEntries(EVIDENCE_CATEGORIES.map(c => [c, true])), ...input.evidence } as AnalysisConfiguration['evidence'],
-        inputLimits: { singleQuestionTokens: 32_000, combinedQuestionTokens: 64_000, maxBodyBytes: 32 * 1024 * 1024, headroomTokens: 2_000, estimatorVersion: 'utf8-bytes-conservative-v1', ...input.inputLimits },
+        inputLimits: { singleQuestionTokens: 32_000, combinedQuestionTokens: 64_000, maxBodyBytes: 32 * 1024 * 1024, headroomTokens: 2_000, estimatorVersion: DEFAULT_TOKEN_ESTIMATOR_VERSION, ...input.inputLimits },
     };
     if (input.longContext !== undefined && input.longContext !== false) throw new Error('Long-context mode is not supported');
     if (config.version !== 1) throw new Error('Unsupported analysis configuration version');
@@ -47,7 +48,7 @@ export function resolveAnalysisConfiguration(input: AnalysisConfigurationInput =
     for (const [k, v] of Object.entries(config.evidence)) if (!EVIDENCE_CATEGORIES.includes(k as typeof EVIDENCE_CATEGORIES[number]) || typeof v !== 'boolean') throw new Error(`Invalid evidence selection: ${k}`);
     for (const k of ['singleQuestionTokens', 'combinedQuestionTokens', 'maxBodyBytes'] as const) integer(config.inputLimits[k], k, k === 'maxBodyBytes' ? 32 * 1024 * 1024 : k === 'singleQuestionTokens' ? 32_000 : 64_000);
     if (!Number.isSafeInteger(config.inputLimits.headroomTokens) || config.inputLimits.headroomTokens < 0 || config.inputLimits.headroomTokens >= Math.min(config.inputLimits.singleQuestionTokens, config.inputLimits.combinedQuestionTokens)) throw new Error('Invalid token headroom');
-    if (config.inputLimits.estimatorVersion !== 'utf8-bytes-conservative-v1') throw new Error('Unsupported token estimator');
+    if (typeof config.inputLimits.estimatorVersion !== 'string' || !isTokenEstimatorVersion(config.inputLimits.estimatorVersion)) throw new Error('Unsupported token estimator');
     return immutableSnapshot(config);
 }
 
