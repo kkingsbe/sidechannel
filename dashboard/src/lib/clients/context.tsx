@@ -8,6 +8,7 @@ import { createAnalysesClient, type AnalysesClient } from './analyses';
 import { createMonitorClient, createReviewsClient, type MonitorClient, type ReviewsClient } from './monitor';
 import { createWorkspaceClient, type WorkspaceClient } from './workspace';
 import { createExperimentsClient, type ExperimentsClient } from './experiments';
+import { createPlaybooksClient, type PlaybooksClient } from './playbooks';
 
 export interface ApiClients {
     request: Requester;
@@ -18,6 +19,7 @@ export interface ApiClients {
     reviews: ReviewsClient;
     workspace: WorkspaceClient;
     experiments: ExperimentsClient;
+    playbooks: PlaybooksClient;
 }
 
 /** Composition root for dashboard data access. Tests inject a fake `request`. */
@@ -33,6 +35,7 @@ export function createClients(overrides: { request?: Requester; adapt?: boolean 
         monitor: createMonitorClient(api),
         reviews: createReviewsClient(api),
         workspace: createWorkspaceClient(api),
+        playbooks: createPlaybooksClient(api),
     };
     return { ...resources, experiments: createExperimentsClient(resources) };
 }
