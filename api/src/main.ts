@@ -3,6 +3,7 @@ import { MongoAnalysisRepository } from '@sidechannel/persistence/analysis/jev-r
 import { MongoReviewStore } from '@sidechannel/persistence/analysis/review-repository';
 import { MongoResearchStore } from '@sidechannel/persistence/analysis/store';
 import { MongoHealthcareCatalog } from '@sidechannel/persistence/healthcare/catalog';
+import { MongoPlaybookCatalog } from '@sidechannel/persistence/playbook/catalog';
 import { buildMetadata } from '@sidechannel/domain/harness/provenance';
 import { createResearcherServer } from './server/index.js';
 import { createJevExtension } from './routes/jev-extension.js';
@@ -19,6 +20,8 @@ const researchStore = new MongoResearchStore(repository.db);
 await researchStore.initialize();
 const healthcareCatalog = new MongoHealthcareCatalog(repository.client, repository.db);
 await healthcareCatalog.initialize();
+const playbookCatalog = new MongoPlaybookCatalog(repository.db);
+await playbookCatalog.initialize();
 // The analysis and review stores are built here, not inside the route module: one
 // startup migration, one failure point, and no request path can construct storage.
 const analysisRepository = new MongoAnalysisRepository(repository.client, repository.db);
@@ -26,7 +29,7 @@ await analysisRepository.initialize();
 const reviewStore = new MongoReviewStore(repository.db);
 await reviewStore.initialize();
 
-const server = createResearcherServer(repository, { host, healthcareCatalog, token: process.env.RESEARCHER_TOKEN, buildMetadata: await buildMetadata(),
+const server = createResearcherServer(repository, { host, healthcareCatalog, playbookCatalog, token: process.env.RESEARCHER_TOKEN, buildMetadata: await buildMetadata(),
     extensionHandlers: [createJevExtension(analysisRepository, reviewStore, repository), createOversightHandler(repository, researchStore)] });
 
 server.listen(port, host, () => console.log(`Researcher dashboard: http://${host}:${port}`));
