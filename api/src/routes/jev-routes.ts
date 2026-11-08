@@ -1,5 +1,6 @@
 import type { BehaviorDefinition } from '@sidechannel/contracts/analysis/evidence-contracts';
 import { AnalysisNotFound, AnalysisValidation, type PageOptions } from '@sidechannel/contracts/analysis/jev-repository';
+import { seedDefinitionsV2 } from '@sidechannel/domain/analysis/codebook';
 import { AnalysisService } from '@sidechannel/domain/analysis/jev-service';
 import type { LaunchInput, PreviewInput } from '@sidechannel/contracts/analysis/jev-service';
 import type { ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
@@ -28,6 +29,10 @@ export function createAnalysisRouteHandler(service: AnalysisService): ResearchRo
             }
             if (method === 'POST') return { status: 201, data: await service.createCodebook(await json() as unknown as { name: string; creator: string; definitions: BehaviorDefinition[] }) };
         }
+        /** The proposed v2 seed content, so the studio can diff it against a codebook's current revision. Must precede the `/codebooks/:id` matcher. */
+        if (path === '/codebooks/seed-v2' && method === 'GET') return { status: 200, data: { definitions: seedDefinitionsV2() } };
+        const seedV2 = path.match(/^\/codebooks\/([^/]+)\/seed-v2$/);
+        if (seedV2 && method === 'POST') { const input = await json() as unknown as { expectedRevisionId: string; creator: string }; return { status: 201, data: await service.seedRevisionV2(decode(seedV2[1]!), input.expectedRevisionId, input.creator) }; }
         const revisions = path.match(/^\/codebooks\/([^/]+)\/revisions$/);
         if (revisions && method === 'GET') { const id = decode(revisions[1]!); if (!await repo.getCodebook(id)) throw new AnalysisNotFound('Codebook not found'); return { status: 200, data: await repo.listRevisions(id, page(query)) }; }
         const archival = path.match(/^\/codebooks\/([^/]+)\/(archive|restore)$/);

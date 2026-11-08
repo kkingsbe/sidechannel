@@ -73,6 +73,12 @@ export interface BehaviorDefinition {
 /** A definition with every v2 field present. */
 export type ResolvedBehaviorDefinition = Required<Omit<BehaviorDefinition, 'decisionProcedure'>> & Pick<BehaviorDefinition, 'decisionProcedure'>;
 
+/** A non-blocking validation finding on one definition, surfaced inline in the codebook studio. */
+export interface CodebookWarning { codeId: string; field: 'definition' | 'decisionProcedure'; message: string }
+
+/** Leading negated phrasing ("does not", "is free of", "no ") that tends to prime the classifier toward the negated behavior (spec 4.1). */
+export const NEGATED_PHRASING = /^\s*(does not|is free of|no )/i;
+
 export interface CodebookRevision { id: string; codebookId: string; revision: number; createdAt: string; createdBy: string; definitions: BehaviorDefinition[]; note?: string; schemaVersion?: 1 | 2; }
 
 export interface Codebook { id: string; name: string; currentRevisionId: string; createdAt: string; updatedAt: string; archivedAt?: string; archivedBy?: string; }

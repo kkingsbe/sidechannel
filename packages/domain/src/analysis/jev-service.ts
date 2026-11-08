@@ -3,7 +3,8 @@ import type { HarnessEvent } from '@sidechannel/contracts/harness/contracts';
 import { isTerminalRun } from '@sidechannel/contracts/harness/contracts';
 import type { Repository } from '@sidechannel/contracts/harness/server';
 import type { BehaviorDefinition, CodebookRevision, SerializedWindow } from '@sidechannel/contracts/analysis/evidence-contracts';
-import { createSeedCodebook, resolveAnalysisConfiguration, snapshotHash, staticContextForRun, validateBehaviorDefinitions } from './configuration.js';
+import { resolveAnalysisConfiguration, snapshotHash, staticContextForRun } from './configuration.js';
+import { createSeedCodebook, resolveDefinition, seedDefinitionsV2, SEED_V2_NOTE, validateCodebook } from './codebook.js';
 import { normalizeTrace } from './normalization.js';
 import { buildWindows, selectSteps } from './windows.js';
 import { serializeWindow, preflightQuestions, SERIALIZATION_VERSION } from './serialization.js';
@@ -23,11 +24,11 @@ export function pages<T>(fetch: PageFetcher<T>): AsyncGenerator<T> { return iter
 export class AnalysisService {
     /** Composed analysis port: this service is the codebook + job lifecycle entry point. */
     constructor(readonly repository: AnalysisRepository, private readonly source: Pick<Repository, 'getRun' | 'listEvents'>) {}
-    async seedCodebook() { const existing = await this.repository.getCodebook('tentative-default'); if (existing) return existing; const { codebook, revision } = createSeedCodebook(); codebook.id = 'tentative-default'; codebook.currentRevisionId = revision.id = 'tentative-default-v1'; revision.codebookId = codebook.id; try { await this.repository.saveCodebook(codebook, revision); } catch (e) { if (!(e instanceof AnalysisConflict)) throw e; } return (await this.repository.getCodebook(codebook.id))!; }
+    async seedCodebook() { const existing = await this.repository.getCodebook('tentative-default'); if (existing) return existing; const { codebook, revision } = createSeedCodebook(); codebook.id = 'tentative-default'; codebook.currentRevisionId = revision.id = 'tentative-default-v1'; revision.codebookId = codebook.id; revision.definitions = revision.definitions.map(resolveDefinition); revision.schemaVersion = 2; try { await this.repository.saveCodebook(codebook, revision); } catch (e) { if (!(e instanceof AnalysisConflict)) throw e; } return (await this.repository.getCodebook(codebook.id))!; }
     async createCodebook(input: { name: string; creator: string; definitions: BehaviorDefinition[] }) {
-        const name = text(input.name, 'Name'), createdBy = text(input.creator, 'Creator'), definitions = validate(() => validateBehaviorDefinitions(input.definitions)), now = new Date().toISOString(), id = randomUUID(), revisionId = randomUUID();
-        const codebook = { id, name, currentRevisionId: revisionId, createdAt: now, updatedAt: now }, revision: CodebookRevision = { id: revisionId, codebookId: id, revision: 1, definitions, createdAt: now, createdBy };
-        await this.repository.saveCodebook(codebook, revision); return { codebook, revision };
+        const name = text(input.name, 'Name'), createdBy = text(input.creator, 'Creator'), checked = validate(() => validateCodebook(input.definitions)), definitions = checked.definitions.map(resolveDefinition), now = new Date().toISOString(), id = randomUUID(), revisionId = randomUUID();
+        const codebook = { id, name, currentRevisionId: revisionId, createdAt: now, updatedAt: now }, revision: CodebookRevision = { id: revisionId, codebookId: id, revision: 1, definitions, createdAt: now, createdBy, schemaVersion: 2 };
+        await this.repository.saveCodebook(codebook, revision); return { codebook, revision, warnings: checked.warnings };
     }
     async archiveCodebook(id: string, input: { expectedRevisionId: string; actor: string }) {
         const expected = text(input.expectedRevisionId, 'Expected revision'), actor = text(input.actor, 'Actor'), book = await this.repository.getCodebook(id); if (!book) throw new AnalysisNotFound('Codebook not found');
@@ -43,11 +44,22 @@ export class AnalysisService {
         const book = await this.repository.getCodebook(id); if (!book) throw new AnalysisNotFound('Codebook not found');
         if (book.archivedAt) throw new AnalysisConflict('Codebook is archived; restore it before editing');
         const expected = text(input.expectedRevisionId, 'Expected revision'); if (book.currentRevisionId !== expected) throw new AnalysisConflict('Codebook revision changed');
-        const prior = (await this.repository.getRevision(id, expected))!, now = new Date().toISOString(), revisionId = randomUUID(), definitions = validate(() => validateBehaviorDefinitions(input.definitions));
+        const prior = (await this.repository.getRevision(id, expected))!, now = new Date().toISOString(), revisionId = randomUUID(), checked = validate(() => validateCodebook(input.definitions)), definitions = checked.definitions.map(resolveDefinition);
         if (prior.definitions.some(d => !definitions.some(next => next.id === d.id))) throw new AnalysisValidation('Archive existing codes instead of removing their identities');
-        const revision: CodebookRevision = { id: revisionId, codebookId: id, revision: prior.revision + 1, definitions, createdAt: now, createdBy: text(input.creator, 'Creator'), ...(input.note ? { note: text(input.note, 'Note', 2000) } : {}) };
+        const revision: CodebookRevision = { id: revisionId, codebookId: id, revision: prior.revision + 1, definitions, createdAt: now, createdBy: text(input.creator, 'Creator'), schemaVersion: 2, ...(input.note ? { note: text(input.note, 'Note', 2000) } : {}) };
         const next = { ...book, name: input.name === undefined ? book.name : text(input.name, 'Name'), currentRevisionId: revisionId, updatedAt: now };
-        await this.repository.saveCodebook(next, revision, expected); return { codebook: next, revision };
+        await this.repository.saveCodebook(next, revision, expected); return { codebook: next, revision, warnings: checked.warnings };
+    }
+    /**
+     * Appends a revision carrying the v2 seed (spec 4.2) to one codebook, guarded by `expectedRevisionId`. Seed codes replace same-ID codes
+     * in seed order; codes in the current revision that the seed does not define are kept unchanged after them. No other codebook is touched.
+     */
+    async seedRevisionV2(codebookId: string, expectedRevisionId: string, creator: string) {
+        const book = await this.repository.getCodebook(codebookId); if (!book) throw new AnalysisNotFound('Codebook not found');
+        const expected = text(expectedRevisionId, 'Expected revision'), prior = book.currentRevisionId === expected ? await this.repository.getRevision(codebookId, expected) : undefined;
+        if (!prior) throw new AnalysisConflict('Codebook revision changed');
+        const seed = seedDefinitionsV2(), seeded = new Set(seed.map(d => d.id));
+        return this.reviseCodebook(codebookId, { expectedRevisionId: expected, creator, definitions: [...seed, ...prior.definitions.filter(d => !seeded.has(d.id))], note: SEED_V2_NOTE });
     }
     private async prepare(runId: string, input: PreviewInput) {
         const run = await this.source.getRun(runId); if (!run) throw new AnalysisNotFound('Source run not found');
