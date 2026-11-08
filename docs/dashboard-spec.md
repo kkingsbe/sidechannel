@@ -356,7 +356,7 @@ The frontend stack/component foundation, run-focused layout, system-default them
 ## References
 
 - [Jev analysis workflow and backend specification](jev-analysis-spec.md)
-- [Harness handoff](../harness_handoff.md)
-- [Harness setup and current limitations](../agent/README.md)
-- [Implementation decisions](../agent/docs/decisions.md)
+- [Harness handoff](harness-handoff.md)
+- [Harness setup and current limitations](harness-operations.md)
+- [Implementation decisions](archive/2026-11-07-first-milestone-decisions.md)
 - [Jev documentation](https://docs.typesafe.ai/introduction)

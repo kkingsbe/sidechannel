@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
-import type { Run } from '@sidechannel/contracts/harness/contracts';
+import { PAIR_CONDITION_IDS, type Run } from '@sidechannel/contracts/harness/contracts';
 import { RepositoryConflict } from '@sidechannel/contracts/harness/repository';
 import { assertPairEquivalent } from './config.js';
 
@@ -29,7 +29,7 @@ export function assertMatchedPair(runs: Run[]): void {
     if (runs.length !== 2 || !runs[0]!.pairId || runs[0]!.pairId !== runs[1]!.pairId
         || runs[0]!.launchKey === runs[1]!.launchKey || runs[0]!.id === runs[1]!.id
         || new Set(runs.map(run => run.config.condition.id)).size !== 2
-        || !runs.every(run => ['reviewed', 'excluded'].includes(run.config.condition.id))
+        || !runs.every(run => (PAIR_CONDITION_IDS as readonly string[]).includes(run.config.condition.id))
         || runs[0]!.pairingSeed !== runs[1]!.pairingSeed)
         throw new RepositoryConflict('A matched pair requires exactly two distinct conditions and one pair identity');
     try { assertPairEquivalent(runs[0]!.config, runs[1]!.config); }

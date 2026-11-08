@@ -1,9 +1,9 @@
 {
-    "$comment": "Architecture budgets for the 2026-11-07 SOLID remediation program. Measured by scripts/architecture-budget.mjs. `max` is the ceiling enforced by `npm run architecture:check`; `target` is the program-end value. Budgets were tightened to the achieved end state at program close (2026-11-07) so the remediation cannot silently regress. Audit numbers come from research/docs/2026-11-07-solid-principles-audit.md; measured baselines and deviations are recorded in docs/solid-remediation-decisions.md.",
+    "$comment": "Architecture budgets for the 2026-11-07 SOLID remediation program. Measured by scripts/architecture-budget.mjs. `max` is the ceiling enforced by `npm run architecture:check`; `target` is the program-end value. Budgets were tightened to the achieved end state at program close (2026-11-07) so the remediation cannot silently regress. Audit numbers come from docs/archive/2026-11-07-solid-principles-audit.md; measured baselines and deviations are recorded in docs/solid-remediation-decisions.md.",
     "baseline": {
         "commit": "5a31bf7",
         "audit": "2026-11-07 SOLID audit (measured on 20bc219; tree advanced by 5a31bf7 before execution)",
-        "plan": "docs/superpowers/plans/2026-11-07-solid-remediation-program.md",
+        "plan": "docs/archive/plans/2026-11-07-solid-remediation-program.md",
         "closed": "2026-11-07 on branch refactor/solid-remediation"
     },
     "budgets": {

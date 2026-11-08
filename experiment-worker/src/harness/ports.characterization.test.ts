@@ -26,7 +26,7 @@ import { ScriptedAdapter, fixtureScript } from './scripted-adapter.js';
  * protocol (approved in the decision log §Main integration), so the artifact and the pinned
  * recording now agree; a future regeneration is still a reviewed evidence change.
  */
-const committedExport = JSON.parse(readFileSync(new URL('../../../agent/examples/completed-fixture.json', import.meta.url), 'utf8')) as {
+const committedExport = JSON.parse(readFileSync(new URL('../../../data/exports/completed-fixture.json', import.meta.url), 'utf8')) as {
     events: { type: string }[];
     run: { config: { reportSchemaVersion: string }; reports: { raw: string }[] };
 };

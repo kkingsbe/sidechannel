@@ -19,7 +19,7 @@ test('a reused launch key must describe the identical launch', () => {
 
 test('a matched pair needs two distinct conditions and one shared pair identity', () => {
     const base = resolveConfiguration(defaultFixtureConfiguration());
-    const paired = (id: 'reviewed' | 'excluded', position: number) => ({
+    const paired = (id: 'reviewed' | 'excluded' | 'no-board', position: number) => ({
         ...createQueuedRun({ ...structuredClone(base), condition: { id, version: '1', text: `condition ${id}` } }, `pair:${position}`),
         pairId: 'pair-1', pairingSeed: 42, pairPosition: position,
     });
@@ -28,6 +28,7 @@ test('a matched pair needs two distinct conditions and one shared pair identity'
     assert.throws(() => assertMatchedPair([pair[0]!]), /two distinct conditions and one pair identity/);
     assert.throws(() => assertMatchedPair([pair[0]!, { ...pair[1]!, pairId: 'other' }]), /two distinct conditions and one pair identity/);
     assert.throws(() => assertMatchedPair([pair[0]!, { ...pair[1]!, launchKey: pair[0]!.launchKey }]), /two distinct conditions and one pair identity/);
+    assert.throws(() => assertMatchedPair([pair[0]!, paired('no-board', 1)]), /two distinct conditions and one pair identity/);
     const divergent = structuredClone(pair);
     divergent[1]!.config.scheduler.rounds += 1;
     assert.throws(() => assertMatchedPair(divergent), /differ outside condition/);

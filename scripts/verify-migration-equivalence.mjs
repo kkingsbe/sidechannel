@@ -12,7 +12,7 @@ const serialization = await load('analysis/serialization');
 const provider = await load('analysis/jev-questions');
 const testing = await import('../packages/contracts/dist/testing.js');
 assert.deepEqual(testing.defaultFixtureConfiguration(), config.defaultFixtureConfiguration());
-const fixture = JSON.parse(await readFile(new URL('agent/examples/completed-fixture.json', root), 'utf8'));
+const fixture = JSON.parse(await readFile(new URL('data/exports/completed-fixture.json', root), 'utf8'));
 const resolved = config.resolveConfiguration(config.defaultFixtureConfiguration());
 const queued = initialization.createQueuedRun(resolved, 'migration-equivalence', 'matched-pair');
 delete queued.id; delete queued.createdAt; delete queued.updatedAt;

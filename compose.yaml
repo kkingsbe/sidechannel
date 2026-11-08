@@ -1,8 +1,4 @@
 x-app: &app
-  image: ${SIDECHANNEL_IMAGE:-sidechannel-agent:local}
-  build:
-    context: ..
-    dockerfile: agent/Dockerfile
   init: true
   networks: [default]
   depends_on:

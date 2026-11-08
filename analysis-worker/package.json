@@ -9,9 +9,9 @@
     "test": "node ../scripts/test.mjs src",
     "lint": "eslint src",
     "dev": "node ../scripts/dev.mjs analysis-worker",
-    "dev:local": "tsx watch --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env src/main.ts",
-    "start": "node --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env dist/main.js",
-    "jev:worker": "tsx --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env src/commands/jev-analysis-worker.ts"
+    "dev:local": "tsx watch --env-file-if-exists=../.env --env-file-if-exists=.env src/main.ts",
+    "start": "node --env-file-if-exists=../.env --env-file-if-exists=.env dist/main.js",
+    "jev:worker": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env src/commands/jev-analysis-worker.ts"
   },
   "dependencies": {
     "@typesafe-ai/sdk": "0.7.0",

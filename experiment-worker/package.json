@@ -9,14 +9,14 @@
     "test": "node ../scripts/test.mjs src",
     "lint": "eslint src",
     "dev": "node ../scripts/dev.mjs experiment-worker",
-    "dev:local": "tsx watch --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env src/main.ts",
-    "start": "node --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env dist/main.js",
+    "dev:local": "tsx watch --env-file-if-exists=../.env --env-file-if-exists=.env src/main.ts",
+    "start": "node --env-file-if-exists=../.env --env-file-if-exists=.env dist/main.js",
     "studio": "mastra dev",
     "build:studio": "mastra build --studio",
     "start:studio": "mastra start",
-    "fixture": "tsx --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env src/commands/fixture.ts",
-    "recover": "tsx --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env src/commands/recover.ts",
-    "smoke:live": "tsx --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env src/commands/live-smoke.ts"
+    "fixture": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env src/commands/fixture.ts",
+    "recover": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env src/commands/recover.ts",
+    "smoke:live": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env src/commands/live-smoke.ts"
   },
   "dependencies": {
     "@mastra/core": "1.82.0",

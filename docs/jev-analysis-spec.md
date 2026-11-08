@@ -268,7 +268,7 @@ These choices should slot into versioned configuration. They do not block implem
 ## References
 
 - [Companion dashboard specification](dashboard-spec.md)
-- [Harness handoff](../harness_handoff.md) and [current implementation decisions](../agent/docs/decisions.md)
+- [Harness handoff](harness-handoff.md) and [current implementation decisions](archive/2026-11-07-first-milestone-decisions.md)
 - [TypeSafe / Jev introduction](https://docs.typesafe.ai/introduction)
 - [Noul probability questions](https://docs.typesafe.ai/primitives/noul)
 - [JavaScript SDK](https://docs.typesafe.ai/sdk/javascript)

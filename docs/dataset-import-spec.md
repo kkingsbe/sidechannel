@@ -194,7 +194,7 @@ Freeze final task/report wording, pressure settings beyond the preserved initial
 ## References
 
 - [Simplified scenario contract](healthcare-scenario-contract.md)
-- [Service layout](service-layout-migration.md)
+- [Service layout](archive/2026-11-07-service-layout-migration.md)
 - [Dashboard specification](dashboard-spec.md)
 - [Jev analysis specification](jev-analysis-spec.md)
 - [Reviewed source data handoff](https://github.com/kkingsbe/sidechannel/blob/603a949ddbd03f15734bd5063add45ba467e0682/data/healthcare/HANDOFF.md)

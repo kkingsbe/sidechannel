@@ -41,7 +41,7 @@ for (const directory of shared) run([resolve(root, 'node_modules/typescript/bin/
 const localRequire = createRequire(resolve(root, project, 'package.json'));
 const args = project === 'dashboard'
   ? [resolve(dirname(localRequire.resolve('vite/package.json')), 'bin/vite.js'), '--host', '127.0.0.1']
-  : ['--import', 'tsx', '--env-file-if-exists=../.env', '--env-file-if-exists=../agent/.env', '--env-file-if-exists=.env', 'src/main.ts'];
+  : ['--import', 'tsx', '--env-file-if-exists=../.env', '--env-file-if-exists=.env', 'src/main.ts'];
 let app;
 let timer;
 let pending = Promise.resolve();

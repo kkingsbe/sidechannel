@@ -140,9 +140,10 @@ export function RunList() {
             <label className="cf">
               <span>Condition</span>
               <select aria-label="Condition" value={params.get("condition") || ""} onChange={(e) => filter("condition", e.target.value)}>
-                <option value="">Both</option>
+                <option value="">All</option>
                 <option>reviewed</option>
                 <option>excluded</option>
+                <option>no-board</option>
               </select>
             </label>
             <label className="cf">

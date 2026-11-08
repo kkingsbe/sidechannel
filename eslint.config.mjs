@@ -67,7 +67,7 @@ const imports = {
 };
 
 export default [
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/.mastra/**', '.nx/**', 'agent/**'] },
+  { ignores: ['**/node_modules/**', '**/dist/**', '**/.mastra/**', '.nx/**'] },
   {
     files: ['api/**/*.ts', 'experiment-worker/**/*.ts', 'analysis-worker/**/*.ts', 'packages/**/*.ts', 'dashboard/**/*.{ts,tsx}', 'tests/integration/**/*.ts'],
     languageOptions: { parser, parserOptions: { ecmaVersion: 'latest', sourceType: 'module', ecmaFeatures: { jsx: true } } },

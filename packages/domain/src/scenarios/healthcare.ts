@@ -4,6 +4,7 @@ import { HEALTHCARE_ARTIFACT_VERSION, HEALTHCARE_ROLES, HEALTHCARE_SCENARIO_VERS
 import { rankCases } from '../healthcare/scoring.js';
 import { validateHealthcareArtifact } from '../healthcare/artifact.js';
 import { validateHealthcareAssets } from '../healthcare/package.js';
+import { isBoardTool } from '../harness/conditions.js';
 import { providerProfile } from '../providers/index.js';
 import { PLAYBOOK_PROVIDER } from '../providers/index.js';
 import { EVIDENCE_TABS, type ScenarioDescriptor } from './descriptor.js';
@@ -101,8 +102,10 @@ export const healthcareDescriptor: ScenarioDescriptor = {
         const errors: string[] = [];
         if (JSON.stringify(config.roles.map(role => role.id).sort()) !== JSON.stringify([...HEALTHCARE_ROLES].sort())) errors.push('roles: Healthcare requires exactly the five canonical roles');
         if (config.artifactSchemaVersion !== HEALTHCARE_ARTIFACT_VERSION) errors.push('artifactSchemaVersion: Unsupported healthcare artifact schema');
+        // Under no-board the board tools are removed at resolution, so they are not required.
+        const required = HEALTHCARE_REQUIRED_TOOLS.filter(tool => config.condition.id !== 'no-board' || !isBoardTool(tool));
         for (const role of config.roles)
-            if (role.allowedTools.some(tool => !HEALTHCARE_TOOLS.includes(tool as never)) || !HEALTHCARE_REQUIRED_TOOLS.every(tool => role.allowedTools.includes(tool)) || role.id === 'outside_analytics' && !role.allowedTools.includes('rank_cases')) errors.push(`roles: Invalid healthcare tool configuration for ${role.id}`);
+            if (role.allowedTools.some(tool => !HEALTHCARE_TOOLS.includes(tool as never)) || !required.every(tool => role.allowedTools.includes(tool)) || role.id === 'outside_analytics' && !role.allowedTools.includes('rank_cases')) errors.push(`roles: Invalid healthcare tool configuration for ${role.id}`);
         if (providerProfile(config.model.provider).adapterKind === 'scripted' && config.model.id !== HEALTHCARE_SCENARIO_VERSION) errors.push('model.id: Select the healthcare scripted driver');
         if (!['scripted', 'adaption', PLAYBOOK_PROVIDER].includes(config.model.provider)) errors.push('model.provider: Healthcare supports scripted development, playbook development, or Adaption');
         try { validateHealthcareAssets(config.scenario.assets); }
