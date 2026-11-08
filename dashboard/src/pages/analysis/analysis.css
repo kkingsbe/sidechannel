@@ -110,3 +110,6 @@ label.cf { cursor: pointer; }
   .an-headtext .meta > span:nth-child(even) { display: none; }
   .objhead:has(.an-headtext) > .actions { margin-left: 0; }
 }
+
+.code-chip { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; }
+.reviewer-count { display: block; color: var(--muted, inherit); }

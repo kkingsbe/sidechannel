@@ -19,7 +19,13 @@ export async function reviewContext(repository: Pick<AnalysisRepository, 'getJob
         if (windows.length > 100000) throw new AnalysisValidation('Review selection supports at most 100000 windows; narrow the analysis range');
     }
     const byId = new Map(windows.map(window => [window.id, window]));
-    for await (const result of iteratePages(options => repository.listResults(analysisId, options), 500)) { const window = byId.get(result.windowId); if (window) window.probabilities[result.codeId] = result.probability; }
+    for await (const result of iteratePages(options => repository.listResults(analysisId, options), 500)) {
+        // Probe repeats never feed batch selection (v2 spec section 6); actor-scoped codes keep their highest actor score.
+        if (result.probe) continue;
+        const window = byId.get(result.windowId); if (!window) continue;
+        const prior = window.probabilities[result.codeId];
+        window.probabilities[result.codeId] = result.actorId && prior != null && result.probability != null ? Math.max(prior, result.probability) : result.probability;
+    }
     return { analysisId, runId: job.runId, definitionRevision: job.manifest.codebook.id, evidenceRevision: job.manifest.source.evidenceHash, codeIds: job.manifest.codebook.definitions.filter(d => d.enabled && !d.archived).map(d => d.id), windows };
 }
 

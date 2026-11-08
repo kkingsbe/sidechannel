@@ -1,5 +1,5 @@
 import type { HarnessEvent, RunStatus } from '@sidechannel/contracts/browser';
-import type { AnalysisConfiguration, BackgroundPart, BehaviorKind, BehaviorQuestion, BehaviorScope } from '@sidechannel/contracts/browser';
+import type { AnalysisConfiguration, BackgroundPart, BatchShortfall, BatchStrategy, BehaviorKind, BehaviorQuestion, BehaviorScope } from '@sidechannel/contracts/browser';
 
 export type EvidenceCategory = 'assistant' | 'tools' | 'board' | 'artifacts' | 'memory' | 'reasoning' | 'reports';
 export const evidenceCategories: EvidenceCategory[] = ['assistant', 'tools', 'board', 'artifacts', 'memory', 'reasoning', 'reports'];
@@ -46,6 +46,6 @@ export interface HumanReview extends Identified, ReviewDraft {
     revision: number; analysisId: string; runId: string; subjectId?: string; windowId?: string;
     scope: 'window' | 'event'; codeId: string; definitionRevisionId: string; supersedesId?: string;
 }
-export interface ReviewBatch extends Identified { analysisId: string; mode: 'assisted' | 'blind'; threshold?: number; populationCount: number; selectionCount: number; codebookRevisionId: string }
+export interface ReviewBatch extends Identified { analysisId: string; mode: 'assisted' | 'blind'; threshold?: number; populationCount: number; selectionCount: number; codebookRevisionId: string; strategy?: BatchStrategy; shortfalls?: BatchShortfall[] }
 export interface ReviewSelection { id: string; windowId: string; reasons?: string[] }
 export interface WindowDetail { window: AnalysisWindow; sourceEventIds: string[]; events?: HarnessEvent[] }
