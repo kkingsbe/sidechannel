@@ -60,11 +60,15 @@ export class MastraModelAdapter implements ModelAdapter {
         const agent = this.trace.register(new Agent({ id: `experiment-${JSON.stringify([input.runId, input.agentId])}`, name: input.agentId,
             instructions: '', model: resolved.model, tools, maxRetries: 0 }), tools);
         const messages = modelMessages(input.messages, { assistantTextItemIds: 'assistantTextItemIds' in resolved && resolved.assistantTextItemIds });
-        const result = await agent.generate(messages, {
+        const abortSignal = input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(input.timeoutMs)]) : AbortSignal.timeout(input.timeoutMs);
+        // Streamed, not generate: Adaption's load balancer drops idle non-streamed requests (~60s); streamed chunks keep the connection alive.
+        const result = await (await agent.stream(messages, {
             maxSteps: 1, runId: input.invocationId,
-            abortSignal: input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(input.timeoutMs)]) : AbortSignal.timeout(input.timeoutMs),
+            abortSignal,
             modelSettings: settings as any, providerOptions: resolved.providerOptions as any,
-        });
+        })).getFullOutput();
+        // An abort/timeout ends the stream normally with partial output; throw instead of returning it as a response.
+        abortSignal.throwIfAborted();
         await this.trace.verify(result.traceId, result.spanId);
         if (result.error)
             throw result.error;

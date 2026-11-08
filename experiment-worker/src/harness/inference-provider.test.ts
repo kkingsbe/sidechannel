@@ -10,6 +10,24 @@ import { createQueuedRun } from '@sidechannel/domain/harness/initialization';
 import { InMemoryRepository } from '@sidechannel/persistence/harness/repository';
 import { HarnessScheduler } from './scheduler.js';
 
+/** Replays a completed Responses API JSON body as the SSE stream the adapter now requests (stream: true). */
+function sseResponse(body: any): Response {
+    const events: any[] = [{ type: 'response.created', response: { id: body.id, created_at: body.created_at, model: body.model } }];
+    body.output.forEach((item: any, output_index: number) => {
+        if (item.type === 'function_call') {
+            events.push({ type: 'response.output_item.added', output_index, item: { ...item, arguments: '' } },
+                { type: 'response.function_call_arguments.delta', item_id: item.id, output_index, delta: item.arguments });
+        }
+        else {
+            events.push({ type: 'response.output_item.added', output_index, item: { ...item, content: [] } },
+                ...item.content.map((part: any) => ({ type: 'response.output_text.delta', item_id: item.id, output_index, content_index: 0, delta: part.text })));
+        }
+        events.push({ type: 'response.output_item.done', output_index, item });
+    });
+    events.push({ type: 'response.completed', response: { ...body, incomplete_details: body.incomplete_details } });
+    return new Response(events.map(event => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join(''), { headers: { 'content-type': 'text/event-stream' } });
+}
+
 test('Adaption rejects absent credentials, stack IDs and unverified controls', () => {
     const model = { provider: 'adaption', id: 'gemma-4-31b-it', settings: {} };
     assert.throws(() => resolveInferenceProvider(model, {}), /Missing ADAPTION_API_KEY/);
@@ -29,7 +47,7 @@ test('token scheduler sends complete Adaption action/report payload and persists
     t.mock.method(globalThis, 'fetch', async (_url: any, options: any) => {
         const body = JSON.parse(options.body);
         requests.push(body);
-        return Response.json({ id: `resp_${requests.length}`, object: 'response', created_at: 1, status: 'completed', model: body.model, error: null, incomplete_details: null,
+        return sseResponse({ id: `resp_${requests.length}`, object: 'response', created_at: 1, status: 'completed', model: body.model, error: null, incomplete_details: null,
             output: requests.length === 1 ? [{ type: 'function_call', id: 'fc_read', call_id: 'read_call', name: 'read_role_data', arguments: '{}', status: 'completed' }]
                 : requests.length === 3 ? [{ type: 'function_call', id: 'fc_report', call_id: 'report_call', name: 'submit_report', arguments: '{"ownActions":"read","observations":"blue","limitations":"mock"}', status: 'completed' }]
                 : [{ type: 'message', id: `msg_${requests.length}`, role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: 'Done', annotations: [] }] }],
@@ -88,7 +106,7 @@ test('Adaption replay of assistant preamble text with parallel tool calls carrie
         const invalid = body.input.findIndex((item: any) => item.role === 'assistant' && Array.isArray(item.content) && item.id == null && item.type == null);
         if (invalid >= 0)
             return Response.json({ error: { message: `body.input.${invalid}.EasyInputMessageParam.content Input should be a valid string`, type: 'invalid_request_error' } }, { status: 400 });
-        return Response.json({ id: `resp_${requests.length}`, object: 'response', created_at: 1, status: 'completed', model: body.model, error: null, incomplete_details: null,
+        return sseResponse({ id: `resp_${requests.length}`, object: 'response', created_at: 1, status: 'completed', model: body.model, error: null, incomplete_details: null,
             output: [{ type: 'message', id: 'msg_out', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: 'ok', annotations: [] }] }],
             usage: { input_tokens: 5, output_tokens: 1, total_tokens: 6, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } } });
     });
@@ -129,8 +147,8 @@ test('actual Mastra Adaption route preserves tool proposals, history, reports an
         assert.equal(body.max_output_tokens, 256);
         assert.equal(body.temperature, 0);
         assert.equal(body.previous_response_id, undefined);
-        assert.equal(body.stream, undefined);
-        return Response.json({ id: `resp_${requests.length}`, object: 'response', created_at: 1,
+        assert.equal(body.stream, true);
+        return sseResponse({ id: `resp_${requests.length}`, object: 'response', created_at: 1,
             status: 'completed', model: body.model, error: null, incomplete_details: null,
             output: requests.length === 1
                 ? [{ type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'read_fragment', arguments: '{}', status: 'completed' }]
