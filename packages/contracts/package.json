@@ -38,6 +38,10 @@
       "types": "./dist/testing.d.ts",
       "import": "./dist/testing.js"
     },
+    "./analysis/aggregation": {
+      "types": "./dist/analysis/aggregation.d.ts",
+      "import": "./dist/analysis/aggregation.js"
+    },
     "./analysis/evidence-contracts": {
       "types": "./dist/analysis/evidence-contracts.d.ts",
       "import": "./dist/analysis/evidence-contracts.js"
