@@ -1,5 +1,6 @@
 import { resolveConfiguration } from '@sidechannel/domain/harness/config';
 import { createQueuedRun } from '@sidechannel/domain/harness/initialization';
+import { snapBackward, snapForward, TURN_SNAP_SLACK } from '@sidechannel/domain/harness/event-pages';
 import type { EventQuery, EvidenceKind } from '@sidechannel/contracts/harness/repository';
 import type { ResearcherRepository, ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
 import { collectPages } from '@sidechannel/domain/pagination';
@@ -16,7 +17,7 @@ export interface RunRoutesContext {
     healthcare?: HealthcareService;
 }
 
-const RUN = /^\/runs\/([^/]+)(?:\/(progress|events|export|cancel|board|memory|artifacts|reports))?$/;
+const RUN = /^\/runs\/([^/]+)(?:\/(progress|events|turns|export|cancel|board|memory|artifacts|reports))?$/;
 const RUN_EVENT = /^\/runs\/([^/]+)\/events\/([^/]+)$/;
 const RUN_EVIDENCE = /^\/runs\/([^/]+)\/(board|artifacts|reports)\/([^/]+)$/;
 
@@ -57,13 +58,19 @@ export function createRunsRouter({ repository, pipeline, launch, healthcare }: R
         if (method === 'POST' && op === 'cancel') return { status: 202, data: await repository.requestCancel(id) };
         if (method !== 'GET') throw new HttpError(405, 'Method not allowed');
         if (op === 'progress') return { status: 200, data: { ...summary, observedAt: new Date().toISOString(), executionPhase: summary.status === 'reporting' ? 'report' : 'action', rounds: summary.config.scheduler.rounds } };
+        if (op === 'turns') return { status: 200, data: { turns: await repository.listTurns(id) } };
         if (op === 'events' || op === 'memory') {
             const after = cursor(query.get('after'), 0), limit = positiveLimit(cursor(query.get('limit'), 200, 1000));
             if (query.has('phase') && !['action', 'report'].includes(query.get('phase')!)) throw new HttpError(400, 'phase must be action or report');
-            const filter: EventQuery = { after, limit: limit + 1, ...(query.get('actor') ? { actor: query.get('actor')! } : {}), ...(query.get('phase') ? { phase: query.get('phase')! } : {}), ...(query.get('type') ? { type: query.get('type')! } : {}), ...(query.has('from') ? { from: cursor(query.get('from'), 0) } : {}), ...(query.has('to') ? { to: cursor(query.get('to'), 0) } : {}) };
+            const backward = op === 'events' && query.has('before'), snapped = op === 'events' && query.get('snap') === 'turn';
+            if (backward && query.has('after')) throw new HttpError(400, 'Use either after or before, not both');
+            const before = backward ? cursor(query.get('before'), 0) : undefined;
+            const filter: EventQuery = { after, limit: limit + (snapped ? TURN_SNAP_SLACK : 0) + 1, ...(before === undefined ? {} : { before, order: 'desc' as const }), ...(query.get('actor') ? { actor: query.get('actor')! } : {}), ...(query.get('phase') ? { phase: query.get('phase')! } : {}), ...(query.get('type') ? { type: query.get('type')! } : {}), ...(query.has('from') ? { from: cursor(query.get('from'), 0) } : {}), ...(query.has('to') ? { to: cursor(query.get('to'), 0) } : {}) };
             if (op === 'memory') { filter.type = query.get('type') ?? 'memory_updated'; filter.offset = cursor(query.get('offset'), 0); }
-            const rows = await repository.queryEvents(id, filter), events = rows.slice(0, limit);
-            return { status: 200, data: { events, items: events, nextCursor: events.at(-1)?.sequence ?? after, hasMore: rows.length > limit, ...(op === 'memory' ? { nextOffset: rows.length > limit ? (filter.offset ?? 0) + limit : null } : {}) } };
+            const rows = await repository.queryEvents(id, filter);
+            const page = snapped ? (backward ? snapBackward(rows, limit) : snapForward(rows, limit)) : { events: backward ? rows.slice(0, limit).reverse() : rows.slice(0, limit), hasMore: rows.length > limit };
+            const events = page.events;
+            return { status: 200, data: { events, items: events, nextCursor: events.at(-1)?.sequence ?? after, ...(before === undefined ? {} : { previousCursor: events[0]?.sequence ?? before }), hasMore: page.hasMore, ...(op === 'memory' ? { nextOffset: rows.length > limit ? (filter.offset ?? 0) + limit : null } : {}) } };
         }
         if (op === 'artifacts' || op === 'reports' || op === 'board') {
             const offset = cursor(query.get('offset'), 0), limit = positiveLimit(cursor(query.get('limit'), 100, 1000));
