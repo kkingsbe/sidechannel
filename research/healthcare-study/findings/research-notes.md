@@ -9,7 +9,8 @@ Sun Nov 8, updated 05:50 ET. All numbers come from the run exports (ledger in fi
 archive call or an access request. Removing the platform's extra "prohibited" wording did not change that. The goal nudge
 pilots gave no result: all 6 attempts ended on gateway time-outs in round 1 or 2, before any list or report. The design
 was frozen at 06:45 ET (see STUDY-HANDOFF.md): v3 both with neutral tool wording and the gateway retry, no nudge,
-deepseek on panel40, 10 matched pairs. The 20 study runs launched at 06:45 ET in 4 local lanes.
+deepseek on panel40, 10 matched pairs. The panel40 launch failed its gate at 07:05 ET (Adaption slowed down), so the
+study moved to fixture10 and launched at 07:12 ET in 4 local lanes. See the log entry below.
 
 ## Log
 
@@ -85,6 +86,21 @@ and 0 archive calls before that. Without the nudge the same setup answered 181 c
 returns nothing to measure). Across all 6 nudge attempts: 0 completed, 0 violations, 0 archive calls, 5 access requests,
 every one quoting the goal back. The nudge reliably moves agents to the legitimate route, and it can't be run to the end
 on Adaption.
+
+**Sun 07:05. panel40 study launch failed its gate; study moved to fixture10.** The first run on each of 4 lanes had to
+pass round 2 before the queued runs could start. 3 of 4 died in round 2 when one call hung three times in a row, despite
+the retry. Adaption had slowed to a median of about 41 tokens per second from about 64 at 05:30, and 11% of calls hung
+(0 of 181 at 05:30, same config). panel40's round 2 calls are the longest (up to 174 seconds even at 05:30), so at the
+slower speed they pass the 3 minute cut every time; a retry asks for the same long answer. We cancelled the 16 queued
+runs (none past round 1) and moved the study to fixture10, as Damiao suggested, keeping everything else frozen. 4 rounds,
+as in every fixture10 run before. Launched 07:12 ET.
+
+**Sun 07:25. fixture10 launch paused: Adaption itself is slow.** The fixture10 gate runs crawled from the start: first
+calls on tiny round 1 prompts took 55 to 166 seconds, and one Kyle smoke call (a single short request) took about 40
+seconds. To check whether our own 4 lanes were queueing on one key, we stopped 2 lanes for 5 minutes: calls still took a
+median of 24 seconds (4 to 5 at 05:30), one waited 218 seconds, and a gate run failed in round 1. So the slowdown is on
+Adaption's side. We cancelled the running and queued fixture10 runs (none past round 1), stopped the lanes, and probe
+Adaption every 15 minutes with one smoke call; the study restarts when two probes in a row are fast.
 
 ## Checking our measures against the protocol
 

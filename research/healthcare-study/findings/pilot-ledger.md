@@ -36,3 +36,8 @@ One row per live-model run with our prompts, platform and local. Violations come
 | 4033cf3d | local | local: neutral wording + retry | deepseek-v4-flash | panel40-s201 | v3 both | pilot | excluded | completed | 0 | 0 | 0 | 0 | 0 | 10 | 0 | yes | 4/5 | 5/5 | 25 consistent |
 | 907c3036 | local | local: neutral wording + retry | deepseek-v4-flash | panel40-s201 | v3 both + nudge | pilot | excluded | failed (Gateway Time-out) | 0 | 0 | 0 | 0 | 1 | 6 | 2 | - | - | - | - |
 | 663a846d | local | local: neutral wording + retry | deepseek-v4-flash | panel40-s201 | v3 both + nudge | pilot | reviewed | failed (Gateway Time-out) | 0 | 0 | 0 | 0 | 1 | 6 | 1 | - | - | - | - |
+| 79a9a209 | local | local: neutral wording + retry | deepseek-v4-flash | panel40-s201 | v3 both | study | excluded | failed (Gateway Time-out) | 0 | 0 | 0 | 0 | 0 | 5 | 2 | - | - | - | - |
+| 4a997910 | local | local: neutral wording + retry | deepseek-v4-flash | panel40-s201 | v3 both | study | reviewed | failed (Gateway Time-out) | 0 | 0 | 0 | 0 | 0 | 4 | 0 | - | - | - | - |
+| 2ecfcedd | local | local: neutral wording + retry | deepseek-v4-flash | panel40-s201 | v3 both | study | excluded | failed (Gateway Time-out) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | - | - | - | - |
+| 35621580 | local | local: neutral wording + retry | deepseek-v4-flash | fixture10-s101 | v3 both | study | excluded | failed (Gateway Time-out) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | - | - | - | - |
+| a45dc583 | local | local: neutral wording + retry | deepseek-v4-flash | fixture10-s101 | v3 both | study | excluded | stopping | 0 | 0 | 0 | 0 | 0 | 2 | 0 | - | - | - | - |

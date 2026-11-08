@@ -22,13 +22,29 @@ No more changes from here. Anything else becomes a separately labelled configura
   sentence. Team role prompts. Damiao's six report questions. Every tool, including the request tool. 5 rounds.
 - Harness: Kyle's main at 977a1d8 plus two local changes, build 5b1c889f: neutral wording on the archive tool and the
   approved-score line, and a retry of a model call that fails at Adaption's gateway (up to 2 more tries, logged).
-- Model and data: deepseek-v4-flash, panel40 s201 to s205, 10 matched pairs (seeds 1 to 10, 2 per dataset). Each pair's
-  reviewed and excluded runs go at the same time on two lanes, so neither condition runs first.
+- Model and data: deepseek-v4-flash on fixture10 (10 patients, top 3), 4 rounds, 10 matched pairs (seeds 1 to 10). Each
+  pair's reviewed and excluded runs go at the same time on two lanes, so neither condition runs first. (Changed from
+  panel40 at 07:10 ET, see the change log below.)
 - Failed runs: relaunch once with the same config and seed; a second failure is an operational failure. No new seeds.
 - Launch gate: the first run on each of the 4 lanes has to get past round 2 before the queued runs behind it start.
-- Configs: pilot/study-local/ (20 files). Launch record: pilot/launches/study-local-runs.json.
+- Configs: pilot/study-local-fixture10/ (20 files, launched 07:12 ET). Launch record:
+  pilot/launches/study-local-fixture10-runs.json. The panel40 configs stay in pilot/study-local/ for anyone who wants to
+  run them when Adaption is faster.
 - Not in the design: the goal nudge (6 attempts, none finished on Adaption; it made agents escalate and write past the
   gateway cut). It is reported as a pilot.
+
+Change log after the freeze. 07:05 ET: the panel40 launch failed its gate. 3 of the 4 first runs died in round 2 when
+one call hung three times in a row. Adaption had slowed from a median of about 64 to about 41 tokens per second since
+05:30, and panel40's round 2 calls (the first ones with all four 40 row tables on the board) already took up to 174
+seconds when it was fast, so at the slower speed they pass the 3 minute gateway cut and a retry asks for the same long
+answer again (11% of calls hung, against 0 in 181 at 05:30). We stopped the queue (16 runs cancelled, none past round 1)
+and moved the study to fixture10, as Damiao suggested, where round 2 calls are much shorter. Nothing else changed. The
+4 panel40 gate runs are kept as transcripts and reported as an operational failure, not as study data.
+
+07:25 ET: the fixture10 launch is paused too. Adaption itself slowed down (a single short call took about 40 seconds;
+with only 2 of our lanes running, calls still took a median of 24 seconds against 4 to 5 at 05:30). Running and queued
+runs were cancelled before any passed round 1, and the study restarts as soon as a probe shows Adaption is fast again.
+If you pick this up instead: the 20 configs in pilot/study-local-fixture10/ are ready to launch unchanged.
 
 Damiao's question, answered: one agent cannot get both fragments. Only clinical records and pharmacy have the archive
 tool, and each gets only its own piece. Scripted playbook T3 (one agent reads) gives an individual violation and no join;
@@ -77,7 +93,8 @@ What this means per hypothesis (protocol wording):
 
 | Path | What |
 |---|---|
-| transcripts.zip | All 44 run transcripts (unzip to transcripts/), with transcripts/index.json listing model, condition, design, build and status per run. Synthetic data only |
+| transcripts.zip | The first 44 run transcripts (unzip to transcripts/), with transcripts/index.json listing model, condition, design, build and status per run. Synthetic data only |
+| transcripts-update-1.zip | 5 more: the panel40 and fixture10 gate runs from 06:45 to 07:25 ET, plus the current index.json (49 runs). Unzip over transcripts/ after the first zip |
 | findings/research-notes.md | The running notes, dated |
 | findings/pilot-ledger.md | One row per run, generated |
 | findings/make_ledger.py | Regenerates the ledger and findings/checks/ from transcripts/ |
@@ -131,7 +148,7 @@ locally with a Typesafe key in `.env`.
 ## Next steps
 
 1. Design frozen at 06:45 ET (above).
-2. The study is running on Shreya's machine in 4 local lanes (20 runs, launched 06:45 ET, about 1.5 to 2 hours).
+2. The fixture10 study is ready but paused (07:25 ET) until Adaption is fast again; it takes about an hour on 4 lanes.
    Transcripts, the ledger and the per-condition tables get pushed here when it finishes. If Shreya is offline, anyone can
    rerun or extend it with "How to run the harness locally" and the configs in pilot/study-local/, then score with
    evaluator/pipeline.py and findings/make_ledger.py.
@@ -147,7 +164,9 @@ locally with a Typesafe key in `.env`.
 
 - Model and dataset are tied (deepseek on panel40, glm on fixture10), so these are settings, not a model comparison.
 - Kyle redeployed several times on Saturday night; early pilots ran on earlier builds (labelled in the ledger).
-- Adaption's gateway cut runs at 3 minutes with no retries on the platform; 9 runs died that way.
+- Adaption's gateway cuts a call at 3 minutes. On the platform (no retries) 9 runs died that way. Locally the retry saves
+  most hangs, but when Adaption slows down the long panel40 round 2 calls hang on every try (retry strain), which is why
+  the study runs on fixture10. panel40 is left for the team if Adaption is faster later.
 - The payoff sentence tells agents where the fragments are, which skips the discovery stage. Discovery evidence comes only
   from v1 and v2.
 - Private reasoning was not used for any hypothesis, as the protocol asks.
