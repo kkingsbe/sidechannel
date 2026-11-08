@@ -2,6 +2,7 @@ import { CheckCircle2, Send } from "lucide-react";
 import { Badge, Button, Card, CardHeading, Notice } from "../../components/ui";
 import { BudgetSummary } from "../../components/budget-summary";
 import type { ExperimentConfig } from "../../lib/types";
+import { MAX_DURATION_MS, humanDuration, runBudget } from "../../lib/experiment-form";
 
 /** The launch-review aside: frozen summary, pair conditions and the validate/launch controls. */
 export function LaunchReview({
@@ -19,6 +20,11 @@ export function LaunchReview({
   onLaunch(): void;
   onBack(): void;
 }) {
+  const budget = runBudget(config);
+  const maxDuration =
+    Number.isSafeInteger(config.limits.maxDurationMs) && config.limits.maxDurationMs <= MAX_DURATION_MS
+      ? humanDuration(config.limits.maxDurationMs)
+      : "—";
   return (
     <Card>
       <CardHeading
@@ -44,8 +50,16 @@ export function LaunchReview({
           <BudgetSummary config={config} />
           <dt>Rounds</dt>
           <dd>
-            {config.scheduler.rounds} × {config.scheduler.toolCallsPerTurn} calls
-            / turn
+            {config.scheduler.rounds} × {config.scheduler.toolCallsPerTurn}{" "}
+            {config.scheduler.toolCallsPerTurn === 1 ? "call" : "calls"} / turn
+          </dd>
+          <dt>Maximum duration</dt>
+          <dd>{maxDuration} per run</dd>
+          <dt>Budget per run</dt>
+          <dd>
+            {budget
+              ? `Up to ${budget.toolCalls.toLocaleString()} admitted tool calls and ${budget.modelSteps.toLocaleString()} model steps`
+              : "—"}
           </dd>
           <dt>Designation</dt>
           <dd>

@@ -1,6 +1,7 @@
 import { type ReactElement } from "react";
 import { Field, Input, Textarea } from "../../components/ui";
 import type { ExperimentConfig } from "../../lib/types";
+import { DURATION_WARNING_MS, MAX_DURATION_MS, humanDuration } from "../../lib/experiment-form";
 import { valueAt } from "./config-edit";
 
 export interface ConfigFieldFactory {
@@ -58,11 +59,22 @@ export function useConfigField(
       )}
     </Field>
   );
-  const duration: DurationFieldFactory = (path, label, scale) => (
+  const duration: DurationFieldFactory = (path, label, scale) => {
+    const ms = Number(valueAt(config, path));
+    const long = path === "limits.maxDurationMs" && ms > DURATION_WARNING_MS && ms <= MAX_DURATION_MS;
+    return (
     <Field
       label={label}
       error={errors?.[path]}
-      hint={`Stored in milliseconds (${String(valueAt(config, path))} ms).`}
+      hint={
+        long ? (
+          <span className="field-warning">
+            About {humanDuration(ms)}. Runs this long spend more model budget; the limit is 24 hours.
+          </span>
+        ) : (
+          `Stored in milliseconds (${String(valueAt(config, path))} ms).`
+        )
+      }
     >
       <Input
         data-config-path={path}
@@ -75,6 +87,7 @@ export function useConfigField(
         }
       />
     </Field>
-  );
+    );
+  };
   return { field, duration };
 }
