@@ -89,7 +89,7 @@ it("derives initial blinding from persisted batch mode even when the shared link
       <Analysis />
     </MemoryRouter>,
   );
-  await screen.findByText(/Blind initial review/);
+  await screen.findByText(/Blind first pass/);
   expect(screen.queryByText("VISIBILITY: 95.0%")).toBeNull();
 });
 it("fails closed when a path change temporarily retains metadata for a different assisted batch", async () => {
@@ -103,7 +103,7 @@ it("fails closed when a path change temporarily retains metadata for a different
       <Analysis />
     </MemoryRouter>,
   );
-  await screen.findByText(/Blind initial review/);
+  await screen.findByText(/Blind first pass/);
   expect(screen.queryByText("VISIBILITY: 95.0%")).toBeNull();
   mocks.batch = { id: "blind-batch", mode: "blind" };
 });
@@ -150,10 +150,11 @@ it("revises the exact event subject rather than borrowing another event review r
   );
   const user = userEvent.setup();
   await user.click(
-    screen.getAllByRole("button", { name: "Annotate this event" })[1],
+    document.getElementById("citation-event-b")!.querySelector("button[aria-expanded]")!,
   );
+  await user.click(screen.getByRole("button", { name: "Judge this event only" }));
   await user.type(
-    screen.getByLabelText(/Rationale \/ limitations/),
+    screen.getByLabelText(/Rationale and limitations/),
     "This particular source event is uncertain.",
   );
   await user.click(
@@ -179,23 +180,23 @@ it("selects multiple exact citations and preserves the draft when a save fails",
   );
   const user = userEvent.setup();
   await user.click(
-    screen.getByRole("checkbox", { name: "Cite event event-a" }),
+    screen.getByRole("checkbox", { name: "Cite event event-a, Source event" }),
   );
   await user.click(
-    screen.getByRole("checkbox", { name: "Cite event event-b" }),
+    screen.getByRole("checkbox", { name: "Cite event event-b, Source event" }),
   );
   await user.type(
     screen.getByLabelText(/Rationale/),
     "Both recorded events support this judgment.",
   );
   mocks.post.mockRejectedValueOnce(new Error("Connection lost"));
-  await user.click(screen.getByRole("button", { name: "Save and next" }));
+  await user.click(screen.getByRole("button", { name: "Save and next window" }));
   expect(next).not.toHaveBeenCalled();
   expect(
     (screen.getByLabelText(/Rationale/) as HTMLTextAreaElement).value,
   ).toBe("Both recorded events support this judgment.");
-  expect(screen.getByText("Selected citations (2)")).toBeTruthy();
-  await user.click(screen.getByRole("button", { name: "Save and next" }));
+  expect(screen.getByText("Citations").textContent).toContain("2");
+  await user.click(screen.getByRole("button", { name: "Save and next window" }));
   expect(next).toHaveBeenCalledTimes(1);
   expect(mocks.post).toHaveBeenLastCalledWith(
     "/analyses/analysis-a/reviews",
@@ -205,7 +206,8 @@ it("selects multiple exact citations and preserves the draft when a save fails",
     }),
   );
 });
-it("renders canonical recorded text first and retains real zero probabilities", () => {
+it("renders canonical recorded text first and retains real zero probabilities", async () => {
+  const user = userEvent.setup();
   const withEvents = {
     ...detail,
     events: [
@@ -227,11 +229,15 @@ it("renders canonical recorded text first and retains real zero probabilities", 
       <WindowInspector detail={withEvents} job={job} blind={false} />
     </MemoryRouter>,
   );
+  await user.click(
+    document.getElementById("citation-event-a")!.querySelector("button[aria-expanded]")!,
+  );
   expect(screen.getByText("Exact recorded message")).toBeTruthy();
-  expect(screen.getByText("VISIBILITY: 0.0%")).toBeTruthy();
-  expect(screen.getByText("An explicit visibility reference")).toBeTruthy();
+  expect(screen.getByTestId("lead-figure").textContent).toBe("0.0%");
+  expect(screen.getByText("70.0 points under the 70% threshold")).toBeTruthy();
+  expect(screen.getAllByText("An explicit visibility reference").length).toBeGreaterThan(0);
   const raw = screen
-    .getByText("Exact normalized evidence used for this window")
+    .getByText("Normalized window state used for scoring")
     .closest("details");
   expect(raw?.open).toBe(false);
 });
@@ -366,10 +372,10 @@ it("keeps later queue pages and filters after saving and advancing to the next i
   );
   const beforeSave = mocks.request.mock.calls.length;
   expect(
-    (screen.getByRole("button", { name: "Save and next" }) as HTMLButtonElement)
+    (screen.getByRole("button", { name: "Save and next window" }) as HTMLButtonElement)
       .disabled,
   ).toBe(false);
-  await user.click(screen.getByRole("button", { name: "Save and next" }));
+  await user.click(screen.getByRole("button", { name: "Save and next window" }));
   expect(mocks.post).toHaveBeenCalled();
   expect(
     await screen.findByRole("heading", { name: /Window 3 .* steps 9.*20/ }),

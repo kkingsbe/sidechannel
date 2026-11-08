@@ -61,14 +61,27 @@ export function useAnalysisWindows(id: string | undefined) {
     id && windowId ? `analysis:${id}:window:${windowId}` : null,
     () => clients.analyses.window(id!, windowId!),
   );
-  const open = (next: string) =>
+  /** Opens a window; a heatmap click also records the behavior so the inspector leads with it. */
+  const open = (next: string, codeId?: string) =>
     setParams((prev) => {
       prev.set("window", next);
+      if (codeId) prev.set("code", codeId);
+      else prev.delete("code");
       return prev;
     });
+  /** Records the behavior picked inside the inspector without adding a history entry. */
+  const setCode = (codeId: string) =>
+    setParams(
+      (prev) => {
+        prev.set("code", codeId);
+        return prev;
+      },
+      { replace: true },
+    );
   const close = () =>
     setParams((prev) => {
       prev.delete("window");
+      prev.delete("code");
       return prev;
     });
   return {
@@ -81,6 +94,8 @@ export function useAnalysisWindows(id: string | undefined) {
     visible,
     setVisible,
     windowId,
+    codeId: params.get("code"),
+    setCode,
     detail: detail.data,
     detailLoading: detail.loading,
     detailError: detail.error,
