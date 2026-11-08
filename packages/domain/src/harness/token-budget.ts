@@ -29,7 +29,7 @@ export function validateTokenBudget(config: ExperimentConfig): string[] {
         else if (!budget.capacity || (Object.keys(expected) as (keyof ModelCapacity)[]).some(key => budget.capacity![key] !== expected[key])) errors.push('tokenBudget.capacity must match verified metadata for the selected Adaption model; reselect the model');
         errors.push(...policy.modelIdErrors(config.model.id));
         errors.push(...policy.unsupportedSettings(config.model.settings));
-    } else if (!providerProfile(config.model.provider).fixture) errors.push('tokenBudget.capacity verification is currently supported for Adaption hosted models only');
+    } else if (providerProfile(config.model.provider).adapterKind === 'mastra') errors.push('tokenBudget.capacity verification is currently supported for Adaption hosted models only');
     const capacity = budget.capacity;
     if (capacity && (!Number.isSafeInteger(capacity.tokens) || capacity.tokens < 1)) errors.push('tokenBudget.capacity.tokens must be a positive integer');
     // The input limit covers the measured payload; reserved framing is counted once, separately.
