@@ -4,12 +4,23 @@ import { defaultFixtureConfiguration, resolveConfiguration } from '@sidechannel/
 import { createQueuedRun } from '@sidechannel/domain/harness/initialization';
 import { openRuntime } from '../harness/runtime.js';
 import { buildMetadata } from '@sidechannel/domain/harness/provenance';
+import { acquireWorkerLease, workerLeaseMs } from '../harness/worker-lease.js';
 
 const runtime = await openRuntime();
 
 const owner = randomUUID();
 
-if (!await runtime.guard.acquireWorker(owner)) {
+// The standalone fixture runs only while no worker holds the lease; it never waits for one.
+const lease = await acquireWorkerLease(runtime.guard, owner, {
+    leaseMs: workerLeaseMs(),
+    shouldStop: () => true,
+    onLost(reason) {
+        console.error(`Worker lease lost (${reason}); stopping the fixture.`);
+        process.exit(1);
+    },
+});
+
+if (!lease) {
     await runtime.close();
     throw new Error('Stop the worker before running the standalone fixture.');
 }
@@ -36,6 +47,6 @@ try {
         process.exitCode = 1;
 }
 finally {
-    await runtime.guard.releaseWorker(owner);
+    await lease.release();
     await runtime.close();
 }

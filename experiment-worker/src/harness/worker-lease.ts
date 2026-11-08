@@ -1,14 +1,11 @@
 import { setTimeout as sleep } from 'node:timers/promises';
-import type { Run } from '@sidechannel/contracts/harness/contracts';
-import type { Repository } from '@sidechannel/contracts/harness/server';
+import type { Run, RunStatus } from '@sidechannel/contracts/harness/contracts';
+import { ACTIVE_RUN_STATUSES, isTerminalRun } from '@sidechannel/contracts/harness/contracts';
+import type { Repository, WorkerGuard } from '@sidechannel/contracts/harness/server';
+import { DEFAULT_WORKER_LEASE_MS } from '@sidechannel/contracts/harness/server';
 
-/** The slice of the Mongo repository the single-worker lease needs. */
-export interface LeaseStore {
-    acquireWorker(owner: string, leaseMs: number): Promise<boolean>;
-    heartbeatWorker(owner: string): Promise<boolean>;
-    releaseWorker(owner: string): Promise<void>;
-    workerLease(): Promise<{ owner: string; ageMs: number | null } | null>;
-}
+/** The slice of the single-worker lease port the worker loop needs. */
+export type LeaseStore = Pick<WorkerGuard, 'acquireWorker' | 'heartbeatWorker' | 'releaseWorker' | 'workerLease'>;
 
 export interface WorkerLease {
     /** Stops heartbeating and frees the lease for the next worker. */
@@ -25,7 +22,7 @@ export interface LeaseOptions {
     pollMs?: number;
 }
 
-export function workerLeaseMs(env: NodeJS.ProcessEnv = process.env, fallback = 30_000) {
+export function workerLeaseMs(env: NodeJS.ProcessEnv = process.env, fallback = DEFAULT_WORKER_LEASE_MS) {
     const raw = env.WORKER_LEASE_MS;
     if (raw === undefined || raw === '')
         return fallback;
@@ -87,7 +84,8 @@ export async function acquireWorkerLease(store: LeaseStore, owner: string, optio
     };
 }
 
-export const ACTIVE_RUN_STATUSES: readonly Run['status'][] = ['running', 'reporting', 'stopping'];
+/** Active statuses a dead worker can leave behind: everything active except a run that never started. */
+const ABANDONED_RUN_STATUSES: readonly RunStatus[] = ACTIVE_RUN_STATUSES.filter(status => !isTerminalRun(status) && status !== 'queued');
 
 /**
  * Marks runs left active by a dead worker as interrupted. Only the lease holder executes runs,
@@ -96,7 +94,7 @@ export const ACTIVE_RUN_STATUSES: readonly Run['status'][] = ['running', 'report
 export async function interruptAbandonedRuns(repository: Pick<Repository, 'listRuns' | 'saveRun' | 'appendEvent'>, reason: string) {
     const interrupted: string[] = [];
     for (const run of await repository.listRuns())
-        if (ACTIVE_RUN_STATUSES.includes(run.status)) {
+        if (ABANDONED_RUN_STATUSES.includes(run.status)) {
             run.status = 'interrupted';
             run.failureReason = reason;
             run.updatedAt = new Date().toISOString();
