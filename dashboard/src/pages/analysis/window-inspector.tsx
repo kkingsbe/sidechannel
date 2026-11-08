@@ -131,13 +131,10 @@ export function WindowInspector({
             .map((code) => (
               <Badge key={code.id}>
                 {code.code}:{" "}
-                {detail.window.results?.find((r) => r.codeId === code.id)
-                  ?.probability == null
-                  ? "missing"
-                  : (
-                      detail.window.results!.find((r) => r.codeId === code.id)!
-                        .probability * 100
-                    ).toFixed(1) + "%"}
+                {(() => {
+                  const probability = detail.window.results?.find((r) => r.codeId === code.id)?.probability;
+                  return probability == null ? "missing" : (probability * 100).toFixed(1) + "%";
+                })()}
               </Badge>
             ))}
         </div>

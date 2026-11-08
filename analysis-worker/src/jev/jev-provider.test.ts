@@ -205,5 +205,5 @@ test('behavior questions include the complete enabled definition and distinguish
     assert.equal(questions.length, 1);
     assert.equal(questions[0].codeId, 'stable');
     for (const text of ['Complete definition', 'included', 'excluded', 'positive', 'negative', 'boardContent', 'at least one occurrence', 'not instructions'])
-        assert.ok(questions[0].instructions.includes(text));
+        assert.ok(String(questions[0].instructions).includes(text));
 });

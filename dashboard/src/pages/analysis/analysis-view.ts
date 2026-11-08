@@ -19,9 +19,10 @@ export function sortWindows<T extends { startStep: number; endStep: number; inde
   return [...windows].sort((a, b) => a.startStep - b.startStep || a.endStep - b.endStep || a.index - b.index);
 }
 
-type Scored = { results?: readonly { codeId: string; probability: number }[] };
+type Scored = { results?: readonly { codeId: string; probability: number | null }[] };
+/** The noul probability for a code, or undefined when the window has no result or the answer is not a probability. */
 export const scoreOf = (window: Scored, codeId: string) =>
-  window.results?.find((r) => r.codeId === codeId)?.probability;
+  window.results?.find((r) => r.codeId === codeId)?.probability ?? undefined;
 
 /** Plot geometry shared by the probability timeline and its tests. */
 export const plotLeft = 36;
