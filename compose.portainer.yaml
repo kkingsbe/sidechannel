@@ -5,14 +5,20 @@
 # IMAGE_TAG defaults to latest; use a shared version or sha-<full-commit> to pin.
 # This creates a new stack-scoped database volume; it does not migrate local data.
 # Application images are polled every five minutes; updates can cancel active runs.
+# Every service has a memory limit so one container cannot exhaust the host (which takes
+# the tunnel down with it). Defaults total about 3.4 GB; override the *_MEMORY_LIMIT,
+# *_NODE_HEAP_MB and MONGO_CACHE_GB variables in Portainer to fit the host. Keep each Node
+# heap about 75% of its container limit.
+x-update-labels: &update-labels
+  io.sidechannel.update-scope: ${COMPOSE_PROJECT_NAME:-sidechannel}
+  wud.watch.digest: "true"
+  # Keep the selected tag; detect a new digest instead of switching tags.
+  wud.tag.include: '^$${raw}$$'
+  wud.trigger.docker.sidechannel.enabled: "true"
+
 x-app: &app
   init: true
-  labels:
-    io.sidechannel.update-scope: ${COMPOSE_PROJECT_NAME:-sidechannel}
-    wud.watch.digest: "true"
-    # Keep the selected tag; detect a new digest instead of switching tags.
-    wud.tag.include: '^$${raw}$$'
-    wud.trigger.docker.sidechannel.enabled: "true"
+  labels: *update-labels
   depends_on:
     mongo:
       condition: service_healthy
@@ -27,22 +33,28 @@ services:
     image: mongo:8.0@sha256:b9924c330a8bbc5800fe9c69f04a84e221eca7b28fd049a0354147d9908fa142
     labels:
       wud.watch: "false"
-    command: [mongod, --replSet, rs0, --bind_ip_all]
+    # WiredTiger otherwise sizes its cache to about half of host RAM, ignoring other services.
+    command: [mongod, --replSet, rs0, --bind_ip_all, --wiredTigerCacheSizeGB, "${MONGO_CACHE_GB:-0.5}"]
+    mem_limit: ${MONGO_MEMORY_LIMIT:-1g}
     restart: unless-stopped
     volumes:
       - mongo-data:/data/db
     healthcheck:
-      test: [CMD-SHELL, "mongosh --quiet --eval 'try { rs.status() } catch { rs.initiate({_id:\"rs0\",members:[{_id:0,host:\"mongo:27017\"}]}) }; quit(db.hello().isWritablePrimary ? 0 : 1)'"]
-      interval: 3s
+      # Each check starts a mongosh (Node) process, so poll every 10s rather than every 3s.
+      test: [CMD-SHELL, "mongosh --quiet --norc --eval 'try { rs.status() } catch { rs.initiate({_id:\"rs0\",members:[{_id:0,host:\"mongo:27017\"}]}) }; quit(db.hello().isWritablePrimary ? 0 : 1)'"]
+      interval: 10s
       timeout: 10s
-      retries: 20
+      start_period: 30s
+      retries: 10
 
   api:
     <<: *app
     image: ghcr.io/kkingsbe/sidechannel-api:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    mem_limit: ${API_MEMORY_LIMIT:-512m}
     environment:
       <<: *database
+      NODE_OPTIONS: --max-old-space-size=${API_NODE_HEAP_MB:-384}
       HARNESS_HOST: 0.0.0.0
       HARNESS_PORT: "4310"
       DASHBOARD_DIST_DIR: /app/dashboard/dist
@@ -65,8 +77,19 @@ services:
   experiment-worker:
     <<: *app
     image: ghcr.io/kkingsbe/sidechannel-experiment-worker:${IMAGE_TAG:-latest}
+    mem_limit: ${EXPERIMENT_WORKER_MEMORY_LIMIT:-1g}
+    labels:
+      <<: *update-labels
+      # Replacing the worker cancels its run. This pre-update hook runs inside the current
+      # container and exits non-zero while runs are queued or active, so the updater skips
+      # the update and retries on its next check.
+      wud.hook.1.phase: pre
+      wud.hook.1.type: exec
+      wud.hook.1.command: node /app/experiment-worker/dist/commands/update-guard.js
+      wud.hook.1.timeout: "30000"
     environment:
       <<: *database
+      NODE_OPTIONS: --max-old-space-size=${EXPERIMENT_WORKER_NODE_HEAP_MB:-768}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ADAPTION_API_KEY: ${ADAPTION_API_KEY:-}
     # Safe to restart: a dead worker's lease expires (WORKER_LEASE_MS, default 30s) and the
@@ -77,8 +100,17 @@ services:
   analysis-worker:
     <<: *app
     image: ghcr.io/kkingsbe/sidechannel-analysis-worker:${IMAGE_TAG:-latest}
+    mem_limit: ${ANALYSIS_WORKER_MEMORY_LIMIT:-512m}
+    labels:
+      <<: *update-labels
+      # Defers updates while Jev analysis or oversight jobs are queued or running.
+      wud.hook.1.phase: pre
+      wud.hook.1.type: exec
+      wud.hook.1.command: node /app/analysis-worker/dist/commands/update-guard.js
+      wud.hook.1.timeout: "30000"
     environment:
       <<: *database
+      NODE_OPTIONS: --max-old-space-size=${ANALYSIS_WORKER_NODE_HEAP_MB:-384}
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-${TYPESAFE_AI_API_KEY:-}}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ADAPTION_API_KEY: ${ADAPTION_API_KEY:-}
@@ -88,6 +120,7 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:2026.10.0@sha256:9b49eed8f62806d5d45ddf59ecefb5710429598ea6d3fcccd2af938f621b2b07
     command: [tunnel, --no-autoupdate, run]
+    mem_limit: ${CLOUDFLARED_MEMORY_LIMIT:-128m}
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in Portainer stack environment variables}
     labels:
@@ -101,6 +134,7 @@ services:
   image-updater:
     image: getwud/wud:9.7.0
     restart: unless-stopped
+    mem_limit: ${UPDATER_MEMORY_LIMIT:-256m}
     labels:
       wud.watch: "false"
     environment:
@@ -111,6 +145,9 @@ services:
       WUD_TRIGGER_DOCKER_SIDECHANNEL_INCLUDEBYDEFAULT: "false"
       WUD_TRIGGER_DOCKER_SIDECHANNEL_AUTO: ${AUTO_UPDATE_ENABLED:-true}
       WUD_TRIGGER_DOCKER_SIDECHANNEL_PRUNE: "false"
+      # Re-attempt on every check, so an update deferred by a worker's pre-update hook
+      # (active runs or jobs) is applied once the worker is idle.
+      WUD_TRIGGER_DOCKER_SIDECHANNEL_ONCE: "false"
       # WUD 9 refuses to start without an administrator account, even with no UI port published.
       WUD_AUTH_ADMIN_USER: ${UPDATER_ADMIN_USER:-admin}
       WUD_AUTH_ADMIN_PASSWORD: ${UPDATER_ADMIN_PASSWORD:?Set UPDATER_ADMIN_PASSWORD in Portainer stack environment variables}

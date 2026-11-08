@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { HarnessEvent } from '@sidechannel/contracts/browser';
 import {
   MODEL_CALL_EVENT_TYPES, buildModelCalls, classifyReasoning, countCallMatches, extractReasoning,
-  findMatches, formatTokens, prettyArguments, summarizeEvent,
+  findMatches, formatTokens, prettyArguments, summarizeEvent, buildToolNames, humanizeCode,
 } from './model-calls';
 
 let seq = 0;
@@ -172,9 +172,9 @@ describe('MODEL_CALL_EVENT_TYPES', () => {
 describe('summarizeEvent', () => {
   it('summarizes known types', () => {
     expect(summarizeEvent(ev('turn_started', { allowance: 8, orderPosition: 0 }))).toBe('Allowance 8 actions · order position 0');
-    expect(summarizeEvent(ev('turn_ended', { reason: 'end_turn', remainingAllowance: 5 }))).toBe('Ended: end_turn · 5 actions left');
+    expect(summarizeEvent(ev('turn_ended', { reason: 'end_turn', remainingAllowance: 5 }))).toBe('Ended: end turn · 5 actions left');
     expect(summarizeEvent(ev('tool_result', { call: { name: 'read_role_data' }, result: {}, disposition: 'executed' }))).toBe('read_role_data · executed');
-    expect(summarizeEvent(ev('tool_unexecuted', { call: { name: 'post_board' }, reason: 'allowance_exhausted' }))).toBe('post_board · unexecuted: allowance_exhausted');
+    expect(summarizeEvent(ev('tool_unexecuted', { call: { name: 'post_board' }, reason: 'allowance_exhausted' }))).toBe('post_board · unexecuted: action allowance used up');
     expect(summarizeEvent(ev('tool_admitted', { call: { name: 'x' }, remainingAllowance: 3 }))).toBe('x · admitted · 3 left');
     expect(summarizeEvent(ev('context_accounted', { phase: 'action', estimated: 5947 }))).toBe('Context 5,947 tokens (est.) · action');
   });
@@ -189,6 +189,63 @@ describe('summarizeEvent', () => {
         expect(() => summarizeEvent(ev(type, data))).not.toThrow();
       }
     }
+  });
+});
+
+describe('readable event summaries', () => {
+  it('summarizes board, memory and artifact payloads', () => {
+    expect(summarizeEvent(ev('board_post', { after: { authorId: 'alpha', text: 'Publishing my table.\n\nRows follow.' } }))).toBe('alpha posted: Publishing my table. Rows follow.');
+    expect(summarizeEvent(ev('board_delivery', { after: [{ sequence: 4 }, { sequence: 6 }] }, { agentId: 'pharmacy' }))).toBe('delivered posts #4–#6 to pharmacy');
+    expect(summarizeEvent(ev('board_delivery', { after: [] }, { agentId: 'pharmacy' }))).toBe('no new posts delivered to pharmacy');
+    expect(summarizeEvent(ev('memory_updated', { before: { version: 1, notes: 'a' }, after: { version: 2, notes: 'one\ntwo\nthree\nfour' } }))).toBe('memory v2 (+3 lines): one');
+    expect(summarizeEvent(ev('artifact_updated', { after: { version: 3 } }))).toBe('artifact v3 updated');
+  });
+  it('adds the result to tool_result rows', () => {
+    const result = (r: unknown) => summarizeEvent(ev('tool_result', { call: { name: 'read_artifact' }, result: r, disposition: 'executed' }));
+    expect(result({ ok: true, value: { version: 0, content: '' } })).toBe('read_artifact · executed → version 0, empty');
+    expect(result({ ok: false, error: 'Invalid notes' })).toBe('read_artifact · executed → error: Invalid notes');
+    expect(result({ ok: true, messages: [{}, {}] })).toBe('read_artifact · executed → 2 messages');
+  });
+  it('turns reason codes into plain labels and fixes plurals', () => {
+    expect(humanizeCode('explicit_yield')).toBe('yielded turn');
+    expect(humanizeCode('budget_exhausted')).toBe('action budget used up');
+    expect(humanizeCode('memory_updated')).toBe('memory updated');
+    expect(summarizeEvent(ev('turn_ended', { reason: 'budget_exhausted', remainingAllowance: 0 }))).toBe('Ended: action budget used up · 0 actions left');
+    expect(summarizeEvent(ev('turn_ended', { reason: 'explicit_yield', remainingAllowance: 1 }))).toBe('Ended: yielded turn · 1 action left');
+    expect(summarizeEvent(ev('turn_started', { allowance: 1 }))).toBe('Allowance 1 action');
+  });
+  it('resolves tool names by call id from any recorded call, with the id only as a last resort', () => {
+    const admitted = ev('tool_admitted', { call: { id: 'chatcmpl-tool-1', name: 'read_artifact' } }, { invocationId: 'i', toolCallId: 'chatcmpl-tool-1' });
+    const result = ev('tool_result', { result: {}, disposition: 'executed' }, { invocationId: 'i', toolCallId: 'chatcmpl-tool-1' });
+    expect(summarizeEvent(result, buildToolNames([admitted, result]))).toBe('read_artifact · executed');
+    expect(summarizeEvent(result, buildToolNames([result]))).toBe('chatcmpl-tool-1 · executed');
+  });
+});
+
+describe('failed model calls', () => {
+  const who = { agentId: 'a', round: 1, turn: 2 };
+  it('flags a response-less call when its turn ends in error, with elapsed time', () => {
+    seq = 0;
+    const request = ev('model_requested', { phase: 'action' }, { invocationId: 'x', ...who });
+    seq += 299;
+    const ended = ev('turn_ended', { reason: 'error', error: 'Model request timeout' }, who);
+    const [call] = buildModelCalls([request, ended], { provider: 'x' });
+    expect(call.failure?.reason).toBe('Model request timeout');
+    expect(call.failure?.elapsedMs).toBe(30000);
+  });
+  it('does not flag answered calls or calls still in flight', () => {
+    seq = 0;
+    const request = ev('model_requested', { phase: 'action' }, { invocationId: 'x', ...who });
+    const response = ev('model_response', { text: 'ok', toolCalls: [] }, { invocationId: 'x', ...who });
+    const ended = ev('turn_ended', { reason: 'error', error: 'later problem' }, who);
+    expect(buildModelCalls([request, response, ended], { provider: 'x' })[0].failure).toBeUndefined();
+    expect(buildModelCalls([request], { provider: 'x' })[0].failure).toBeUndefined();
+  });
+  it('falls back to run_terminated', () => {
+    seq = 0;
+    const request = ev('model_requested', { phase: 'action' }, { invocationId: 'x', ...who });
+    const term = ev('run_terminated', { status: 'failed', reason: 'boom' });
+    expect(buildModelCalls([request, term], { provider: 'x' })[0].failure?.reason).toBe('boom');
   });
 });
 

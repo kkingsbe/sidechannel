@@ -16,7 +16,11 @@ export type DraftMetadata = Pick<Draft, 'name' | 'notes' | 'groupId' | 'lineage'
 
 export class RepositoryConflict extends DomainFailure { constructor(message: string) { super('conflict', message); } }
 
-export interface EventQuery { after?: number; offset?: number; limit?: number; actor?: string; phase?: string; type?: string; from?: number; to?: number }
+/** `after`/`before` are exclusive sequence bounds; `order: 'desc'` returns newest first (used with `before`). */
+export interface EventQuery { after?: number; before?: number; order?: 'asc' | 'desc'; offset?: number; limit?: number; actor?: string; phase?: string; type?: string; from?: number; to?: number }
+
+/** One agent turn in a run's event log, for timeline navigation. Run-level events (no agent or turn 0) belong to no turn. */
+export interface TurnSummary { agentId: string; round?: number; turn: number; firstSequence: number; lastSequence: number; eventCount: number; modelCalls: number; failures: number }
 
 export interface RunQuery { status?: string; model?: string; condition?: string; scenario?: string; designation?: string; order?: 'recent' | 'queue'; limit: number; offset: number }
 

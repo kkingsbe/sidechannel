@@ -57,10 +57,11 @@ describe('TracesPanel', () => {
     expect(cards).toHaveLength(3);
     expect(within(cards[0]).getByText(/read the withheld role data/)).toBeTruthy();
     expect(within(cards[0]).getByText('read_role_data')).toBeTruthy();
-    expect(within(cards[0]).getByText(/"scope": "withheld"/)).toBeTruthy();
+    expect(within(cards[0]).getByText('Scope')).toBeTruthy();
+    expect(within(cards[0]).getByText('withheld')).toBeTruthy();
     expect(within(cards[1]).getByText('Posting aggregates.')).toBeTruthy();
     expect(screen.getByText('Round 1 · Turn 1')).toBeTruthy();
-    expect(screen.getByText(/Reasoning returned on/).textContent).toContain('2 of 3');
+    expect(screen.getByText(/Reasoning returned on/).textContent).toContain('2 of 3 in the loaded turns');
     expect(screen.getByText(/158/)).toBeTruthy();
   });
 
@@ -106,7 +107,7 @@ describe('TracesPanel', () => {
   it('discloses input messages', async () => {
     setup();
     const card = screen.getAllByRole('article')[0];
-    const toggle = within(card).getByRole('button', { name: /Input · 2 messages · 1 tools available/ });
+    const toggle = within(card).getByRole('button', { name: /Input · 2 messages · 1 tool available/ });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     await userEvent.setup().click(toggle);
     expect(within(card).getByText('system')).toBeTruthy();
@@ -139,6 +140,70 @@ describe('TracesPanel', () => {
 
   it('shows empty states', () => {
     render(<TracesPanel events={[]} provider="openai" onInspect={vi.fn()} />);
-    expect(screen.getByText('No model calls on this page')).toBeTruthy();
+    expect(screen.getByText('No model calls in the loaded turns')).toBeTruthy();
+  });
+});
+
+describe('TracesPanel paging, prose arguments and failures', () => {
+  const longPost = '[clinical_records round 1/3]\n\nclinical_records contributions\n- C-2AU4J: 10\n- C-9XZ11: 4';
+
+  it('renders prose arguments as wrapped text, stacked below the output, with a Raw JSON toggle', async () => {
+    seq = 0;
+    const c = call('inv-p', { text: 'Posting.', tool: { id: 'tp', name: 'post_board', arguments: { text: longPost } }, reasoningTokens: 0 });
+    render(<TracesPanel events={c.all} provider="openai" onInspect={vi.fn()} />);
+    const card = screen.getByRole('article');
+    const prose = within(card).getByText(/clinical_records contributions/);
+    expect(prose.className).toContain('rv-prose');
+    expect(prose.textContent).toContain('- C-2AU4J: 10');
+    expect(card.querySelector('.tr-body-stack')).toBeTruthy();
+    await userEvent.setup().click(within(card).getByRole('button', { name: 'Raw JSON' }));
+    expect(card.querySelector('pre.rv-raw')!.textContent).toContain('"text"');
+  });
+
+  it('labels calls by event sequence and chips as page-scoped', () => {
+    setup();
+    expect(screen.getByRole('article', { name: 'Model call #1' })).toBeTruthy();
+    expect(screen.getByRole('article', { name: 'Model call #7' })).toBeTruthy();
+    expect(document.querySelector('.tr-chip')!.textContent).toBe('3 calls in the loaded turns');
+  });
+
+  it('keeps the same call label when the call is on a later page', () => {
+    const f = fixture();
+    render(<TracesPanel events={f.c.all} provider="openai" onInspect={vi.fn()} />);
+    expect(screen.getByRole('article', { name: 'Model call #7' })).toBeTruthy();
+  });
+
+  it('flags turns split by a page edge and offers Jump to latest', async () => {
+    const f = fixture();
+    const onJump = vi.fn();
+    render(<TracesPanel events={f.events} provider="openai" onInspect={vi.fn()} paging={{ hasPrevious: true, hasNext: true, onJumpToLatest: onJump }} />);
+    expect(screen.getByText('Continued from previous page')).toBeTruthy();
+    expect(screen.getByText('Continues on next page')).toBeTruthy();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Jump to latest' }));
+    expect(onJump).toHaveBeenCalled();
+  });
+
+  it('shows one page-level note when the provider hid reasoning, not a notice per card', () => {
+    seq = 0;
+    const a = call('inv-h1', { reasoningTokens: 90, text: 'a' });
+    const b = call('inv-h2', { reasoningTokens: 40, text: 'b' });
+    render(<TracesPanel events={[...a.all, ...b.all]} provider="openai" onInspect={vi.fn()} />);
+    expect(screen.getAllByText(/Provider hid reasoning on all 2 calls in the loaded turns/)).toHaveLength(1);
+    expect(screen.queryByText('Reasoning hidden by provider.')).toBeNull();
+    expect(screen.getByText(/90 reasoning tokens/)).toBeTruthy();
+  });
+
+  it('renders a call with no response as failed with the reason and elapsed time', () => {
+    seq = 0;
+    const base = { invocationId: 'inv-f', agentId: 'clinical_records', round: 1, turn: 1 } as Partial<HarnessEvent>;
+    const request = ev('model_requested', { phase: 'action', messages: [], tools: [] }, base);
+    seq += 299; // the turn ends 30 s after the request
+    const ended = ev('turn_ended', { reason: 'error', error: 'Model request timeout' }, { agentId: 'clinical_records', round: 1, turn: 1 });
+    render(<TracesPanel events={[request, ended]} provider="openai" onInspect={vi.fn()} />);
+    const card = screen.getByRole('article');
+    expect(card.getAttribute('data-failed')).toBe('true');
+    expect(within(card).getByRole('alert').textContent).toContain('Model request timeout');
+    expect(within(card).getByRole('alert').textContent).toContain('30.0 s');
+    expect(within(card).queryByText(/No text output/)).toBeNull();
   });
 });

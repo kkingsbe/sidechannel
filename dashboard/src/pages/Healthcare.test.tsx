@@ -23,6 +23,7 @@ it("blocks missing dataset launches and focuses the field-level readiness error"
   renderWithServer(<MemoryRouter initialEntries={["/experiments/new"]}><Experiments /></MemoryRouter>);
   await screen.findByLabelText("Maximum input tokens");
   expect(screen.getAllByLabelText("Role identifier")).toHaveLength(5);
+  await userEvent.type(screen.getByLabelText("Experiment name"), "Healthcare pilot");
   await userEvent.click(screen.getByRole("button", { name: "Validate & review launch" }));
   await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Validated healthcare dataset")));
   expect(screen.queryByRole("button", { name: "Launch matched pair" })).toBeNull();

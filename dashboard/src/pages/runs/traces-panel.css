@@ -482,3 +482,38 @@
 .card:has(.tr-toolbar) {
   overflow: clip;
 }
+
+/* Page position and honest per-page labelling */
+.tr-pagebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tr-note-hidden {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--reasoning);
+  background: var(--reasoning-bg);
+  border: 1px solid var(--reasoning-border);
+  border-radius: 10px;
+}
+
+/* Prose tool arguments: output and tools use the full card width instead of two squeezed columns */
+.tr-body-stack {
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+.tr-body-stack > .tr-col {
+  flex: 0 0 auto;
+}
+
+/* Failed call */
+.tr-card[data-failed="true"] {
+  border-color: var(--danger);
+}

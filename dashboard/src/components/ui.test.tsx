@@ -70,3 +70,11 @@ it('restores focus to the control that opened a programmatic drawer', async () =
  await user.click(screen.getByRole('button',{name:'Close evidence inspector'}));
  expect(document.activeElement).toBe(trigger);
 });
+
+it('shows a default drawer eyebrow and lets callers override it', () => {
+ const { rerender } = render(<Drawer title="Event" open onOpenChange={() => {}}>x</Drawer>);
+ expect(screen.getByText('Evidence inspector')).toBeTruthy();
+ rerender(<Drawer title="Event" eyebrow="Codebook" open onOpenChange={() => {}}>x</Drawer>);
+ expect(screen.getByText('Codebook')).toBeTruthy();
+ expect(screen.queryByText('Evidence inspector')).toBeNull();
+});

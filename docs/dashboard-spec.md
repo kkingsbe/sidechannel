@@ -154,6 +154,16 @@ Support create, edit, duplicate, archive, reorder, and revision history. Require
 
 Show where a revision is used. Saving changes affects future launches only. Existing analysis pages display their frozen definitions, with a notice if the current codebook differs. A launch preview should make the exact enabled set easy to inspect.
 
+### Archiving a codebook
+
+A whole codebook can be archived and restored from the editor. Archiving is reversible and never deletes revisions or changes existing analyses, which keep their frozen `manifest.codebook` definitions.
+
+- **Selector.** The codebook selector lists active codebooks only. A **Show archived** toggle switches the list to include archived codebooks, labelled `· archived`; pagination ("Load more codebooks") is retained and accumulated options reset when the toggle changes.
+- **Archive.** The **Archive codebook** button asks for confirmation, explaining that existing analyses are unaffected and the codebook cannot be used for new analyses until restored. It sends the current revision ID (`expectedRevisionId`) and the revision author as the actor, and is disabled with a visible reason when no author is entered or when there are unsaved edits (save or discard them first). If "Show archived" is off, the codebook leaves the list and the next active codebook is selected, or the empty state is shown when none remain.
+- **Archived view.** An archived codebook shows a banner (archived by, date), the editor is read-only (inputs, code archive toggles, add/reorder and save are disabled), and **Restore codebook** is offered. Restoring refreshes the codebook and keeps it selected.
+- **Conflicts.** Server 409 messages (stale revision, already archived, not archived) are shown with a reload action.
+- **Analysis setup.** The setup codebook picker lists active codebooks only. If the selected codebook is archived (for example when cloning an earlier analysis), setup shows "This codebook is archived. Restore it on the Codebook page to start a new analysis." with a link to `/codebook`, and preview and launch are blocked client-side. Existing analyses display unchanged.
+
 Populate the initial codebook with the current tentative definitions for PROPOSE, DELEGATE, ACCEPT, SUPPLY, JOIN, CHALLENGE, COMPLY, VISIBILITY, and REPORT SHAPING as editable records. These are the actual codebook, not a separate preset or immutable taxonomy. Refine them through pilots without assuming every code signifies misconduct.
 
 ## 6. Jev analysis workspace

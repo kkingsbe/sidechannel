@@ -29,8 +29,19 @@ export class AnalysisService {
         const codebook = { id, name, currentRevisionId: revisionId, createdAt: now, updatedAt: now }, revision: CodebookRevision = { id: revisionId, codebookId: id, revision: 1, definitions, createdAt: now, createdBy };
         await this.repository.saveCodebook(codebook, revision); return { codebook, revision };
     }
+    async archiveCodebook(id: string, input: { expectedRevisionId: string; actor: string }) {
+        const expected = text(input.expectedRevisionId, 'Expected revision'), actor = text(input.actor, 'Actor'), book = await this.repository.getCodebook(id); if (!book) throw new AnalysisNotFound('Codebook not found');
+        if (book.archivedAt) throw new AnalysisConflict('Codebook is already archived');
+        return { codebook: await this.repository.setCodebookArchived(id, expected, { archivedAt: new Date().toISOString(), archivedBy: actor }) };
+    }
+    async restoreCodebook(id: string, input: { expectedRevisionId: string; actor: string }) {
+        const expected = text(input.expectedRevisionId, 'Expected revision'); text(input.actor, 'Actor'); const book = await this.repository.getCodebook(id); if (!book) throw new AnalysisNotFound('Codebook not found');
+        if (!book.archivedAt) throw new AnalysisConflict('Codebook is not archived');
+        return { codebook: await this.repository.setCodebookArchived(id, expected, null) };
+    }
     async reviseCodebook(id: string, input: { expectedRevisionId: string; name?: string; creator: string; definitions: BehaviorDefinition[]; note?: string }) {
         const book = await this.repository.getCodebook(id); if (!book) throw new AnalysisNotFound('Codebook not found');
+        if (book.archivedAt) throw new AnalysisConflict('Codebook is archived; restore it before editing');
         const expected = text(input.expectedRevisionId, 'Expected revision'); if (book.currentRevisionId !== expected) throw new AnalysisConflict('Codebook revision changed');
         const prior = (await this.repository.getRevision(id, expected))!, now = new Date().toISOString(), revisionId = randomUUID(), definitions = validate(() => validateBehaviorDefinitions(input.definitions));
         if (prior.definitions.some(d => !definitions.some(next => next.id === d.id))) throw new AnalysisValidation('Archive existing codes instead of removing their identities');
@@ -42,6 +53,7 @@ export class AnalysisService {
         const run = await this.source.getRun(runId); if (!run) throw new AnalysisNotFound('Source run not found');
         if (!isTerminalRun(run.status)) throw new AnalysisConflict('Analysis requires a terminal source run');
         const book = await this.repository.getCodebook(text(input.codebookId, 'Codebook ID')); if (!book) throw new AnalysisNotFound('Codebook not found');
+        if (book.archivedAt) throw new AnalysisConflict('Codebook is archived; restore it before starting a new analysis');
         if (input.codebookRevisionId && input.codebookRevisionId !== book.currentRevisionId) throw new AnalysisConflict('Codebook changed since preview');
         const revision = (await this.repository.getRevision(book.id, book.currentRevisionId))!, settings = validate(() => resolveAnalysisConfiguration(input.settings)), events: HarnessEvent[] = []; let after = 0, bytes = 0;
         while (true) { const chunk = await this.source.listEvents(runId, after, 500); if (!chunk.length) break;

@@ -20,6 +20,8 @@ import { currentDefinition, createMonitorPreview, launchMonitor } from '@sidecha
 import { processNextMonitorJob } from '../../analysis-worker/src/oversight/worker.js';
 import type { MonitorProvider } from '@sidechannel/contracts/oversight/server';
 import { createResearcherServer } from '../../api/src/server/index.js';
+import { InMemoryHealthcareCatalog } from '@sidechannel/persistence/healthcare/catalog';
+import { loadHealthcarePackage } from '../../api/src/healthcare/bootstrap.js';
 
 class FixtureMemory implements PrivateMemory {
     private rows = new Map<string, MemorySnapshot>();
@@ -79,7 +81,11 @@ export async function createDashboardSmoke() {
         model: { provider: 'scripted', id: 'fixture-monitor-no-network', settings: {} }, maxInputChars: 1000000, contextWindowTokens: 1000000, outputAllowanceTokens: 2048, timeoutMs: 1000 });
     const evaluation = await launchMonitor(repository, researchStore, { previewId: preview.id, previewHash: preview.hash, idempotencyKey: 'dashboard-fixture-monitor' });
     await processNextMonitorJob(repository, researchStore, fakeMonitor, 'fixture-monitor-worker');
-    const server = createResearcherServer(repository, { demoMode: true, extensionHandlers: [createJevRouteExtension(analysis, reviews), createOversightHandler(repository, researchStore)] });
+    // Register the small healthcare fixture so the experiment form's dataset catalog and smoke preset work in the demo.
+    // Healthcare runs launched here still fail fast in tick(): the smoke worker only executes scripted fixture-v1 runs.
+    const healthcareCatalog = new InMemoryHealthcareCatalog();
+    await healthcareCatalog.register(await loadHealthcarePackage(fileURLToPath(new URL('../../data/healthcare/points-out/fixture10-s101-points/', import.meta.url))));
+    const server = createResearcherServer(repository, { demoMode: true, healthcareCatalog, extensionHandlers: [createJevRouteExtension(analysis, reviews), createOversightHandler(repository, researchStore)] });
     let busy = false;
     async function tick() {
         if (busy) return; busy = true;
