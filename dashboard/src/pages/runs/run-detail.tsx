@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowUpRight, Copy, Download } from "lucide-react";
+import type { TurnSummary } from "@sidechannel/contracts/browser";
 import {
   Badge,
   Button,
@@ -14,23 +15,29 @@ import {
 } from "../../components/ui";
 import { CancelJobButton } from "../../components/cancel-job-button";
 import { ViewPanel } from "../../components/view-registry";
+import { Downstream } from "../../components/run-evidence/downstream";
+import { RunDiagnostic } from "../../components/run-evidence/run-diagnostic";
 import { useClients } from "../../lib/clients/context";
+import { useResource } from "../../lib/clients/query";
 import { useProviders, useScenarios } from "../../lib/descriptors";
-import { runStatusMeta } from "../../lib/status";
 import { MODEL_CALL_EVENT_TYPES } from "../../lib/model-calls";
-import type { HarnessEvent } from "../../lib/types";
+import { runStatusMeta } from "../../lib/status";
 import { short, when } from "../../lib/utils";
+import { useRunEvents, type EventStart } from "../../lib/use-run-events";
+import { ModelCallDetail } from "./ModelCallDetail";
+import { RunLiveProvider, type RunLiveFilters } from "./run-live-context";
 import { useRunRecord } from "./use-run-record";
 import { useRunSelection } from "./use-run-evidence";
 import { RunFreshness } from "./panels";
-import { ModelCallDetail } from "./ModelCallDetail";
-import { RunEventPageProvider } from "./event-page-context";
 import { DEFAULT_RUN_TAB, runsOrder, runsViews, type RunsTab } from "./views";
 
 export const safeRunReturn = (value: string | null) =>
   value === "/runs" || value?.startsWith("/runs?") ? value : "/runs";
 
-/** The run detail: frozen header, registry dispatch and the evidence drawer. */
+const EMPTY_FILTERS: RunLiveFilters = { actor: "", phase: "", type: "", from: "", to: "" };
+const ACTIVE_STATUSES = ["queued", "running", "reporting", "stopping"];
+
+/** The run detail: frozen header, live registry dispatch and the evidence drawer. */
 export function RunDetail() {
   const { id } = useParams();
   const clients = useClients();
@@ -41,12 +48,52 @@ export function RunDetail() {
   const tab = (params.get("view") || DEFAULT_RUN_TAB) as RunsTab;
   const selected = params.get("evidence");
   const selection = useRunSelection(tab, selected);
+  const [filters, setFilters] = useState<RunLiveFilters>(EMPTY_FILTERS);
+  const setFilter = (name: keyof RunLiveFilters, value: string) =>
+    setFilters((previous) => ({ ...previous, [name]: value }));
   const data = record.data;
+  const eventTabs = tab === "timeline" || tab === "traces";
+  const status = data?.status;
+  // Whether the run was active when this page opened decides the default start, so a run that
+  // finishes while you watch keeps its window instead of jumping back to the first event.
+  const [opened, setOpened] = useState<{ id: string; active: boolean }>();
+  const openedActive = opened?.id === id ? opened?.active : undefined;
+  useEffect(() => {
+    if (id && openedActive === undefined && status)
+      setOpened({ id, active: ACTIVE_STATUSES.includes(status) });
+  }, [id, openedActive, status]);
+  const at = params.get("at");
+  const start: EventStart =
+    at === "end"
+      ? "latest"
+      : at && Number.isSafeInteger(Number(at)) && Number(at) > 0
+        ? Number(at)
+        : openedActive || status === "failed" || status === "interrupted"
+          ? "latest"
+          : "first";
+  const runActive = !!status && ACTIVE_STATUSES.includes(status);
+  const follow = runActive && start === "latest" && !filters.to;
+  const runEvents = useRunEvents(id, filters, {
+    start,
+    follow,
+    enabled: eventTabs && openedActive !== undefined,
+  });
+  const turns = useResource<{ turns: TurnSummary[] }>(
+    id && eventTabs ? `run:${id}:turns` : null,
+    () => clients.request<{ turns: TurnSummary[] }>(`/runs/${encodeURIComponent(id!)}/turns`),
+    { interval: follow ? 10000 : 0 },
+  );
+  const jumpTo = (target: number | "end") =>
+    setParams((previous) => {
+      previous.set("at", String(target));
+      return previous;
+    });
   const setTab = (view: RunsTab) =>
     setParams((previous) => {
       previous.set("view", view);
       previous.delete("evidence");
       previous.delete("seq");
+      previous.delete("call");
       return previous;
     });
   const close = () =>
@@ -55,30 +102,57 @@ export function RunDetail() {
       previous.delete("seq");
       return previous;
     });
-  const [eventPage, setEventPage] = useState<HarnessEvent[]>();
-  const eventPageValue = useMemo(
-    () => ({ events: eventPage, report: setEventPage }),
-    [eventPage],
-  );
   const inspect = (key: string, sequence?: number) =>
     setParams((previous) => {
       previous.set("evidence", key);
       sequence ? previous.set("seq", String(sequence)) : previous.delete("seq");
       return previous;
     });
-  const openTraces = (invocationId: string) =>
+  const focusCall = params.get("call");
+  const openTraces = (invocationId: string) => {
+    const alreadyThere = params.get("view") === "traces" && params.get("call") === invocationId;
     setParams((previous) => {
       previous.set("view", "traces");
-      previous.set("call", invocationId);
+      // Re-selecting the focused call must re-trigger the panel's scroll/highlight.
+      if (alreadyThere) previous.delete("call");
+      else previous.set("call", invocationId);
       previous.delete("evidence");
       previous.delete("seq");
       return previous;
     });
+    if (alreadyThere)
+      setTimeout(
+        () =>
+          setParams(
+            (previous) => {
+              previous.set("call", invocationId);
+              return previous;
+            },
+            { replace: true },
+          ),
+        0,
+      );
+  };
   if (record.run.loading) return <Loading />;
   if (!data) return <ErrorState error={record.run.error} retry={record.run.refresh} />;
   const provider = providers.view(data.config.model.provider);
   const scenario = scenarios.view(data.config.scenario.version);
   const hasResults = scenario.presentation.tabs.includes("results");
+  const event = selection.event ?? runEvents.events.find((item) => item.id === selected);
+  const liveValue = {
+    runEvents,
+    turns: turns.data?.turns,
+    follow,
+    start,
+    provider: data.config.model.provider,
+    roles: data.config.roles.map((role) => role.id),
+    focusCall,
+    filters,
+    setFilter,
+    onInspect: inspect,
+    onOpenTraces: openTraces,
+    onJump: jumpTo,
+  };
   return (
     <>
       <Button variant="ghost" size="sm" asChild className="mb-4">
@@ -129,17 +203,22 @@ export function RunDetail() {
         <span>
           Config <strong className="mono">{short(data.configHash)}</strong>
         </span>
-        <span>
-          Phase{" "}
-          <strong>
-            {data.status === "reporting"
-              ? "Reporting"
-              : data.status === "completed"
-                ? "Complete"
-                : data.status === "running"
-                  ? "Action"
-                  : "No active phase recorded"}
-          </strong>
+        <span role="status" className="run-live-summary">
+          <span>
+            State <strong>{data.status}</strong>
+          </span>
+          <span>
+            Phase{" "}
+            <strong>
+              {data.status === "reporting"
+                ? "Reporting"
+                : data.status === "completed"
+                  ? "Complete"
+                  : data.status === "running"
+                    ? "Action"
+                    : "No active phase recorded"}
+            </strong>
+          </span>
         </span>
         <span>
           Round{" "}
@@ -177,95 +256,100 @@ export function RunDetail() {
       )}
       {record.command.error && <Notice kind="error">{record.command.error.message}</Notice>}
       {record.command.message && <Notice kind="success">{record.command.message}</Notice>}
-      {data.failureReason && <Notice kind="error">Run diagnostic: {data.failureReason}</Notice>}
-      <RunEventPageProvider value={eventPageValue}>
-      <ViewPanel
-        registry={runsViews(hasResults)}
-        order={runsOrder(hasResults)}
-        tab={tab}
-        panelId="run-evidence-panel"
-        onChange={setTab}
+      <RunDiagnostic
+        runId={id!}
+        status={data.status}
+        failureReason={data.failureReason}
+        createdAt={data.createdAt}
+        updatedAt={data.updatedAt}
       />
-      <RunFreshness updatedAt={data.updatedAt} id={id!} completed={data.status === "completed"} />
-      <Drawer
-        open={!!selected}
-        onOpenChange={(open) => {
-          if (!open) close();
-        }}
-        title={
-          selection.event
-            ? selection.event.type.replaceAll("_", " ")
-            : runsViews(hasResults)[tab]?.title === "Artifacts"
-              ? "Artifact version"
-              : runsViews(hasResults)[tab]?.title === "Board & deliveries"
-                ? "Board message"
-                : "Recorded evidence"
-        }
-      >
-        {selection.loading ? (
-          <Loading />
-        ) : selection.event || selection.item ? (
-          <>
-            <dl className="definition-list">
-              <dt>Source run</dt>
-              <dd>
-                <Link to={"/runs/" + id}>{id}</Link>
-              </dd>
-              <dt>Evidence ID</dt>
-              <dd className="mono">{selected}</dd>
-              {selection.event && (
+      <Downstream runId={id!} status={data.status} />
+      <RunLiveProvider value={liveValue}>
+        <ViewPanel
+          registry={runsViews(hasResults)}
+          order={runsOrder(hasResults)}
+          tab={tab}
+          panelId="run-evidence-panel"
+          onChange={setTab}
+        />
+        <RunFreshness updatedAt={data.updatedAt} id={id!} completed={data.status === "completed"} />
+        <Drawer
+          open={!!selected}
+          onOpenChange={(open) => {
+            if (!open) close();
+          }}
+          title={
+            event
+              ? event.type.replaceAll("_", " ")
+              : runsViews(hasResults)[tab]?.title === "Artifacts"
+                ? "Artifact version"
+                : runsViews(hasResults)[tab]?.title === "Board & deliveries"
+                  ? "Board message"
+                  : "Recorded evidence"
+          }
+        >
+          {selection.loading ? (
+            <Loading />
+          ) : event || selection.item ? (
+            <>
+              <dl className="definition-list">
+                <dt>Source run</dt>
+                <dd>
+                  <Link to={"/runs/" + id}>{id}</Link>
+                </dd>
+                <dt>Evidence ID</dt>
+                <dd className="mono">{selected}</dd>
+                {event && (
+                  <>
+                    <dt>Actor</dt>
+                    <dd>{event.agentId || "system"}</dd>
+                    <dt>Sequence</dt>
+                    <dd>{event.sequence}</dd>
+                    <dt>Invocation</dt>
+                    <dd>{event.invocationId || "Not applicable"}</dd>
+                    <dt>Recorded at</dt>
+                    <dd>{when(event.timestamp)}</dd>
+                  </>
+                )}
+              </dl>
+              <hr className="section-divider" />
+              {event && event.invocationId && MODEL_CALL_EVENT_TYPES.has(event.type) ? (
+                <ModelCallDetail
+                  event={event}
+                  events={runEvents.events.length ? runEvents.events : [event]}
+                  provider={data.config.model.provider}
+                  onNavigate={inspect}
+                  onOpenTraces={openTraces}
+                />
+              ) : (
                 <>
-                  <dt>Actor</dt>
-                  <dd>{selection.event.agentId || "system"}</dd>
-                  <dt>Sequence</dt>
-                  <dd>{selection.event.sequence}</dd>
-                  <dt>Invocation</dt>
-                  <dd>{selection.event.invocationId || "Not applicable"}</dd>
-                  <dt>Recorded at</dt>
-                  <dd>{when(selection.event.timestamp)}</dd>
+                  {event && tab !== "memory" && (
+                    <Notice>
+                      Tool requests are proposals until an admission and result are recorded. Repeated input context
+                      is not a new action.
+                    </Notice>
+                  )}
+                  <JsonView value={event ?? selection.item} />
+                  {event?.invocationId && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => openTraces(event!.invocationId!)}
+                    >
+                      Open model call in Model &amp; traces
+                    </Button>
+                  )}
                 </>
               )}
-            </dl>
-            <hr className="section-divider" />
-            {selection.event &&
-            selection.event.invocationId &&
-            MODEL_CALL_EVENT_TYPES.has(selection.event.type) ? (
-              <ModelCallDetail
-                event={selection.event}
-                events={eventPage ?? [selection.event]}
-                provider={data.config.model.provider}
-                onNavigate={inspect}
-                onOpenTraces={openTraces}
-              />
-            ) : (
-              <>
-                {selection.event && tab !== "memory" && (
-                  <Notice>
-                    Tool requests are proposals until an admission and result are recorded. Repeated input context is
-                    not a new action.
-                  </Notice>
-                )}
-                <JsonView value={selection.event ?? selection.item} />
-                {selection.event?.invocationId && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => openTraces(selection.event!.invocationId!)}
-                  >
-                    Open model call in Model &amp; traces
-                  </Button>
-                )}
-              </>
-            )}
-          </>
-        ) : (
-          <Empty
-            title="Evidence is outside the current page"
-            description="Use the timeline sequence filters or the original paginated evidence view to locate this record. Its ID remains stable in this link."
-          />
-        )}
-      </Drawer>
-      </RunEventPageProvider>
+            </>
+          ) : (
+            <Empty
+              title="Evidence is outside the current page"
+              description="Use the timeline sequence filters or the original paginated evidence view to locate this record. Its ID remains stable in this link."
+            />
+          )}
+        </Drawer>
+      </RunLiveProvider>
     </>
   );
 }

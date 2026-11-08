@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { HarnessEvent } from '@sidechannel/contracts/browser';
-import { api } from './api';
+import { useRequester } from './api';
 import { appendLater, emptyWindow, prependEarlier, type EventWindow } from './event-window';
 
 /** `before` value meaning "from the newest event". */
@@ -39,6 +39,7 @@ export function filterQuery(filters: EventFilters): string {
 
 export function useRunEvents(runId: string | undefined, filters: EventFilters, options: { start: EventStart; follow: boolean; enabled: boolean }): RunEvents {
   const { start, follow, enabled } = options;
+  const requester = useRequester();
   const filterString = filterQuery(filters);
   const [nonce, setNonce] = useState(0);
   const key = runId && enabled ? `${runId}?${filterString}@${start}#${nonce}` : null;
@@ -58,9 +59,9 @@ export function useRunEvents(runId: string | undefined, filters: EventFilters, o
     query.set('snap', 'turn');
     query.set('limit', String(EVENT_PAGE_SIZE));
     for (const [name, value] of Object.entries(params)) query.set(name, value);
-    const page = await api<EventPage>(`/runs/${encodeURIComponent(runId ?? '')}/events?${query}`);
+    const page = await requester<EventPage>(`/runs/${encodeURIComponent(runId ?? '')}/events?${query}`);
     return { events: page.events ?? [], hasMore: !!page.hasMore };
-  }, [runId, filterString]);
+  }, [requester, runId, filterString]);
 
   // Initial window: re-runs whenever the run, filters, start or reload nonce change (all encoded in `key`).
   useEffect(() => {

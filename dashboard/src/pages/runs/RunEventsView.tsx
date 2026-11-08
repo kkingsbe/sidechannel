@@ -14,7 +14,8 @@ const STATUS_LABEL: Record<StreamStatus, string> = {
 };
 
 export function StreamBadge({ status }: { status: StreamStatus }) {
-  return <Badge status={status === 'live' || status === 'polling' ? 'running' : status === 'reconnecting' ? 'stopping' : ''}>{STATUS_LABEL[status]}</Badge>;
+  const tone = status === 'live' || status === 'polling' ? 'success' : status === 'reconnecting' ? 'warning' : status === 'connecting' ? 'info' : 'neutral';
+  return <Badge tone={tone}>{STATUS_LABEL[status]}</Badge>;
 }
 
 export interface RunEventsViewProps {

@@ -21,93 +21,67 @@ import { HealthcareResults } from "../../components/healthcare-results";
 import type { ArtifactVersion } from "../../lib/types";
 import type { BoardPage, ReportPage } from "../../lib/contracts";
 import { pretty, when } from "../../lib/utils";
-import { TimelinePanel as TimelineEventView } from "./TimelinePanel";
-import { TracesPanel as TracesEventView } from "./TracesPanel";
-import { useRunEventPage } from "./event-page-context";
+import { RunEventsView, StreamBadge } from "./RunEventsView";
+import { useRunLive } from "./run-live-context";
 import { BoardDelivery } from "./board-delivery";
 import { evidenceKey } from "./evidence-key";
-import { useRunEvidence, useRunEvents, useRunId, useRunRoute } from "./use-run-evidence";
+import { useRunEvidence, useRunId, useRunRoute } from "./use-run-evidence";
 import { useScenarios } from "../../lib/descriptors";
 import { useRunProgress } from "./use-run-progress";
 import { useRunRecordOnly } from "./use-run-record";
 
-/** Timeline and model-trace views: the recorded evidence stream. */
+/** Timeline and model-trace views: the live, turn-aligned event window from the detail shell. */
 export function EventsPanel({ kind }: { kind: "timeline" | "traces" }) {
-  const id = useRunId();
-  const run = useRunRecordOnly(id);
-  const { updatedAt } = useRunProgress(id);
-  const events = useRunEvents(kind);
-  const route = useRunRoute();
-  const page = useRunEventPage();
-  useEffect(() => {
-    if (events.data.length) page.report(events.data);
-  }, [events.data, page]);
-  if (run.loading) return <Loading />;
-  if (!run.data) return <ErrorState error={run.error} retry={run.refresh} />;
-  const data = run.data;
+  const live = useRunLive();
   return (
     <Card>
       <CardHeading
         title={kind === "timeline" ? "Execution timeline" : "Model invocations & trace references"}
-        description="Proposed requests, admitted actions, side effects, and results remain distinct."
-        actions={
-          <Badge>
-            {updatedAt ? "Live · " + new Date(updatedAt).toLocaleTimeString() : "Progress not yet received"}
-          </Badge>
+        description={
+          kind === "timeline"
+            ? "Proposed requests, admitted actions, side effects, and results remain distinct."
+            : "One card per model call in the loaded turns: what it reasoned, what it said, and what it proposed."
         }
+        actions={<StreamBadge status={live.runEvents.status} />}
       />
       <div className="filter-bar">
         <Field label="Actor">
-          <Select value={events.filters.actor} onChange={(e) => events.setFilter("actor", e.target.value)}>
+          <Select value={live.filters.actor} onChange={(e) => live.setFilter("actor", e.target.value)}>
             <option value="">All actors</option>
-            {data.config.roles.map((role) => (
-              <option key={role.id}>{role.id}</option>
+            {live.roles.map((role) => (
+              <option key={role}>{role}</option>
             ))}
           </Select>
         </Field>
         <Field label="Phase">
-          <Select value={events.filters.phase} onChange={(e) => events.setFilter("phase", e.target.value)}>
+          <Select value={live.filters.phase} onChange={(e) => live.setFilter("phase", e.target.value)}>
             <option value="">All phases</option>
             <option value="action">Action</option>
             <option value="report">Report</option>
           </Select>
         </Field>
         <Field label="Event type">
-          <Input value={events.filters.type} onChange={(e) => events.setFilter("type", e.target.value)} placeholder="Exact type" />
+          <Input value={live.filters.type} onChange={(e) => live.setFilter("type", e.target.value)} placeholder="Exact type" />
         </Field>
         <Field label="Sequence from">
-          <Input type="number" min="1" value={events.filters.from} onChange={(e) => events.setFilter("from", e.target.value)} />
+          <Input type="number" min="1" value={live.filters.from} onChange={(e) => live.setFilter("from", e.target.value)} />
         </Field>
         <Field label="Sequence through">
-          <Input type="number" min="1" value={events.filters.to} onChange={(e) => events.setFilter("to", e.target.value)} />
+          <Input type="number" min="1" value={live.filters.to} onChange={(e) => live.setFilter("to", e.target.value)} />
         </Field>
       </div>
-      {events.error && <ErrorState error={events.error} retry={events.refresh} />}
-      {events.loading ? (
-        <Loading />
-      ) : events.data.length ? (
-        kind === "timeline" ? (
-          <TimelineEventView
-            events={events.data}
-            provider={data.config.model.provider}
-            onInspect={route.inspect}
-            onOpenTraces={route.openTraces}
-          />
-        ) : (
-          <TracesEventView
-            events={events.data}
-            provider={data.config.model.provider}
-            onInspect={route.inspect}
-            focusInvocationId={route.params.get("call")}
-          />
-        )
-      ) : (
-        <Empty
-          title="No matching events"
-          description="New recorded evidence will appear here without changing your selected object."
-        />
-      )}
-      <Pager page={events.page} hasMore={events.hasMore} onChange={events.onChange} />
+      <RunEventsView
+        tab={kind}
+        runEvents={live.runEvents}
+        follow={live.follow}
+        turns={live.turns}
+        start={live.start}
+        provider={live.provider}
+        focusCall={live.focusCall}
+        onInspect={live.onInspect}
+        onOpenTraces={live.onOpenTraces}
+        onJump={live.onJump}
+      />
     </Card>
   );
 }

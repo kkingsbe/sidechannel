@@ -4,7 +4,7 @@ import { cleanup, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router-dom";
 import { defaultFixtureConfiguration } from "@sidechannel/contracts/testing";
-import { fakeClients, renderWithClients } from "../../test/clients";
+import { clientsFor, fakeClients, fakeServer, renderWithClients } from "../../test/clients";
 import { RunDetail } from "./run-detail";
 import type { HarnessEvent, Run } from "../../lib/types";
 import type { RunProgress } from "../../lib/contracts";
@@ -86,57 +86,49 @@ function modelEvents(): HarnessEvent[] {
   ] as HarnessEvent[];
 }
 
-it("renders main's turn-grouped timeline and model-call row from the loaded events page", async () => {
-  const events = modelEvents();
-  renderWithClients(detail, {
-    route: "/runs/run-1?view=timeline",
-    clients: fakeClients({
-      runs: {
-        get: async () => run,
-        progress: async () => progress,
-        events: async () => ({ items: events, nextCursor: null }),
-      },
-    }),
+const turn = { agentId: "alpha", round: 1, turn: 1, firstSequence: 1, lastSequence: 5, eventCount: 5, modelCalls: 1, failures: 0 };
+
+/** Route-table requester for the live events window, turns and the drawer record. */
+function liveServer(events: HarnessEvent[] = modelEvents(), status = "completed") {
+  return fakeServer((path) => {
+    if (path === "/runs/run-1") return run;
+    if (path === "/runs/run-1/progress") return { ...run, status };
+    if (path.startsWith("/runs/run-1/events?") || path === "/runs/run-1/events") return { events, hasMore: false, nextCursor: null };
+    if (path === "/runs/run-1/turns") return { turns: [turn] };
+    const recorded = events.find((event) => path === "/runs/run-1/events/" + encodeURIComponent(event.id));
+    if (recorded) return recorded;
+    if (path.startsWith("/runs/run-1/analyses")) return { items: [] };
+    if (path.startsWith("/monitor-evaluations")) return { items: [] };
+    if (path === "/runs/run-1/outcomes") return [];
+    throw new Error("Unexpected request " + path);
   });
+}
+
+it("renders main's turn-grouped timeline and model-call row from the loaded events page", async () => {
+  const server = liveServer();
+  renderWithClients(detail, { route: "/runs/run-1?view=timeline", clients: clientsFor(server) });
   expect(await screen.findByText("Round 1 · Turn 1")).toBeTruthy();
   expect(screen.getByText("model call")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Raw events" })).toBeTruthy();
 });
 
 it("focuses the URL-selected invocation in the traces panel", async () => {
-  const events = modelEvents();
-  renderWithClients(detail, {
-    route: "/runs/run-1?view=traces&call=inv-1",
-    clients: fakeClients({
-      runs: {
-        get: async () => run,
-        progress: async () => progress,
-        events: async () => ({ items: events, nextCursor: null }),
-      },
-    }),
-  });
-  expect(await screen.findByRole("article", { name: "Model call 1" })).toBeTruthy();
+  const server = liveServer();
+  renderWithClients(detail, { route: "/runs/run-1?view=traces&call=inv-1", clients: clientsFor(server) });
+  expect(await screen.findByRole("article", { name: /Model call #\d+/ })).toBeTruthy();
   expect(screen.getByText(/Reasoning returned on/)).toBeTruthy();
 });
 
 it("opens main's model-call detail in the drawer for a model event", async () => {
-  const events = modelEvents();
-  const response = events.find((event) => event.id === "evt-3")!;
+  const server = liveServer();
   renderWithClients(detail, {
     route: "/runs/run-1?view=timeline&evidence=evt-3",
-    clients: fakeClients({
-      runs: {
-        get: async () => run,
-        progress: async () => progress,
-        events: async () => ({ items: events, nextCursor: null }),
-        event: async () => response,
-      },
-    }),
+    clients: clientsFor(server),
   });
   const dialog = await screen.findByRole("dialog");
-  expect(dialog.textContent).toContain("Call 1 of 1");
+  expect(await screen.findByText(/1 of 1 in the loaded turns/)).toBeTruthy();
   expect(dialog.textContent).toContain("Exact recorded answer");
   const open = screen.getByRole("button", { name: "Open in Model & traces" });
   await userEvent.click(open);
-  expect(await screen.findByRole("article", { name: "Model call 1" })).toBeTruthy();
+  expect(await screen.findByRole("article", { name: /Model call #\d+/ })).toBeTruthy();
 });
