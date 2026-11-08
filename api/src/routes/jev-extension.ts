@@ -4,6 +4,7 @@ import type { Repository } from '@sidechannel/contracts/harness/server';
 import type { ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
 import { AnalysisService } from '@sidechannel/domain/analysis/jev-service';
 import { createAnalysisRouteHandler } from './jev-routes.js';
+import { createValidationRouteHandler } from './jev-validation.js';
 import { createReviewRouteHandler, createReviewService } from './review-routes.js';
 
 /** Canonical JEV API. Repositories arrive fully initialized from the composition root. */
@@ -12,7 +13,7 @@ export function createJevExtension(repository: AnalysisRepository, reviews: Revi
 }
 
 export function createJevRouteExtension(service: AnalysisService, reviews: ReturnType<typeof createReviewService>): ResearchRouteHandler {
-    const analysisHandler = createAnalysisRouteHandler(service), reviewHandler = createReviewRouteHandler(reviews, service.repository);
+    const analysisHandler = createAnalysisRouteHandler(service), validationHandler = createValidationRouteHandler(service.repository, reviews.store), reviewHandler = createReviewRouteHandler(reviews, service.repository);
     return async request => {
         if (!request.path.startsWith('/jev/')) return null;
         const forwarded = { ...request, path: request.path.slice('/jev'.length) };
@@ -23,6 +24,6 @@ export function createJevRouteExtension(service: AnalysisService, reviews: Retur
             async function* records() { yield* service.exportAnalysis(id); yield* reviews.export(id); }
             return { status: 200, data: records() };
         }
-        return await reviewHandler(forwarded) ?? await analysisHandler(forwarded) ?? { status: 404, data: { error: 'Jev route not found' } };
+        return await reviewHandler(forwarded) ?? await validationHandler(forwarded) ?? await analysisHandler(forwarded) ?? { status: 404, data: { error: 'Jev route not found' } };
     };
 }

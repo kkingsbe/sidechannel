@@ -12,7 +12,7 @@ export class UsageReconciler {
 
     async usage(jobId: string): Promise<JobUsage> {
         const total: JobUsage = { inputTokens: 0, outputTokens: 0, knownInputTokens: 0, knownOutputTokens: 0, providerAttempts: 0, unresolvedAttempts: 0 };
-        for await (const attempt of pages(page => this.repository.listAttempts(jobId, page))) {
+        for await (const attempt of pages(page => this.repository.listAttempts(jobId, { ...page, probe: 'include' }))) {
             const response = attempt.responseRef ? await this.repository.readArtifact<UsageResponse>(attempt.responseRef) : undefined;
             // The top-level usage repeats the final internal attempt. Count internal records exclusively when supplied.
             const records = response?.attempts?.length ? response.attempts : [{ usage: response?.usage ?? attempt.usage }];

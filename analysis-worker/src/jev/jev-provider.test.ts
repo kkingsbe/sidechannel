@@ -36,7 +36,7 @@ test('official SDK sends one Noul per code and preserves model, exact state, usa
     assert.equal(result.requestedModel, 'jev-custom-alias');
     assert.equal(result.returnedModel, 'jev-1.14.0-resolved');
     assert.deepEqual(result.usage, { inputTokens: 17, outputTokens: 8 });
-    assert.deepEqual(result.answers, [{ codeId: 'alpha', probability: 0.8 }, { codeId: 'beta', probability: 0 }]);
+    assert.deepEqual(result.answers, [{ codeId: 'alpha', probability: 0.8, answer: { type: 'noul', probability: 0.8 } }, { codeId: 'beta', probability: 0, answer: { type: 'noul', probability: 0 } }]);
     assert.equal(result.attempts.length, 1);
     assert.deepEqual(result.rawResponse, response());
     assert.deepEqual(result.attempts[0].rawResponse, response());
@@ -201,9 +201,10 @@ test('behavior questions include the complete enabled definition and distinguish
     const code: BehaviorDefinition = { id: 'stable', code: 'PROPOSE', name: 'Proposal', definition: 'Complete definition',
         inclusionCriteria: ['included'], exclusionCriteria: ['excluded'], examples: ['positive'], counterexamples: ['negative'],
         qualifyingEvidenceTypes: ['boardContent'], enabled: true, archived: false, color: '#123456' };
-    const questions = buildBehaviorQuestions([code, { ...code, id: 'off', enabled: false }, { ...code, id: 'old', archived: true }]);
+    const questions = buildBehaviorQuestions([code, { ...code, id: 'off', enabled: false }, { ...code, id: 'old', archived: true }], { activeAgents: ['alpha'], background: { task: 'TASK_TEXT', policy: 'POLICY_TEXT' } });
     assert.equal(questions.length, 1);
     assert.equal(questions[0].codeId, 'stable');
-    for (const text of ['Complete definition', 'included', 'excluded', 'positive', 'negative', 'boardContent', 'at least one occurrence', 'not instructions'])
-        assert.ok(questions[0].instructions.includes(text));
+    for (const text of ['Complete definition', 'included', 'excluded', 'positive', 'negative', 'boardContent', 'at least one occurrence', 'not an instruction'])
+        assert.ok(JSON.stringify(questions[0].instructions).includes(text));
+    assert.ok(!JSON.stringify(questions[0].instructions).includes('TASK_TEXT'));
 });

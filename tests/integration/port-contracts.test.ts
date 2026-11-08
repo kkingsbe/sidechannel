@@ -55,7 +55,7 @@ test('the analysis worker port does not require codebook operations', async () =
         listJobs: repository.listJobs.bind(repository), listAllJobs: repository.listAllJobs.bind(repository),
         claim: repository.claim.bind(repository), heartbeat: repository.heartbeat.bind(repository),
         updateCounters: repository.updateCounters.bind(repository), finishJob: repository.finishJob.bind(repository),
-        cancel: repository.cancel.bind(repository), retry: repository.retry.bind(repository),
+        cancel: repository.cancel.bind(repository), retry: repository.retry.bind(repository), setReliability: repository.setReliability.bind(repository),
         putWindow: repository.putWindow.bind(repository), getWindow: repository.getWindow.bind(repository),
         listWindows: repository.listWindows.bind(repository), updateWindow: repository.updateWindow.bind(repository),
         putArtifact: repository.putArtifact.bind(repository), readArtifact: repository.readArtifact.bind(repository),

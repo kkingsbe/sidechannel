@@ -22,6 +22,8 @@ import { PreparedWindows } from "./prepared-windows";
 import { SavedAnalyses } from "./saved-analyses";
 import { PreviewLaunch } from "./preview-launch";
 import { PreviewWindowInput } from "./preview-window-input";
+import { PresetSection } from "./preset-section";
+import { BackgroundPreview } from "./background-preview";
 import "./analysis.css";
 
 /** The analysis setup shell: composes the three draft hooks and the section views. */
@@ -139,12 +141,14 @@ export function AnalysisSetup() {
       <div className="g12">
         <div className="c8 stack">
           <SourceSection state={state} />
+          <PresetSection state={state} />
           <WindowingSection state={state} />
           <PreparedWindows state={state} />
           <SavedAnalyses state={state} />
         </div>
         <aside className="c4 stack sticky">
           <PreviewLaunch state={state} />
+          <BackgroundPreview state={state} />
         </aside>
       </div>
       <Drawer

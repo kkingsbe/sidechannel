@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { AnalysisJob, AnalysisSettings } from "../../lib/analysis-types";
 import { NEW_ANALYSIS_DEFAULTS } from "../../lib/adapters/defaults";
 import { analysisSourceReady } from "../../lib/status";
+import { DEFAULT_PROBE, presetPatch, probeProblems } from "./use-analysis-presets";
 
 const categories: AnalysisSettings["evidence"] = [
   "assistant",
@@ -34,6 +35,8 @@ export function useAnalysisDraft(input: {
     timeoutMs: NEW_ANALYSIS_DEFAULTS.timeoutMs,
     maxAttempts: NEW_ANALYSIS_DEFAULTS.maxAttempts,
     creator: input.defaultCreator,
+    // New analyses default to the dense preset with the reliability probe on (spec section 7).
+    ...presetPatch("dense", { probe: { ...DEFAULT_PROBE } } as AnalysisSettings),
   });
   const change = (patch: Partial<AnalysisSettings>) =>
     setSettings((previous) => ({ ...previous, ...patch }));
@@ -52,6 +55,7 @@ export function useAnalysisDraft(input: {
       "Enter a positive step interval.",
     !settings.evidence.length && "Select at least one evidence category.",
     !settings.phases.length && "Select at least one phase.",
+    ...probeProblems(settings.probe),
   ].filter(Boolean);
   return { settings, change, adoptClone, prerequisites };
 }

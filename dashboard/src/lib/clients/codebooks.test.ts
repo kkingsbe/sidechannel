@@ -44,3 +44,16 @@ it("lists with the archived filter and archives/restores through the canonical p
   await codebooks.restore(codebook.id, { expectedRevisionId: "revision-a", author: "Researcher" });
   expect(server.calls[2]!.path).toBe("/codebooks/" + codebook.id + "/restore");
 });
+
+it("reads the proposed v2 seed and applies it with the revision guard", async () => {
+  const server = stub({ definitions: [] }, { codebook, revision: { id: "revision-b" }, warnings: [] });
+  const { codebooks } = createClients({ request: server.request, adapt: false });
+
+  await codebooks.seedV2();
+  expect(server.calls[0]!.path).toBe("/codebooks/seed-v2");
+
+  await codebooks.applySeedV2(codebook.id, { expectedRevisionId: "revision-a", author: "Researcher" });
+  expect(server.calls[1]!.path).toBe("/codebooks/" + codebook.id + "/seed-v2");
+  expect(server.calls[1]!.method).toBe("POST");
+  expect(server.calls[1]!.body).toEqual({ expectedRevisionId: "revision-a", creator: "Researcher" });
+});

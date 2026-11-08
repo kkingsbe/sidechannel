@@ -9,6 +9,9 @@ import { buildMetadata } from '@sidechannel/domain/harness/provenance';
 import { createRunDependencyReader } from '@sidechannel/domain/harness/run-lifecycle';
 import { createResearcherServer } from './server/index.js';
 import { createJevExtension } from './routes/jev-extension.js';
+import { createAggregationRouteHandler } from './routes/jev-aggregation.js';
+import { AnalysisAggregationService } from '@sidechannel/domain/analysis/aggregation-service';
+import { MongoComparisonStore } from '@sidechannel/persistence/analysis/comparison-repository';
 import { createOversightHandler } from './routes/oversight.js';
 
 const host = process.env.HARNESS_HOST ?? '127.0.0.1';
@@ -30,13 +33,15 @@ const analysisRepository = new MongoAnalysisRepository(repository.client, reposi
 await analysisRepository.initialize();
 const reviewStore = new MongoReviewStore(repository.db);
 await reviewStore.initialize();
+const comparisonStore = new MongoComparisonStore(repository.db);
+await comparisonStore.initialize();
 
 // Deleting a run also clears the experiment worker's private memory and traces in the Mastra database, and is refused while analyses, reviews or monitor evaluations cite the run.
 const runDependencies = createRunDependencyReader({ analyses: analysisRepository, reviews: reviewStore, research: researchStore });
 const runPurgers = [new MongoMastraRunPurger(repository.client.db(process.env.MASTRA_DB_NAME ?? 'sidechannel_mastra'))];
 
 const server = createResearcherServer(repository, { host, healthcareCatalog, playbookCatalog, runDependencies, runPurgers, token: process.env.RESEARCHER_TOKEN, buildMetadata: await buildMetadata(),
-    extensionHandlers: [createJevExtension(analysisRepository, reviewStore, repository), createOversightHandler(repository, researchStore)] });
+    extensionHandlers: [createAggregationRouteHandler(new AnalysisAggregationService({ jobs: analysisRepository, windows: analysisRepository, results: analysisRepository, runs: repository, comparisons: comparisonStore })), createJevExtension(analysisRepository, reviewStore, repository), createOversightHandler(repository, researchStore)] });
 
 server.listen(port, host, () => console.log(`Researcher dashboard: http://${host}:${port}`));
 

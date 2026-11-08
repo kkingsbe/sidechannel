@@ -24,7 +24,8 @@
     "smoke:dashboard": "tsx dashboard-smoke.ts",
     "check": "tsc --noEmit",
     "lint": "eslint .",
-    "smoke:jev": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env jev-smoke.ts"
+    "smoke:jev": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env jev-smoke.ts",
+    "smoke:leak": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env jev-leak-smoke.ts"
   },
   "nx": {
     "tags": [

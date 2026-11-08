@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, Archive, Copy } from "lucide-react";
 import { Button, Card, CardHeading, Field, Input, Textarea } from "../../components/ui";
 import { IdentityLine } from "../../components/identity-line";
 import { ProseListEditor } from "../../components/prose-list-editor";
+import { CodeStudioControls } from "./code-studio-controls";
 import type { useCodebookDraft } from "./use-codebook-draft";
 
 const LISTS = [
@@ -101,6 +102,7 @@ export function BehaviorEditor({
             <ProseListEditor key={key} label={label} values={code[key]} onChange={(values) => draft.edit({ [key]: values })} />
           ))}
         </div>
+        <CodeStudioControls draft={draft} />
       </div>
       <div className="card-foot editor-foot">
         <span>

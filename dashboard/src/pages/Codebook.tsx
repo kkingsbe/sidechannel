@@ -13,6 +13,7 @@ import {
 import { BehaviorEditor } from "./codebook/behavior-editor";
 import { BehaviorList } from "./codebook/behavior-list";
 import { CodebookPicker } from "./codebook/codebook-selector";
+import { SeedV2Panel } from "./codebook/seed-v2-panel";
 import { RevisionHistoryDrawer } from "./codebook/revision-history-drawer";
 import { useCodebookDraft } from "./codebook/use-codebook-draft";
 import "./codebook/codebook.css";
@@ -62,6 +63,9 @@ export default function CodebookPage() {
               <History size={15} />
               Revision history
             </Button>
+            <Button variant="secondary" onClick={draft.seed.show} disabled={!draft.bookId || draft.readOnly || command.busy}>
+              Apply v2 seed revision
+            </Button>
             <Button variant="secondary" onClick={draft.create} disabled={command.busy || draft.dirty}>
               <Plus size={15} />
               New codebook
@@ -110,6 +114,7 @@ export default function CodebookPage() {
           </div>
         </Card>
       )}
+      <SeedV2Panel draft={draft} />
       {validation.duplicateNames && (
         <Notice kind="error">
           Display codes must be unique among active definitions.
