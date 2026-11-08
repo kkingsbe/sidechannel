@@ -110,3 +110,7 @@ label.cf { cursor: pointer; }
   .an-headtext .meta > span:nth-child(even) { display: none; }
   .objhead:has(.an-headtext) > .actions { margin-left: 0; }
 }
+
+.an-preset { display: flex; gap: 10px; align-items: flex-start; }
+.an-bg-group { border-top: 1px solid var(--border, #ddd); padding-top: 8px; }
+.an-bg-text { white-space: pre-wrap; font-size: 12px; max-height: 200px; overflow: auto; }

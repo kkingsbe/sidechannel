@@ -94,7 +94,8 @@ export function toCanonicalSettings(view: AnalysisSettings): Partial<AnalysisCon
         inputLimits: { ...(base?.inputLimits ?? NEW_ANALYSIS_INPUT_LIMITS), headroomTokens: view.headroom },
         timeoutMs: view.timeoutMs, maxAttempts: view.maxAttempts,
         ...(base ? { concurrency: base.concurrency, retryBaseMs: base.retryBaseMs, longContext: base.longContext } : {}),
-    };
+        ...v2Settings(view),
+    } as Partial<AnalysisConfiguration>;
 }
 
 export function toJob(raw: JevJob): AnalysisJob {
@@ -201,7 +202,8 @@ export async function decodeJev<T>(path: string, init: RequestInit | undefined, 
     else if (/^\/runs\/[^/]+\/analyses\/preview$/.test(p) && method === 'POST') {
         const raw = payload as any;
         session.rememberPreview(raw.previewHash, { runId: p.split('/')[2]!, body });
-        value = { previewToken: raw.previewHash, manifest: { schemaVersion: 1, runId: raw.runId, ...(raw.selectedStepCount !== undefined ? { selectedStepCount: raw.selectedStepCount } : {}), windowCount: raw.windowCount, scoredCodeCount: raw.scoredCodeCount, partialWindowCount: raw.partialWindows, availability: availability(raw.evidenceAvailability), diagnostics: raw.diagnostics.map((d: any) => d.message) }, windows: raw.windows.map((w: any) => { const budget = w.budget.budget; return { id: w.id, index: w.index, startStep: w.startOrdinal, endStep: w.endOrdinal, partial: w.partial, incomplete: w.incomplete, empty: !w.hasEvidence, budget: { bytes: w.bytes, estimatedTokens: w.estimatedTokens, estimatorVersion: budget.estimatorVersion, perQuestionLimit: budget.effectiveLimits.singleQuestionTokens, perRequestLimit: budget.effectiveLimits.combinedQuestionTokens, headroom: budget.effectiveLimits.headroomTokens, oversized: w.budget.oversized, reason: budget.reason || w.budget.diagnostics.join('; ') || undefined, batches: w.budget.batches.map((batch: any[]) => batch.map(q => q.codeId)) } }; }) };
+        value = { previewToken: raw.previewHash, manifest: { schemaVersion: 1, runId: raw.runId, ...(raw.selectedStepCount !== undefined ? { selectedStepCount: raw.selectedStepCount } : {}), windowCount: raw.windowCount, scoredCodeCount: raw.scoredCodeCount, partialWindowCount: raw.partialWindows, availability: availability(raw.evidenceAvailability), diagnostics: raw.diagnostics.map((d: any) => d.message) }, windows: raw.windows.map((w: any) => { const budget = w.budget.budget; return { id: w.id, index: w.index, startStep: w.startOrdinal, endStep: w.endOrdinal, partial: w.partial, incomplete: w.incomplete, empty: !w.hasEvidence, budget: { bytes: w.bytes, estimatedTokens: w.estimatedTokens, estimatorVersion: budget.estimatorVersion, perQuestionLimit: budget.effectiveLimits.singleQuestionTokens, perRequestLimit: budget.effectiveLimits.combinedQuestionTokens, headroom: budget.effectiveLimits.headroomTokens, oversized: w.budget.oversized, reason: budget.reason || w.budget.diagnostics.join('; ') || undefined, batches: w.budget.batches.map((batch: any[]) => batch.map(q => q.codeId)) } }; }),
+            ...(raw.background ? { v2: { preset: raw.preset, longContext: raw.longContext, suggestedWindowSize: raw.suggestedWindowSize, groups: raw.background.groups, conditionExcluded: raw.background.conditionExcluded, conditionQuotedWindows: raw.background.conditionQuotedWindows, probe: raw.probe } } : {}) };
     }
     else if (/^\/runs\/[^/]+\/analyses$/.test(p) && method === 'POST') { session.rememberJob(payload as JevJob); value = toJob(payload as JevJob); }
     else if (/^\/analyses\/[^/]+$/.test(p) && method === 'GET') { session.rememberJob(payload as JevJob); value = toJob(payload as JevJob); }
@@ -248,3 +250,18 @@ export function createJevRequester(base: Requester, session: JevSession = create
 
 /** Shared canonical request-body conversion for the analyses client and the preview form. */
 export const canonical = toCanonicalSettings;
+
+/** Documented long-context ceiling for both question limits (mirrors the domain's resolver). */
+const LONG_CONTEXT_TOKENS = 262_000;
+
+/** The v2 setup choices (preset, probe, long context) as canonical settings; nothing is sent for a v1-style draft. */
+function v2Settings(view: AnalysisSettings): Record<string, unknown> {
+    return {
+        ...(view.preset ? { preset: view.preset } : {}),
+        ...(view.probe !== undefined ? { probe: view.probe } : {}),
+        ...(view.longContext !== undefined ? {
+            longContext: view.longContext,
+            ...(view.longContext ? { inputLimits: { ...(view.frozen?.inputLimits ?? NEW_ANALYSIS_INPUT_LIMITS), headroomTokens: view.headroom, singleQuestionTokens: LONG_CONTEXT_TOKENS, combinedQuestionTokens: LONG_CONTEXT_TOKENS } } : {}),
+        } : {}),
+    };
+}
