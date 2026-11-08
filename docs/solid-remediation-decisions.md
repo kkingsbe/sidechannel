@@ -353,7 +353,61 @@ adapter contracts **98/98**, `verify-compiled`, `verify-migration-equivalence`,
 documented environment limitation from the program close-out (long-lived browser probe does not
 finish in this environment).
 
-**Wave 2 (current):** main advanced again to `3efcb2e` (28 commits: the live turn-aligned event
-timeline with SSE and turn paging, the dashboard review fixes, codebook archive/restore, Jev
-ordering/chart fixes, and deployment updates). A second merge/port wave follows the same policy and
-is recorded here when it closes.
+**Wave 2 — main `3efcb2e` (28 commits), integrated and gated**
+
+`main` advanced again immediately after wave 1, folding in `feature/live-timeline` (turn-aligned live
+event pages, backward/turn-snapped queries, a turn index, append notifications and an SSE stream),
+`worktree-dashboard-review-fixes` (23 commits of dashboard review fixes), the codebook archive/restore
+feature, Jev ordering/heatmap/chart fixes, and deployment updates (WUD pre-update guards, memory caps,
+compose changes). Integration followed the same policy: safety tag `pre-main-merge-2-2026-11-07`, merge
+`61e3332`, the 28 content conflicts resolved by keeping the refactored shape (including our deletions of
+files main modified, e.g. `jev-transport.ts` and `Analysis.css`), then feature ports; the contract union
+landed first as `79b156e`.
+
+| Wave-2 feature | Branch commits |
+| --- | --- |
+| Event pages/turn index/append hints in both adapters + parity suite | `9259f26`, `bd34518`, `1209142` |
+| Live event stream (SSE), turns, backward/turn-snapped pages, codebook archive API | `8651a47`, `f9ecbcf`, `7868e8e`, `19de110` |
+| Analysis-worker oversized-as-skipped accounting + deployment update guards | `42922b9` (guards verified wired through both workers' build/compose hooks) |
+| Dashboard live turn-aligned timeline + readable evidence family | `c209ad5`, `f9f0eb2`, `234eccf` (model-calls split for the 500-line budget) |
+| Dashboard review fixes: copy/plurals, launch safety, pairs, oversight flows, Jev charts, codebook archive UI | `0ce4e5d`, `f271757`, `5c75dca`, `ea59df3`, `15df218`, `f8ad592`, `dbfe606`, `7705dbc` |
+| Contracts, route-contract evidence and census close-out | `79b156e`, `23405e7`, wave-2 close-out commit |
+
+**Wave-2 interface extensions** (recorded in `2026-11-07-plan-conventions.md`): `EventQuery` gained
+`before`/`order` and `TurnSummary`; `EvidenceReader` gained `listTurns` and an optional
+`subscribeEvents` wake-up hint (polling remains the contract; the Mongo change stream is an
+optimization); `CodebookStore` gained the archive filter and `setCodebookArchived`, with
+`Codebook.archivedAt/archivedBy` and a write guard for archived codebooks; the API owns a raw-write
+SSE seam in the transport layer (`eventStreamRoute` + injectable `eventStream` timing) while all JSON
+routes keep the transport-neutral handler contract; the dashboard's live event hooks go through the
+WS5 requester/`EventSource` seam and a stored `sidechannel-runs-view` preference, and the typed
+clients gained codebook archive methods.
+
+**Wave-2 evidence**
+
+| Artifact | Result |
+| --- | --- |
+| API route-contract snapshot (`23405e7`) | research 58 → 73 cases, demo unchanged at 2, **no case altered or removed**; new cases cover turns/404, backward + turn-snapped pages + `before`/`after` conflict 400, archived filters + invalid 400, archive/restore (200/404/409) and the stream's validation errors. The SSE body is covered by `event-stream.test.ts`, not the snapshot. Stable across a second uncached run. |
+| Adapter contract suites | Extended for backward/desc pages, turn-index parity, subscription hint (own-run only, unsubscribe) and codebook archive CAS conflicts; memory **101/101** and Mongo integration **34/34** pass. |
+| Scheduler characterization + fixture export | Unchanged: wave 2 adds event readers/streaming and analysis accounting, not scheduler event writes or report payloads. |
+| Migration equivalence | Unchanged and passing: resolved configuration, queued/pair state, trace, windows and Jev payloads are untouched by wave 2. |
+| Dashboard tests | **51 files / 244 tests** passing, including the ported timeline, traces, pair list, archive and oversight-flow suites from main. |
+
+**Wave-2 census**: every `architecture:check` budget is green at the final state — largest dashboard
+source 431 (< 500; split from main's 545-line `model-calls.ts`), largest page 152, largest backend
+module 242, page data hooks 0, fetch implementations 1, provider-settings policy 1, scenario literals 6,
+byte-identical duplicates 0, duplicate status sites 3. Two budgets were updated with recorded
+rationale: `statusVocabularyTableDefinitions` 12 → 16 (wave 2 adds legitimate canonical tables for
+healthcare results/run detail/evidence model) and `providerNameBranchSites` 6 → 7 (the pair table's
+presentation designation, copy over an already-resolved run). The deployment `update-guard` hooks now
+import the contracts active-status tables instead of restating them, and the artifact renderer map is
+keyed by artifact schema version (via the scenario descriptors' fallback) instead of a scenario literal.
+
+**Wave-2 gates (clean tree)**: `npm run verify` (lint + composition + check + test + build), unit tests
+uncached, Mongo integration **34/34**, adapter contracts **101/101**, `verify-compiled`,
+`verify-migration-equivalence`, `architecture:check`, `smoke:jev`, `smoke:healthcare` — all pass.
+`smoke:dashboard` remains the documented environment limitation (long-lived browser probe).
+
+No functional gap against `main@3efcb2e` is knowingly deferred. The branch is merge-ready; main was
+treated as frozen at `3efcb2e` during this wave, so if main advances again before handoff the same
+policy applies as a third wave (merge, port, and re-record only the evidence the new behaviour changes).
