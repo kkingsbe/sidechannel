@@ -59,6 +59,10 @@
       "types": "./dist/analysis/configuration.d.ts",
       "import": "./dist/analysis/configuration.js"
     },
+    "./analysis/jev-probe": {
+      "types": "./dist/analysis/jev-probe.d.ts",
+      "import": "./dist/analysis/jev-probe.js"
+    },
     "./analysis/jev-questions": {
       "types": "./dist/analysis/jev-questions.d.ts",
       "import": "./dist/analysis/jev-questions.js"

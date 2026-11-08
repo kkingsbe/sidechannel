@@ -8,6 +8,8 @@ export type { AnalysisConfiguration, BehaviorDefinition, Codebook, CodebookRevis
 export type { AnalysisJob, AnalysisResult, JobStatus, Page, WindowRecord } from './analysis/jev-repository.js';
 export { DEFAULT_TOKEN_ESTIMATOR_VERSION, TOKEN_ESTIMATOR_VERSIONS } from './analysis/serialization.js';
 export type { TokenEstimatorVersion } from './analysis/serialization.js';
+export type { AnalysisPreset, ProbeConfiguration } from './analysis/evidence-contracts.js';
+export { ANALYSIS_PRESETS } from './analysis/evidence-contracts.js';
 export type { Review, ReviewBatch } from './analysis/jev-reviews.js';
 export type { MonitorDefinition, MonitorEvaluation, MonitorPreview, MonitorSettings, MonitorView, OutcomeDefinition, Projection, Verdict, MonitorJudgment } from './oversight/contracts.js';
 

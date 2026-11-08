@@ -24,6 +24,10 @@ export interface AnalysisManifest {
     diagnostics: Diagnostic[]; availability: EvidenceAvailability; creator: string; parentAnalysisId?: string;
     /** v2 request shaping (spec sections 5 and 6). Absent on v1 jobs. */
     schemaVersion?: 1 | 2; aliasMapVersion?: string; backgroundVersion?: string;
+    /** Artifact holding the frozen question background and the condition text the request builder must not send (v2 only). */
+    contextArtifact?: string;
+    /** The windows the reliability probe re-scores, chosen at launch by a seeded stratified sample (spec section 6). */
+    probeWindowIds?: string[];
 }
 
 /** A typed Jev answer. `noul` keeps `probability`; `choice` and `score` carry their distributions (spec section 10). */
@@ -69,7 +73,8 @@ export interface AnalysisAttempt {
     requestedModel: string; returnedModel?: string | null; usage?: ProviderUsage;
 }
 
-export interface PageOptions { after?: string; limit?: number; windowId?: string; }
+/** `probe` filters result and attempt listings: probe rows are excluded unless `include` or `only` is asked for. */
+export interface PageOptions { after?: string; limit?: number; windowId?: string; probe?: 'include' | 'only'; }
 
 export interface Page<T> { items: T[]; nextCursor: string | null; }
 
@@ -80,6 +85,10 @@ export class AnalysisNotFound extends DomainFailure { constructor(message: strin
 export class AnalysisValidation extends DomainFailure { constructor(message: string) { super('invalid', message); } }
 
 export class AnalysisPayloadTooLarge extends DomainFailure { constructor(message: string) { super('too-large', message); } }
+
+/** Uniqueness key of a stored result: primaries are unique per window, code and actor; probe results per attempt as well. */
+export const resultKey = (r: Pick<AnalysisResult, 'windowId' | 'codeId' | 'actorId' | 'probe' | 'attemptId'>): string =>
+    (r.probe ? `probe:${r.attemptId}:` : '') + `${r.windowId}:${r.codeId}${r.actorId ? '@' + r.actorId : ''}`;
 
 export interface Lease { jobId: string; owner: string; fence: number; }
 
@@ -108,6 +117,8 @@ export interface JobLifecycleStore {
     heartbeat(lease: Lease, now: string, leaseMs: number): Promise<boolean>;
     updateCounters(lease: Lease, counters: JobCounters, usage?: JobUsage): Promise<boolean>;
     finishJob(lease: Lease, status: JobStatus, counters: JobCounters, error?: string, usage?: JobUsage): Promise<boolean>;
+    /** Records the probe's reliability summary on the job. Fenced like every other worker write. */
+    setReliability(lease: Lease, reliability: AnalysisReliability): Promise<boolean>;
     cancel(id: string): Promise<AnalysisJob | null>;
     retry(id: string): Promise<AnalysisJob | null>;
 }

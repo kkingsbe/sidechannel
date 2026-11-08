@@ -1,4 +1,4 @@
-import type { InputLimits } from './evidence-contracts.js';
+import type { BackgroundPart, InputLimits } from './evidence-contracts.js';
 import type { JsonValue } from './jev-provider.js';
 
 /**
@@ -11,8 +11,10 @@ export type TokenEstimatorVersion = typeof TOKEN_ESTIMATOR_VERSIONS[number];
 export const DEFAULT_TOKEN_ESTIMATOR_VERSION: TokenEstimatorVersion = 'utf8-bytes-calibrated-v1';
 
 /** The parts of a question that count toward the input budget. Instructions may be text or a JSON object of named fields. */
-export interface BudgetQuestion { codeId: string; instructions: JsonValue; criteria?: { true: string; false: string } | Record<string, string | null> | string[]; }
+/** `codeId` is the question key (`code` or `code@actor`). `background` is the grouping set for request batching (spec 5.3). */
+export interface BudgetQuestion { codeId: string; instructions: JsonValue; criteria?: { true: string; false: string } | Record<string, string | null> | string[]; background?: readonly BackgroundPart[]; }
 
-export interface QuestionBatch { codeIds: string[]; bytes: number; estimatedTokens: number; }
+/** `codeIds` are question keys. `background` and `backgroundKey` name the background group the batch carries (empty for none). */
+export interface QuestionBatch { codeIds: string[]; bytes: number; estimatedTokens: number; background?: BackgroundPart[]; backgroundKey?: string; }
 
 export interface WindowPreflight { oversized: boolean; reason?: string; batches: QuestionBatch[]; bytes: number; estimatedTokens: number; estimatorVersion: string; effectiveLimits: InputLimits; }

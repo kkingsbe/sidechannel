@@ -1,5 +1,7 @@
 
 
+import type { BackgroundPart } from './evidence-contracts.js';
+
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 /** Wire question shapes accepted by `systemOne`. Instructions may be text or a JSON object of named fields. */
@@ -20,9 +22,19 @@ export interface JevQuestion {
     codeId: string; actorId?: string; type?: 'noul' | 'choice' | 'score';
     instructions: JsonValue; criteria?: { true: string; false: string };
     options?: { label: string; description: string | null }[]; optionOrder?: string[]; levels?: string[];
+    /** The background parts embedded in `instructions`; the batching key (spec section 5.3). Never contains the condition. */
+    background?: BackgroundPart[];
 }
 
-export interface JevRequest { state: JsonValue; questions: JevQuestion[]; model?: string; signal?: AbortSignal; }
+/** The identity of a question within a request and its window: the code ID, suffixed `@actor` for actor-scoped questions. */
+export const questionKey = (question: { codeId: string; actorId?: string }): string => question.actorId ? `${question.codeId}@${question.actorId}` : question.codeId;
+
+/**
+ * `forbiddenText` lists strings that must not appear anywhere in the outgoing payload (the run's condition text);
+ * the request builder refuses to build a payload containing any of them. `shuffleSeed` records the seed behind a
+ * `choice` question's `optionOrder` so the request artifact is self-describing.
+ */
+export interface JevRequest { state: JsonValue; questions: JevQuestion[]; model?: string; signal?: AbortSignal; forbiddenText?: string[]; shuffleSeed?: string; }
 
 export interface ProviderFailure {
     kind: 'authentication' | 'context' | 'invalid_input' | 'transient' | 'timeout' | 'cancelled' | 'malformed_response' | 'permanent';
