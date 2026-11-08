@@ -19,12 +19,19 @@ import { fixtureScript, ScriptedAdapter } from './scripted-adapter.js';
  * event, followed by the final run state (status, reports, artifacts, usage). Run ids are
  * normalised to `<run>` because operation ids embed them.
  *
- * Regenerate ONLY in T3b.1 with UPDATE_SNAPSHOTS=1. After the first commit any snapshot diff
- * is a behaviour change and must be reviewed as one — never regenerated to make a task green.
+ * Regenerate ONLY with UPDATE_SNAPSHOTS=1 for an authorized behaviour change. After each commit
+ * any snapshot diff is a behaviour change and must be reviewed as one — never regenerated to make
+ * a task green.
  *
  * WS2 T2.1 flipped the scheduler options. The two `new HarnessScheduler(...)` lines below were
  * rebased onto `{ runState: repository, events: repository, … }` in that commit; rebasing them
  * changed no event, so the recorded snapshots did not move.
+ *
+ * Integration P1 (port of main `0d96464` "Make the final report a submit_report tool call")
+ * re-recorded both snapshots: the report phase now emits `tool_requested` + `tool_result` per
+ * role for the accepted `submit_report` call, so fixture 123 → 127 events and healthcare
+ * 356 → 366. Event order and every final-state line (status, reports, artifacts, usage) are
+ * otherwise unchanged; see the WS3b integration decision record.
  */
 const snapshotDirectory = new URL('./__snapshots__/', import.meta.url);
 const updating = process.env.UPDATE_SNAPSHOTS === '1';

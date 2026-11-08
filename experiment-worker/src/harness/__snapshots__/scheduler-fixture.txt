@@ -1,5 +1,5 @@
 scenario=fixture-v1
-count=123
+count=127
 run_started|-|0|0|-
 turn_started|alpha|1|1|-
 context_accounted|alpha|1|1|-
@@ -116,11 +116,15 @@ context_accounted|alpha|6|3|-
 model_requested|alpha|6|3|-
 model_response|alpha|6|3|-
 model_usage|alpha|6|3|-
+tool_requested|alpha|6|3|<run>:report:alpha:0:call:report
+tool_result|alpha|6|3|<run>:report:alpha:0:call:report
 report_submitted|alpha|6|3|-
 context_accounted|beta|6|3|-
 model_requested|beta|6|3|-
 model_response|beta|6|3|-
 model_usage|beta|6|3|-
+tool_requested|beta|6|3|<run>:report:beta:0:call:report
+tool_result|beta|6|3|<run>:report:beta:0:call:report
 report_submitted|beta|6|3|-
 run_completed|-|6|3|-
 

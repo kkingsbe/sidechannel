@@ -22,10 +22,15 @@ import { ScriptedAdapter, fixtureScript } from './scripted-adapter.js';
  * committed research artifact untouched (regenerating evidence requires its own
  * approved refresh task). `committedTypes` is asserted separately so any future
  * change to that artifact is a visible, reviewed diff rather than silent drift.
+ * EVIDENCE CHANGE (integration P1, port of main `0d96464` "Make the final report a submit_report
+ * tool call"): the report phase now records `tool_requested` and `tool_result` for the accepted
+ * `submit_report` call before `report_submitted`, so the fixture recording gains exactly those
+ * four events (123 → 127). This is the authorized re-record for that behaviour change; the
+ * committed 103-event `agent/examples/completed-fixture.json` remains untouched.
  */
 const committedExport = JSON.parse(readFileSync(new URL('../../../agent/examples/completed-fixture.json', import.meta.url), 'utf8')) as { events: { type: string }[] };
 
-/** Current-code recording (2026-11-07 tree, HEAD after WS0/WS1), re-recorded only by an approved evidence-refresh task. */
+/** Current-code recording (2026-11-07 tree, re-recorded by the approved integration-P1 submit_report port). */
 const recordedTypes = [
     'run_started', 'turn_started', 'context_accounted', 'model_requested', 'model_response', 'model_usage',
     'tool_requested', 'tool_requested', 'tool_requested', 'tool_admitted', 'tool_result', 'tool_admitted',
@@ -46,8 +51,9 @@ const recordedTypes = [
     'model_requested', 'model_response', 'model_usage', 'tool_requested', 'tool_requested', 'tool_requested',
     'tool_admitted', 'memory_updated', 'tool_result', 'tool_admitted', 'board_delivery', 'tool_result',
     'tool_admitted', 'tool_result', 'turn_ended', 'artifact_frozen', 'context_accounted', 'model_requested',
-    'model_response', 'model_usage', 'report_submitted', 'context_accounted', 'model_requested', 'model_response',
-    'model_usage', 'report_submitted', 'run_completed',
+    'model_response', 'model_usage', 'tool_requested', 'tool_result', 'report_submitted', 'context_accounted',
+    'model_requested', 'model_response', 'model_usage', 'tool_requested', 'tool_result', 'report_submitted',
+    'run_completed',
 ];
 
 class TestMemory implements PrivateMemory {
