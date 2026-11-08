@@ -17,8 +17,8 @@ export function BackgroundPreview({ state }: { state: AnalysisSetupState }) {
         </p>
         {v2.conditionQuotedWindows.length > 0 && (
           <Notice kind="warning">
-            {v2.conditionQuotedWindows.length} window(s) quote the condition text in the agents' own words. Those windows will be refused
-            rather than sent.
+            {v2.conditionQuotedWindows.length} window(s) quote the condition text in the agents' own words. They are scored as
+            evidence; read their visibility scores with that in mind.
           </Notice>
         )}
         {v2.groups.map((group) => (

@@ -52,7 +52,9 @@ export function buildSystemOnePayload(request: JevRequest): { payload: SystemOne
     validateRequest(request, model);
     const questions = Object.fromEntries(request.questions.map((question, i) => [`q_${i}`, wireQuestion(question)]));
     const payload = JSON.parse(JSON.stringify({ state: request.state, model, questions })) as SystemOnePayload;
-    assertNoForbiddenText(payload, request.forbiddenText);
+    // The guard covers what this pipeline adds (questions, criteria, background), never the evidence itself:
+    // an agent quoting the condition in its own words is evidence and is scored, not refused (spec 5.2, 15).
+    assertNoForbiddenText({ questions: payload.questions }, request.forbiddenText);
     const keyMap = Object.fromEntries(request.questions.map((question, i) => [`q_${i}`, questionKey(question)]));
     return { payload, keyMap };
 }

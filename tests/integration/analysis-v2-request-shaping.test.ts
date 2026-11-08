@@ -189,7 +189,7 @@ test('a retry resumes the probe without duplicating primary or probe results', a
     assert.equal((await f.repository.listResults(f.job.id, { probe: 'only' })).items.length, 2);
 });
 
-test('a window whose evidence quotes the condition is refused rather than sent', async () => {
+test('a window whose evidence quotes the condition is flagged in the preview and still scored', async () => {
     const fresh = new InMemoryRepository(), repository = new InMemoryAnalysisRepository(), service = new AnalysisService(repository, fresh);
     const config = defaultFixtureConfiguration(); config.condition.text = `${SENTINEL} is the condition`;
     const run = createQueuedRun(config, 'quote'); run.status = 'completed'; await fresh.createRun(run);
@@ -201,6 +201,9 @@ test('a window whose evidence quotes the condition is refused rather than sent',
     const job = await service.launch(run.id, { ...input, previewHash: preview.previewHash, idempotencyKey: 'k', creator: 'R' });
     const seen: JevRequest[] = [];
     await new AnalysisWorker(repository, { provider: scriptedProvider(seen) }).runOnce();
-    assert.equal(seen.length, 0);
-    assert.notEqual((await repository.getJob(job.id))!.status, 'completed');
+    // The quote travels inside the evidence only; nothing the pipeline added carries it.
+    assert.equal(seen.length, 1);
+    assert.ok(JSON.stringify(seen[0]!.state).includes(SENTINEL));
+    assert.ok(!JSON.stringify(seen[0]!.questions).includes(SENTINEL));
+    assert.equal((await repository.getJob(job.id))!.status, 'completed');
 });

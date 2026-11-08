@@ -70,8 +70,9 @@ export class AnalysisService {
             const questions = buildBehaviorQuestions(definitions, { activeAgents: serialized.activeAgents ?? [], background });
             const budgetQuestions = questions.map(toBudgetQuestion), budget = toLegacyPreflight(preflightWindow(serialized, budgetQuestions, settings.inputLimits), budgetQuestions);
             let conditionQuoted = false;
-            // An agent that quotes the condition verbatim puts it in the state; the request builder will refuse the window, so say so at preview time.
-            try { assertNoForbiddenText({ state: serialized.state, questions: questions.map(q => q.instructions) }, [conditionText]); } catch { conditionQuoted = true; }
+            // An agent that quotes the condition verbatim puts it in the evidence. That window is still scored (the guard only
+            // covers what the pipeline adds), but the preview flags it so the researcher can read its visibility score with care.
+            try { assertNoForbiddenText({ state: serialized.state }, [conditionText]); } catch { conditionQuoted = true; }
             return { window, serialized, budget, questions, conditionQuoted };
         });
     }
