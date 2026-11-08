@@ -333,7 +333,7 @@ describe("blinded evidence inspection", () => {
     );
     await screen.findByText(/Blind initial review/);
     expect(screen.queryByText(/95\.0%|Model suggested 95/)).toBeNull();
-    expect(screen.getByText("Canonical source events (1)")).toBeTruthy();
+    expect(screen.getByText("Source events (1)")).toBeTruthy();
     expect(
       screen
         .getByRole("link", { name: "Exact source event" })

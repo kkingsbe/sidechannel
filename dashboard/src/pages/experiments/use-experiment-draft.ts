@@ -4,6 +4,11 @@ import { useCommand } from "../../components/use-command";
 import { useClients } from "../../lib/clients/context";
 import { useResource } from "../../lib/clients/query";
 import type { Draft, ExperimentConfig, Run } from "../../lib/types";
+import {
+  readSessionLaunches,
+  recordSessionLaunch,
+  type SessionLaunch,
+} from "../../lib/experiment-form";
 import { completeConfiguration, setAt } from "./config-edit";
 import { buildLaunchPayload } from "./launch-payload";
 
@@ -40,6 +45,8 @@ export function useExperimentDraft(source: {
   const [dirty, setDirty] = useState(false);
   const [savedLocal, setSavedLocal] = useState(false);
   const [launched, setLaunched] = useState<Run[]>();
+  const [launchedNow, setLaunchedNow] = useState<SessionLaunch>();
+  const [sessionLaunches, setSessionLaunches] = useState(readSessionLaunches);
   const [notes, setNotes] = useState("");
   const launchKey = useRef(crypto.randomUUID());
   const initializedRoute = useRef("");
@@ -142,6 +149,7 @@ export function useExperimentDraft(source: {
     if (defaults.data) setConfig(structuredClone(defaults.data));
     setDraft(undefined);
     setDirty(false);
+    setLaunchedNow(undefined);
     rotateLaunchKey();
     navigate("/experiments/new");
   };
@@ -193,6 +201,9 @@ export function useExperimentDraft(source: {
     );
     if (result) {
       setLaunched(result);
+      const entries = recordSessionLaunch(config, launchKey.current, result);
+      setSessionLaunches(entries);
+      setLaunchedNow(entries[0]);
       localStorage.removeItem(LOCAL_DRAFT_KEY);
     }
     return result;
@@ -204,6 +215,8 @@ export function useExperimentDraft(source: {
     dirty,
     savedLocal,
     launched,
+    launchedNow,
+    sessionLaunches,
     draftError,
     launchKey: launchKey.current,
     defaults,

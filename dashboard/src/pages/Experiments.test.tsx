@@ -4,6 +4,7 @@ import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { defaultFixtureConfiguration } from "@sidechannel/contracts/testing";
 import Experiments from "./Experiments";
+import { configFingerprint } from "../lib/experiment-form";
 import { fakeClients, renderWithClients, type ClientOverrides } from "../test/clients";
 
 const config = defaultFixtureConfiguration();
@@ -24,6 +25,7 @@ function renderAt(path: string, overrides: ClientOverrides = {}) {
 }
 beforeEach(() => {
   localStorage.clear();
+  sessionStorage.clear();
   submitted = undefined;
 });
 afterEach(cleanup);
@@ -111,4 +113,25 @@ it("converts human duration inputs to exact millisecond payloads", async () => {
   await waitFor(() => expect(submitted).toBeTruthy());
   expect(submitted?.config.limits.requestTimeoutMs).toBe(1234);
   expect(submitted?.config.limits.maxDurationMs).toBe(90000);
+});
+
+it("warns when the current configuration is near-identical to an earlier launch this session", async () => {
+  sessionStorage.setItem(
+    "sidechannel-session-launches",
+    JSON.stringify([
+      {
+        at: "2026-11-07T12:00:00Z",
+        label: config.label,
+        key: "old-key",
+        fingerprint: configFingerprint(config),
+        pairId: "pair-1",
+        runs: [],
+      },
+    ]),
+  );
+  renderAt("/experiments/new");
+  expect(await screen.findByText(/near-identical pair/)).toBeTruthy();
+  expect(screen.getByRole("link", { name: "View that pair" }).getAttribute("href")).toBe(
+    "/runs/pairs/pair-1",
+  );
 });

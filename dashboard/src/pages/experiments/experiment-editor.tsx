@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Save } from "lucide-react";
-import { Badge, Button, Notice, PageHeader } from "../../components/ui";
+import { Badge, Button, Card, CardHeading, Notice, PageHeader } from "../../components/ui";
+import { configFingerprint } from "../../lib/experiment-form";
 import { useConfigField } from "./config-field";
 import { focusField } from "./config-edit";
 import { DraftListCard } from "./draft-library";
@@ -37,6 +38,18 @@ export function ExperimentEditor({
   );
   const busy = draft.command.busy || validation.busy;
   const error = draft.command.error ?? validation.error;
+  const fingerprint = configFingerprint(config);
+  const nearIdentical = draft.sessionLaunches.find(
+    (item) => item.fingerprint === fingerprint && item.key !== draft.launchKey,
+  );
+  const previousLaunches = draft.sessionLaunches.filter(
+    (item) => item.at !== draft.launchedNow?.at,
+  );
+  const timeOf = (iso: string) =>
+    new Date(iso).toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    });
   const launch = async () => {
     const result = await draft.launch();
     if (result) validation.dismissReview();
@@ -128,7 +141,7 @@ export function ExperimentEditor({
         </Notice>
       )}
       <div className="editor-layout">
-        <div>
+        <fieldset className="form-lock" disabled={!!draft.launchedNow}>
           <ScenarioSection
             config={config}
             change={draft.change}
@@ -148,7 +161,7 @@ export function ExperimentEditor({
           <ExecutionSection field={field} duration={duration} />
           <BoardMemorySection config={config} field={field} />
           <ArtifactReportSection field={field} />
-        </div>
+        </fieldset>
         <aside className="stack sticky">
           <LaunchReview
             config={config}
@@ -158,6 +171,46 @@ export function ExperimentEditor({
             onLaunch={() => void launch()}
             onBack={validation.dismissReview}
           />
+          {previousLaunches.length > 0 && (
+            <Card>
+              <CardHeading
+                title="Launched this session"
+                description="Pairs started from this form in this browser session."
+              />
+              <ul className="launched-list card-body">
+                {previousLaunches.map((item) => (
+                  <li key={item.at + item.key}>
+                    <strong>{item.label || "Untitled"}</strong>
+                    <small>{timeOf(item.at)}</small>
+                    <span className="actions">
+                      {item.pairId && (
+                        <Link to={"/runs/pairs/" + item.pairId}>Pair</Link>
+                      )}
+                      {item.runs.map((run) => (
+                        <Link key={run.id} to={"/runs/" + run.id}>
+                          {run.condition}
+                        </Link>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+          {nearIdentical && !draft.launchedNow && (
+            <Notice kind="warning">
+              You launched a near-identical pair at {timeOf(nearIdentical.at)}
+              {nearIdentical.label === config.label
+                ? " with the same name"
+                : ` as “${nearIdentical.label}”`}
+              . Only the name or notes differ, so this starts two more runs.{" "}
+              {nearIdentical.pairId && (
+                <Link to={"/runs/pairs/" + nearIdentical.pairId}>
+                  View that pair
+                </Link>
+              )}
+            </Notice>
+          )}
           <DraftListCard
             drafts={draft.drafts}
             current={draft.draft}
