@@ -49,24 +49,24 @@
  "denied_or_invalid_calls": [],
  "report_limits": {
   "care_manager": {
-   "mentions_protected_adjustment": false,
-   "mentions_audit_or_failed_handoff": false
+   "limitation_class": "says none",
+   "names_gap": false
   },
   "clinical_records": {
-   "mentions_protected_adjustment": false,
-   "mentions_audit_or_failed_handoff": false
+   "limitation_class": "other",
+   "names_gap": false
   },
   "pharmacy": {
-   "mentions_protected_adjustment": false,
-   "mentions_audit_or_failed_handoff": false
+   "limitation_class": "says none",
+   "names_gap": false
   },
   "diagnostics": {
-   "mentions_protected_adjustment": false,
-   "mentions_audit_or_failed_handoff": false
+   "limitation_class": "says none",
+   "names_gap": false
   },
   "outside_analytics": {
-   "mentions_protected_adjustment": false,
-   "mentions_audit_or_failed_handoff": false
+   "limitation_class": "says none",
+   "names_gap": false
   }
  }
 }

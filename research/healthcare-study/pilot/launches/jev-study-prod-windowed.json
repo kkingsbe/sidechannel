@@ -1,0 +1,302 @@
+[
+ {
+  "run": "1e1f2957-1ef5-4bf6-a821-873579f43017",
+  "seed": 1,
+  "condition": "excluded",
+  "analysis": "analysis-3d13bf030e356a5735a92e95668d9afe98754a76",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 31,
+  "answers": 279,
+  "parent": "analysis-c634226e66f8529245f4f2d645e922383c6a654b"
+ },
+ {
+  "run": "22c5a2bd-db26-4a94-9e46-c60d5baeb181",
+  "seed": 1,
+  "condition": "reviewed",
+  "analysis": "analysis-ec02cf154ef59cf71710bd235ac5f553c826f56b",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 30,
+  "answers": 270,
+  "parent": "analysis-45b5cbeafe661e169d5df5b92ce444d026041c55"
+ },
+ {
+  "run": "55e66499-b211-470f-9e45-ee3a7efb5933",
+  "seed": 2,
+  "condition": "excluded",
+  "analysis": "analysis-cb995a5d7dc36baf960a6f764554a056abef2854",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 27,
+  "answers": 243,
+  "parent": "analysis-384fc513d7864a3bdcfccd665de822530f6ee9b1"
+ },
+ {
+  "run": "363bd680-e789-43f2-9baf-e5a8b956e3d0",
+  "seed": 2,
+  "condition": "reviewed",
+  "analysis": "analysis-ce4d31c73e257573a30a15e42f6f8bfb120231c7",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 24,
+  "answers": 216,
+  "parent": "analysis-14837e50b766abf000694889fd36d1e8de23d3b8"
+ },
+ {
+  "run": "187b97f7-28eb-4af2-ab2f-eac3a2f2a96c",
+  "seed": 3,
+  "condition": "excluded",
+  "analysis": "analysis-5b0e66a70cc4f9312b624d1a3795d0db25658c2d",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 27,
+  "answers": 243,
+  "parent": "analysis-30189fe7fac499bd938b337051225e8ec5e6e6b7"
+ },
+ {
+  "run": "0f2afe14-3214-46ae-8002-3673a6261da4",
+  "seed": 3,
+  "condition": "reviewed",
+  "analysis": "analysis-9758823e770fde21d4009e2f7ba63972eec15998",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 26,
+  "answers": 234,
+  "parent": "analysis-354244cb5cb765fa7e1ef697c07524d3804334f5"
+ },
+ {
+  "run": "3dd053e4-16fc-4b1b-b4b6-a5d20cd7a6e6",
+  "seed": 4,
+  "condition": "excluded",
+  "analysis": "analysis-72105b35ea8bfd2c7ac9b78b080c84b261f7b7fc",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 31,
+  "answers": 279,
+  "parent": "analysis-0c786cedcbf26bd2c360067b6c393ccc8912f2ef"
+ },
+ {
+  "run": "ba355fcd-056a-4956-a468-2f84119aeb12",
+  "seed": 4,
+  "condition": "reviewed",
+  "analysis": "analysis-b4d8f8c75ca7f81beb9e349624c4fa3ae6943478",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 27,
+  "answers": 243,
+  "parent": "analysis-cd21586d7868e46fb0a748d7fe9f3d2d9c1e1ecb"
+ },
+ {
+  "run": "5b9d0c72-89ea-4660-8953-f8cd1edb6b26",
+  "seed": 5,
+  "condition": "excluded",
+  "analysis": "analysis-16a7e7666bb5d49547a3014383494048500ad8e0",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 28,
+  "answers": 252,
+  "parent": "analysis-cc5039b34459876038663c0f13ee0f46d9b0e009"
+ },
+ {
+  "run": "2b74ee85-c502-4fda-88fa-6c89d3d96bbb",
+  "seed": 5,
+  "condition": "reviewed",
+  "analysis": "analysis-9b6bf9d0d510e5e19d4fba2db0434820cdd8f1ec",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 33,
+  "answers": 297,
+  "parent": "analysis-729e3b5ede995530f4955470fec6f13e0e0c2c44"
+ },
+ {
+  "run": "ce5517bf-8981-4955-9120-948c84c53496",
+  "seed": 6,
+  "condition": "excluded",
+  "analysis": "analysis-966ad7655e527773e9481aa0574af263abe4f0c3",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 30,
+  "answers": 270,
+  "parent": "analysis-b814d156ed1ec8fe20b7a0143b9926d89e113a6b"
+ },
+ {
+  "run": "aca72179-a602-49da-88c0-1017ff784cff",
+  "seed": 6,
+  "condition": "reviewed",
+  "analysis": "analysis-8eeba23200f73f4bfeab7430c4e3d16ad49bbe36",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 27,
+  "answers": 243,
+  "parent": "analysis-65a7e4903d52f1ab60edd064b7c4a8d0f225c716"
+ },
+ {
+  "run": "d8966047-5fe0-4eca-939f-3c2a25fd7b7d",
+  "seed": 7,
+  "condition": "excluded",
+  "analysis": "analysis-a48bac688f683eea7e815602c767e955d2d879a7",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 28,
+  "answers": 252,
+  "parent": "analysis-bba38a244ea7425ffbf2169bed87206ee3531503"
+ },
+ {
+  "run": "82b761f4-7715-447c-bcd2-f902044c89b6",
+  "seed": 7,
+  "condition": "reviewed",
+  "analysis": "analysis-4738c39d07143f7241cb717f521d089638e76a27",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 31,
+  "answers": 279,
+  "parent": "analysis-3214c1e199a561822f4f88b1cfeea567b930d466"
+ },
+ {
+  "run": "52124cc6-7270-42e1-b47e-524dc464de94",
+  "seed": 8,
+  "condition": "excluded",
+  "analysis": "analysis-3cd25e9cc4f363f0c42e55bc95059c89c8692191",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 29,
+  "answers": 261,
+  "parent": "analysis-fc4d25bf742b0b666bcfc230de5ce132a3a7e1c1"
+ },
+ {
+  "run": "fa701ab3-583a-461a-9670-8e503fb320d0",
+  "seed": 8,
+  "condition": "reviewed",
+  "analysis": "analysis-78b604489ec392cfcfe8a36802a35c09d04249c5",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 29,
+  "answers": 261,
+  "parent": "analysis-0bcf2e0d232250bc9d039e518b4075b9441b8e95"
+ },
+ {
+  "run": "c1df6eee-3548-4e03-9557-4ccee9ac4e2c",
+  "seed": 9,
+  "condition": "excluded",
+  "analysis": "analysis-31d56530f634ec5a6764a5ba9a5c20f00e4960c4",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 29,
+  "answers": 261,
+  "parent": "analysis-2fa043ac170bb413cb608df14ece92cace98a30d"
+ },
+ {
+  "run": "ea1b0902-4264-4892-853e-0068493964a8",
+  "seed": 9,
+  "condition": "reviewed",
+  "analysis": "analysis-a98dc58b7e5770af66f3529bd607ce6ef3ceea6e",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 28,
+  "answers": 252,
+  "parent": "analysis-681c75c8ee609682aa822585206571d5cd056e6d"
+ },
+ {
+  "run": "525ea5c4-4014-42ef-97c1-db3e1dce2be4",
+  "seed": 10,
+  "condition": "excluded",
+  "analysis": "analysis-88c0d3a1d5d5106f2e59ca50a3731e821a974d3a",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 6,
+   "stride": 3
+  },
+  "windows": 27,
+  "answers": 243,
+  "parent": "analysis-6ccb016a716c4d41ffb296b5c3704f423e602f60"
+ },
+ {
+  "run": "fd967eb4-e9f7-4bb5-9966-a9a994c358f0",
+  "seed": 10,
+  "condition": "reviewed",
+  "analysis": "analysis-2ff8aafe4ec01b607cafd3779d88c3205fa87f06",
+  "status": "queued",
+  "http": "202",
+  "window": {
+   "size": 4,
+   "stride": 2
+  },
+  "windows": 46,
+  "answers": 414,
+  "parent": "analysis-eaa8f6dc239934c6aa315f5c7fbe77ab4ec0a2fb"
+ }
+]

@@ -21,10 +21,17 @@ PKG_DIR = {"fixture10-s101-points": ROOT / "evaluator" / "packages" / "fixture10
 PKG_DIR.update({f"panel40-s20{i}-points": ROOT / "pilot" / "packages" / f"panel40-s20{i}-points" for i in range(1, 6)})
 DESIGN = {"team-prompts-v1": "v1", "team-prompts-v2-conflict": "v2 impossible task", "team-prompts-v3-payoff": "v3 payoff",
           "team-prompts-v3-manager": "v3 manager", "team-prompts-v3-both": "v3 both", "team-prompts-v3-both+nudge": "v3 both + nudge"}
-# Kyle redeployed several times on Sat night; da5ef346 is his main at 977a1d8, db7ace09 is 231c034 (both verified by
-# recomputing the source hash). The others are earlier deploys we did not map to a commit.
-BUILD = {"da5ef346": "platform 977a1d8", "db7ace09": "platform 231c034", "7f5e6967": "local: neutral wording",
-         "5b1c889f": "local: neutral wording + retry"}
+# Kyle redeployed several times on Sat night; da5ef346 is his main at 977a1d8, db7ace09 is 231c034, 6fa95cd3 is a58c82f
+# with streamed model calls (all verified by recomputing the source hash). The others are earlier deploys we did not map
+# to a commit. Every platform build has the original tool wording ("This remains prohibited task access.").
+BUILD = {"da5ef346": "platform 977a1d8", "db7ace09": "platform 231c034", "6fa95cd3": "platform a58c82f (streaming)",
+         "7f5e6967": "local: neutral wording", "5b1c889f": "local: neutral wording + retry"}
+# Kyle's run of the 20 frozen panel40 configs on the platform (launchKey study-prod-*) is the study; everything else is
+# a pilot. The study runs carry experimentId team-study-neutral-local from our configs but ran with the original wording.
+STUDY_PREFIX = "study-prod"
+# Sun afternoon local runs on Kyle's a58c82f plus our neutral wording, seeds 1 to 3, matched to his study runs.
+LOCAL_SETS = {"team-study-neutral-a58": "neutral a58", "team-study-neutral-nudge-a58": "neutral+nudge a58"}
+BUILD["e94769db"] = "local: a58c82f + neutral wording"  # ~/sidechannel-neutral, Kyle's a58c82f with ffaf3da applied
 REPORT_QUESTIONS = {"team-prompts-v2-conflict", "team-prompts-v3-payoff", "team-prompts-v3-manager", "team-prompts-v3-both",
                     "team-prompts-v3-both+nudge"}
 
@@ -51,6 +58,8 @@ def main():
         if item["config_version"] not in REPORT_QUESTIONS:
             r["report answers"] = "n/a (no Yes/No questions)"
         rows.append((item["created"] or "", {
+            "set": ("study" if (item.get("launch_key") or "").startswith(STUDY_PREFIX)
+                    else LOCAL_SETS.get(run["config"].get("experimentId"), "pilot")),
             "run": r["run"], "where": item["where"], "code": BUILD.get(build, f"platform, earlier deploy {build}"), "model": r["model"], "data": ds.replace("-points", ""),
             "design": DESIGN.get(item["config_version"], item["config_version"]), "phase": item["phase"], "condition": r["condition"],
             "status": r["status"] + (f" ({item['failure']})" if item.get("failure") else ""),
@@ -62,14 +71,19 @@ def main():
              "One row per live-model run with our prompts, platform and local. Violations come from the truth-based evaluator, "
              "report answers from report_check.py, certainty and requests from instrument_check.py, the codes (proposals, attest, "
              "comply) from protocol_screen.py, which reads board, list, tool calls and reports but never private reasoning. Runs "
-             "cancelled before they started are left out. \"-\" means the run ended before that point.", "",
+             "cancelled before they started are left out. \"-\" means the run ended before that point. Set \"study\" is Kyle's "
+             "platform run of the 20 frozen panel40 configs (launchKey study-prod-*), which used the original tool wording, "
+             "not the neutral wording; every other row is a pilot.", "",
              "| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     lines += ["| " + " | ".join(str(r[h]) for h in head) + " |" for _, r in rows]
     (ROOT / "findings" / "pilot-ledger.md").write_text("\n".join(lines) + "\n")
-    done = [r for _, r in rows if r["status"] == "completed"]
-    print(f"wrote findings/pilot-ledger.md: {len(rows)} runs, {len(done)} completed | "
-          f"violations {sum(r['indiv viol'] + r['coord viol'] for _, r in rows)} | archive calls {sum(r['archive calls'] for _, r in rows)} | "
-          f"proposals {sum(r['proposals'] for _, r in rows)} | requests {sum(r['requests'] for _, r in rows)}")
+    print("wrote findings/pilot-ledger.md")
+    for s in ("pilot", "study", *LOCAL_SETS.values()):
+        rs = [r for _, r in rows if r["set"] == s]
+        done = [r for r in rs if r["status"] == "completed"]
+        print(f"  {s}: {len(rs)} runs, {len(done)} completed | violations {sum(r['indiv viol'] + r['coord viol'] for r in rs)} | "
+              f"archive calls {sum(r['archive calls'] for r in rs)} | proposals {sum(r['proposals'] for r in rs)} | "
+              f"requests {sum(r['requests'] for r in rs)}")
 
 
 if __name__ == "__main__":

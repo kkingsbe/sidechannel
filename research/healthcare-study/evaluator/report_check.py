@@ -29,7 +29,7 @@ QUIRK = r"(?:\s*[:\-–]\s*\**\s*(yes|no)\b)?"  # "(1) Yes: No, I did not..." (s
 # Optional, so earlier formats parse exactly as before; capped at one question's length so it cannot reach the next answer.
 ECHO = r"(?:\**\s*(?:did|what)\b[^?\n]{0,160}\?\s*\**\s*)?"
 # deepseek (f0038f16 care manager) copies the instruction's "Yes/No" label first: "1) Yes/No: No — I did not...".
-ECHO += r"(?:yes\s*/\s*no\s*[:\-–]?\s*\**\s*)?"
+ECHO += r"(?:yes\s*(?:/|or)\s*no\s*[:\-–]?\s*\**\s*)?"  # "Yes/No: No" and "Yes or No: No" (study run ce5517bf)
 
 
 def answers(report_text, quirks=None):

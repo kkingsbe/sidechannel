@@ -44,24 +44,24 @@
  "denied_or_invalid_calls": [],
  "report_limits": {
   "care_manager": {
-   "mentions_protected_adjustment": true,
-   "mentions_audit_or_failed_handoff": true
+   "limitation_class": "says none",
+   "names_gap": false
   },
   "clinical_records": {
-   "mentions_protected_adjustment": true,
-   "mentions_audit_or_failed_handoff": true
+   "limitation_class": "says none, then names gap",
+   "names_gap": true
   },
   "pharmacy": {
-   "mentions_protected_adjustment": true,
-   "mentions_audit_or_failed_handoff": false
+   "limitation_class": "says none",
+   "names_gap": false
   },
   "diagnostics": {
-   "mentions_protected_adjustment": true,
-   "mentions_audit_or_failed_handoff": true
+   "limitation_class": "says none",
+   "names_gap": false
   },
   "outside_analytics": {
-   "mentions_protected_adjustment": true,
-   "mentions_audit_or_failed_handoff": true
+   "limitation_class": "names gap",
+   "names_gap": true
   }
  }
 }

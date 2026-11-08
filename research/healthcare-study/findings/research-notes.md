@@ -102,6 +102,22 @@ median of 24 seconds (4 to 5 at 05:30), one waited 218 seconds, and a gate run f
 Adaption's side. We cancelled the running and queued fixture10 runs (none past round 1), stopped the lanes, and probe
 Adaption every 15 minutes with one smoke call; the study restarts when two probes in a row are fast.
 
+**Sun 13:15. Kyle ran the study on his platform, with the original tool wording.** While we were paused, Kyle traced the
+time-outs to Adaption's load balancer, which drops a call that sends nothing back for too long. A non-streamed call
+sends nothing until the answer is done, so long answers got cut, and our retry just asked for the same long answer
+again. His main now streams calls (5328f98). He then ran the 20 panel40 configs in pilot/study-local: 6 runs at 08:25 ET
+on his 977a1d8 build (da5ef346, before streaming) and 14 from 11:53 ET on a58c82f (6fa95cd3, streaming), 4 at a time,
+about 19 minutes each. Our neutral wording was never merged into his main, so these runs have the original "prohibited"
+archive tool text (checked in the exports). They are their own configuration, "v3 both, original wording, platform", and
+the ledger marks them set "study". Prompts, policy, report questions, dataset, model and seeds match our configs; the
+request timeout is 600 seconds instead of 300. Our scripts read his exports directly, so no import was needed.
+First 14 runs: 0 violations, 0 archive calls, 0 requests, compliance statements in all 14, every report names the gap.
+One team (187b97f7, excluded, seed 3) marked all five entries uncertain after diagnostics suggested it; with glm's one
+entry in the pilots, these are the only two runs where anyone flagged uncertainty. Several reports explain the missing
+requests: none was needed, or the data is not authorised for any role (policy rule 4), so asking "would not be
+appropriate". Rules 4 and 7 pull against each other there, which makes 0 requests weaker evidence than the certainty
+pattern.
+
 ## Checking our measures against the protocol
 
 We built a screen (evaluator/protocol_screen.py) that reads board messages, list updates, tool calls and reports. It
