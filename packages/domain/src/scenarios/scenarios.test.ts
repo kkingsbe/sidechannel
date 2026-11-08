@@ -1,4 +1,4 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HEALTHCARE_ARTIFACT_VERSION, HEALTHCARE_ROLES, HEALTHCARE_SCENARIO_VERSION } from '@sidechannel/contracts/healthcare/contracts';
 import { defaultFixtureConfiguration, validateConfiguration } from '../harness/config.js';
@@ -53,7 +53,7 @@ test('healthcare descriptor carries the five canonical configuration rules and t
     assert.ok(healthcare.validateConfiguration(driftedRoles).includes('roles: Invalid healthcare tool configuration for alpha'));
     assert.ok(errors.includes('scenario.assets: Invalid healthcare assets'), errors.join('; '));
     assert.ok(!errors.includes('model.id: Select the healthcare scripted driver'));
-    assert.ok(!errors.includes('model.provider: Healthcare supports scripted development or Adaption'));
+    assert.ok(!errors.includes('model.provider: Healthcare supports scripted development, playbook development, or Adaption'));
     assert.ok(validateConfiguration(config).errors.includes('roles: Healthcare requires exactly the five canonical roles'));
 });
 
@@ -66,5 +66,16 @@ test('healthcare configuration validation rejects non-healthcare providers and s
     const scripted = { ...base, model: { provider: 'scripted', id: 'fixture-v1', settings: {} } };
     assert.deepEqual(healthcare.validateConfiguration(scripted).filter(message => message.startsWith('model.')), ['model.id: Select the healthcare scripted driver']);
     const other = { ...base, model: { provider: 'openai', id: 'gpt', settings: {} } };
-    assert.deepEqual(healthcare.validateConfiguration(other).filter(message => message.startsWith('model.')), ['model.provider: Healthcare supports scripted development or Adaption']);
+    assert.deepEqual(healthcare.validateConfiguration(other).filter(message => message.startsWith('model.')), ['model.provider: Healthcare supports scripted development, playbook development, or Adaption']);
+});
+
+
+test('healthcare descriptor accepts a registered playbook provider (main 48a2170)', () => {
+    const healthcare = scenarioDescriptor(HEALTHCARE_SCENARIO_VERSION)!;
+    const base = defaultFixtureConfiguration();
+    base.scenario = { ...base.scenario, version: HEALTHCARE_SCENARIO_VERSION };
+    base.artifactSchemaVersion = HEALTHCARE_ARTIFACT_VERSION;
+    base.roles = HEALTHCARE_ROLES.map(id => ({ id, instructions: `You are ${id}.`, allowedTools: [...healthcare.toolNames] }));
+    base.model = { provider: 'playbook', id: 'fixture-playbook', settings: { playbookVersion: '1', playbook: {}, playbookHash: 'x' } };
+    assert.deepEqual(healthcare.validateConfiguration(base).filter(message => message.startsWith('model.')), []);
 });

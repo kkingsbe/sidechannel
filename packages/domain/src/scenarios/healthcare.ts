@@ -5,6 +5,7 @@ import { rankCases } from '../healthcare/scoring.js';
 import { validateHealthcareArtifact } from '../healthcare/artifact.js';
 import { validateHealthcareAssets } from '../healthcare/package.js';
 import { providerProfile } from '../providers/index.js';
+import { PLAYBOOK_PROVIDER } from '../providers/index.js';
 import { EVIDENCE_TABS, type ScenarioDescriptor } from './descriptor.js';
 import { initializeFixtureScenario } from './fixture.js';
 import { ScenarioValidationError } from './scenario-error.js';
@@ -59,12 +60,11 @@ export const healthcareScenario: Scenario = {
         if (name === 'request_access') return json({ status: 'pending', fields: a.fields, purpose: a.purpose, authorizationGranted: false });
         if (name === 'rank_cases') {
             if (role !== 'outside_analytics') throw new ScenarioValidationError('Ranking restricted to outside analytics', 'denied');
-            try {
-                const result = rankCases(a.cases, assets.public);
-                if (!result.ok) throw new ScenarioValidationError('Invalid supplied ranking contributions');
-                return json(result);
-            }
+            let result;
+            try { result = rankCases(a.cases, assets.public); }
             catch { throw new ScenarioValidationError('Invalid supplied ranking contributions'); }
+            if (!result.ok) throw new ScenarioValidationError('Invalid supplied ranking contributions', 'invalid', result.error_kind);
+            return json(result);
         }
         const latest = run.artifacts.at(-1)!;
         if (name === 'read_artifact') return json(latest);
@@ -73,7 +73,7 @@ export const healthcareScenario: Scenario = {
             if (a.expectedVersion !== latest.version) throw new ScenarioValidationError('Artifact version conflict');
             let value;
             try { value = validateHealthcareArtifact({ entries: a.entries }, assets.public); }
-            catch { throw new ScenarioValidationError('Invalid healthcare artifact entries'); }
+            catch (error) { throw new ScenarioValidationError('Invalid healthcare artifact entries', 'invalid', error instanceof Error ? error.message : undefined); }
             const next = { version: latest.version + 1, previousVersion: latest.version, authorId: actor.agentId, operationId: actor.operationId, value: json(value), frozen: false };
             run.artifacts.push(next);
             return json(next);
@@ -103,8 +103,8 @@ export const healthcareDescriptor: ScenarioDescriptor = {
         if (config.artifactSchemaVersion !== HEALTHCARE_ARTIFACT_VERSION) errors.push('artifactSchemaVersion: Unsupported healthcare artifact schema');
         for (const role of config.roles)
             if (role.allowedTools.some(tool => !HEALTHCARE_TOOLS.includes(tool as never)) || !HEALTHCARE_REQUIRED_TOOLS.every(tool => role.allowedTools.includes(tool)) || role.id === 'outside_analytics' && !role.allowedTools.includes('rank_cases')) errors.push(`roles: Invalid healthcare tool configuration for ${role.id}`);
-        if (providerProfile(config.model.provider).fixture && config.model.id !== HEALTHCARE_SCENARIO_VERSION) errors.push('model.id: Select the healthcare scripted driver');
-        if (!['scripted', 'adaption'].includes(config.model.provider)) errors.push('model.provider: Healthcare supports scripted development or Adaption');
+        if (providerProfile(config.model.provider).adapterKind === 'scripted' && config.model.id !== HEALTHCARE_SCENARIO_VERSION) errors.push('model.id: Select the healthcare scripted driver');
+        if (!['scripted', 'adaption', PLAYBOOK_PROVIDER].includes(config.model.provider)) errors.push('model.provider: Healthcare supports scripted development, playbook development, or Adaption');
         try { validateHealthcareAssets(config.scenario.assets); }
         catch { errors.push('scenario.assets: Invalid healthcare assets'); }
         return errors;
