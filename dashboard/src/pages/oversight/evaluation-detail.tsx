@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Download, Square } from "lucide-react";
 import {
@@ -12,18 +12,148 @@ import {
   Loading,
   Notice,
   PageHeader,
+  Table,
 } from "../../components/ui";
 import { useCommand } from "../../components/use-command";
 import { useClients } from "../../lib/clients/context";
 import { useResource } from "../../lib/clients/query";
-import type { MonitorEvaluation, Projection } from "@sidechannel/contracts/browser";
+import type { MonitorEvaluation, MonitorView, Projection } from "@sidechannel/contracts/browser";
+import type { Run } from "../../lib/types";
 import { monitorStatusMeta } from "../../lib/status";
-import { when } from "../../lib/utils";
+import { short, when } from "../../lib/utils";
 import { DetectionMetrics } from "./detection-metrics";
 import { ProjectionInspector } from "./projection-inspector";
 import { VerdictDrawer } from "./verdict-drawer";
 import { VerdictMatrix, type ResultSelection } from "./verdict-matrix";
-import { viewNames } from "./views";
+import { viewNames, views } from "./views";
+
+/** Loads metadata (experiment, condition, pair) for source runs referenced by id. */
+function useRunsMeta(runIds: string[]): Record<string, Run> {
+  const clients = useClients();
+  const [runs, setRuns] = useState<Record<string, Run>>({});
+  const key = runIds.join(",");
+  useEffect(() => {
+    let live = true;
+    runIds.forEach((id) => {
+      clients.runs
+        .get(id)
+        .then((run) => {
+          if (live && run?.config)
+            setRuns((previous) => ({ ...previous, [id]: run }));
+        })
+        .catch(() => undefined);
+    });
+    return () => {
+      live = false;
+    };
+  }, [key, clients]);
+  return runs;
+}
+
+/** Groups pair members together (reviewed before excluded), keeping first-seen order of groups. */
+function orderSourceRuns(runIds: string[], metas: Record<string, Run>) {
+  const rank = (id: string) =>
+    metas[id]?.config.condition.id === "reviewed" ? 0 : 1;
+  const groups = new Map<string, string[]>();
+  runIds.forEach((id) => {
+    const key = metas[id]?.pairId ?? id;
+    groups.set(key, [...(groups.get(key) ?? []), id]);
+  });
+  return [...groups.entries()].map(([key, ids]) => ({
+    pairId: metas[ids[0]!]?.pairId ? key : undefined,
+    runIds: [...ids].sort((a, b) => rank(a) - rank(b)),
+  }));
+}
+
+function PairSummary({
+  evaluation,
+  metas,
+  pairId,
+  runIds,
+}: {
+  evaluation: MonitorEvaluation;
+  metas: Record<string, Run>;
+  pairId: string;
+  runIds: string[];
+}) {
+  const reviewed = runIds.find(
+    (id) => metas[id]?.config.condition.id === "reviewed",
+  );
+  const excluded = runIds.find(
+    (id) => metas[id]?.config.condition.id === "excluded",
+  );
+  if (!reviewed || !excluded) return null;
+  const verdict = (runId: string, view: MonitorView, outcomeId: string) => {
+    const result = evaluation.results.find(
+      (r) => r.runId === runId && r.view === view,
+    );
+    return (
+      result?.judgments.find((j) => j.outcomeId === outcomeId)?.verdict ??
+      result?.status ??
+      "pending"
+    );
+  };
+  return (
+    <Card className="form-section">
+      <CardHeading
+        title={"Pair-aligned summary · " + metas[reviewed]!.config.label}
+        description={
+          <>
+            Reviewed and excluded verdicts side by side ·{" "}
+            <Link to={"/runs/pairs/" + pairId}>Pair {short(pairId)}</Link>
+          </>
+        }
+      />
+      <div className="card-body">
+        <Table
+          label={"Pair-aligned verdicts for " + pairId}
+          headers={["Run-level outcome", ...views.map((v) => viewNames[v])]}
+        >
+          {evaluation.definition.outcomes
+            .filter((o) => !o.archived)
+            .map((outcome) => (
+              <tr key={outcome.id}>
+                <td>{outcome.name}</td>
+                {views.map((view) => (
+                  <td key={view}>
+                    <div className="oversight-pair-cell">
+                      <span>
+                        Reviewed: <strong>{verdict(reviewed, view, outcome.id)}</strong>
+                      </span>
+                      <span>
+                        Excluded: <strong>{verdict(excluded, view, outcome.id)}</strong>
+                      </span>
+                    </div>
+                  </td>
+                ))}
+              </tr>
+            ))}
+        </Table>
+      </div>
+    </Card>
+  );
+}
+
+/** Runs whose source pair completed both conditions get a reviewed/excluded verdict summary. */
+function PairSummaries({ evaluation }: { evaluation: MonitorEvaluation }) {
+  const metas = useRunsMeta(evaluation.runIds);
+  const groups = orderSourceRuns(evaluation.runIds, metas);
+  return (
+    <>
+      {groups
+        .filter((group) => group.pairId)
+        .map((group) => (
+          <PairSummary
+            key={group.pairId}
+            evaluation={evaluation}
+            metas={metas}
+            pairId={group.pairId!}
+            runIds={group.runIds}
+          />
+        ))}
+    </>
+  );
+}
 
 export function evaluationName(job: MonitorEvaluation) {
   return `${job.settings.model.id} - ${job.runIds.length} source ${job.runIds.length === 1 ? "run" : "runs"} - revision ${job.definition.revision}`;
@@ -147,6 +277,7 @@ export function EvaluationDetail(): ReactElement {
         onSelect={setResultSelection}
         onInspect={setProjection}
       />
+      <PairSummaries evaluation={data} />
       <DetectionMetrics evaluation={data} comparison={comparison.data} />
       <Card>
         <CardHeading title="Frozen monitor configuration" />
