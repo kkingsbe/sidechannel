@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { Drawer, Notice } from "../../components/ui";
 import { MonitorConfigCard } from "./monitor-config-card";
 import { MonitorLaunchCard } from "./monitor-launch-card";
@@ -16,6 +16,16 @@ import { viewNames } from "./views";
 export function MonitorSetupTab(): ReactElement {
   const setup = useMonitorSetup();
   const { preview, projection, setProjection, command } = setup;
+  const [acknowledged, setAcknowledged] = useState(false);
+  useEffect(() => setAcknowledged(false), [preview?.id]);
+  const previewProjections = preview?.runs.flatMap((run) => run.projections) ?? [];
+  const unavailableViews = previewProjections.filter(
+    (item) => item.status !== "ready",
+  ).length;
+  const totalEstimatedTokens = previewProjections.reduce(
+    (sum, item) => sum + item.estimatedInputTokens,
+    0,
+  );
   return (
     <>
       {command.error && <Notice kind="error">{command.error.message}</Notice>}
@@ -41,6 +51,11 @@ export function MonitorSetupTab(): ReactElement {
             prerequisites={setup.prerequisites}
             busy={command.busy}
             previewReady={!!preview}
+            unavailableViews={unavailableViews}
+            totalViews={previewProjections.length}
+            totalEstimatedTokens={totalEstimatedTokens}
+            acknowledged={acknowledged}
+            onAcknowledged={setAcknowledged}
             onPreview={setup.doPreview}
             onLaunch={setup.launch}
           />

@@ -63,7 +63,8 @@ export function ReferencesTab(): ReactElement {
                 )}
               {referenceRuns.data.map((run) => (
                 <option key={run.id} value={run.id}>
-                  {run.config.label} · {short(run.id)}
+                  {run.config.label} · {run.config.condition.id} ·{" "}
+                  {short(run.id)}
                 </option>
               ))}
             </Select>

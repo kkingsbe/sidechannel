@@ -1,6 +1,7 @@
 import { REVIEWER_STORAGE_KEY } from "../../components/claimed-reviewer";
 import { Link } from "react-router-dom";
-import type { ReactElement } from "react";
+import { useCallback, useEffect, useState, type ReactElement } from "react";
+import type { HarnessEvent } from "@sidechannel/contracts/browser";
 import { Download } from "lucide-react";
 import {
   Badge,
@@ -19,10 +20,115 @@ import {
 } from "../../components/ui";
 import { useClients } from "../../lib/clients/context";
 import { agreementMeta } from "../../lib/status";
-import { short, when } from "../../lib/utils";
+import { list, short, when } from "../../lib/utils";
+import { summarizeValue } from "../../components/readable-value";
 import { ReferenceHistory } from "./reference-history";
 import { useMonitorDefinitionHistory } from "./use-monitor-definition";
 import { useRunReference } from "./use-run-reference";
+
+/** Cites actual run events by id; the textarea remains the source of truth. */
+function CitationPicker({
+  runId,
+  value,
+  onChange,
+}: {
+  runId: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const clients = useClients();
+  const [events, setEvents] = useState<HarnessEvent[]>([]);
+  const [next, setNext] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error>();
+  const [query, setQuery] = useState("");
+  const load = useCallback(
+    async (after?: string) => {
+      setLoading(true);
+      setError(undefined);
+      try {
+        const result = await clients.runs.events(runId, { limit: 50, after });
+        setEvents((previous) =>
+          after ? [...previous, ...result.items] : result.items,
+        );
+        setNext(result.nextCursor);
+      } catch (caught) {
+        setError(caught as Error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [clients, runId],
+  );
+  useEffect(() => {
+    void load();
+  }, [load]);
+  const ids = list(value);
+  const needle = query.trim().toLowerCase();
+  const rows = events
+    .map((event) => ({ event, summary: summarizeValue(event.data, 100) }))
+    .filter(
+      ({ event, summary }) =>
+        !needle ||
+        `${event.sequence} ${event.type} ${event.agentId ?? ""} ${summary}`
+          .toLowerCase()
+          .includes(needle),
+    );
+  const toggle = (id: string, checked: boolean) =>
+    onChange(
+      (checked
+        ? [...ids.filter((x) => x !== id), id]
+        : ids.filter((x) => x !== id)
+      ).join("\n"),
+    );
+  return (
+    <div className="oversight-citation-picker full">
+      <strong>Pick cited events from this run</strong>
+      <p className="helper">
+        Checked events are added to the list above; you can still paste IDs
+        directly. {ids.length} selected.
+      </p>
+      <Input
+        type="search"
+        aria-label="Search run events"
+        placeholder="Search loaded events by sequence, type, actor or text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      {error && (
+        <ErrorState
+          error={error}
+          retry={() => load(events.length ? (next ?? undefined) : undefined)}
+        />
+      )}
+      <div className="oversight-citation-list">
+        {rows.map(({ event, summary }) => (
+          <label key={event.id} className="oversight-citation-row">
+            <input
+              type="checkbox"
+              aria-label={"Cite event " + event.sequence}
+              checked={ids.includes(event.id)}
+              onChange={(e) => toggle(event.id, e.target.checked)}
+            />
+            <span className="mono">#{event.sequence}</span>
+            <span>{event.type.replaceAll("_", " ")}</span>
+            <span>{event.agentId ?? "system"}</span>
+            <span className="oversight-citation-summary">{summary}</span>
+          </label>
+        ))}
+        {!loading && !error && !rows.length && (
+          <p className="helper">No loaded events match.</p>
+        )}
+        {loading && <Loading label="Loading events…" />}
+      </div>
+      {next != null && !loading && (
+        <Button variant="secondary" size="sm" onClick={() => load(next)}>
+          Load more events
+        </Button>
+      )}
+    </div>
+  );
+}
 
 /** Human reference adjudication: claim identity, cite evidence, append immutable revisions. */
 export function RunReferenceEditor({
@@ -161,6 +267,7 @@ export function RunReferenceEditor({
             required={reference.decision === "present"}
             label="Supporting source event IDs"
             hint="One actual event ID per line. Present judgments require at least one citation."
+            error={command.error?.message}
             className="full"
           >
             <Textarea
@@ -168,6 +275,11 @@ export function RunReferenceEditor({
               onChange={(e) => reference.setEvidence(e.target.value)}
             />
           </Field>
+          <CitationPicker
+            runId={runId}
+            value={reference.evidence}
+            onChange={reference.setEvidence}
+          />
           <Field
             required
             label="Rationale / unresolved questions"

@@ -1,5 +1,5 @@
 import { Eye, ShieldCheck } from "lucide-react";
-import { Button, Card, CardHeading } from "../../components/ui";
+import { Button, Card, CardHeading, Check } from "../../components/ui";
 
 /** The preview/launch aside: prerequisites, busy state and the explicit launch control. */
 export function MonitorLaunchCard({
@@ -9,6 +9,11 @@ export function MonitorLaunchCard({
   prerequisites,
   busy,
   previewReady,
+  unavailableViews,
+  totalViews,
+  totalEstimatedTokens,
+  acknowledged,
+  onAcknowledged,
   onPreview,
   onLaunch,
 }: {
@@ -18,6 +23,11 @@ export function MonitorLaunchCard({
   prerequisites: string[];
   busy: boolean;
   previewReady: boolean;
+  unavailableViews: number;
+  totalViews: number;
+  totalEstimatedTokens: number;
+  acknowledged: boolean;
+  onAcknowledged: (checked: boolean) => void;
   onPreview: () => void;
   onLaunch: () => void;
 }) {
@@ -60,14 +70,41 @@ export function MonitorLaunchCard({
           </p>
         )}
         {previewReady && (
-          <Button
-            disabled={busy}
-            onClick={onLaunch}
-            style={{ width: "100%", marginTop: 10 }}
-          >
-            <ShieldCheck size={15} />
-            Launch monitor comparison
-          </Button>
+          <div className="oversight-preview-summary">
+            <dl className="definition-list">
+              <dt>Total estimated input</dt>
+              <dd>
+                {totalEstimatedTokens.toLocaleString()} tokens across{" "}
+                {totalViews} views
+              </dd>
+            </dl>
+            {unavailableViews > 0 && (
+              <div className="oversight-oversize-warning" role="alert">
+                <strong>
+                  {unavailableViews} of {totalViews} views oversized /
+                  unavailable
+                </strong>
+                <p>
+                  Oversized views are not truncated; they are recorded as
+                  unavailable and the comparison is partial. Raise the context
+                  window or input limit, or accept this below.
+                </p>
+                <Check
+                  label="Launch anyway; oversized views will be recorded as unavailable"
+                  checked={acknowledged}
+                  onChange={(e) => onAcknowledged(e.target.checked)}
+                />
+              </div>
+            )}
+            <Button
+              disabled={busy || (unavailableViews > 0 && !acknowledged)}
+              onClick={onLaunch}
+              style={{ width: "100%", marginTop: 10 }}
+            >
+              <ShieldCheck size={15} />
+              Launch monitor comparison
+            </Button>
+          </div>
         )}
         <p className="helper" style={{ marginTop: 12 }}>
           Preview makes no model calls. Launch freezes the complete definitions

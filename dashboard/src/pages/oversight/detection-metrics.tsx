@@ -1,4 +1,5 @@
-import { Card, CardHeading, Table } from "../../components/ui";
+import { Link } from "react-router-dom";
+import { Button, Card, CardHeading, Empty, Table } from "../../components/ui";
 import type { MonitorEvaluation } from "@sidechannel/contracts/browser";
 import type { MonitorComparison } from "../../lib/types";
 import { viewNames, views } from "./views";
@@ -11,12 +12,30 @@ export function DetectionMetrics({
   evaluation: MonitorEvaluation;
   comparison: MonitorComparison | undefined;
 }) {
+  const hasAgreedReferences = !!comparison?.comparisons.some((c) =>
+    c.metrics.some(
+      (m) =>
+        m.referencePositive + m.referenceNegative + m.referenceUncertain > 0,
+    ),
+  );
   return (
     <Card className="form-section">
       <CardHeading
         title="Detection & false-positive denominators"
         description="Runs are the experimental unit. Monitor abstentions remain in binary reference denominators."
       />
+      {!hasAgreedReferences ? (
+        <Empty
+          title="No agreed human references yet"
+          description="Adjudicate outcomes to populate detection and false-positive rates."
+        >
+          <Button asChild variant="secondary" size="sm">
+            <Link to="/oversight?view=references">
+              Open Human reference outcomes
+            </Link>
+          </Button>
+        </Empty>
+      ) : (
       <Table
         label="Detection and false positive counts"
         headers={[
@@ -56,7 +75,8 @@ export function DetectionMetrics({
                       ? "Unavailable"
                       : (counts.detectionRate * 100).toFixed(1) + "%"}
                     <small>
-                      {counts.detected} / {counts.referencePositive} runs
+                      {counts.detected} / {counts.referencePositive}{" "}
+                      {counts.referencePositive === 1 ? "run" : "runs"}
                     </small>
                   </td>
                   <td>
@@ -64,7 +84,8 @@ export function DetectionMetrics({
                       ? "Unavailable"
                       : (counts.falsePositiveRate * 100).toFixed(1) + "%"}
                     <small>
-                      {counts.falsePositive} / {counts.referenceNegative} runs
+                      {counts.falsePositive} / {counts.referenceNegative}{" "}
+                      {counts.referenceNegative === 1 ? "run" : "runs"}
                     </small>
                   </td>
                   <td>{counts.monitorUncertain}</td>
@@ -80,6 +101,7 @@ export function DetectionMetrics({
             }),
           )}
       </Table>
+      )}
       <div className="card-body" style={{ paddingTop: 14 }}>
         <p className="helper">
           Only agreed present/absent references from two reviewers on matching

@@ -167,9 +167,23 @@ export function evaluationReturn(value: string | null) {
     : "/oversight?view=jobs";
 }
 
+/** `?verdict=<runId>:<outcomeId>:<view>`; run and outcome IDs may themselves contain colons. */
+function parseVerdictParam(value: string | null): ResultSelection | undefined {
+  if (!value) return undefined;
+  const last = value.lastIndexOf(":");
+  const middle = last > 0 ? value.lastIndexOf(":", last - 1) : -1;
+  const view = value.slice(last + 1) as MonitorView;
+  if (middle <= 0 || !views.includes(view)) return undefined;
+  return {
+    runId: value.slice(0, middle),
+    outcomeId: value.slice(middle + 1, last),
+    view,
+  };
+}
+
 /** Frozen monitor comparison detail: header, verdict matrices and the two inspectors. */
 export function EvaluationDetail(): ReactElement {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const { id } = useParams();
   const clients = useClients();
   const evaluation = useResource(
@@ -187,7 +201,18 @@ export function EvaluationDetail(): ReactElement {
     () => clients.monitor.exportEnvelope(id!),
   );
   const [projection, setProjection] = useState<Projection>();
-  const [resultSelection, setResultSelection] = useState<ResultSelection>();
+  const resultSelection = parseVerdictParam(params.get("verdict"));
+  const setResultSelection = (selection?: ResultSelection) =>
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      if (selection)
+        next.set(
+          "verdict",
+          `${selection.runId}:${selection.outcomeId}:${selection.view}`,
+        );
+      else next.delete("verdict");
+      return next;
+    });
   const command = useCommand();
   if (evaluation.loading) return <Loading />;
   if (!evaluation.data)
