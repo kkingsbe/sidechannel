@@ -115,3 +115,6 @@ label.cf { cursor: pointer; }
 
 .code-chip { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; }
 .reviewer-count { display: block; color: var(--muted, inherit); }
+.an-preset { display: flex; gap: 10px; align-items: flex-start; }
+.an-bg-group { border-top: 1px solid var(--border, #ddd); padding-top: 8px; }
+.an-bg-text { white-space: pre-wrap; font-size: 12px; max-height: 200px; overflow: auto; }

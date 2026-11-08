@@ -1,8 +1,11 @@
 import { APIConnectionError, APITimeoutError, APIUserAbortError, TypeSafeClient, TypeSafeError, type Fetch } from '@typesafe-ai/sdk';
-import { type JevQuestion, type JevRequest, type ProviderFailure, type ProviderUsage, type ProviderAttempt, type JevAnswer, type JevResponse, type JevProvider, JevProviderError } from '@sidechannel/contracts/analysis/jev-provider';
+import { questionKey, type JevAnswerValue, type JevQuestion, type JevRequest, type ProviderFailure, type ProviderUsage, type ProviderAttempt, type JevAnswer, type JevResponse, type JevProvider, JevProviderError } from '@sidechannel/contracts/analysis/jev-provider';
 import { buildSystemOnePayload } from '@sidechannel/domain/analysis/jev-questions';
 
-export interface TypeSafeJevProviderOptions { apiKey?: string; timeoutMs?: number; maxAttempts?: number; retryBaseMs?: number; fetch?: Fetch; }
+export interface TypeSafeJevProviderOptions { apiKey?: string; timeoutMs?: number; maxAttempts?: number; retryBaseMs?: number; fetch?: Fetch; longContext?: boolean; }
+
+/** The documented opt-in header that raises the context limits to 262k tokens (slower and less accurate). */
+export const LONG_CONTEXT_HEADER = 'TypeSafe-Danger-Zone-Long-Context';
 
 const emptyUsage = (): ProviderUsage => ({ inputTokens: null, outputTokens: null });
 
@@ -18,10 +21,12 @@ export class TypeSafeJevProvider implements JevProvider {
     private readonly timeoutMs: number;
     private readonly maxAttempts: number;
     private readonly retryBaseMs: number;
+    private readonly longContext: boolean;
     constructor(options: TypeSafeJevProviderOptions = {}) {
         this.timeoutMs = options.timeoutMs ?? 30_000;
         this.maxAttempts = options.maxAttempts ?? 3;
         this.retryBaseMs = options.retryBaseMs ?? 500;
+        this.longContext = options.longContext === true;
         if (!Number.isSafeInteger(this.maxAttempts) || this.maxAttempts < 1 || this.maxAttempts > 10 ||
             !Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 900_000 ||
             !Number.isSafeInteger(this.retryBaseMs) || this.retryBaseMs < 0 || this.retryBaseMs > 60_000)
@@ -44,7 +49,7 @@ export class TypeSafeJevProvider implements JevProvider {
             try {
                 // The payload's question union mirrors the SDK's wire shapes; the SDK's tuple-typed score criteria need the cast.
                 const raw: unknown = await this.client.systemOne(payload as unknown as Parameters<TypeSafeClient['systemOne']>[0],
-                    { signal: request.signal, timeout: this.timeoutMs, retry: { maxRetries: 0 } });
+                    { signal: request.signal, timeout: this.timeoutMs, retry: { maxRetries: 0 }, ...(this.longContext ? { headers: { [LONG_CONTEXT_HEADER]: 'true' } } : {}) });
                 entry.rawResponse = raw;
                 if (record(raw)) {
                     entry.returnedModel = typeof raw.model === 'string' && raw.model.trim() ? raw.model : null;
@@ -52,7 +57,7 @@ export class TypeSafeJevProvider implements JevProvider {
                 }
                 const answers = readAnswers(raw, originalQuestions);
                 entry.finishedAt = new Date().toISOString();
-                if (answers.some(answer => answer.error)) entry.error = malformed('One or more Noul answers were missing or malformed.');
+                if (answers.some(answer => answer.error)) entry.error = malformed('One or more answers were missing or malformed.');
                 attempts.push(entry);
                 return { requestedModel: model, returnedModel: entry.returnedModel, usage: entry.usage, answers, attempts, rawResponse: raw };
             } catch (error) {
@@ -86,11 +91,39 @@ function readAnswers(value: unknown, questions: JevQuestion[]): JevAnswer[] {
     const keys = new Set(questions.map((_, i) => `q_${i}`));
     if (Object.keys(answers).some(key => !keys.has(key))) throw new JevProviderError(malformed('Jev returned an unexpected answer key.'));
     return questions.map((question, i) => {
+        const identity = { codeId: question.codeId, ...(question.actorId ? { actorId: question.actorId } : {}) };
         const answer = Object.hasOwn(answers, `q_${i}`) ? answers[`q_${i}`] : undefined;
-        if (!record(answer) || answer.type !== 'noul' || typeof answer.noul !== 'number' || !Number.isFinite(answer.noul) || answer.noul < 0 || answer.noul > 1)
-            return { codeId: question.codeId, probability: null, error: malformed('Missing or invalid Noul probability for this code.') };
-        return { codeId: question.codeId, probability: answer.noul };
+        const typed = readTypedAnswer(question, answer);
+        return typed ? { ...identity, probability: typed.type === 'noul' ? typed.probability : null, answer: typed }
+            : { ...identity, probability: null, error: malformed(`Missing or invalid ${question.type ?? 'noul'} answer for ${questionKey(question)}.`) };
     });
+}
+
+const unit = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
+
+/** Probability maps are kept when every present entry is a probability; an omitted key reads as 0. */
+function readProbabilities(value: unknown, keys: readonly string[]): Record<string, number> | undefined {
+    if (!record(value) || keys.some(key => value[key] !== undefined && !unit(value[key]))) return undefined;
+    return Object.fromEntries(keys.map(key => [key, (value[key] as number | undefined) ?? 0]));
+}
+
+/** The typed answer for one question, or undefined when the provider's answer does not match the question asked. */
+function readTypedAnswer(question: JevQuestion, answer: unknown): JevAnswerValue | undefined {
+    if (!record(answer)) return undefined;
+    const type = question.type ?? 'noul';
+    if (answer.type !== type) return undefined;
+    if (type === 'noul') return unit(answer.noul) ? { type: 'noul', probability: answer.noul } : undefined;
+    if (!unit(answer.confidence)) return undefined;
+    if (type === 'choice') {
+        const optionOrder = question.optionOrder ?? (question.options ?? []).map(option => option.label);
+        const probabilities = readProbabilities(answer.probabilities, optionOrder);
+        return typeof answer.choice === 'string' && optionOrder.includes(answer.choice) && probabilities
+            ? { type: 'choice', choice: answer.choice, probabilities, confidence: answer.confidence, optionOrder: [...optionOrder] } : undefined;
+    }
+    const levels = question.levels ?? [];
+    const probabilities = readProbabilities(answer.probabilities, levels.map((_, level) => String(level)));
+    return typeof answer.score === 'number' && Number.isFinite(answer.score) && answer.score >= 0 && answer.score <= levels.length - 1 && probabilities
+        ? { type: 'score', score: answer.score, probabilities, confidence: answer.confidence } : undefined;
 }
 
 export function mapProviderFailure(error: unknown, signal?: AbortSignal): ProviderFailure {

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { MongoClient, type Db, type Document, type ClientSession } from 'mongodb';
 import type { Codebook, CodebookRevision } from '@sidechannel/contracts/analysis/evidence-contracts';
-import { type JobStatus, type JobCounters, type JobUsage, type AnalysisJob, type WindowRecord, type AnalysisResult, type AnalysisAttempt, type PageOptions, type CodebookFilter, type Page, AnalysisConflict, AnalysisNotFound, AnalysisValidation, type Lease, type AnalysisRepository, ACTIVE_JOB_STATUSES, RETRYABLE_JOB_STATUSES, isActiveJob } from '@sidechannel/contracts/analysis/jev-repository';
+import { type JobStatus, type JobCounters, type JobUsage, type AnalysisJob, type WindowRecord, type AnalysisResult, type AnalysisAttempt, type PageOptions, type CodebookFilter, type Page, type AnalysisReliability, resultKey, AnalysisConflict, AnalysisNotFound, AnalysisValidation, type Lease, type AnalysisRepository, ACTIVE_JOB_STATUSES, RETRYABLE_JOB_STATUSES, isActiveJob } from '@sidechannel/contracts/analysis/jev-repository';
 
 const copy = <T>(v: T): T => structuredClone(v);
 
@@ -14,6 +14,12 @@ const pageOf = <T extends { id: string }>(rows: T[], p: PageOptions = {}): Page<
 const digest = (s: string) => createHash('sha256').update(s).digest('hex');
 
 function chunksOf(text: string): string[] { const parts: string[] = []; for (let start = 0; start < text.length;) { let end = Math.min(text.length, start + 65536); const last = text.charCodeAt(end - 1); if (end < text.length && last >= 0xd800 && last <= 0xdbff) end++; parts.push(text.slice(start, end)); start = end; } return parts.length ? parts : ['']; }
+
+/** Probe rows are hidden from ordinary listings: only `include` or `only` shows them. */
+const probeVisible = (row: { probe?: boolean }, mode: PageOptions['probe']): boolean => mode === 'include' || Boolean(row.probe) === (mode === 'only');
+
+/** The Mongo filter equivalent of `probeVisible`. */
+const probeFilter = (mode: PageOptions['probe']): Document => mode === 'include' ? {} : mode === 'only' ? { probe: true } : { probe: { $ne: true } };
 
 const live = (j: AnalysisJob | undefined, l: Lease) => Boolean(j?.lease?.owner === l.owner && j.lease.fence === l.fence && j.status === 'running' && j.lease.expiresAt > new Date().toISOString());
 
@@ -60,27 +66,31 @@ export class InMemoryAnalysisRepository implements AnalysisRepository {
     async updateCounters(l: Lease, counters: JobCounters, usage?: JobUsage) { const j = this.jobs.get(l.jobId); if (!live(j, l)) return false; j!.counters = copy(counters); if (usage) j!.usage = copy(usage); return true; }
     async updateWindow(l: Lease, id: string, patch: Partial<Pick<WindowRecord, 'status' | 'diagnostics'>>) { if (!live(this.jobs.get(l.jobId), l)) return false; const window = this.windows.get(l.jobId + ':' + id); if (window) Object.assign(window, copy(patch)); return true; }
     async startAttempt(l: Lease, a: AnalysisAttempt) { bounded(a); if (!live(this.jobs.get(l.jobId), l)) return false; this.attempts.set(a.id, copy(a)); return true; }
-    async finishAttempt(l: Lease, a: AnalysisAttempt, results: AnalysisResult[]) { bounded(a); if (!live(this.jobs.get(l.jobId), l)) return false; this.attempts.set(a.id, copy(a)); for (const r of results) { const key = r.jobId + ':' + r.windowId + ':' + r.codeId; if (!this.results.has(key)) this.results.set(key, copy(r)); } return true; }
-    async listResults(jobId: string, p: PageOptions = {}) { return pageOf([...this.results.values()].filter(r => r.jobId === jobId && (!p.windowId || r.windowId === p.windowId)), p); }
-    async resultsForWindows(jobId: string, ids: string[]) { if (ids.length > 500) throw new AnalysisValidation('Window result join is limited to 500 windows'); const selected = new Set(ids); return copy([...this.results.values()].filter(r => r.jobId === jobId && selected.has(r.windowId)).slice(0, 50_000)); }
-    async listAttempts(jobId: string, p: PageOptions = {}) { return pageOf([...this.attempts.values()].filter(a => a.jobId === jobId && (!p.windowId || a.windowId === p.windowId)), p); }
+    async finishAttempt(l: Lease, a: AnalysisAttempt, results: AnalysisResult[]) { bounded(a); if (!live(this.jobs.get(l.jobId), l)) return false; this.attempts.set(a.id, copy(a)); for (const r of results) { const key = r.jobId + ':' + resultKey(r); if (!this.results.has(key)) this.results.set(key, copy(r)); } return true; }
+    async listResults(jobId: string, p: PageOptions = {}) { return pageOf([...this.results.values()].filter(r => r.jobId === jobId && (!p.windowId || r.windowId === p.windowId) && probeVisible(r, p.probe)), p); }
+    async resultsForWindows(jobId: string, ids: string[]) { if (ids.length > 500) throw new AnalysisValidation('Window result join is limited to 500 windows'); const selected = new Set(ids); return copy([...this.results.values()].filter(r => r.jobId === jobId && selected.has(r.windowId) && !r.probe).slice(0, 50_000)); }
+    async listAttempts(jobId: string, p: PageOptions = {}) { return pageOf([...this.attempts.values()].filter(a => a.jobId === jobId && (!p.windowId || a.windowId === p.windowId) && probeVisible(a, p.probe)), p); }
+    async setReliability(l: Lease, reliability: AnalysisReliability) { const j = this.jobs.get(l.jobId); if (!live(j, l)) return false; j!.reliability = copy(reliability); return true; }
     async finishJob(l: Lease, status: JobStatus, counters: JobCounters, error?: string, usage?: JobUsage) { const j = this.jobs.get(l.jobId); if (!live(j, l)) return false; j!.status = j!.cancelRequested ? 'cancelled' : status; j!.counters = copy(counters); j!.updatedAt = new Date().toISOString(); if (usage) j!.usage = copy(usage); if (error) j!.error = error; delete j!.lease; return true; }
     async cancel(id: string) { const j = this.jobs.get(id); if (j && isActiveJob(j.status)) { j.cancelRequested = true; if (j.status !== 'running') j.status = 'cancelled'; } return this.getJob(id); }
     async retry(id: string) { const j = this.jobs.get(id); if (j) { if (isActiveJob(j.status)) throw new AnalysisConflict('Job is still active'); j.status = 'queued'; j.cancelRequested = false; delete j.lease; } return this.getJob(id); }
 }
 
-const clean = <T>(d: Document | null): T | null => { if (!d) return null; const { _id, ...rest } = d; return rest as T; };
+const clean = <T>(d: Document | null): T | null => { if (!d) return null; const { _id, resultKey: _resultKey, ...rest } = d; return rest as T; };
 
 export class MongoAnalysisRepository implements AnalysisRepository {
     constructor(readonly client: MongoClient, readonly db: Db) {}
     async initialize() {
+        // v1 enforced one result per window and code; actor-scoped and probe results need the wider `resultKey`.
+        await this.db.collection('analysis_results').dropIndex('jobId_1_windowId_1_codeId_1').catch(() => undefined);
         await Promise.all([
             this.db.collection('codebooks').createIndex({ id: 1 }, { unique: true }), this.db.collection('codebook_revisions').createIndex({ id: 1 }, { unique: true }),
             this.db.collection('codebook_revisions').createIndex({ codebookId: 1, id: 1 }),
             this.db.collection('analysis_jobs').createIndex({ id: 1 }, { unique: true }), this.db.collection('analysis_jobs').createIndex({ runId: 1, idempotencyKey: 1 }, { unique: true }),
             this.db.collection('analysis_jobs').createIndex({ ready: 1, status: 1, 'lease.expiresAt': 1, createdAt: 1 }), this.db.collection('analysis_jobs').createIndex({ runId: 1, id: 1 }),
             this.db.collection('analysis_windows').createIndex({ jobId: 1, id: 1 }, { unique: true }),
-            this.db.collection('analysis_results').createIndex({ jobId: 1, windowId: 1, codeId: 1 }, { unique: true }), this.db.collection('analysis_results').createIndex({ jobId: 1, id: 1 }),
+            this.db.collection('analysis_results').createIndex({ jobId: 1, resultKey: 1 }, { unique: true, partialFilterExpression: { resultKey: { $exists: true } } }), this.db.collection('analysis_results').createIndex({ jobId: 1, id: 1 }),
+            this.db.collection('analysis_results').createIndex({ jobId: 1, windowId: 1, codeId: 1 }),
             this.db.collection('analysis_attempts').createIndex({ id: 1 }, { unique: true }), this.db.collection('analysis_attempts').createIndex({ jobId: 1, id: 1 }),
             this.db.collection('analysis_attempts').createIndex({ jobId: 1, windowId: 1, id: 1 }),
             this.db.collection('analysis_artifacts').createIndex({ id: 1, index: 1 }, { unique: true }),
@@ -129,10 +139,11 @@ export class MongoAnalysisRepository implements AnalysisRepository {
     private async fenced(l: Lease, action: (session: ClientSession) => Promise<void>) { const session = this.client.startSession(); let success = false; try { await session.withTransaction(async () => { success = false; const guard = await this.db.collection('analysis_jobs').updateOne(this.guard(l), { $set: { updatedAt: new Date().toISOString() }, $inc: { mutationRevision: 1 } }, { session }); if (!guard.matchedCount) return; await action(session); success = true; }); return success; } finally { await session.endSession(); } }
     async updateWindow(l: Lease, id: string, patch: Partial<Pick<WindowRecord, 'status' | 'diagnostics'>>) { return this.fenced(l, async session => { await this.db.collection('analysis_windows').updateOne({ jobId: l.jobId, id }, { $set: copy(patch) }, { session }); }); }
     async startAttempt(l: Lease, a: AnalysisAttempt) { bounded(a); return this.fenced(l, async session => { await this.db.collection('analysis_attempts').insertOne(copy(a), { session }); }); }
-    async finishAttempt(l: Lease, a: AnalysisAttempt, results: AnalysisResult[]) { bounded(a); return this.fenced(l, async session => { await this.db.collection('analysis_attempts').replaceOne({ id: a.id, jobId: l.jobId }, copy(a), { session }); for (const r of results) await this.db.collection('analysis_results').updateOne({ jobId: r.jobId, windowId: r.windowId, codeId: r.codeId }, { $setOnInsert: copy(r) }, { upsert: true, session }); }); }
-    async listResults(jobId: string, p: PageOptions = {}) { return this.page<AnalysisResult>('analysis_results', { jobId, ...(p.windowId ? { windowId: p.windowId } : {}) }, p); }
-    async resultsForWindows(jobId: string, ids: string[]) { if (ids.length > 500) throw new AnalysisValidation('Window result join is limited to 500 windows'); return (await this.db.collection('analysis_results').find({ jobId, windowId: { $in: ids } }).limit(50000).toArray()).map(row => clean<AnalysisResult>(row)!); }
-    async listAttempts(jobId: string, p: PageOptions = {}) { return this.page<AnalysisAttempt>('analysis_attempts', { jobId, ...(p.windowId ? { windowId: p.windowId } : {}) }, p); }
+    async finishAttempt(l: Lease, a: AnalysisAttempt, results: AnalysisResult[]) { bounded(a); return this.fenced(l, async session => { await this.db.collection('analysis_attempts').replaceOne({ id: a.id, jobId: l.jobId }, copy(a), { session }); for (const r of results) await this.db.collection('analysis_results').updateOne({ jobId: r.jobId, resultKey: resultKey(r) }, { $setOnInsert: { ...copy(r), resultKey: resultKey(r) } }, { upsert: true, session }); }); }
+    async listResults(jobId: string, p: PageOptions = {}) { return this.page<AnalysisResult>('analysis_results', { jobId, ...(p.windowId ? { windowId: p.windowId } : {}), ...probeFilter(p.probe) }, p); }
+    async resultsForWindows(jobId: string, ids: string[]) { if (ids.length > 500) throw new AnalysisValidation('Window result join is limited to 500 windows'); return (await this.db.collection('analysis_results').find({ jobId, windowId: { $in: ids }, probe: { $ne: true } }).limit(50000).toArray()).map(row => clean<AnalysisResult>(row)!); }
+    async listAttempts(jobId: string, p: PageOptions = {}) { return this.page<AnalysisAttempt>('analysis_attempts', { jobId, ...(p.windowId ? { windowId: p.windowId } : {}), ...probeFilter(p.probe) }, p); }
+    async setReliability(l: Lease, reliability: AnalysisReliability) { return (await this.db.collection('analysis_jobs').updateOne(this.guard(l), { $set: { reliability: copy(reliability) } })).matchedCount === 1; }
     async finishJob(l: Lease, status: JobStatus, counters: JobCounters, error?: string, usage?: JobUsage) { return (await this.db.collection('analysis_jobs').updateOne(this.guard(l), [{ $set: { status: { $cond: ['$cancelRequested', 'cancelled', { $literal: status }] }, counters: { $literal: counters }, ...(usage ? { usage: { $literal: usage } } : {}), ...(error ? { error: { $literal: error } } : {}), updatedAt: new Date().toISOString() } }, { $unset: 'lease' }])).matchedCount === 1; }
     async cancel(id: string) { await this.db.collection('analysis_jobs').updateOne({ id, status: { $in: [...ACTIVE_JOB_STATUSES] } }, [{ $set: { cancelRequested: true, status: { $cond: [{ $eq: ['$status', 'running'] }, 'running', 'cancelled'] } } }]); return this.getJob(id); }
     async retry(id: string) { const r = await this.db.collection('analysis_jobs').updateOne({ id, ready: true, status: { $in: [...RETRYABLE_JOB_STATUSES] } }, { $set: { status: 'queued', cancelRequested: false }, $unset: { lease: '' } }); const job = await this.getJob(id); if (job && !r.matchedCount) throw new AnalysisConflict('Job is still active'); return job; }

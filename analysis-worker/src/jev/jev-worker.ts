@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { AnalysisConfiguration } from '@sidechannel/contracts/analysis/evidence-contracts';
-import { buildBehaviorQuestions } from '@sidechannel/domain/analysis/jev-questions';
+import { BACKGROUND_VERSION, buildQuestionsForTemplate, scoredDefinitions, type RunBackground } from '@sidechannel/domain/analysis/jev-questions';
 import type { JevProvider } from '@sidechannel/contracts/analysis/jev-provider';
 import type { AnalysisWorkerStore } from '@sidechannel/contracts/analysis/jev-repository';
 import { pages } from '@sidechannel/domain/analysis/jev-service';
 import { TypeSafeJevProvider } from './jev-provider.js';
 import { LeaseKeeper } from './lease-keeper.js';
-import { WindowRunner } from './window-runner.js';
+import { WindowRunner, type WindowRun } from './window-runner.js';
+import { ProbeRunner } from './probe-runner.js';
 import { ProgressLedger } from './progress-ledger.js';
 import { UsageReconciler } from './usage-reconciler.js';
 
@@ -16,7 +17,7 @@ export interface AnalysisWorkerOptions { owner?: string; leaseMs?: number; heart
 /** Owns analysis leases only. Never invokes or mutates the experiment scheduler. */
 export class AnalysisWorker {
     private readonly owner: string; private readonly leaseMs: number; private readonly heartbeatMs: number;
-    private readonly windows: WindowRunner; private readonly progress: ProgressLedger; private readonly usage: UsageReconciler;
+    private readonly windows: WindowRunner; private readonly probe: ProbeRunner; private readonly progress: ProgressLedger; private readonly usage: UsageReconciler;
 
     constructor(private readonly repository: AnalysisWorkerStore, private readonly options: AnalysisWorkerOptions = {}) {
         this.owner = options.owner ?? randomUUID();
@@ -24,6 +25,7 @@ export class AnalysisWorker {
         this.heartbeatMs = options.heartbeatMs ?? Math.floor(this.leaseMs / 3);
         if (this.leaseMs < 100 || this.heartbeatMs < 10 || this.heartbeatMs >= this.leaseMs) throw new Error('Heartbeat must be shorter than a positive lease');
         this.windows = new WindowRunner(repository);
+        this.probe = new ProbeRunner(repository);
         this.progress = new ProgressLedger(repository);
         this.usage = new UsageReconciler(repository);
     }
@@ -40,15 +42,20 @@ export class AnalysisWorker {
         keeper.start();
         try {
             if (!job.cancelRequested)
-                provider = this.options.provider ?? this.options.providerFactory?.(job.manifest.settings) ?? new TypeSafeJevProvider({ timeoutMs: job.manifest.settings.timeoutMs, maxAttempts: job.manifest.settings.maxAttempts, retryBaseMs: job.manifest.settings.retryBaseMs });
+                provider = this.options.provider ?? this.options.providerFactory?.(job.manifest.settings) ?? new TypeSafeJevProvider({ timeoutMs: job.manifest.settings.timeoutMs, maxAttempts: job.manifest.settings.maxAttempts, retryBaseMs: job.manifest.settings.retryBaseMs, longContext: job.manifest.settings.longContext });
             await this.progress.recover(lease, job.id);
-            const questions = buildBehaviorQuestions(job.manifest.codebook.definitions), allIds = questions.map(question => question.codeId);
-            const progress = await this.progress.counters(job.id, allIds.length);
+            // v2 jobs froze the question background and the condition text the request builder must never send; v1 jobs have neither.
+            const context = job.manifest.contextArtifact ? await this.repository.readArtifact<{ version: string; background: RunBackground; conditionText: string }>(job.manifest.contextArtifact) : undefined;
+            const definitions = scoredDefinitions(job.manifest.codebook.definitions, job.manifest.settings.preset);
+            const background = context?.background ?? { task: '', policy: '' };
+            const shared = { job, lease, provider: provider!, keeper, forbiddenText: context?.conditionText ? [context.conditionText] : [],
+                questionsFor: (serialized: Parameters<WindowRun['questionsFor']>[0]) => buildQuestionsForTemplate(job.manifest.questionTemplateVersion, definitions, { activeAgents: serialized.activeAgents ?? [], background }) } satisfies WindowRun;
+            const progress = await this.progress.counters(job.id, definitions.length);
             for await (const window of pages(page => this.repository.listWindows(job.id, page))) {
                 if (keeper.stopping) break;
                 if (window.status === 'skipped' || window.status === 'oversized') continue;
                 const prior = await this.progress.snapshot(job.id, window);
-                const task = this.windows.run(window, { job, lease, questions, expected: allIds, provider: provider!, keeper })
+                const task = this.windows.run(window, shared)
                     .catch(async error => {
                         await this.repository.updateWindow(lease, window.id, { status: 'failed', diagnostics: [...window.diagnostics, error instanceof Error ? error.message : 'Window failed'] });
                         throw error;
@@ -62,7 +69,10 @@ export class AnalysisWorker {
             }
             await Promise.all(pending);
             if (keeper.leaseLost || signal?.aborted) return true; // Leave the lease recoverable after shutdown or loss.
-            const counters = await this.progress.counters(job.id, allIds.length);
+            // The reliability probe runs after the primaries are settled and never changes them or the counters.
+            if (!keeper.cancelling) await this.probe.run(shared);
+            if (keeper.leaseLost || signal?.aborted) return true;
+            const counters = await this.progress.counters(job.id, definitions.length);
             await this.usage.finish(lease, await this.progress.finalStatus(job.id, counters, keeper.cancelling), counters);
         } catch (error) {
             keeper.abortAll();

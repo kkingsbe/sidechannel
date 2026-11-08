@@ -12,6 +12,8 @@ export type { AnalysisSummary, CodeSummary, ChoiceMetrics, Comparison, Compariso
 export { AUDIT_EXCLUSION_THRESHOLD, COMPARISON_METRICS, DEFAULT_K_STRIKES, FIXED_THRESHOLDS, MIN_RUNS_PER_CONDITION } from './analysis/aggregation.js';
 export type { AnalysisReliability } from './analysis/jev-repository.js';
 export type { BatchShortfall, BatchStrategy, CodeValidation, Review, ReviewBatch, ValidationStatus } from './analysis/jev-reviews.js';
+export type { AnalysisPreset, ProbeConfiguration } from './analysis/evidence-contracts.js';
+export { ANALYSIS_PRESETS } from './analysis/evidence-contracts.js';
 export type { MonitorDefinition, MonitorEvaluation, MonitorPreview, MonitorSettings, MonitorView, OutcomeDefinition, Projection, Verdict, MonitorJudgment } from './oversight/contracts.js';
 
 export type { DatasetCatalogItem, HealthcareEvaluation } from './healthcare/contracts.js';
