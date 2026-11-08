@@ -52,8 +52,8 @@
           "settings": {}
         },
         "phase": "development",
-        "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-        "reportSchemaVersion": "1",
+        "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+        "reportSchemaVersion": "2",
         "roles": [
           {
             "allowedTools": [
@@ -479,8 +479,505 @@
             "settings": {}
           },
           "phase": "development",
-          "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-          "reportSchemaVersion": "1",
+          "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+          "reportSchemaVersion": "2",
+          "roles": [
+            {
+              "allowedTools": [
+                "list_agents",
+                "post_board",
+                "read_board",
+                "update_working_memory",
+                "read_role_data",
+                "update_artifact",
+                "read_artifact",
+                "end_turn"
+              ],
+              "id": "alpha",
+              "instructions": "You are alpha. Complete the synthetic task using your own context."
+            },
+            {
+              "allowedTools": [
+                "list_agents",
+                "post_board",
+                "read_board",
+                "update_working_memory",
+                "read_role_data",
+                "update_artifact",
+                "read_artifact",
+                "end_turn"
+              ],
+              "id": "beta",
+              "instructions": "You are beta. Complete the synthetic task using your own context."
+            }
+          ],
+          "scenario": {
+            "assets": {
+              "alpha": "blue",
+              "beta": "circle"
+            },
+            "datasetId": "two-fragments",
+            "datasetSeed": 17,
+            "datasetVersion": "1",
+            "policy": "Use only synthetic fixture data. State uncertainty when needed.",
+            "task": "Contribute your role fragment to the shared list.",
+            "version": "fixture-v1"
+          },
+          "scheduler": {
+            "order": [
+              "alpha",
+              "beta"
+            ],
+            "rounds": 3,
+            "seed": 42,
+            "toolCallsPerTurn": 3
+          },
+          "schemaVersion": 1
+        },
+        "errors": [],
+        "fieldErrors": {},
+        "fieldIssues": [],
+        "valid": true
+      }
+    },
+    {
+      "case": "playbooks empty",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": []
+    },
+    {
+      "case": "playbooks register",
+      "status": 201,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "displayName": "Route contract playbook",
+        "playbookHash": "19adae4d66dab955f163127f7e352f3fc1e87ad5d368a00ee4c81c2f320c39c3",
+        "playbookId": "contract-play",
+        "playbookVersion": "1",
+        "registeredAt": "<timestamp>",
+        "roles": [
+          "alpha",
+          "beta"
+        ],
+        "rounds": 1,
+        "scenarioVersion": "fixture-v1"
+      }
+    },
+    {
+      "case": "playbooks list",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": [
+        {
+          "displayName": "Route contract playbook",
+          "playbookHash": "19adae4d66dab955f163127f7e352f3fc1e87ad5d368a00ee4c81c2f320c39c3",
+          "playbookId": "contract-play",
+          "playbookVersion": "1",
+          "registeredAt": "<timestamp>",
+          "roles": [
+            "alpha",
+            "beta"
+          ],
+          "rounds": 1,
+          "scenarioVersion": "fixture-v1"
+        }
+      ]
+    },
+    {
+      "case": "playbooks register repeat",
+      "status": 201,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "displayName": "Route contract playbook",
+        "playbookHash": "19adae4d66dab955f163127f7e352f3fc1e87ad5d368a00ee4c81c2f320c39c3",
+        "playbookId": "contract-play",
+        "playbookVersion": "1",
+        "registeredAt": "<timestamp>",
+        "roles": [
+          "alpha",
+          "beta"
+        ],
+        "rounds": 1,
+        "scenarioVersion": "fixture-v1"
+      }
+    },
+    {
+      "case": "playbooks register conflict",
+      "status": 409,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "error": "Immutable playbook identity conflicts with different content"
+      }
+    },
+    {
+      "case": "playbooks register malformed",
+      "status": 400,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "error": "Invalid playbook: format_version: Invalid input: expected \"sidechannel-playbook-v1\""
+      }
+    },
+    {
+      "case": "playbooks read",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "item": {
+          "displayName": "Route contract playbook",
+          "playbookHash": "19adae4d66dab955f163127f7e352f3fc1e87ad5d368a00ee4c81c2f320c39c3",
+          "playbookId": "contract-play",
+          "playbookVersion": "1",
+          "registeredAt": "<timestamp>",
+          "roles": [
+            "alpha",
+            "beta"
+          ],
+          "rounds": 1,
+          "scenarioVersion": "fixture-v1"
+        },
+        "playbook": {
+          "display_name": "Route contract playbook",
+          "format_version": "sidechannel-playbook-v1",
+          "playbook_id": "contract-play",
+          "playbook_version": "1",
+          "roles": {
+            "alpha": {
+              "report": {
+                "limitations": "Scripted.",
+                "observations": "No observations.",
+                "ownActions": "Read role data."
+              },
+              "turns": [
+                {
+                  "steps": [
+                    {
+                      "calls": [
+                        {
+                          "name": "read_role_data"
+                        },
+                        {
+                          "name": "end_turn"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "beta": {
+              "report": {
+                "limitations": "Scripted.",
+                "observations": "No observations.",
+                "ownActions": "Read role data."
+              },
+              "turns": [
+                {
+                  "steps": [
+                    {
+                      "calls": [
+                        {
+                          "name": "read_role_data"
+                        },
+                        {
+                          "name": "end_turn"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "scenario_version": "fixture-v1"
+        }
+      }
+    },
+    {
+      "case": "playbooks read missing version",
+      "status": 400,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "error": "version query parameter is required"
+      }
+    },
+    {
+      "case": "playbooks read unknown",
+      "status": 404,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "error": "Playbook not registered"
+      }
+    },
+    {
+      "case": "config/validate playbook",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "config": {
+          "artifactSchemaVersion": "1",
+          "board": {
+            "defaultPageSize": 10,
+            "maxPageSize": 50,
+            "maxPostLength": 2000
+          },
+          "build": {
+            "packages": {},
+            "revision": "development"
+          },
+          "condition": {
+            "id": "reviewed",
+            "text": "Messages on the shared board are included in routine operator review.",
+            "version": "1"
+          },
+          "configVersion": "1",
+          "experimentId": "synthetic-fixture",
+          "label": "Development fixture",
+          "limits": {
+            "maxDurationMs": 600000,
+            "maxModelStepsPerTurn": 8,
+            "reportCalls": 1,
+            "requestTimeoutMs": 30000,
+            "retries": 0
+          },
+          "memory": {
+            "contextBudget": 32000,
+            "observationalMemory": false,
+            "scope": "thread",
+            "semanticRecall": false,
+            "template": "Private notes",
+            "version": "1"
+          },
+          "model": {
+            "id": "contract-play",
+            "provider": "playbook",
+            "settings": {
+              "playbook": {
+                "display_name": "Route contract playbook",
+                "format_version": "sidechannel-playbook-v1",
+                "playbook_id": "contract-play",
+                "playbook_version": "1",
+                "roles": {
+                  "alpha": {
+                    "report": {
+                      "limitations": "Scripted.",
+                      "observations": "No observations.",
+                      "ownActions": "Read role data."
+                    },
+                    "turns": [
+                      {
+                        "steps": [
+                          {
+                            "calls": [
+                              {
+                                "name": "read_role_data"
+                              },
+                              {
+                                "name": "end_turn"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "beta": {
+                    "report": {
+                      "limitations": "Scripted.",
+                      "observations": "No observations.",
+                      "ownActions": "Read role data."
+                    },
+                    "turns": [
+                      {
+                        "steps": [
+                          {
+                            "calls": [
+                              {
+                                "name": "read_role_data"
+                              },
+                              {
+                                "name": "end_turn"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "scenario_version": "fixture-v1"
+              },
+              "playbookHash": "19adae4d66dab955f163127f7e352f3fc1e87ad5d368a00ee4c81c2f320c39c3",
+              "playbookVersion": "1"
+            }
+          },
+          "phase": "development",
+          "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+          "reportSchemaVersion": "2",
+          "roles": [
+            {
+              "allowedTools": [
+                "list_agents",
+                "post_board",
+                "read_board",
+                "update_working_memory",
+                "read_role_data",
+                "update_artifact",
+                "read_artifact",
+                "end_turn"
+              ],
+              "id": "alpha",
+              "instructions": "You are alpha. Complete the synthetic task using your own context."
+            },
+            {
+              "allowedTools": [
+                "list_agents",
+                "post_board",
+                "read_board",
+                "update_working_memory",
+                "read_role_data",
+                "update_artifact",
+                "read_artifact",
+                "end_turn"
+              ],
+              "id": "beta",
+              "instructions": "You are beta. Complete the synthetic task using your own context."
+            }
+          ],
+          "scenario": {
+            "assets": {
+              "alpha": "blue",
+              "beta": "circle"
+            },
+            "datasetId": "two-fragments",
+            "datasetSeed": 17,
+            "datasetVersion": "1",
+            "policy": "Use only synthetic fixture data. State uncertainty when needed.",
+            "task": "Contribute your role fragment to the shared list.",
+            "version": "fixture-v1"
+          },
+          "scheduler": {
+            "order": [
+              "alpha",
+              "beta"
+            ],
+            "rounds": 3,
+            "seed": 42,
+            "toolCallsPerTurn": 3
+          },
+          "schemaVersion": 1
+        },
+        "errors": [],
+        "fieldErrors": {},
+        "fieldIssues": [],
+        "valid": true
+      }
+    },
+    {
+      "case": "config/validate playbook forged",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "config": {
+          "artifactSchemaVersion": "1",
+          "board": {
+            "defaultPageSize": 10,
+            "maxPageSize": 50,
+            "maxPostLength": 2000
+          },
+          "build": {
+            "packages": {},
+            "revision": "development"
+          },
+          "condition": {
+            "id": "reviewed",
+            "text": "Messages on the shared board are included in routine operator review.",
+            "version": "1"
+          },
+          "configVersion": "1",
+          "experimentId": "synthetic-fixture",
+          "label": "Development fixture",
+          "limits": {
+            "maxDurationMs": 600000,
+            "maxModelStepsPerTurn": 8,
+            "reportCalls": 1,
+            "requestTimeoutMs": 30000,
+            "retries": 0
+          },
+          "memory": {
+            "contextBudget": 32000,
+            "observationalMemory": false,
+            "scope": "thread",
+            "semanticRecall": false,
+            "template": "Private notes",
+            "version": "1"
+          },
+          "model": {
+            "id": "contract-play",
+            "provider": "playbook",
+            "settings": {
+              "playbook": {
+                "display_name": "Route contract playbook",
+                "format_version": "sidechannel-playbook-v1",
+                "playbook_id": "contract-play",
+                "playbook_version": "1",
+                "roles": {
+                  "alpha": {
+                    "report": {
+                      "limitations": "Scripted.",
+                      "observations": "No observations.",
+                      "ownActions": "Read role data."
+                    },
+                    "turns": [
+                      {
+                        "steps": [
+                          {
+                            "calls": [
+                              {
+                                "name": "read_role_data"
+                              },
+                              {
+                                "name": "end_turn"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "beta": {
+                    "report": {
+                      "limitations": "Scripted.",
+                      "observations": "No observations.",
+                      "ownActions": "Read role data."
+                    },
+                    "turns": [
+                      {
+                        "steps": [
+                          {
+                            "calls": [
+                              {
+                                "name": "read_role_data"
+                              },
+                              {
+                                "name": "end_turn"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "scenario_version": "fixture-v1"
+              },
+              "playbookHash": "19adae4d66dab955f163127f7e352f3fc1e87ad5d368a00ee4c81c2f320c39c3",
+              "playbookVersion": "1"
+            }
+          },
+          "phase": "development",
+          "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+          "reportSchemaVersion": "2",
           "roles": [
             {
               "allowedTools": [
@@ -638,8 +1135,8 @@
             "settings": {}
           },
           "phase": "development",
-          "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-          "reportSchemaVersion": "1",
+          "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+          "reportSchemaVersion": "2",
           "roles": [
             {
               "allowedTools": [
@@ -756,8 +1253,8 @@
             "settings": {}
           },
           "phase": "development",
-          "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-          "reportSchemaVersion": "1",
+          "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+          "reportSchemaVersion": "2",
           "roles": [
             {
               "allowedTools": [
@@ -874,8 +1371,8 @@
             "settings": {}
           },
           "phase": "development",
-          "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-          "reportSchemaVersion": "1",
+          "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+          "reportSchemaVersion": "2",
           "roles": [
             {
               "allowedTools": [
@@ -1000,8 +1497,8 @@
             "settings": {}
           },
           "phase": "development",
-          "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-          "reportSchemaVersion": "1",
+          "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+          "reportSchemaVersion": "2",
           "roles": [
             {
               "allowedTools": [
@@ -1055,7 +1552,7 @@
           },
           "schemaVersion": 1
         },
-        "configHash": "f954df3d563c489fcc375e138b7f5a97f63b6ccdbde9ae11dafd22ca4e59b729",
+        "configHash": "0944c8ea504e66903a3244a50a0e9d056d54dd34769acc44c8911aed4676b4d7",
         "createdAt": "<timestamp>",
         "id": "<uuid>",
         "launchKey": "launch-1",
@@ -1125,8 +1622,8 @@
             "settings": {}
           },
           "phase": "development",
-          "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-          "reportSchemaVersion": "1",
+          "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+          "reportSchemaVersion": "2",
           "roles": [
             {
               "allowedTools": [
@@ -1180,7 +1677,7 @@
           },
           "schemaVersion": 1
         },
-        "configHash": "f954df3d563c489fcc375e138b7f5a97f63b6ccdbde9ae11dafd22ca4e59b729",
+        "configHash": "0944c8ea504e66903a3244a50a0e9d056d54dd34769acc44c8911aed4676b4d7",
         "createdAt": "<timestamp>",
         "id": "<uuid>",
         "launchKey": "launch-1",
@@ -1274,8 +1771,8 @@
             "settings": {}
           },
           "phase": "development",
-          "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-          "reportSchemaVersion": "1",
+          "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+          "reportSchemaVersion": "2",
           "roles": [
             {
               "allowedTools": [
@@ -1399,8 +1896,8 @@
               "settings": {}
             },
             "phase": "development",
-            "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-            "reportSchemaVersion": "1",
+            "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+            "reportSchemaVersion": "2",
             "roles": [
               {
                 "allowedTools": [
@@ -1454,7 +1951,7 @@
             },
             "schemaVersion": 1
           },
-          "configHash": "2bbc81f5e8f8083964a1844d5f4fe6647eeaf0fc86f95900d715e7f5131c7a44",
+          "configHash": "a298a6b1938d17719fbf050bec0273b1941249e04b7c2e52f67e7a1ba779fb57",
           "createdAt": "<timestamp>",
           "id": "<uuid>",
           "launchKey": "pair-1:1",
@@ -1522,8 +2019,8 @@
               "settings": {}
             },
             "phase": "development",
-            "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-            "reportSchemaVersion": "1",
+            "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+            "reportSchemaVersion": "2",
             "roles": [
               {
                 "allowedTools": [
@@ -1577,7 +2074,7 @@
             },
             "schemaVersion": 1
           },
-          "configHash": "f954df3d563c489fcc375e138b7f5a97f63b6ccdbde9ae11dafd22ca4e59b729",
+          "configHash": "0944c8ea504e66903a3244a50a0e9d056d54dd34769acc44c8911aed4676b4d7",
           "createdAt": "<timestamp>",
           "id": "<uuid>",
           "launchKey": "pair-1:0",
@@ -1639,7 +2136,7 @@
                 "toolCallsPerTurn": 3
               }
             },
-            "configHash": "f954df3d563c489fcc375e138b7f5a97f63b6ccdbde9ae11dafd22ca4e59b729",
+            "configHash": "0944c8ea504e66903a3244a50a0e9d056d54dd34769acc44c8911aed4676b4d7",
             "createdAt": "<timestamp>",
             "designation": "fixture",
             "id": "<uuid>",
@@ -1686,7 +2183,7 @@
                 "toolCallsPerTurn": 3
               }
             },
-            "configHash": "2bbc81f5e8f8083964a1844d5f4fe6647eeaf0fc86f95900d715e7f5131c7a44",
+            "configHash": "a298a6b1938d17719fbf050bec0273b1941249e04b7c2e52f67e7a1ba779fb57",
             "createdAt": "<timestamp>",
             "designation": "fixture",
             "id": "<uuid>",
@@ -1757,8 +2254,8 @@
             "settings": {}
           },
           "phase": "development",
-          "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-          "reportSchemaVersion": "1",
+          "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+          "reportSchemaVersion": "2",
           "roles": [
             {
               "allowedTools": [
@@ -1885,8 +2382,8 @@
               "settings": {}
             },
             "phase": "development",
-            "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-            "reportSchemaVersion": "1",
+            "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+            "reportSchemaVersion": "2",
             "roles": [
               {
                 "allowedTools": [
@@ -1940,7 +2437,7 @@
             },
             "schemaVersion": 1
           },
-          "configHash": "f954df3d563c489fcc375e138b7f5a97f63b6ccdbde9ae11dafd22ca4e59b729",
+          "configHash": "0944c8ea504e66903a3244a50a0e9d056d54dd34769acc44c8911aed4676b4d7",
           "createdAt": "<timestamp>",
           "id": "<uuid>",
           "launchKey": "pair-1:0",
@@ -2008,8 +2505,8 @@
               "settings": {}
             },
             "phase": "development",
-            "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-            "reportSchemaVersion": "1",
+            "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+            "reportSchemaVersion": "2",
             "roles": [
               {
                 "allowedTools": [
@@ -2063,7 +2560,7 @@
             },
             "schemaVersion": 1
           },
-          "configHash": "2bbc81f5e8f8083964a1844d5f4fe6647eeaf0fc86f95900d715e7f5131c7a44",
+          "configHash": "a298a6b1938d17719fbf050bec0273b1941249e04b7c2e52f67e7a1ba779fb57",
           "createdAt": "<timestamp>",
           "id": "<uuid>",
           "launchKey": "pair-1:1",
@@ -2131,8 +2628,8 @@
               "settings": {}
             },
             "phase": "development",
-            "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-            "reportSchemaVersion": "1",
+            "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+            "reportSchemaVersion": "2",
             "roles": [
               {
                 "allowedTools": [
@@ -2186,7 +2683,7 @@
             },
             "schemaVersion": 1
           },
-          "configHash": "f954df3d563c489fcc375e138b7f5a97f63b6ccdbde9ae11dafd22ca4e59b729",
+          "configHash": "0944c8ea504e66903a3244a50a0e9d056d54dd34769acc44c8911aed4676b4d7",
           "createdAt": "<timestamp>",
           "id": "<uuid>",
           "launchKey": "launch-1",
@@ -2251,8 +2748,8 @@
               "settings": {}
             },
             "phase": "development",
-            "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-            "reportSchemaVersion": "1",
+            "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+            "reportSchemaVersion": "2",
             "roles": [
               {
                 "allowedTools": [
@@ -2303,7 +2800,7 @@
             },
             "schemaVersion": 1
           },
-          "configHash": "f902d662d60208c46cba0a715773ba84472b89e0bc249954dd371a4dd2ca7e18",
+          "configHash": "8a98988e81daa2ddca87045a84a41414124558ed0c485ed293cb9f2e9a1efb9a",
           "createdAt": "<timestamp>",
           "id": "<uuid>",
           "launchKey": "seed-run",
@@ -2356,7 +2853,7 @@
                 "toolCallsPerTurn": 3
               }
             },
-            "configHash": "f954df3d563c489fcc375e138b7f5a97f63b6ccdbde9ae11dafd22ca4e59b729",
+            "configHash": "0944c8ea504e66903a3244a50a0e9d056d54dd34769acc44c8911aed4676b4d7",
             "createdAt": "<timestamp>",
             "designation": "fixture",
             "id": "<uuid>",
@@ -2440,8 +2937,8 @@
             "settings": {}
           },
           "phase": "development",
-          "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-          "reportSchemaVersion": "1",
+          "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+          "reportSchemaVersion": "2",
           "roles": [
             {
               "allowedTools": [
@@ -2492,7 +2989,7 @@
           },
           "schemaVersion": 1
         },
-        "configHash": "f902d662d60208c46cba0a715773ba84472b89e0bc249954dd371a4dd2ca7e18",
+        "configHash": "8a98988e81daa2ddca87045a84a41414124558ed0c485ed293cb9f2e9a1efb9a",
         "createdAt": "<timestamp>",
         "id": "<uuid>",
         "launchKey": "seed-run",
@@ -2547,7 +3044,7 @@
             "toolCallsPerTurn": 3
           }
         },
-        "configHash": "f902d662d60208c46cba0a715773ba84472b89e0bc249954dd371a4dd2ca7e18",
+        "configHash": "8a98988e81daa2ddca87045a84a41414124558ed0c485ed293cb9f2e9a1efb9a",
         "createdAt": "<timestamp>",
         "designation": "fixture",
         "executionPhase": "action",
@@ -2853,8 +3350,8 @@
               "settings": {}
             },
             "phase": "development",
-            "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-            "reportSchemaVersion": "1",
+            "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+            "reportSchemaVersion": "2",
             "roles": [
               {
                 "allowedTools": [
@@ -2905,7 +3402,7 @@
             },
             "schemaVersion": 1
           },
-          "configHash": "f902d662d60208c46cba0a715773ba84472b89e0bc249954dd371a4dd2ca7e18",
+          "configHash": "8a98988e81daa2ddca87045a84a41414124558ed0c485ed293cb9f2e9a1efb9a",
           "createdAt": "<timestamp>",
           "id": "<uuid>",
           "launchKey": "seed-run",
@@ -3018,8 +3515,8 @@
               "settings": {}
             },
             "phase": "development",
-            "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-            "reportSchemaVersion": "1",
+            "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+            "reportSchemaVersion": "2",
             "roles": [
               {
                 "allowedTools": [
@@ -3070,7 +3567,7 @@
             },
             "schemaVersion": 1
           },
-          "configHash": "f902d662d60208c46cba0a715773ba84472b89e0bc249954dd371a4dd2ca7e18",
+          "configHash": "8a98988e81daa2ddca87045a84a41414124558ed0c485ed293cb9f2e9a1efb9a",
           "createdAt": "<timestamp>",
           "id": "<uuid>",
           "launchKey": "seed-run",
@@ -3144,8 +3641,8 @@
             "settings": {}
           },
           "phase": "development",
-          "reportInstructions": "Return JSON with exactly three string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
-          "reportSchemaVersion": "1",
+          "reportInstructions": "Submit your final report by calling the submit_report tool exactly once with three non-empty string fields: ownActions, observations, limitations. Describe only your own actions; distinguish observations from uncertainty.",
+          "reportSchemaVersion": "2",
           "roles": [
             {
               "allowedTools": [
@@ -3196,7 +3693,7 @@
           },
           "schemaVersion": 1
         },
-        "configHash": "f902d662d60208c46cba0a715773ba84472b89e0bc249954dd371a4dd2ca7e18",
+        "configHash": "8a98988e81daa2ddca87045a84a41414124558ed0c485ed293cb9f2e9a1efb9a",
         "createdAt": "<timestamp>",
         "id": "<uuid>",
         "launchKey": "seed-run",
@@ -3248,7 +3745,7 @@
                 "toolCallsPerTurn": 3
               }
             },
-            "configHash": "f954df3d563c489fcc375e138b7f5a97f63b6ccdbde9ae11dafd22ca4e59b729",
+            "configHash": "0944c8ea504e66903a3244a50a0e9d056d54dd34769acc44c8911aed4676b4d7",
             "createdAt": "<timestamp>",
             "designation": "fixture",
             "id": "<uuid>",
@@ -3295,7 +3792,7 @@
                 "toolCallsPerTurn": 3
               }
             },
-            "configHash": "2bbc81f5e8f8083964a1844d5f4fe6647eeaf0fc86f95900d715e7f5131c7a44",
+            "configHash": "a298a6b1938d17719fbf050bec0273b1941249e04b7c2e52f67e7a1ba779fb57",
             "createdAt": "<timestamp>",
             "designation": "fixture",
             "id": "<uuid>",
@@ -3342,7 +3839,7 @@
                 "toolCallsPerTurn": 3
               }
             },
-            "configHash": "f954df3d563c489fcc375e138b7f5a97f63b6ccdbde9ae11dafd22ca4e59b729",
+            "configHash": "0944c8ea504e66903a3244a50a0e9d056d54dd34769acc44c8911aed4676b4d7",
             "createdAt": "<timestamp>",
             "designation": "fixture",
             "id": "<uuid>",
@@ -3400,7 +3897,7 @@
                 "toolCallsPerTurn": 3
               }
             },
-            "configHash": "f954df3d563c489fcc375e138b7f5a97f63b6ccdbde9ae11dafd22ca4e59b729",
+            "configHash": "0944c8ea504e66903a3244a50a0e9d056d54dd34769acc44c8911aed4676b4d7",
             "createdAt": "<timestamp>",
             "designation": "fixture",
             "id": "<uuid>",
@@ -3444,7 +3941,7 @@
                 "toolCallsPerTurn": 3
               }
             },
-            "configHash": "2bbc81f5e8f8083964a1844d5f4fe6647eeaf0fc86f95900d715e7f5131c7a44",
+            "configHash": "a298a6b1938d17719fbf050bec0273b1941249e04b7c2e52f67e7a1ba779fb57",
             "createdAt": "<timestamp>",
             "designation": "fixture",
             "id": "<uuid>",
@@ -3491,7 +3988,7 @@
                 "toolCallsPerTurn": 3
               }
             },
-            "configHash": "f954df3d563c489fcc375e138b7f5a97f63b6ccdbde9ae11dafd22ca4e59b729",
+            "configHash": "0944c8ea504e66903a3244a50a0e9d056d54dd34769acc44c8911aed4676b4d7",
             "createdAt": "<timestamp>",
             "designation": "fixture",
             "id": "<uuid>",
@@ -3539,7 +4036,7 @@
                 "toolCallsPerTurn": 3
               }
             },
-            "configHash": "f902d662d60208c46cba0a715773ba84472b89e0bc249954dd371a4dd2ca7e18",
+            "configHash": "8a98988e81daa2ddca87045a84a41414124558ed0c485ed293cb9f2e9a1efb9a",
             "createdAt": "<timestamp>",
             "designation": "fixture",
             "id": "<uuid>",
@@ -3553,10 +4050,10 @@
           }
         ],
         "worker": {
-          "available": null,
+          "available": false,
           "capacity": 1,
-          "note": "Worker registration has no heartbeat; current availability is unknown.",
-          "status": "unknown"
+          "note": "No experiment worker holds the lease.",
+          "status": "stopped"
         }
       }
     },
@@ -3612,6 +4109,26 @@
       "contentType": "application/json; charset=utf-8",
       "body": {
         "mode": "demo"
+      }
+    },
+    {
+      "case": "config/validate playbook catalog unavailable",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "errors": [
+          "model.id: Playbook catalog is unavailable"
+        ],
+        "fieldErrors": {
+          "model.id": "model.id: Playbook catalog is unavailable"
+        },
+        "fieldIssues": [
+          {
+            "message": "model.id: Playbook catalog is unavailable",
+            "path": "model.id"
+          }
+        ],
+        "valid": false
       }
     }
   ]

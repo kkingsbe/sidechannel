@@ -44,7 +44,9 @@ test('monitor provider retains direct Adaption transport, credentials, and suppo
         settings: { temperature: 0.1, maxOutputTokens: 321 } }, { ADAPTION_API_KEY: '  synthetic-key  ' });
     assert.deepEqual(resolved, { model: { providerId: 'adaption', modelId: 'hosted-model',
         url: 'https://api.prod.adaptionlabs.ai/api/v1', apiKey: 'synthetic-key', api: 'responses' },
-        providerOptions: { openai: { store: false } } });
+        providerOptions: { openai: { store: false } },
+        // Adaption's Responses validator needs item ids on replayed assistant text (main deae91d).
+        assistantTextItemIds: true });
     assert.throws(() => resolveInferenceProvider({ provider: 'adaption', id: 'hosted-model', settings: { seed: 1 } },
         { ADAPTION_API_KEY: 'synthetic-key' }), /Unsupported Adaption model setting/);
 });
