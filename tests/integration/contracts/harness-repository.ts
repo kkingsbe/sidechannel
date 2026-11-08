@@ -130,4 +130,40 @@ export function harnessRepositoryContract(harness: RepositoryHarness): void {
         assert.equal(await repository.workerLease(), null);
         assert.equal((await repository.workerStatus()).status, 'stopped');
     });
+
+    test(`${harness.name}: event pages, turn index and subscription hints`, async (t) => {
+        const { repository, dispose } = await harness.fixture();
+        t.after(dispose);
+        const run = await repository.createRun(queuedRun('event-pages'));
+        for (const turn of [1, 2]) for (let index = 0; index < 2; index++)
+            await repository.appendEvent({ runId: run.id, type: index === 0 ? 'model_requested' : 'tool_failed', agentId: 'alpha', round: 1, turn, invocationId: `inv-${turn}`, data: {} });
+        await repository.appendEvent({ runId: run.id, type: 'run_completed', data: {} });
+        const other = await repository.createRun(queuedRun('event-pages-other'));
+        await repository.appendEvent({ runId: other.id, type: 'step', data: {} });
+
+        assert.deepEqual((await repository.queryEvents(run.id, { before: 4, order: 'desc', limit: 2 })).map(event => event.sequence), [3, 2], 'before is an exclusive upper bound and desc is newest first');
+        assert.deepEqual((await repository.queryEvents(run.id, { before: 3 })).map(event => event.sequence), [1, 2]);
+        assert.deepEqual((await repository.queryEvents(run.id, { after: 2, order: 'desc' })).map(event => event.sequence), [5, 4, 3]);
+
+        assert.deepEqual(await repository.listTurns(run.id), [
+            { agentId: 'alpha', round: 1, turn: 1, firstSequence: 1, lastSequence: 2, eventCount: 2, modelCalls: 1, failures: 1 },
+            { agentId: 'alpha', round: 1, turn: 2, firstSequence: 3, lastSequence: 4, eventCount: 2, modelCalls: 1, failures: 1 },
+        ]);
+        assert.deepEqual(await repository.listTurns(other.id), [], 'run-level events belong to no turn');
+
+        let calls = 0;
+        const unsubscribe = repository.subscribeEvents?.(run.id, () => { calls++; });
+        assert.equal(typeof unsubscribe, 'function', 'the adapter exposes the optional subscription hint');
+        await new Promise(resolve => setTimeout(resolve, 100)); // let an asynchronous change stream establish its cursor
+        await repository.appendEvent({ runId: run.id, type: 'step', data: {} });
+        await repository.appendEvent({ runId: other.id, type: 'step', data: {} });
+        const started = Date.now();
+        while (calls < 1 && Date.now() - started < 5_000)
+            await new Promise(resolve => setTimeout(resolve, 25));
+        assert.equal(calls, 1, 'the hint fires for the subscribed run only');
+        unsubscribe!();
+        await repository.appendEvent({ runId: run.id, type: 'step', data: {} });
+        await new Promise(resolve => setTimeout(resolve, 250));
+        assert.equal(calls, 1, 'unsubscribing stops the hint');
+    });
 }

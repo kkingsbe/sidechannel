@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import type { Codebook, CodebookRevision } from '@sidechannel/contracts/analysis/evidence-contracts';
 import type { AnalysisAttempt, AnalysisRepository } from '@sidechannel/contracts/analysis/jev-repository';
 import { analysisAttempt, analysisJob, analysisWindow } from './fixtures.js';
 
@@ -80,5 +81,37 @@ export function analysisRepositoryContract(harness: AnalysisRepositoryHarness): 
         assert.equal(retried!.status, 'queued');
         assert.equal(retried!.cancelRequested, false);
         assert.equal(await repository.cancel('missing'), null);
+    });
+
+    test(`${harness.name}: codebook archive filter and write guard`, async (t) => {
+        const { repository, dispose } = await harness.fixture();
+        t.after(dispose);
+        const book = (id: string): Codebook => ({ id, name: id, currentRevisionId: `${id}-r1`, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' });
+        const revision = (id: string): CodebookRevision => ({ id: `${id}-r1`, codebookId: id, revision: 1, definitions: [], createdAt: '2026-01-01T00:00:00.000Z', createdBy: 'tester' });
+        await repository.saveCodebook(book('one'), revision('one'));
+        await repository.saveCodebook(book('two'), revision('two'));
+
+        assert.deepEqual((await repository.listCodebooks()).items.map(codebook => codebook.id), ['one', 'two']);
+        assert.deepEqual((await repository.listCodebooks(undefined, { archived: 'include' })).items.map(codebook => codebook.id), ['one', 'two']);
+        assert.deepEqual((await repository.listCodebooks(undefined, { archived: 'only' })).items, []);
+
+        await assert.rejects(repository.setCodebookArchived('missing', 'missing-r1', { archivedAt: now(), archivedBy: 'tester' }), /not found/);
+        await assert.rejects(repository.setCodebookArchived('one', 'stale-r0', { archivedAt: now(), archivedBy: 'tester' }), /revision changed/);
+
+        const archive = { archivedAt: '2026-01-02T00:00:00.000Z', archivedBy: 'tester' };
+        const archived = await repository.setCodebookArchived('one', 'one-r1', archive);
+        assert.equal(archived.archivedAt, archive.archivedAt);
+        assert.equal(archived.archivedBy, 'tester');
+        assert.deepEqual((await repository.listCodebooks()).items.map(codebook => codebook.id), ['two'], 'the default filter excludes archived codebooks');
+        assert.deepEqual((await repository.listCodebooks(undefined, { archived: 'only' })).items.map(codebook => codebook.id), ['one']);
+        assert.deepEqual((await repository.listCodebooks(undefined, { archived: 'include' })).items.map(codebook => codebook.id), ['one', 'two']);
+
+        await assert.rejects(repository.setCodebookArchived('one', 'one-r1', archive), /revision changed/, 'an already archived codebook cannot be archived again');
+        await assert.rejects(repository.saveCodebook({ ...book('one'), updatedAt: now() }, { ...revision('one-r2'), codebookId: 'one', revision: 2 }, 'one-r1'), /revision changed/, 'an archived codebook accepts no new revision');
+
+        const restored = await repository.setCodebookArchived('one', 'one-r1', null);
+        assert.equal(restored.archivedAt, undefined);
+        assert.equal(restored.archivedBy, undefined);
+        assert.deepEqual((await repository.listCodebooks()).items.map(codebook => codebook.id), ['one', 'two']);
     });
 }
