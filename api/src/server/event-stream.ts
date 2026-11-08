@@ -1,8 +1,10 @@
 /** Server-sent events for one run's event log: the backlog after a cursor, then appends as they happen, then `end`. */
 import type { ServerResponse } from 'node:http';
-import type { RunStatus } from '@sidechannel/contracts/harness/contracts';
+import { isTerminalRun, type RunStatus } from '@sidechannel/contracts/harness/contracts';
 import type { EventQuery } from '@sidechannel/contracts/harness/repository';
 import type { ResearcherRepository } from '@sidechannel/contracts/server/contracts';
+import { HttpError } from './errors.js';
+import { cursor } from './http.js';
 
 export interface EventStreamTiming {
     /** Re-query interval when no change notification arrives (also the whole mechanism on a standalone Mongo). */
@@ -15,8 +17,39 @@ export const DEFAULT_EVENT_STREAM_TIMING: EventStreamTiming = { pollMs: 2000, he
 export type EventStreamSource = Pick<ResearcherRepository, 'queryEvents' | 'getRunSummary' | 'subscribeEvents'>;
 export type StreamQuery = Pick<EventQuery, 'after' | 'actor' | 'phase' | 'type' | 'from'>;
 
-const TERMINAL: ReadonlySet<RunStatus> = new Set<RunStatus>(['completed', 'cancelled', 'failed', 'interrupted']);
+const STREAM = /^\/runs\/([^/]+)\/events\/stream$/;
 const BATCH = 200;
+
+/**
+ * Raw-write seam. The transport-neutral router contract only returns JSON results, so the live stream is
+ * matched by the server *before* JSON dispatch and handed straight to `streamRunEvents`, which owns the
+ * response. This is the single exception: no router ever writes to the response itself.
+ */
+export interface EventStreamRoute {
+    readonly runId: string;
+    readonly query: StreamQuery;
+}
+
+/** Resolves `GET /runs/:id/events/stream`; returns null for every other route and throws the documented 4xx payloads. */
+export async function eventStreamRoute(source: EventStreamSource, path: string, query: URLSearchParams, lastEventId: string | undefined): Promise<EventStreamRoute | null> {
+    const match = path.match(STREAM);
+    if (!match) return null;
+    const runId = decodeURIComponent(match[1]!);
+    if (!await source.getRunSummary(runId)) throw new HttpError(404, 'Run not found');
+    if (query.has('to') || query.has('before')) throw new HttpError(400, 'A live stream has no upper sequence bound; use the paged events endpoint');
+    if (query.has('phase') && !['action', 'report'].includes(query.get('phase')!)) throw new HttpError(400, 'phase must be action or report');
+    const resume = lastEventId ? lastEventId : query.get('after');
+    return {
+        runId,
+        query: {
+            after: cursor(resume ?? null, 0),
+            ...(query.get('actor') ? { actor: query.get('actor')! } : {}),
+            ...(query.get('phase') ? { phase: query.get('phase')! } : {}),
+            ...(query.get('type') ? { type: query.get('type')! } : {}),
+            ...(query.has('from') ? { from: cursor(query.get('from'), 0) } : {}),
+        },
+    };
+}
 
 async function frame(res: ServerResponse, event: string, data: unknown, id?: number) {
     if (res.destroyed) return;
@@ -50,7 +83,7 @@ export async function streamRunEvents(res: ServerResponse, repository: EventStre
             if (rows.length === BATCH) continue;
             if (finishing) { await frame(res, 'end', { status: finishing }); break; }
             const summary = await repository.getRunSummary(runId);
-            if (!summary || TERMINAL.has(summary.status)) { finishing = summary?.status ?? 'missing'; continue; }
+            if (!summary || isTerminalRun(summary.status)) { finishing = summary?.status ?? 'missing'; continue; }
             if (pending) continue;
             await new Promise<void>(resolve => {
                 const timer = setTimeout(() => { wake = undefined; resolve(); }, timing.pollMs);

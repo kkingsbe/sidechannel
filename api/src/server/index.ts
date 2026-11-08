@@ -10,6 +10,7 @@ import { adaptionModelRoute } from './adaption-models.js';
 import { requireSameOrigin, requireToken } from './auth.js';
 import { createConfigurationPipeline } from './configuration.js';
 import { HttpError, sendFailure } from './errors.js';
+import { DEFAULT_EVENT_STREAM_TIMING, eventStreamRoute, streamRunEvents, type EventStreamTiming } from './event-stream.js';
 import { applySecurityHeaders, requestBody, send } from './http.js';
 import { createLaunchService } from './launch.js';
 import { createConfigRouter } from './routers/config.js';
@@ -32,6 +33,8 @@ export interface ResearcherServerOptions {
     buildMetadata?: ExperimentConfig['build'];
     extensionHandlers?: ResearchRouteHandler[];
     dashboardDirectory?: string;
+    /** Live event stream timing; tests shorten it. */
+    eventStream?: EventStreamTiming;
     healthcareCatalog?: HealthcareCatalog;
     playbookCatalog?: PlaybookCatalog;
 }
@@ -63,6 +66,11 @@ export function createResearcherServer(repository: ResearcherRepository, options
             requireToken(req, options.token);
             requireSameOrigin(req);
             const request = { method: req.method ?? 'GET', path: url.pathname.slice(4), query: url.searchParams, body: requestBody(req) };
+            // Raw-write seam: the live event stream is the one response a router cannot produce, because the
+            // transport-neutral contract only returns JSON results. It is matched here, before JSON dispatch.
+            const resume = req.headers['last-event-id'];
+            const stream = request.method === 'GET' ? await eventStreamRoute(repository, request.path, request.query, typeof resume === 'string' ? resume : undefined) : null;
+            if (stream) return await streamRunEvents(res, repository, stream.runId, stream.query, options.eventStream ?? DEFAULT_EVENT_STREAM_TIMING);
             for (const router of routers) { const result = await router(request); if (result) return await send(res, result.status, result.data, result.headers); }
             throw new HttpError(404, 'API route not found');
         } catch (error) { await sendFailure(res, error); }
