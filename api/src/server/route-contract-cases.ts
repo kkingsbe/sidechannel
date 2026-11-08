@@ -108,8 +108,9 @@ async function createApp(options: ResearcherServerOptions, playbookCatalog: InMe
     };
     const get = (label: string, path: string, headers?: Record<string, string>) => send(label, '/api' + path, headers ? { headers } : undefined);
     const post = (label: string, path: string, payload: unknown, headers?: Record<string, string>) => send(label, '/api' + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(payload) });
+    const del = (label: string, path: string, payload: unknown) => send(label, '/api' + path, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const close = async () => { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await rm(directory, { recursive: true, force: true }); };
-    return { repository, get, post, close };
+    return { repository, get, post, del, close };
 }
 
 async function recordResearchMode(): Promise<RouteRecord[]> {
@@ -197,6 +198,26 @@ async function recordResearchMode(): Promise<RouteRecord[]> {
         records.push(await app.get('runs unknown op falls back to export shape', '/runs/' + run.id + '/cancel'));
         records.push(await app.post('runs cancel', '/runs/' + run.id + '/cancel', {}));
         records.push(await app.get('overview', '/overview'));
+        const queued = (await app.repository.getRunByLaunchKey('launch-1'))!;
+        records.push(await app.post('runs archive refuses queued', '/runs/' + queued.id + '/archive', {}));
+        records.push(await app.del('runs delete refuses queued', '/runs/' + queued.id, { confirm: true }));
+        records.push(await app.del('runs delete needs confirmation', '/runs/' + run.id, {}));
+        records.push(await app.post('runs archive', '/runs/' + run.id + '/archive', {}));
+        records.push(await app.post('runs archive repeat', '/runs/' + run.id + '/archive', {}));
+        records.push(await app.get('runs list hides archived', '/runs?status=cancelled'));
+        records.push(await app.get('runs list only archived', '/runs?archived=only'));
+        records.push(await app.get('runs list archived invalid', '/runs?archived=maybe'));
+        records.push(await app.get('runs read archived', '/runs/' + run.id));
+        records.push(await app.get('overview hides archived', '/overview'));
+        records.push(await app.post('runs unarchive', '/runs/' + run.id + '/unarchive', {}));
+        records.push(await app.post('runs archive missing', '/runs/missing/archive', {}));
+        records.push(await app.post('runs bulk archive', '/runs/bulk', { action: 'archive', ids: [run.id, queued.id, 'missing'] }));
+        records.push(await app.post('runs bulk invalid action', '/runs/bulk', { action: 'purge', ids: [run.id] }));
+        records.push(await app.post('runs bulk delete needs confirmation', '/runs/bulk', { action: 'delete', ids: [run.id] }));
+        records.push(await app.post('runs bulk delete', '/runs/bulk', { action: 'delete', ids: [run.id, queued.id], confirm: true }));
+        records.push(await app.get('runs read deleted', '/runs/' + run.id));
+        records.push(await app.get('runs events deleted', '/runs/' + run.id + '/events'));
+        records.push(await app.del('runs delete missing', '/runs/' + run.id, { confirm: true }));
         records.push(await app.get('unknown api route', '/nope'));
         records.push(await app.post('cross origin write', '/runs', { config, idempotencyKey: 'cross-origin' }, { Origin: 'https://elsewhere.example' }));
         records.push(await app.get('extension echo', '/contract/echo?value=connected'));

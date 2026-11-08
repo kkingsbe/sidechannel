@@ -52,6 +52,10 @@
       "types": "./dist/harness/repository.d.ts",
       "import": "./dist/harness/repository.js"
     },
+    "./harness/mastra-purge": {
+      "types": "./dist/harness/mastra-purge.d.ts",
+      "import": "./dist/harness/mastra-purge.js"
+    },
     "./healthcare/catalog": {
       "types": "./dist/healthcare/catalog.d.ts",
       "import": "./dist/healthcare/catalog.js"

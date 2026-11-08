@@ -1,11 +1,16 @@
 import type { Run } from '@sidechannel/contracts/harness/contracts';
 import { COMPLETE_RUN_STATUSES, INCOMPLETE_RUN_STATUSES } from '@sidechannel/contracts/harness/contracts';
-import type { RunSummary } from '@sidechannel/contracts/harness/repository';
+import type { RunArchiveFilter, RunSummary } from '@sidechannel/contracts/harness/repository';
 import { SUMMARY_CONFIG_OMIT, SUMMARY_OMIT } from '@sidechannel/contracts/harness/repository';
 import type { WorkerLeaseRecord } from '@sidechannel/contracts/harness/server';
 import type { WorkerStatus } from '@sidechannel/contracts/server/contracts';
 
 export { SUMMARY_CONFIG_OMIT, SUMMARY_OMIT };
+
+/** Archived runs are hidden unless the query asks for them: `include` shows all, `only` shows just the archive. */
+export function matchesArchive(run: Pick<Run, 'archivedAt'>, filter: RunArchiveFilter = 'exclude'): boolean {
+    return filter === 'include' || (filter === 'only') === Boolean(run.archivedAt);
+}
 
 /**
  * A Run that may already have been read through a summary projection: the heavy fields may be absent.

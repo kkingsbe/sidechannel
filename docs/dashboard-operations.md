@@ -47,6 +47,15 @@ Reports, audit metadata, board evidence and full trace are progressively broader
 
 The healthcare artifact renderer shows ranked entries and frozen versions. Its separate researcher evaluation reports structural completion and approved/full-information ranking utility; those results and ground truth are excluded from Jev and oversight inputs.
 
+## Archiving and deleting runs
+
+Recorded evidence is append-only, but a finished run that is only clutter (for example one a worker crash left `interrupted`) can be cleared. Only completed, failed, cancelled and interrupted runs qualify; queued, running, reporting and stopping runs belong to the experiment worker and are refused with a 409.
+
+- **Archive** is reversible. An archived run disappears from the Runs list, the Overview counts and "Needs attention", but stays reachable by its ID and keeps its launch key, so relaunching the same `idempotencyKey` returns the archived run rather than a new one. Use the Runs filter "Archived" (hide, show, only) to find archived runs, then **Unarchive** them.
+- **Delete** is permanent and frees the launch key. It removes the run and its events, counters, operations, healthcare evaluator reference and evaluations, and the worker's private Mastra memory and model traces. It is refused with a 409 that lists the dependents while any Jev analysis, Jev run review, human outcome review or monitor evaluation cites the run; archive such a run instead.
+- Select several finished runs in the Runs list (Runs view) for bulk Archive or Delete. Deletion always asks for confirmation, naming each run and stating that it cannot be undone. Each run is reported separately, so a refused run never blocks the rest.
+- From a run's detail page, finished runs offer Archive/Unarchive and Delete in the header.
+
 ## Exports and shared links
 
 Run exports contain canonical evidence and frozen run configuration. Monitor exports contain the evaluation, frozen definitions, model settings, exact projections and per-view results. Their scope fields identify the dataset; they do not claim to include unrelated reviews or analyses. Shared URLs retain selected runs and evidence objects.

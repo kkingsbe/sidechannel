@@ -1,10 +1,12 @@
 import { MongoRepository } from '@sidechannel/persistence/harness/repository';
+import { MongoMastraRunPurger } from '@sidechannel/persistence/harness/mastra-purge';
 import { MongoAnalysisRepository } from '@sidechannel/persistence/analysis/jev-repository';
 import { MongoReviewStore } from '@sidechannel/persistence/analysis/review-repository';
 import { MongoResearchStore } from '@sidechannel/persistence/analysis/store';
 import { MongoHealthcareCatalog } from '@sidechannel/persistence/healthcare/catalog';
 import { MongoPlaybookCatalog } from '@sidechannel/persistence/playbook/catalog';
 import { buildMetadata } from '@sidechannel/domain/harness/provenance';
+import { createRunDependencyReader } from '@sidechannel/domain/harness/run-lifecycle';
 import { createResearcherServer } from './server/index.js';
 import { createJevExtension } from './routes/jev-extension.js';
 import { createAggregationRouteHandler } from './routes/jev-aggregation.js';
@@ -34,7 +36,11 @@ await reviewStore.initialize();
 const comparisonStore = new MongoComparisonStore(repository.db);
 await comparisonStore.initialize();
 
-const server = createResearcherServer(repository, { host, healthcareCatalog, playbookCatalog, token: process.env.RESEARCHER_TOKEN, buildMetadata: await buildMetadata(),
+// Deleting a run also clears the experiment worker's private memory and traces in the Mastra database, and is refused while analyses, reviews or monitor evaluations cite the run.
+const runDependencies = createRunDependencyReader({ analyses: analysisRepository, reviews: reviewStore, research: researchStore });
+const runPurgers = [new MongoMastraRunPurger(repository.client.db(process.env.MASTRA_DB_NAME ?? 'sidechannel_mastra'))];
+
+const server = createResearcherServer(repository, { host, healthcareCatalog, playbookCatalog, runDependencies, runPurgers, token: process.env.RESEARCHER_TOKEN, buildMetadata: await buildMetadata(),
     extensionHandlers: [createAggregationRouteHandler(new AnalysisAggregationService({ jobs: analysisRepository, windows: analysisRepository, results: analysisRepository, runs: repository, comparisons: comparisonStore })), createJevExtension(analysisRepository, reviewStore, repository), createOversightHandler(repository, researchStore)] });
 
 server.listen(port, host, () => console.log(`Researcher dashboard: http://${host}:${port}`));

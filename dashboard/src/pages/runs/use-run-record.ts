@@ -31,11 +31,20 @@ export function useRunRecord(id: string | undefined) {
     );
     void progress.refresh();
   };
+  /** Archive and unarchive refresh the record in place; delete leaves the page for the list. */
+  const archive = async (next: boolean) => {
+    const done = await command.run(() => (next ? clients.runs.archive(id!) : clients.runs.unarchive(id!)), next ? "Run archived. It is hidden from run lists but keeps its launch key." : "Run restored to the run lists.");
+    if (done) void run.refresh();
+  };
+  const remove = async (returnTo: string) => {
+    const done = await command.run(() => clients.runs.remove(id!));
+    if (done) navigate(returnTo);
+  };
   const duplicate = async () => {
     const result = await command.run(() => clients.runs.duplicate(id!));
     if (result) navigate("/experiments?draft=" + result.id);
   };
-  return { run, progress, data, command, active, cancel, duplicate };
+  return { run, progress, data, command, active, cancel, duplicate, archive, remove };
 }
 
 /** A single run record read, for registry views that only need the frozen document. */

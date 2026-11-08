@@ -2,14 +2,15 @@ import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { assertMatchedPair, assertSameLaunchConfiguration } from '@sidechannel/domain/harness/launch';
 import type { HarnessEvent, NewEvent, Run } from '@sidechannel/contracts/harness/contracts';
-import { ACTIVE_RUN_STATUSES, CANCEL_OVERRIDE_RUN_STATUSES } from '@sidechannel/contracts/harness/contracts';
+import { ACTIVE_RUN_STATUSES, CANCEL_OVERRIDE_RUN_STATUSES, isTerminalRun } from '@sidechannel/contracts/harness/contracts';
 import type { ResearcherRepository, WorkerStatus } from '@sidechannel/contracts/server/contracts';
+import type { RunLifecycleResult } from '@sidechannel/contracts/harness/run-lifecycle';
 import { DEFAULT_WORKER_LEASE_MS } from '@sidechannel/contracts/harness/server';
 import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, EVIDENCE_KEY_FIELD, type EvidenceKind, type EvidencePage, type TurnSummary } from '@sidechannel/contracts/harness/repository';
 import { matchesEventQuery, summarizeTurns } from '@sidechannel/domain/harness/event-pages';
-import { toRunSummary, workerStatusOf } from '@sidechannel/domain/harness/repository';
+import { matchesArchive, toRunSummary, workerStatusOf } from '@sidechannel/domain/harness/repository';
 
-function matchesRun(run: Run, q: RunQuery) { return (!q.status || q.status.split(',').includes(run.status)) && (!q.model || run.config.model.id === q.model) && (!q.condition || run.config.condition.id === q.condition) && (!q.scenario || [run.config.scenario.version, run.config.scenario.datasetId].includes(q.scenario)) && (!q.designation || (run.config.model.provider === 'scripted' ? 'fixture' : run.config.phase) === q.designation); }
+function matchesRun(run: Run, q: RunQuery) { return matchesArchive(run, q.archived) && (!q.status || q.status.split(',').includes(run.status)) && (!q.model || run.config.model.id === q.model) && (!q.condition || run.config.condition.id === q.condition) && (!q.scenario || [run.config.scenario.version, run.config.scenario.datasetId].includes(q.scenario)) && (!q.designation || (run.config.model.provider === 'scripted' ? 'fixture' : run.config.phase) === q.designation); }
 
 const clone = <T>(value: T): T => structuredClone(value);
 
@@ -56,6 +57,7 @@ export class InMemoryRepository implements ResearcherRepository {
         next.pairingSeed = current.pairingSeed;
         next.pairPosition = current.pairPosition;
         next.sourceDraft = current.sourceDraft;
+        if (current.archivedAt) next.archivedAt = current.archivedAt; else delete next.archivedAt;
         if (current.cancelRequested) {
             next.cancelRequested = true;
             if (CANCEL_OVERRIDE_RUN_STATUSES.includes(next.status))
@@ -123,6 +125,23 @@ export class InMemoryRepository implements ResearcherRepository {
         return true;
     }
     async releaseWorker(owner: string) { if (this.workerLeaseState?.owner === owner) this.workerLeaseState = undefined; }
+    async setRunArchived(id: string, archivedAt: string | null): Promise<RunLifecycleResult> {
+        const run = this.runs.get(id);
+        if (!run) return 'not-found';
+        if (archivedAt === null) { delete run.archivedAt; return 'ok'; }
+        if (!isTerminalRun(run.status)) return 'not-terminal';
+        run.archivedAt = archivedAt;
+        return 'ok';
+    }
+    async deleteRun(id: string): Promise<RunLifecycleResult> {
+        const run = this.runs.get(id);
+        if (!run) return 'not-found';
+        if (!isTerminalRun(run.status)) return 'not-terminal';
+        this.runs.delete(id);
+        this.claims.delete(id);
+        this.events = this.events.filter(event => event.runId !== id);
+        return 'ok';
+    }
     async requestCancel(id: string) {
         const run = this.runs.get(id);
         if (run && ACTIVE_RUN_STATUSES.includes(run.status)) {

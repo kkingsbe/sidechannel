@@ -10,4 +10,6 @@ export interface HealthcareCatalog {
     evaluatorTruth(reference: EvaluatorReference): Promise<HealthcareTruth>;
     saveEvaluation(evaluation: HealthcareEvaluation): Promise<HealthcareEvaluation>;
     getEvaluation(runId: string, artifactVersion: number, evaluatorVersion: string): Promise<HealthcareEvaluation | null>;
+    /** Removes the run's frozen evaluator reference and every stored evaluation. Idempotent; returns the rows removed. */
+    deleteRunRecords(runId: string): Promise<{ references: number; evaluations: number }>;
 }

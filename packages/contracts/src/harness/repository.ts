@@ -22,7 +22,12 @@ export interface EventQuery { after?: number; before?: number; order?: 'asc' | '
 /** One agent turn in a run's event log, for timeline navigation. Run-level events (no agent or turn 0) belong to no turn. */
 export interface TurnSummary { agentId: string; round?: number; turn: number; firstSequence: number; lastSequence: number; eventCount: number; modelCalls: number; failures: number }
 
-export interface RunQuery { status?: string; model?: string; condition?: string; scenario?: string; designation?: string; order?: 'recent' | 'queue'; limit: number; offset: number }
+/** Archived-run visibility for list queries; the default is `exclude`. */
+export type RunArchiveFilter = 'exclude' | 'include' | 'only';
+
+export const RUN_ARCHIVE_FILTERS: readonly RunArchiveFilter[] = ['exclude', 'include', 'only'];
+
+export interface RunQuery { archived?: RunArchiveFilter; status?: string; model?: string; condition?: string; scenario?: string; designation?: string; order?: 'recent' | 'queue'; limit: number; offset: number }
 
 export const EVIDENCE_KINDS = ['board', 'artifacts', 'reports'] as const;
 

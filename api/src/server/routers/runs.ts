@@ -1,7 +1,7 @@
 import { resolveConfiguration } from '@sidechannel/domain/harness/config';
 import { createQueuedRun } from '@sidechannel/domain/harness/initialization';
 import { snapBackward, snapForward, TURN_SNAP_SLACK } from '@sidechannel/domain/harness/event-pages';
-import type { EventQuery, EvidenceKind } from '@sidechannel/contracts/harness/repository';
+import { RUN_ARCHIVE_FILTERS, type EventQuery, type EvidenceKind, type RunArchiveFilter } from '@sidechannel/contracts/harness/repository';
 import type { ResearcherRepository, ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
 import { collectPages } from '@sidechannel/domain/pagination';
 import type { HealthcareService } from '../../healthcare/service.js';
@@ -26,10 +26,12 @@ export function createRunsRouter({ repository, pipeline, launch, healthcare }: R
     return async request => {
         const { method, path, query } = request;
         if (path === '/runs' && method === 'GET') {
-            if (!query.size) return { status: 200, data: await repository.listRuns() };
+            if (!query.size) return { status: 200, data: (await repository.listRuns()).filter(run => !run.archivedAt) };
+            const archived = query.get('archived') ?? 'exclude';
+            if (!RUN_ARCHIVE_FILTERS.includes(archived as RunArchiveFilter)) throw new HttpError(400, `archived must be one of ${RUN_ARCHIVE_FILTERS.join(', ')}`);
             const limit = positiveLimit(cursor(query.get('limit'), 50, 1000)), offset = cursor(query.get('offset'), 0);
             const filter = Object.fromEntries(['status', 'model', 'condition', 'scenario', 'designation'].filter(key => query.has(key)).map(key => [key, query.get(key)!]));
-            const result = await repository.queryRuns({ ...filter, limit, offset });
+            const result = await repository.queryRuns({ ...filter, archived: archived as RunArchiveFilter, limit, offset });
             return { status: 200, data: { ...result, nextOffset: offset + limit < result.total ? offset + limit : null } };
         }
         if (path === '/runs' && method === 'POST') {

@@ -25,6 +25,12 @@ export class InMemoryHealthcareCatalog implements HealthcareCatalog {
     async evaluatorTruth(reference: EvaluatorReference) { const p = this.packages.get(identity(reference.datasetId, reference.datasetVersion)); if (!p || p.packageHash !== reference.packageHash || p.truthHash !== reference.truthHash || p.assetsHash !== reference.assetsHash) throw new Error('Evaluator package integrity mismatch'); return structuredClone(p.truth); }
     async saveEvaluation(value: HealthcareEvaluation) { const key = `${value.runId}:${value.artifactVersion}:${value.evaluatorVersion}`, old = this.evaluations.get(key); if (old) return structuredClone(old); this.evaluations.set(key, structuredClone(value)); return structuredClone(value); }
     async getEvaluation(runId: string, artifactVersion: number, evaluatorVersion: string) { return structuredClone(this.evaluations.get(`${runId}:${artifactVersion}:${evaluatorVersion}`) ?? null); }
+    async deleteRunRecords(runId: string) {
+        const references = this.references.delete(runId) ? 1 : 0;
+        const owned = [...this.evaluations.entries()].filter(([, evaluation]) => evaluation.runId === runId);
+        for (const [key] of owned) this.evaluations.delete(key);
+        return { references, evaluations: owned.length };
+    }
 }
 
 /** Runtime content and researcher truth have separate collection/access paths. */
@@ -70,4 +76,8 @@ export class MongoHealthcareCatalog implements HealthcareCatalog {
     }
     async saveEvaluation(value: HealthcareEvaluation): Promise<HealthcareEvaluation> { const key = { runId: value.runId, artifactVersion: value.artifactVersion, evaluatorVersion: value.evaluatorVersion }; await this.db.collection<HealthcareEvaluation>('healthcare_evaluations').updateOne(key, { $setOnInsert: value }, { upsert: true }); return (await this.getEvaluation(value.runId, value.artifactVersion, value.evaluatorVersion))!; }
     async getEvaluation(runId: string, artifactVersion: number, evaluatorVersion: string): Promise<HealthcareEvaluation | null> { return this.db.collection<HealthcareEvaluation>('healthcare_evaluations').findOne({ runId, artifactVersion, evaluatorVersion }, { projection: { _id: 0 } }); }
+    async deleteRunRecords(runId: string) {
+        const [references, evaluations] = await Promise.all([this.db.collection('healthcare_evaluator_references').deleteMany({ runId }), this.db.collection('healthcare_evaluations').deleteMany({ runId })]);
+        return { references: references.deletedCount, evaluations: evaluations.deletedCount };
+    }
 }

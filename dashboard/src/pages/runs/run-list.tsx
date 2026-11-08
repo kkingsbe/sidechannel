@@ -7,14 +7,18 @@ import {
   Empty,
   ErrorState,
   Loading,
+  Notice,
   PageHeader,
   Pager,
   Stamp,
 } from "../../components/ui";
-import { RUN_STATUSES } from "@sidechannel/contracts/browser";
+import { RUN_STATUSES, isTerminalRun } from "@sidechannel/contracts/browser";
 import { PairTable } from "../../components/pairs/PairTable";
 import { comparability, groupByPair } from "../../components/pairs/group";
 import { RunTable } from "../../components/run-table";
+import { BatchOutcome, RunDeleteDialog, RunSelectionBar } from "../../components/run-lifecycle";
+import { useCommand } from "../../components/use-command";
+import type { RunLifecycleBatch } from "../../lib/clients/runs";
 import { useClients } from "../../lib/clients/context";
 import { useResource } from "../../lib/clients/query";
 import type { RecordPage } from "../../lib/clients/runs";
@@ -35,11 +39,34 @@ export function RunList() {
       condition: params.get("condition") || undefined,
       scenario: params.get("scenario") || undefined,
       designation: params.get("designation") || undefined,
+      archived: params.get("archived") === "only" ? "only" : params.get("archived") === "include" ? "include" : undefined,
       summary: true,
       limit: 25,
       offset,
     }), { interval: 5000 });
   const items = runs.data?.items ?? [];
+  const clients_ = clients;
+  const command = useCommand();
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [confirming, setConfirming] = useState(false);
+  const [batch, setBatch] = useState<RunLifecycleBatch>();
+  const archivedView = params.get("archived") === "only";
+  const selectable = items.filter((run) => isTerminalRun(run.status));
+  const chosen = items.filter((run) => selected.has(run.id));
+  const toggle = (id: string) =>
+    setSelected((previous) => {
+      const next = new Set(previous);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  const apply = async (action: RunLifecycleBatch["action"]) => {
+    const result = await command.run(() => clients.runs.bulk(action, chosen.map((run) => run.id)));
+    setConfirming(false);
+    if (!result) return;
+    setBatch(result);
+    setSelected(new Set(result.results.filter((entry) => !entry.ok).map((entry) => entry.id)));
+    void runs.refresh();
+  };
   const [view, setViewState] = useState<"pairs" | "runs">(() => {
     try {
       return localStorage.getItem(RUNS_VIEW_KEY) === "runs" ? "runs" : "pairs";
@@ -56,7 +83,7 @@ export function RunList() {
     }
   };
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const activeFilters = ["status", "model", "condition", "scenario", "designation"].filter((key) => params.get(key)).length;
+  const activeFilters = ["status", "model", "condition", "scenario", "designation", "archived"].filter((key) => params.get(key)).length;
   const filter = (key: string, value: string) => {
     setParams((previous) => {
       value ? previous.set(key, value) : previous.delete(key);
@@ -164,6 +191,14 @@ export function RunList() {
                 <option>study</option>
               </select>
             </label>
+            <label className="cf">
+              <span>Archived</span>
+              <select aria-label="Archived runs" value={params.get("archived") || ""} onChange={(e) => filter("archived", e.target.value)}>
+                <option value="">Hide archived</option>
+                <option value="include">Show archived</option>
+                <option value="only">Only archived</option>
+              </select>
+            </label>
           </div>
           <div className="seg" role="group" aria-label="List view">
             {(["pairs", "runs"] as const).map((option) => (
@@ -177,13 +212,35 @@ export function RunList() {
           </Button>
         </div>
         {runs.error && <ErrorState error={runs.error} retry={runs.refresh} />}
+        {command.error && <Notice kind="error">{command.error.message}</Notice>}
+        <BatchOutcome batch={batch} runs={items} />
+        {view === "runs" && (
+          <RunSelectionBar
+            count={chosen.length}
+            archivedView={archivedView}
+            busy={command.busy}
+            onArchive={() => void apply(archivedView ? "unarchive" : "archive")}
+            onDelete={() => setConfirming(true)}
+            onClear={() => setSelected(new Set())}
+          />
+        )}
+        {view === "runs" && selectable.length > 0 && (
+          <label className="select-page small muted">
+            <input
+              type="checkbox"
+              checked={selectable.every((run) => selected.has(run.id))}
+              onChange={(e) => setSelected(e.target.checked ? new Set([...selected, ...selectable.map((run) => run.id)]) : new Set([...selected].filter((id) => !selectable.some((run) => run.id === id))))}
+            />{" "}
+            Select all finished runs on this page
+          </label>
+        )}
         {runs.loading ? (
           <Loading />
         ) : items.length ? (
           view === "pairs" ? (
             <PairTable runs={items} detailSearch={returnSearch} showComparable />
           ) : (
-            <RunTable runs={items} detailSearch={returnSearch} />
+            <RunTable runs={items} detailSearch={returnSearch} selection={{ selected, onToggle: toggle }} />
           )
         ) : (
           <Empty
@@ -191,6 +248,7 @@ export function RunList() {
             description="Adjust filters or launch an experiment from a saved draft."
           />
         )}
+        <RunDeleteDialog runs={confirming ? chosen : []} busy={command.busy} onCancel={() => setConfirming(false)} onConfirm={() => apply("delete")} />
         {rangeLabel && !runs.loading && (
           <div className="card-foot">
             <span>Showing runs {rangeLabel}</span>
