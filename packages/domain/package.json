@@ -79,6 +79,10 @@
       "types": "./dist/analysis/serialization.d.ts",
       "import": "./dist/analysis/serialization.js"
     },
+    "./analysis/token-estimator": {
+      "types": "./dist/analysis/token-estimator.d.ts",
+      "import": "./dist/analysis/token-estimator.js"
+    },
     "./analysis/store": {
       "types": "./dist/analysis/store.d.ts",
       "import": "./dist/analysis/store.js"

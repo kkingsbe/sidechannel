@@ -65,7 +65,7 @@ export async function createDashboardSmoke() {
     }
     const codebook = await analysis.seedCodebook();
     const analysisIds: string[] = [];
-    // Explicit small fixture settings keep the demonstrative scores available under the real conservative preflight.
+    // Explicit small fixture settings keep the demonstrative scores available under the real preflight.
     // Production/UI defaults remain 12/4; nothing automatically shrinks a submitted window.
     for (const size of [4, 3]) {
         const input = { codebookId: codebook.id, settings: { model: 'fixture-jev-simulation', window: { size, stride: 2 } } };

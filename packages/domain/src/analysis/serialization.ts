@@ -3,13 +3,11 @@ import { immutableSnapshot, snapshotHash, stableStringify } from './configuratio
 import { evidenceAvailability } from './normalization.js';
 import { SIDE_EFFECT_ENABLED, TOOL_EFFECT_ENABLED } from './evidence-selection.js';
 import type { BudgetQuestion, QuestionBatch, WindowPreflight } from '@sidechannel/contracts/analysis/serialization';
+import { assertTokenEstimatorVersion, DEFAULT_TOKEN_ESTIMATOR_VERSION, estimateTokens } from './token-estimator.js';
+
+export { estimateTokens, DEFAULT_TOKEN_ESTIMATOR_VERSION, TOKEN_ESTIMATOR_VERSIONS, CALIBRATED_TOKENS_PER_BYTE } from './token-estimator.js';
 
 export const SERIALIZATION_VERSION = 'jev-state-v1';
-
-export const ESTIMATOR_VERSION = 'utf8-bytes-conservative-v1';
-
-/** Conservative local estimate, NOT a tokenizer or provider billing count. */
-export function estimateTokens(text: string): number { return Buffer.byteLength(text, 'utf8'); }
 
 const obj = (v: unknown): Record<string, unknown> => v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {};
 
@@ -65,7 +63,8 @@ function projectToolPayload(value: unknown, name: string, selection: EvidenceSel
     return projectNested(value, selection);
 }
 
-export function serializeWindow(window: AnalysisWindow, input: readonly CanonicalStep[], selection: EvidenceSelection, staticContext = ''): SerializedWindow {
+export function serializeWindow(window: AnalysisWindow, input: readonly CanonicalStep[], selection: EvidenceSelection, staticContext = '', estimatorVersion: string = DEFAULT_TOKEN_ESTIMATOR_VERSION): SerializedWindow {
+    const estimator = assertTokenEstimatorVersion(estimatorVersion);
     const byId = new Map(input.map(s => [s.id, s]));
     const steps = window.stepIds.map(id => { const s = byId.get(id); if (!s) throw new Error(`Window references missing step ${id}`); return s; });
     let hasEvidence = false;
@@ -98,20 +97,21 @@ export function serializeWindow(window: AnalysisWindow, input: readonly Canonica
     });
     const availability = evidenceAvailability(steps);
     const state = stableStringify({ serializationVersion: SERIALIZATION_VERSION, staticContext, window: { ...window }, evidence: { selection, availability }, steps: projected });
-    return immutableSnapshot({ serializationVersion: SERIALIZATION_VERSION, windowId: window.id, state, hash: snapshotHash(state), bytes: Buffer.byteLength(state), estimatedTokens: estimateTokens(state), estimatorVersion: ESTIMATOR_VERSION, hasEvidence, availability, selection });
+    return immutableSnapshot({ serializationVersion: SERIALIZATION_VERSION, windowId: window.id, state, hash: snapshotHash(state), bytes: Buffer.byteLength(state), estimatedTokens: estimateTokens(state, estimator), estimatorVersion: estimator, hasEvidence, availability, selection });
 }
 
 /** Batch only questions. Window state and membership are never changed to fit. */
 export function preflightWindow(serialized: SerializedWindow, questions: readonly BudgetQuestion[], limits: InputLimits): WindowPreflight {
+    const estimator = assertTokenEstimatorVersion(limits.estimatorVersion);
+    if (serialized.estimatorVersion !== estimator) throw new Error(`Window was estimated with ${serialized.estimatorVersion}, but the input limits use ${estimator}`);
     const questionText = (q: BudgetQuestion) => stableStringify({ instructions: q.instructions, criteria: q.criteria });
     const effectiveSingle = limits.singleQuestionTokens - limits.headroomTokens;
     const effectiveCombined = limits.combinedQuestionTokens - limits.headroomTokens;
-    const baseline = { bytes: serialized.bytes, estimatedTokens: serialized.estimatedTokens, estimatorVersion: ESTIMATOR_VERSION, effectiveLimits: structuredClone(limits) };
+    const baseline = { bytes: serialized.bytes, estimatedTokens: serialized.estimatedTokens, estimatorVersion: estimator, effectiveLimits: structuredClone(limits) };
     const fail = (reason: string): WindowPreflight => ({ ...baseline, oversized: true, reason, batches: [] });
-    if (serialized.estimatorVersion !== ESTIMATOR_VERSION || limits.estimatorVersion !== ESTIMATOR_VERSION) throw new Error('Unsupported estimator version');
-    if (questions.some(q => serialized.estimatedTokens + estimateTokens(questionText(q)) > effectiveSingle)) return fail('Window state plus a question exceeds the estimated single-question context limit. Choose smaller windows or different evidence in a new analysis.');
+    if (questions.some(q => serialized.estimatedTokens + estimateTokens(questionText(q), estimator) > effectiveSingle)) return fail('Window state plus a question exceeds the estimated single-question context limit. Choose smaller windows or different evidence in a new analysis.');
     const bytesFor = (batch: readonly BudgetQuestion[]) => Buffer.byteLength(stableStringify({ state: serialized.state, questions: batch.map(q => ({ codeId: q.codeId, instructions: q.instructions, criteria: q.criteria })) })) + 2048;
-    const tokensFor = (batch: readonly BudgetQuestion[]) => serialized.estimatedTokens + batch.reduce((total, q) => total + estimateTokens(questionText(q)), 0);
+    const tokensFor = (batch: readonly BudgetQuestion[]) => serialized.estimatedTokens + batch.reduce((total, q) => total + estimateTokens(questionText(q), estimator), 0);
     const batches: QuestionBatch[] = []; let current: BudgetQuestion[] = [];
     const flush = () => { if (current.length) batches.push({ codeIds: current.map(q => q.codeId), bytes: bytesFor(current), estimatedTokens: tokensFor(current) }); current = []; };
     for (const q of questions) {
@@ -124,7 +124,8 @@ export function preflightWindow(serialized: SerializedWindow, questions: readonl
 }
 
 export function preflightQuestions(state: string, questions: BudgetQuestion[], limits: InputLimits): { oversized: boolean; diagnostics: string[]; batches: BudgetQuestion[][]; budget: WindowPreflight } {
-    const serialized = { state, bytes: Buffer.byteLength(state), estimatedTokens: estimateTokens(state), estimatorVersion: ESTIMATOR_VERSION } as SerializedWindow;
+    const estimator = assertTokenEstimatorVersion(limits.estimatorVersion);
+    const serialized = { state, bytes: Buffer.byteLength(state), estimatedTokens: estimateTokens(state, estimator), estimatorVersion: estimator } as SerializedWindow;
     const budget = preflightWindow(serialized, questions, limits);
     return { oversized: budget.oversized, diagnostics: budget.reason ? [budget.reason] : [], batches: budget.batches.map(b => b.codeIds.map(id => questions.find(q => q.codeId === id)!)), budget };
 }

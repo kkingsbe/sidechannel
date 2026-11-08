@@ -1,4 +1,4 @@
-import type { AnalysisConfiguration } from '@sidechannel/contracts/browser';
+import { DEFAULT_TOKEN_ESTIMATOR_VERSION, type AnalysisConfiguration } from '@sidechannel/contracts/browser';
 
 /**
  * Client-side defaults for a NEW analysis. They are never sent in place of settings the
@@ -18,6 +18,6 @@ export const NEW_ANALYSIS_INPUT_LIMITS: AnalysisConfiguration['inputLimits'] = {
     singleQuestionTokens: 32000,
     combinedQuestionTokens: 64000,
     maxBodyBytes: 33554432,
-    estimatorVersion: 'utf8-bytes-conservative-v1',
+    estimatorVersion: DEFAULT_TOKEN_ESTIMATOR_VERSION,
     headroomTokens: NEW_ANALYSIS_DEFAULTS.headroom,
 };
