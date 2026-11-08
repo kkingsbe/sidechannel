@@ -7,11 +7,16 @@ import type { AddressInfo } from 'node:net';
 import { InMemoryRepository } from '@sidechannel/persistence/harness/repository';
 import { InMemoryHealthcareCatalog } from '@sidechannel/persistence/healthcare/catalog';
 import { InMemoryPlaybookCatalog } from '@sidechannel/persistence/playbook/catalog';
+import { InMemoryAnalysisRepository } from '@sidechannel/persistence/analysis/jev-repository';
+import { MemoryReviewStore } from '@sidechannel/persistence/analysis/review-repository';
 import { defaultFixtureConfiguration } from '@sidechannel/domain/harness/config';
 import { createQueuedRun } from '@sidechannel/domain/harness/initialization';
+import { AnalysisService } from '@sidechannel/domain/analysis/jev-service';
 import { FIXTURE_SCENARIO_VERSION } from '@sidechannel/domain/scenarios';
 import type { HarnessEvent } from '@sidechannel/contracts/harness/contracts';
 import type { ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
+import { createJevRouteExtension } from '../routes/jev-extension.js';
+import { createReviewService } from '../routes/review-routes.js';
 import { createResearcherServer, type ResearcherServerOptions } from './index.js';
 import { loadHealthcarePackage } from '../healthcare/bootstrap.js';
 
@@ -82,7 +87,9 @@ async function createApp(options: ResearcherServerOptions, playbookCatalog: InMe
     await writeFile(join(directory, 'assets', 'main.js'), 'document.title="Research workspace"');
     const catalog = new InMemoryHealthcareCatalog();
     await catalog.register(await loadHealthcarePackage(healthcareFixture));
-    const server = createResearcherServer(repository, { dashboardDirectory: directory, healthcareCatalog: catalog, ...(playbookCatalog ? { playbookCatalog } : {}), extensionHandlers: [contractExtensions], ...options });
+    const analysis = new InMemoryAnalysisRepository();
+    const jev = createJevRouteExtension(new AnalysisService(analysis, repository), createReviewService(analysis, new MemoryReviewStore()));
+    const server = createResearcherServer(repository, { dashboardDirectory: directory, healthcareCatalog: catalog, ...(playbookCatalog ? { playbookCatalog } : {}), extensionHandlers: [contractExtensions, jev], ...options });
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
     const address = server.address() as AddressInfo;
@@ -129,6 +136,15 @@ async function recordResearchMode(): Promise<RouteRecord[]> {
         const forged = playbookConfig(); Object.assign(forged.model.settings, { playbook: { bogus: true }, playbookHash: 'f'.repeat(64) });
         records.push(await app.post('config/validate playbook forged', '/config/validate', { config: forged }));
         records.push(await app.get('datasets', '/datasets'));
+        records.push(await app.get('jev codebooks archived invalid', '/jev/codebooks?archived=bogus'));
+        records.push(await app.get('jev codebooks list', '/jev/codebooks'));
+        records.push(await app.get('jev codebooks archived only before archive', '/jev/codebooks?archived=only'));
+        records.push(await app.post('jev codebook archive', '/jev/codebooks/tentative-default/archive', { expectedRevisionId: 'tentative-default-v1', actor: 'contract' }));
+        records.push(await app.get('jev codebooks archived only', '/jev/codebooks?archived=only'));
+        records.push(await app.get('jev codebooks archived exclude', '/jev/codebooks'));
+        records.push(await app.post('jev codebook restore', '/jev/codebooks/tentative-default/restore', { expectedRevisionId: 'tentative-default-v1', actor: 'contract' }));
+        records.push(await app.post('jev codebook restore not archived', '/jev/codebooks/tentative-default/restore', { expectedRevisionId: 'tentative-default-v1', actor: 'contract' }));
+        records.push(await app.post('jev codebook archive missing', '/jev/codebooks/missing/archive', { expectedRevisionId: 'missing', actor: 'contract' }));
         records.push(await app.get('drafts empty', '/drafts'));
         records.push(await app.post('drafts create invalid', '/drafts', { id: 'draft-1', config: { label: 'unfinished' }, name: 'Pilot', notes: 'Keep my edits' }));
         records.push(await app.post('drafts update', '/drafts', { id: 'draft-1', config, revision: 1 }));
@@ -153,6 +169,8 @@ async function recordResearchMode(): Promise<RouteRecord[]> {
         records.push(await app.post('pairs duplicate', '/pairs/pair-pair-1/duplicate', { name: 'Pair copy' }));
         const appended: HarnessEvent[] = [];
         for (const [index, type] of ['turn_started', 'model_response', 'memory_updated'].entries()) appended.push(await app.repository.appendEvent({ runId: run.id, type, agentId: index % 2 ? 'beta' : 'alpha', data: { index } }));
+        for (const [turn, agentId] of [[1, 'alpha'], [2, 'beta']] as const)
+            for (let index = 0; index < 2; index++) appended.push(await app.repository.appendEvent({ runId: run.id, type: 'turn_step', agentId, round: 1, turn, data: { index } }));
         records.push(await app.get('runs list all', '/runs'));
         records.push(await app.get('runs list page', '/runs?limit=1&offset=0'));
         records.push(await app.get('runs list cursor invalid', '/runs?limit=0'));
@@ -161,6 +179,12 @@ async function recordResearchMode(): Promise<RouteRecord[]> {
         records.push(await app.get('runs progress', '/runs/' + run.id + '/progress'));
         records.push(await app.get('runs events page', '/runs/' + run.id + '/events?limit=2'));
         records.push(await app.get('runs events phase invalid', '/runs/' + run.id + '/events?phase=nope'));
+        records.push(await app.get('runs events backward page', '/runs/' + run.id + '/events?before=4&limit=2'));
+        records.push(await app.get('runs events snap turn', '/runs/' + run.id + '/events?after=3&snap=turn&limit=1'));
+        records.push(await app.get('runs events snap turn backward', '/runs/' + run.id + '/events?before=7&snap=turn&limit=1'));
+        records.push(await app.get('runs events before and after conflict', '/runs/' + run.id + '/events?before=4&after=1'));
+        records.push(await app.get('runs turns', '/runs/' + run.id + '/turns'));
+        records.push(await app.get('runs turns missing', '/runs/missing/turns'));
         records.push(await app.get('runs event item', '/runs/' + run.id + '/events/' + appended[0]!.id));
         records.push(await app.get('runs event item missing', '/runs/' + run.id + '/events/missing'));
         records.push(await app.get('runs event item other run', '/runs/other-run/events/' + appended[0]!.id));
