@@ -62,9 +62,15 @@ export class AnalysisPayloadTooLarge extends DomainFailure { constructor(message
 
 export interface Lease { jobId: string; owner: string; fence: number; }
 
+/** Codebook archive filter for the list query (main wave-2 `feature/codebook-archive`). */
+export type CodebookArchiveFilter = 'exclude' | 'include' | 'only';
+
+export interface CodebookFilter { archived?: CodebookArchiveFilter; }
+
 /** Codebook authoring and revision history; the codebook editor and codebook routes. */
 export interface CodebookStore {
-    listCodebooks(page?: PageOptions): Promise<Page<Codebook>>;
+    listCodebooks(page?: PageOptions, filter?: CodebookFilter): Promise<Page<Codebook>>;
+    setCodebookArchived(id: string, expectedRevisionId: string, archive: { archivedAt: string; archivedBy: string } | null): Promise<Codebook>;
     getCodebook(id: string): Promise<Codebook | null>;
     getRevision(id: string, revisionId: string): Promise<CodebookRevision | null>;
     listRevisions(codebookId: string, page?: PageOptions): Promise<Page<CodebookRevision>>;

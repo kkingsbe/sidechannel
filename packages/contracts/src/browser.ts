@@ -1,7 +1,7 @@
 /** Browser DTOs only: repository/provider ports have separate server subpaths. */
 export type { ExperimentConfig, Run, RunStatus, HarnessEvent, BoardMessage, ArtifactVersion, Json } from './harness/contracts.js';
 export { RUN_STATUSES, TERMINAL_RUN_STATUSES, ACTIVE_RUN_STATUSES, isTerminalRun } from './harness/contracts.js';
-export type { RunSummary } from './harness/repository.js';
+export type { RunSummary, TurnSummary } from './harness/repository.js';
 export type { AnalysisConfiguration, BehaviorDefinition, Codebook, CodebookRevision, EvidenceCategory, SerializedWindow } from './analysis/evidence-contracts.js';
 export type { AnalysisJob, AnalysisResult, JobStatus, Page, WindowRecord } from './analysis/jev-repository.js';
 export type { Review, ReviewBatch } from './analysis/jev-reviews.js';

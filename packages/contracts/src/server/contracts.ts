@@ -1,6 +1,6 @@
 import type { EventLog, RunQueue, RunStateStore, WorkerGuard } from '../harness/server.js';
 import type { HarnessEvent, Run } from '../harness/contracts.js';
-import type { Draft, DraftMetadata, EventQuery, EvidenceKind, EvidencePage, RunQuery, RunSummary } from '../harness/repository.js';
+import type { Draft, DraftMetadata, EventQuery, EvidenceKind, EvidencePage, RunQuery, RunSummary, TurnSummary } from '../harness/repository.js';
 
 /**
  * Single-worker lease state as reported to the dashboard.
@@ -36,6 +36,10 @@ export interface DraftStore {
 export interface EvidenceReader {
     queryEvents(id: string, query: EventQuery): Promise<HarnessEvent[]>;
     getEvent(runId: string, eventId: string): Promise<HarnessEvent | null>;
+    /** Turn index for timeline navigation (main wave-2 live timeline). */
+    listTurns(runId: string): Promise<TurnSummary[]>;
+    /** Wake-up hint for an event stream; a standalone Mongo falls back to polling. */
+    subscribeEvents?(runId: string, onAppend: () => void): () => void;
     getRunSummary(id: string): Promise<RunSummary | null>;
     getEvidencePage(id: string, kind: EvidenceKind, offset: number, limit: number): Promise<EvidencePage>;
     getEvidenceItem(id: string, kind: EvidenceKind, key: string): Promise<unknown | null>;
