@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowUpRight, Copy, Download } from "lucide-react";
 import {
@@ -16,10 +17,14 @@ import { ViewPanel } from "../../components/view-registry";
 import { useClients } from "../../lib/clients/context";
 import { useProviders, useScenarios } from "../../lib/descriptors";
 import { runStatusMeta } from "../../lib/status";
+import { MODEL_CALL_EVENT_TYPES } from "../../lib/model-calls";
+import type { HarnessEvent } from "../../lib/types";
 import { short, when } from "../../lib/utils";
 import { useRunRecord } from "./use-run-record";
 import { useRunSelection } from "./use-run-evidence";
 import { RunFreshness } from "./panels";
+import { ModelCallDetail } from "./ModelCallDetail";
+import { RunEventPageProvider } from "./event-page-context";
 import { DEFAULT_RUN_TAB, runsOrder, runsViews, type RunsTab } from "./views";
 
 export const safeRunReturn = (value: string | null) =>
@@ -46,6 +51,25 @@ export function RunDetail() {
     });
   const close = () =>
     setParams((previous) => {
+      previous.delete("evidence");
+      previous.delete("seq");
+      return previous;
+    });
+  const [eventPage, setEventPage] = useState<HarnessEvent[]>();
+  const eventPageValue = useMemo(
+    () => ({ events: eventPage, report: setEventPage }),
+    [eventPage],
+  );
+  const inspect = (key: string, sequence?: number) =>
+    setParams((previous) => {
+      previous.set("evidence", key);
+      sequence ? previous.set("seq", String(sequence)) : previous.delete("seq");
+      return previous;
+    });
+  const openTraces = (invocationId: string) =>
+    setParams((previous) => {
+      previous.set("view", "traces");
+      previous.set("call", invocationId);
       previous.delete("evidence");
       previous.delete("seq");
       return previous;
@@ -154,6 +178,7 @@ export function RunDetail() {
       {record.command.error && <Notice kind="error">{record.command.error.message}</Notice>}
       {record.command.message && <Notice kind="success">{record.command.message}</Notice>}
       {data.failureReason && <Notice kind="error">Run diagnostic: {data.failureReason}</Notice>}
+      <RunEventPageProvider value={eventPageValue}>
       <ViewPanel
         registry={runsViews(hasResults)}
         order={runsOrder(hasResults)}
@@ -202,17 +227,35 @@ export function RunDetail() {
               )}
             </dl>
             <hr className="section-divider" />
-            {selection.event && tab !== "memory" && (
-              <Notice>
-                Tool requests are proposals until an admission and result are recorded. Repeated input context is not
-                a new action.
-              </Notice>
-            )}
-            <JsonView value={selection.event ?? selection.item} />
-            {selection.event?.invocationId && (
-              <Button variant="secondary" size="sm" onClick={() => setTab("traces")}>
-                Inspect model / trace references
-              </Button>
+            {selection.event &&
+            selection.event.invocationId &&
+            MODEL_CALL_EVENT_TYPES.has(selection.event.type) ? (
+              <ModelCallDetail
+                event={selection.event}
+                events={eventPage ?? [selection.event]}
+                provider={data.config.model.provider}
+                onNavigate={inspect}
+                onOpenTraces={openTraces}
+              />
+            ) : (
+              <>
+                {selection.event && tab !== "memory" && (
+                  <Notice>
+                    Tool requests are proposals until an admission and result are recorded. Repeated input context is
+                    not a new action.
+                  </Notice>
+                )}
+                <JsonView value={selection.event ?? selection.item} />
+                {selection.event?.invocationId && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => openTraces(selection.event!.invocationId!)}
+                  >
+                    Open model call in Model &amp; traces
+                  </Button>
+                )}
+              </>
             )}
           </>
         ) : (
@@ -222,6 +265,7 @@ export function RunDetail() {
           />
         )}
       </Drawer>
+      </RunEventPageProvider>
     </>
   );
 }

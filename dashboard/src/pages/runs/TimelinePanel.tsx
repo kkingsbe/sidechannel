@@ -195,7 +195,7 @@ export function TimelinePanel({ events, provider, onInspect, onOpenTraces }: Tim
             <strong>{typeLabel(e.type)}</strong>
             <Badge>{e.agentId || 'system'}</Badge>
             <span className="tl-seq">#{e.sequence} · R{e.round ?? '—'} / T{e.turn ?? '—'}</span>
-            {FAILURE.test(e.type) && <Badge status="failed">Diagnostic</Badge>}
+            {FAILURE.test(e.type) && <Badge tone="danger">Diagnostic</Badge>}
           </div>
           {quote ? <blockquote className="tl-quote">{quote}</blockquote> : <p className="tl-summary">{summarizeEvent(e, toolNames)}</p>}
           {bodyCall && renderBody(bodyCall)}
@@ -267,7 +267,7 @@ export function TimelinePanel({ events, provider, onInspect, onOpenTraces }: Tim
                       <strong>{typeLabel(e.type)}</strong>
                       <Badge>{e.agentId || 'system'}</Badge>
                       <span className="helper">#{e.sequence} · R{e.round ?? '—'} / T{e.turn ?? '—'}</span>
-                      {FAILURE.test(e.type) && <Badge status="failed">Diagnostic</Badge>}
+                      {FAILURE.test(e.type) && <Badge tone="danger">Diagnostic</Badge>}
                     </div>
                     <p>{pretty(e.data).slice(0, 190)}</p>
                   </div>

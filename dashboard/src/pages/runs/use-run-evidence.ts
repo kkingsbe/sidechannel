@@ -111,5 +111,14 @@ export function useRunRoute() {
       previous.delete("seq");
       return previous;
     });
-  return { params, tab, selected, setTab, inspect, close };
+  /** Switch to Model & traces focused on one invocation (main's openTraces). */
+  const openTraces = (invocationId: string) =>
+    setParams((previous) => {
+      previous.set("view", "traces");
+      previous.set("call", invocationId);
+      previous.delete("evidence");
+      previous.delete("seq");
+      return previous;
+    });
+  return { params, tab, selected, setTab, inspect, close, openTraces };
 }

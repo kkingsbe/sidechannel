@@ -1,5 +1,5 @@
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight } from "lucide-react";
 import {
   Badge,
   Button,
@@ -7,7 +7,6 @@ import {
   CardHeading,
   Empty,
   ErrorState,
-  EventIcon,
   Field,
   Input,
   JsonView,
@@ -21,8 +20,10 @@ import { BudgetSummary } from "../../components/budget-summary";
 import { HealthcareResults } from "../../components/healthcare-results";
 import type { ArtifactVersion } from "../../lib/types";
 import type { BoardPage, ReportPage } from "../../lib/contracts";
-import { eventMeta } from "../../lib/status";
 import { pretty, when } from "../../lib/utils";
+import { TimelinePanel as TimelineEventView } from "./TimelinePanel";
+import { TracesPanel as TracesEventView } from "./TracesPanel";
+import { useRunEventPage } from "./event-page-context";
 import { BoardDelivery } from "./board-delivery";
 import { evidenceKey } from "./evidence-key";
 import { useRunEvidence, useRunEvents, useRunId, useRunRoute } from "./use-run-evidence";
@@ -36,7 +37,11 @@ export function EventsPanel({ kind }: { kind: "timeline" | "traces" }) {
   const run = useRunRecordOnly(id);
   const { updatedAt } = useRunProgress(id);
   const events = useRunEvents(kind);
-  const { inspect } = useRunRoute();
+  const route = useRunRoute();
+  const page = useRunEventPage();
+  useEffect(() => {
+    if (events.data.length) page.report(events.data);
+  }, [events.data, page]);
   if (run.loading) return <Loading />;
   if (!run.data) return <ErrorState error={run.error} retry={run.refresh} />;
   const data = run.data;
@@ -80,32 +85,22 @@ export function EventsPanel({ kind }: { kind: "timeline" | "traces" }) {
       {events.error && <ErrorState error={events.error} retry={events.refresh} />}
       {events.loading ? (
         <Loading />
-      ) : events.traceEvents.length ? (
-        <div className="timeline-list">
-          {events.traceEvents.map((e) => {
-            const meta = eventMeta(e);
-            return (
-              <button className="timeline-row" key={e.id} onClick={() => inspect(e.id, e.sequence)}>
-                <span className="timeline-marker">
-                  <EventIcon name={meta.icon} />
-                </span>
-                <div className="timeline-main">
-                  <div>
-                    <strong>{meta.label}</strong>
-                    <Badge>{e.agentId || "system"}</Badge>
-                    <span className="helper">
-                      #{e.sequence} · R{e.round ?? "—"} / T{e.turn ?? "—"}
-                    </span>
-                    {meta.tone === "danger" && <Badge tone="danger">Diagnostic</Badge>}
-                  </div>
-                  <p>{pretty(e.data).slice(0, 190)}</p>
-                </div>
-                <time className="timeline-time">{new Date(e.timestamp).toLocaleTimeString()}</time>
-                <ArrowUpRight size={13} className="muted" aria-hidden="true" />
-              </button>
-            );
-          })}
-        </div>
+      ) : events.data.length ? (
+        kind === "timeline" ? (
+          <TimelineEventView
+            events={events.data}
+            provider={data.config.model.provider}
+            onInspect={route.inspect}
+            onOpenTraces={route.openTraces}
+          />
+        ) : (
+          <TracesEventView
+            events={events.data}
+            provider={data.config.model.provider}
+            onInspect={route.inspect}
+            focusInvocationId={route.params.get("call")}
+          />
+        )
       ) : (
         <Empty
           title="No matching events"
