@@ -3,6 +3,7 @@ import { ModelControls } from "../../components/model-controls";
 import { Plus } from "lucide-react";
 import type { ExperimentConfig } from "../../lib/types";
 import { useProviders, useScenarios } from "../../lib/descriptors";
+import { PlaybookPicker } from "../../components/playbook-picker";
 import { readableName } from "./config-edit";
 import type { ConfigFieldFactory } from "./config-field";
 
@@ -36,7 +37,10 @@ export function AgentsSection({
   const scenarios = useScenarios();
   const provider = providers.view(config.model.provider);
   const scenario = scenarios.view(config.scenario.version);
-  const supportedSettings = provider.settings.length ? [...provider.settings] : Object.keys(config.model.settings);
+  /** Server-embedded playbook keys are never numeric settings editors. */
+  const playbookKeys = ["playbook", "playbookHash", "playbookVersion"];
+  const supportedSettings = (provider.settings.length ? [...provider.settings] : Object.keys(config.model.settings))
+    .filter((key) => !provider.playbook || !playbookKeys.includes(key));
   return (
     <Card className="form-section">
       <CardHeading
@@ -57,6 +61,9 @@ export function AgentsSection({
               "model.id",
               "Exact model identifier",
               "Scripted models are clearly marked as fixtures.",
+            )}
+            {provider.playbook && (
+              <PlaybookPicker config={config} replace={replace} errors={errors} />
             )}
           </>
         )}
@@ -91,7 +98,7 @@ export function AgentsSection({
                 </Field>
               ))}
             {Object.keys(config.model.settings)
-              .filter((key) => !supportedSettings.includes(key))
+              .filter((key) => !supportedSettings.includes(key) && !(provider.playbook && playbookKeys.includes(key)))
               .map((key) => (
                 <Notice key={key} kind="warning">
                   The saved {key} setting is preserved, but its structured editor

@@ -13,6 +13,8 @@ export interface ProviderView {
   readonly fixture: boolean;
   readonly settings: readonly string[];
   readonly catalogPath: string | undefined;
+  /** The playbook driver registers immutable scripts instead of a live model catalog. */
+  readonly playbook: boolean;
   readonly defaultPhase: "development" | "pilot" | "study" | undefined;
   readonly defaultModelId: string | undefined;
   readonly copiesCapacity: boolean;
@@ -50,6 +52,13 @@ const PROVIDER_PRESENTATION: Record<string, Partial<ProviderView>> = {
     copiesCapacity: true,
     catalogPath: "/models/adaption",
   },
+  playbook: {
+    optionLabel: "Uploaded playbook · development",
+    defaultPhase: "development",
+    defaultModelId: "",
+    fixture: true,
+    copiesCapacity: false,
+  },
 };
 
 const SCENARIO_PRESENTATION: Record<string, { presentation: ScenarioPresentationMetadata; modelSection: "catalog" | "freeText" }> = {
@@ -69,6 +78,7 @@ export function providerView(id: string, catalog: readonly ProviderCatalogEntry[
     fixture: entry?.fixture ?? presentation.fixture ?? false,
     settings: entry?.settings ?? [],
     catalogPath: presentation.catalogPath,
+    playbook: id === "playbook",
     defaultPhase: presentation.defaultPhase,
     defaultModelId: presentation.defaultModelId,
     copiesCapacity: presentation.copiesCapacity ?? false,

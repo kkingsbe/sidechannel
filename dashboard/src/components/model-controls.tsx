@@ -3,6 +3,7 @@ import type { AdaptionModelCatalog } from "@sidechannel/contracts/browser";
 import { useClients } from "../lib/clients/context";
 import { useResource } from "../lib/clients/query";
 import { providerOptions, useProviders, useScenarios } from "../lib/descriptors";
+import { PlaybookPicker } from "./playbook-picker";
 import { Button, Field, Input, Notice, Select } from "./ui";
 
 export function ModelControls({
@@ -42,6 +43,10 @@ export function ModelControls({
           value={config.model.provider}
           onChange={(event) => {
             const nextProvider = providers.view(event.target.value);
+            const settings = { ...config.model.settings };
+            delete settings.playbook;
+            delete settings.playbookHash;
+            delete settings.playbookVersion;
             const next = {
               ...config,
               phase: nextProvider.defaultPhase ?? config.phase,
@@ -49,6 +54,7 @@ export function ModelControls({
                 ...config.model,
                 provider: nextProvider.id,
                 id: nextProvider.defaultModelId ?? "",
+                settings,
               },
             };
             if (next.tokenBudget) {
@@ -103,6 +109,14 @@ export function ModelControls({
               </Button>
             </Notice>
           )}
+        </>
+      ) : provider.playbook ? (
+        <>
+          <p className="helper">
+            Playbook execution replays an uploaded tool-call script through the real scheduler. It validates
+            instrumentation and is never study data.
+          </p>
+          <PlaybookPicker config={config} replace={replace} errors={errors} />
         </>
       ) : (
         <p className="helper">

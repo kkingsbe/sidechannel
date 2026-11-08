@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
-import { providerView, scenarioView, useProviders, useScenarios } from "./descriptors";
+import { providerOptions, providerView, scenarioView, useProviders, useScenarios } from "./descriptors";
 
 afterEach(cleanup);
 
@@ -21,6 +21,28 @@ it("keeps the exact provider copy for known providers", () => {
     listingBadge: "Scripted fixture",
   });
   expect(providerView("adaption", providers)).toMatchObject({ optionLabel: "Live Adaption · pilot", catalogPath: "/models/adaption", copiesCapacity: true, fixture: false });
+});
+
+it("offers the playbook driver from dashboard-owned presentation when metadata is unavailable", () => {
+  expect(providerView("playbook", [])).toMatchObject({
+    optionLabel: "Uploaded playbook · development",
+    defaultPhase: "development",
+    defaultModelId: "",
+    playbook: true,
+    catalogPath: undefined,
+  });
+  expect(providerOptions([]).map((option) => option.id)).toEqual(expect.arrayContaining(["scripted", "adaption", "playbook"]));
+});
+
+it("offers the playbook driver from dashboard-owned presentation when metadata is unavailable", () => {
+  expect(providerView("playbook", [])).toMatchObject({
+    optionLabel: "Uploaded playbook · development",
+    defaultPhase: "development",
+    defaultModelId: "",
+    playbook: true,
+    catalogPath: undefined,
+  });
+  expect(providerOptions([]).map((option) => option.id)).toEqual(expect.arrayContaining(["scripted", "adaption", "playbook"]));
 });
 
 it("falls back to a generic descriptor for an unknown provider", () => {
