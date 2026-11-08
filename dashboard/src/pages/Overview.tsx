@@ -68,11 +68,14 @@ function NeedsAttention({ runs, query }: { runs: Run[]; query: string }) {
   </Card>;
 }
 
+/** "1 run lane" / "4 parallel run lanes": the worker executes up to `capacity` runs at once. */
+const lanes = (capacity: number) => capacity === 1 ? '1 run lane' : `${capacity} parallel run lanes`;
+
 function workerSentence(worker: OverviewData['worker'] | undefined, busy: boolean) {
   if (!worker) return null;
   const heartbeat = worker.note?.match(/(\d+\s?s)\s+ago/)?.[1];
   const state = worker.available === false ? 'unavailable' : worker.available === true ? (busy ? 'working' : 'idle') : 'in an unknown state';
-  return `The experiment worker is ${state}, capacity ${worker.capacity}${heartbeat ? `, heartbeat ${heartbeat} ago` : ''}.`;
+  return `The experiment worker is ${state}, ${lanes(worker.capacity)}${heartbeat ? `, heartbeat ${heartbeat} ago` : ''}.`;
 }
 
 export default function Overview() {
@@ -83,7 +86,7 @@ export default function Overview() {
   const count = (...states: string[]) => counts ? states.reduce((sum, state) => sum + (counts[state] ?? 0), 0) : null;
   const [active, queued, , attention] = overviewCards;
   const total = counts ? Object.values(counts).reduce((sum, n) => sum + n, 0) : null;
-  const completed = count('completed'), failedLike = count(...attention!.statuses), busy = count(...active!.statuses, ...queued!.statuses);
+  const completed = count('completed'), failedLike = count(...attention!.statuses), busy = count(...active!.statuses, ...queued!.statuses), running = count(...active!.statuses);
   const link = (...states: string[]) => `/runs?status=${encodeURIComponent(states.join(','))}`;
   const noCompletedRuns = completed === 0;
   const attentionRuns = overview.data?.attention ?? [];
@@ -106,7 +109,7 @@ export default function Overview() {
       <Kpi label="Completed" value={completed ?? '—'} to={link('completed')} detail={overview.error ? 'stale' : undefined} />
       <Kpi label="Cancelled" value={count('cancelled') ?? '—'} to={link('cancelled')} />
       <Kpi label="Failed" value={failedLike ?? '—'} tone={failedLike ? 'bad' : undefined} to={link(...attention!.statuses)} detail={failedLike ? 'failed or interrupted' : undefined} />
-      <Kpi label="Running or queued" value={busy ?? '—'} to={link(...active!.statuses, ...queued!.statuses)} detail={overview.data?.worker.available === true ? `worker available · capacity ${overview.data.worker.capacity}` : overview.data?.worker.available === false ? 'worker unavailable' : undefined} />
+      <Kpi label="Running or queued" value={busy ?? '—'} to={link(...active!.statuses, ...queued!.statuses)} detail={overview.data?.worker.available === true ? `${running ?? '?'} of ${overview.data.worker.capacity} lanes running` : overview.data?.worker.available === false ? 'worker unavailable' : undefined} />
     </KpiStrip>
     {!!drafts.data?.length && <div className="resume-strip"><strong>{plural(drafts.data.length, 'saved experiment draft')}</strong><NavLink className="link" to="/experiments">Resume a draft <ArrowUpRight size={14} /></NavLink></div>}
     {noCompletedRuns && <div className="overview-gap"><GettingStarted first /></div>}
@@ -123,7 +126,7 @@ export default function Overview() {
     </div>
     <div className="services-line" aria-label="Services">
       <span className="who-chip" style={{ '--c': overview.error ? 'var(--danger-fg)' : 'var(--success-fg)' } as React.CSSProperties}>Researcher API {overview.error ? 'updates unavailable' : overview.data ? 'connected' : 'connecting'}{overview.updatedAt && ` · last success ${new Date(overview.updatedAt).toLocaleTimeString()}`}</span>
-      <span className="who-chip" style={{ '--c': overview.data?.worker.available ? 'var(--success-fg)' : 'var(--amber)' } as React.CSSProperties}>Experiment worker {overview.data?.worker.available === true ? 'available' : overview.data?.worker.available === false ? 'unavailable' : 'availability unknown'} · capacity {overview.data?.worker.capacity ?? 'unknown'}{overview.error && ' · stale reading'}{overview.data?.worker.note && ` · ${overview.data.worker.note.replace(/\.$/, '').toLowerCase()}`}</span>
+      <span className="who-chip" style={{ '--c': overview.data?.worker.available ? 'var(--success-fg)' : 'var(--amber)' } as React.CSSProperties}>Experiment worker {overview.data?.worker.available === true ? 'available' : overview.data?.worker.available === false ? 'unavailable' : 'availability unknown'} · {overview.data ? lanes(overview.data.worker.capacity) : 'lanes unknown'}{overview.error && ' · stale reading'}{overview.data?.worker.note && ` · ${overview.data.worker.note.replace(/\.$/, '').toLowerCase()}`}</span>
     </div>
     {!noCompletedRuns && <div className="overview-gap"><GettingStarted first={false} /></div>}
   </>;

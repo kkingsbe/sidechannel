@@ -7,7 +7,7 @@ import type { ResearcherRepository, WorkerStatus } from '@sidechannel/contracts/
 import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, EVIDENCE_KEY_COERCION, EVIDENCE_KEY_FIELD, type EvidenceKind, type EvidencePage, type TurnSummary } from '@sidechannel/contracts/harness/repository';
 import type { WorkerGuard, WorkerLeaseRecord } from '@sidechannel/contracts/harness/server';
 import { DEFAULT_WORKER_LEASE_MS } from '@sidechannel/contracts/harness/server';
-import { summaryProjection, toRunSummary, type SummaryRun } from '@sidechannel/domain/harness/repository';
+import { summaryProjection, toRunSummary, workerStatusOf, type SummaryRun } from '@sidechannel/domain/harness/repository';
 import { COLLECTIONS, initializeHarnessSchema } from '../schema.js';
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -165,20 +165,13 @@ export class MongoRepository implements ResearcherRepository, WorkerGuard {
     async workerLease(): Promise<WorkerLeaseRecord | null> {
         const [row] = await this.db.collection(COLLECTIONS.workerGuard).aggregate([
             { $match: { key: 'single-worker' } },
-            { $project: { _id: 0, owner: 1, startedAt: 1, heartbeatAt: 1, ageMs: { $cond: [{ $eq: [{ $type: '$heartbeatAt' }, 'date'] }, { $subtract: ['$$NOW', '$heartbeatAt'] }, null] } } },
+            { $project: { _id: 0, owner: 1, startedAt: 1, heartbeatAt: 1, capacity: 1, ageMs: { $cond: [{ $eq: [{ $type: '$heartbeatAt' }, 'date'] }, { $subtract: ['$$NOW', '$heartbeatAt'] }, null] } } },
         ]).toArray();
         if (!row)
             return null;
-        return { owner: row.owner, ...(row.startedAt ? { startedAt: row.startedAt } : {}), ...(row.heartbeatAt instanceof Date ? { heartbeatAt: row.heartbeatAt.toISOString() } : {}), ageMs: row.ageMs ?? null };
+        return { owner: row.owner, ...(row.startedAt ? { startedAt: row.startedAt } : {}), ...(row.heartbeatAt instanceof Date ? { heartbeatAt: row.heartbeatAt.toISOString() } : {}), ageMs: row.ageMs ?? null, ...(typeof row.capacity === 'number' ? { capacity: row.capacity } : {}) };
     }
-    async workerStatus(leaseMs = DEFAULT_WORKER_LEASE_MS): Promise<WorkerStatus> {
-        const lease = await this.workerLease();
-        if (!lease)
-            return { capacity: 1, available: false, status: 'stopped', note: 'No experiment worker holds the lease.' };
-        const live = lease.ageMs !== null && lease.ageMs < leaseMs;
-        return { capacity: 1, available: live, status: live ? 'active' : 'stale', ...(lease.startedAt ? { startedAt: lease.startedAt } : {}), ...(lease.heartbeatAt ? { heartbeatAt: lease.heartbeatAt } : {}),
-            note: live ? `Worker heartbeat ${Math.round(lease.ageMs! / 1000)}s ago.` : 'Worker lease expired; the next worker to start takes it over and interrupts abandoned runs.' };
-    }
+    async workerStatus(leaseMs = DEFAULT_WORKER_LEASE_MS): Promise<WorkerStatus> { return workerStatusOf(await this.workerLease(), leaseMs); }
     async requestCancel(id: string) {
         await this.db.collection(COLLECTIONS.runs).updateOne({ id, status: { $in: [...ACTIVE_RUN_STATUSES] } }, [{ $set: { cancelRequested: true, status: { $cond: [{ $eq: ['$status', 'queued'] }, 'cancelled', 'stopping'] }, updatedAt: new Date().toISOString() } }]);
         return this.getRun(id);
@@ -187,10 +180,11 @@ export class MongoRepository implements ResearcherRepository, WorkerGuard {
      * Takes the single-worker lease when it is free or its holder stopped heartbeating for `leaseMs`
      * (measured on the database clock). A lease without `heartbeatAt` predates heartbeats and is stale.
      */
-    async acquireWorker(owner: string, leaseMs = DEFAULT_WORKER_LEASE_MS) {
+    async acquireWorker(owner: string, leaseMs = DEFAULT_WORKER_LEASE_MS, capacity?: number) {
         const guard = this.db.collection(COLLECTIONS.workerGuard);
+        const lanes = capacity === undefined ? {} : { capacity };
         try {
-            await guard.insertOne({ key: 'single-worker', owner, startedAt: new Date().toISOString(), heartbeatAt: new Date() });
+            await guard.insertOne({ key: 'single-worker', owner, startedAt: new Date().toISOString(), heartbeatAt: new Date(), ...lanes });
             await guard.updateOne({ key: 'single-worker', owner }, [{ $set: { heartbeatAt: '$$NOW' } }]); // use the database clock
             return true;
         }
@@ -204,7 +198,7 @@ export class MongoRepository implements ResearcherRepository, WorkerGuard {
         // of several workers racing for one stale lease exactly one matches.
         const takeover = await guard.updateOne(
             { key: 'single-worker', $expr: { $not: [{ $gt: ['$heartbeatAt', { $subtract: ['$$NOW', leaseMs] }] }] } },
-            [{ $set: { owner: { $literal: owner }, startedAt: { $literal: new Date().toISOString() }, heartbeatAt: '$$NOW' } }]);
+            [{ $set: { owner: { $literal: owner }, startedAt: { $literal: new Date().toISOString() }, heartbeatAt: '$$NOW', capacity: { $literal: capacity ?? null } } }]);
         return takeover.modifiedCount === 1;
     }
     /** Renews the lease; false means another worker took it over and this one must stop. */

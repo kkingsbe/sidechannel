@@ -9,7 +9,7 @@ test('Mongo worker lease blocks a live holder, expires a dead one and takes over
     const repo = await MongoRepository.connect(uri, 'sidechannel_test_' + randomUUID().replaceAll('-', ''));
     const guard = repo.db.collection('worker_guard');
     try {
-        assert.deepEqual(await repo.workerStatus(), { capacity: 1, available: false, status: 'stopped', note: 'No experiment worker holds the lease.' });
+        assert.deepEqual(await repo.workerStatus(), { capacity: 0, available: false, status: 'stopped', note: 'No experiment worker holds the lease.' });
 
         assert.equal(await repo.acquireWorker('first', 1_000), true);
         assert.equal(await repo.acquireWorker('second', 1_000), false, 'a live lease blocks other workers');
@@ -29,6 +29,15 @@ test('Mongo worker lease blocks a live holder, expires a dead one and takes over
 
         await repo.releaseWorker('second');
         assert.equal(await guard.countDocuments(), 0);
+
+        // The holder's parallel run lanes are recorded on the lease, including on takeover.
+        assert.equal(await repo.acquireWorker('laned', 1_000, 4), true);
+        assert.equal((await repo.workerLease())?.capacity, 4);
+        assert.equal((await repo.workerStatus(1_000)).capacity, 4);
+        await sleep(1_200);
+        assert.equal(await repo.acquireWorker('single', 1_000), true);
+        assert.equal((await repo.workerStatus(1_000)).capacity, 1, 'a holder that records no lanes offers one');
+        await repo.releaseWorker('single');
 
         // Guards written before heartbeats existed (the production failure) are treated as expired.
         await guard.insertOne({ key: 'single-worker', owner: 'legacy', startedAt: '2026-11-07T18:13:01.161Z' });

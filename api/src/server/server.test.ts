@@ -114,7 +114,7 @@ test('filtered run summaries, event cursor pagination, progress and evidence his
         assert.equal((await app.get(`/runs/${run.id}/artifacts?limit=1`)).items.length, 1);
         assert.equal((await app.get(`/runs/${run.id}/artifacts/0`)).version, 0);
         assert.equal((await app.request(`/api/runs/${run.id}/artifacts/999`)).status, 404);
-        const overview = await app.get('/overview'); assert.equal(overview.counts.queued, 3); assert.equal(overview.worker.capacity, 1); assert.equal(overview.queue[0].id, run.id); assert.equal(overview.queueTotal, 3);
+        const overview = await app.get('/overview'); assert.equal(overview.counts.queued, 3); assert.equal(overview.worker.capacity, 0); assert.equal(overview.queue[0].id, run.id); assert.equal(overview.queueTotal, 3);
     } finally { await app.close(); }
 });
 

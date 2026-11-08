@@ -2,7 +2,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import type { Run, RunStatus } from '@sidechannel/contracts/harness/contracts';
 import { ACTIVE_RUN_STATUSES, isTerminalRun } from '@sidechannel/contracts/harness/contracts';
 import type { Repository, WorkerGuard } from '@sidechannel/contracts/harness/server';
-import { DEFAULT_WORKER_LEASE_MS } from '@sidechannel/contracts/harness/server';
+import { DEFAULT_WORKER_CONCURRENCY, DEFAULT_WORKER_LEASE_MS, MAX_WORKER_CONCURRENCY } from '@sidechannel/contracts/harness/server';
 
 /** The slice of the single-worker lease port the worker loop needs. */
 export type LeaseStore = Pick<WorkerGuard, 'acquireWorker' | 'heartbeatWorker' | 'releaseWorker' | 'workerLease'>;
@@ -20,6 +20,8 @@ export interface LeaseOptions {
     shouldStop?(): boolean;
     log?(message: string): void;
     pollMs?: number;
+    /** Run lanes this worker offers; recorded on the lease so the dashboard can report it. */
+    capacity?: number;
 }
 
 export function workerLeaseMs(env: NodeJS.ProcessEnv = process.env, fallback = DEFAULT_WORKER_LEASE_MS) {
@@ -32,14 +34,25 @@ export function workerLeaseMs(env: NodeJS.ProcessEnv = process.env, fallback = D
     return value;
 }
 
+/** Parallel run lanes. Runs never share boards, artifacts, scenario state, events or memory. */
+export function workerConcurrency(env: NodeJS.ProcessEnv = process.env, fallback = DEFAULT_WORKER_CONCURRENCY) {
+    const raw = env.WORKER_CONCURRENCY;
+    if (raw === undefined || raw === '')
+        return fallback;
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < 1 || value > MAX_WORKER_CONCURRENCY)
+        throw new Error(`WORKER_CONCURRENCY must be an integer from 1 to ${MAX_WORKER_CONCURRENCY}`);
+    return value;
+}
+
 /**
  * Waits until this process holds the single-worker lease, then renews it every third of the lease period.
  * A crashed or killed holder stops renewing, so its lease expires on its own and no manual recovery is needed.
  */
 export async function acquireWorkerLease(store: LeaseStore, owner: string, options: LeaseOptions): Promise<WorkerLease | undefined> {
-    const { leaseMs, onLost, shouldStop = () => false, log = console.log, pollMs = 2_000 } = options;
+    const { leaseMs, onLost, shouldStop = () => false, log = console.log, pollMs = 2_000, capacity } = options;
     let lastWaitLog = -Infinity;
-    while (!await store.acquireWorker(owner, leaseMs)) {
+    while (!await store.acquireWorker(owner, leaseMs, capacity)) {
         if (shouldStop())
             return undefined;
         if (Date.now() - lastWaitLog >= 60_000) {
@@ -88,8 +101,8 @@ export async function acquireWorkerLease(store: LeaseStore, owner: string, optio
 const ABANDONED_RUN_STATUSES: readonly RunStatus[] = ACTIVE_RUN_STATUSES.filter(status => !isTerminalRun(status) && status !== 'queued');
 
 /**
- * Marks runs left active by a dead worker as interrupted. Only the lease holder executes runs,
- * so once this process holds the lease every active run is abandoned. Runs are never resumed.
+ * Marks runs left active by a dead worker as interrupted. Only the lease holder executes runs
+ * (in however many lanes), so once this process holds the lease every active run is abandoned. Runs are never resumed.
  */
 export async function interruptAbandonedRuns(repository: Pick<Repository, 'listRuns' | 'saveRun' | 'appendEvent'>, reason: string) {
     const interrupted: string[] = [];

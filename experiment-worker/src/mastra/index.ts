@@ -29,7 +29,9 @@ class MastraTraceRuntime implements TraceRuntime {
         for (const [name, tool] of Object.entries(tools)) this.mastra.addTool(tool, name);
         // addAgent skips an existing ID. Each scheduler step supplies a fresh Agent;
         // replace the prior registration so this instance receives storage/tracing.
-        // Scheduler calls are serial, and the prior invocation is already flushed.
+        // Within a run, scheduler calls are serial and the prior invocation is already flushed.
+        // Parallel runs never collide: the agent ID embeds the run ID. Tools are proposal-only and
+        // reach the model through the Agent's own tool map, so the shared name registry is inert.
         this.mastra.removeAgent(agent.id);
         this.mastra.addAgent(agent);
         return agent;

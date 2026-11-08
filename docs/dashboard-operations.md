@@ -29,7 +29,7 @@ The dashboard follows the system light/dark preference until a researcher select
 | Service | Responsibility |
 | --- | --- |
 | Researcher API | Validate drafts; freeze and enqueue runs; manage research definitions, previews and jobs; serve the React build |
-| Experiment worker | Execute the existing Mastra harness, one run at a time |
+| Experiment worker | Execute the existing Mastra harness, up to four runs in parallel (`WORKER_CONCURRENCY`) |
 | Analysis/monitor worker | Independently leased Jev and direct oversight work |
 | MongoDB | Canonical run evidence plus separate research records |
 

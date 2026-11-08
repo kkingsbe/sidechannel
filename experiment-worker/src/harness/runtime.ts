@@ -2,6 +2,7 @@ import { MongoRepository } from '@sidechannel/persistence/harness/repository';
 import { createMongoMemory, MastraModelAdapter, MastraPrivateMemory } from './mastra-adapter.js';
 import { ScriptedAdapter, scriptedDriver } from './scripted-adapter.js';
 import { HarnessScheduler } from './scheduler.js';
+import { inferenceRetryPolicy } from './inference-retry.js';
 import type { Run } from '@sidechannel/contracts/harness/contracts';
 import type { ModelAdapter, Scenario } from '@sidechannel/contracts/harness/server';
 import { providerProfile } from '@sidechannel/domain/providers';
@@ -52,6 +53,8 @@ export function runtimePlugins(config: Run['config']): { scenario: Scenario; ada
 }
 
 export async function openRuntime(): Promise<WorkerRuntime> {
+    // Validate INFERENCE_MAX_ATTEMPTS before connecting, like the worker's other settings.
+    const retry = inferenceRetryPolicy();
     const uri = process.env.MONGODB_URI ?? defaultMongoUri;
     const repository = await MongoRepository.connect(uri, process.env.MONGODB_DB_NAME ?? 'sidechannel');
     const memory = createMongoMemory(uri, process.env.MASTRA_DB_NAME ?? 'sidechannel_mastra');
@@ -64,6 +67,7 @@ export async function openRuntime(): Promise<WorkerRuntime> {
                 scenario: plugins.scenario,
                 memory: new MastraPrivateMemory(memory.storage, run.config.memory.template),
                 adapter: plugins.adapter ?? new MastraModelAdapter(trace),
+                retry,
             });
         },
         flush: () => trace.flush(),

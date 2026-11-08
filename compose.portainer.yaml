@@ -80,7 +80,7 @@ services:
     mem_limit: ${EXPERIMENT_WORKER_MEMORY_LIMIT:-1g}
     labels:
       <<: *update-labels
-      # Replacing the worker cancels its run. This pre-update hook runs inside the current
+      # Replacing the worker cancels its runs. This pre-update hook runs inside the current
       # container and exits non-zero while runs are queued or active, so the updater skips
       # the update and retries on its next check.
       wud.hook.1.phase: pre
@@ -92,8 +92,11 @@ services:
       NODE_OPTIONS: --max-old-space-size=${EXPERIMENT_WORKER_NODE_HEAP_MB:-768}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ADAPTION_API_KEY: ${ADAPTION_API_KEY:-}
+      # Parallel run lanes (1-16) and total attempts per model request (1-10; 1 disables retries).
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
+      INFERENCE_MAX_ATTEMPTS: ${INFERENCE_MAX_ATTEMPTS:-5}
     # Safe to restart: a dead worker's lease expires (WORKER_LEASE_MS, default 30s) and the
-    # restarted worker marks the run it abandoned interrupted. Runs are never resumed.
+    # restarted worker marks the runs it abandoned interrupted. Runs are never resumed.
     restart: unless-stopped
     stop_grace_period: 2m
 

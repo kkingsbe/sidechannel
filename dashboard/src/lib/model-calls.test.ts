@@ -177,6 +177,7 @@ describe('summarizeEvent', () => {
     expect(summarizeEvent(ev('tool_unexecuted', { call: { name: 'post_board' }, reason: 'allowance_exhausted' }))).toBe('post_board · unexecuted: action allowance used up');
     expect(summarizeEvent(ev('tool_admitted', { call: { name: 'x' }, remainingAllowance: 3 }))).toBe('x · admitted · 3 left');
     expect(summarizeEvent(ev('context_accounted', { phase: 'action', estimated: 5947 }))).toBe('Context 5,947 tokens (est.) · action');
+    expect(summarizeEvent(ev('model_retry', { attempt: 1, nextAttempt: 2, maxAttempts: 5, delayMs: 2340, statusCode: 429, reason: 'Too Many Requests' }))).toBe('Model retry · attempt 2 of 5 in 2.3s · HTTP 429 · Too Many Requests');
   });
   it('falls back to key: value for unknown types and truncates', () => {
     expect(summarizeEvent(ev('board_posted', { channel: 'general', nested: { a: 1 }, n: 2 }))).toBe('channel: general · n: 2');
