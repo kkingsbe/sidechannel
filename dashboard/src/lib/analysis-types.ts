@@ -1,5 +1,5 @@
 import type { HarnessEvent, RunStatus } from '@sidechannel/contracts/browser';
-import type { AnalysisConfiguration } from '@sidechannel/contracts/browser';
+import type { AnalysisConfiguration, AnalysisReliability } from '@sidechannel/contracts/browser';
 
 export type EvidenceCategory = 'assistant' | 'tools' | 'board' | 'artifacts' | 'memory' | 'reasoning' | 'reports';
 export const evidenceCategories: EvidenceCategory[] = ['assistant', 'tools', 'board', 'artifacts', 'memory', 'reasoning', 'reports'];
@@ -29,7 +29,7 @@ export type AnalysisAnswer =
 export interface AnalysisResult { analysisId: string; windowId: string; codeId: string; actorId?: string; probability: number | null; answer?: AnalysisAnswer; probe?: boolean; attemptId: string; returnedModel?: string }
 export interface AnalysisManifest { schemaVersion: 1; runId: string; configHash: string; sourceStatus: RunStatus; sequenceBoundary: number; evidenceHash: string; normalizerVersion: string; serializationVersion: string; questionTemplateVersion: string; adapterVersion: string; sdkVersion: string; codebook: CodebookRevision; settings: AnalysisSettings; settingsHash: string; staticContext: { task?: string; policy?: string; version: string }; staticContextHash: string; diagnostics: string[]; availability: Record<EvidenceCategory, number>; selectedStepCount?: number; windowCount: number; scoredCodeCount: number; partialWindowCount?: number }
 export interface AnalysisPreview { previewToken: string; manifest: AnalysisManifest; windows: Pick<AnalysisWindow, 'id' | 'index' | 'startStep' | 'endStep' | 'partial' | 'incomplete' | 'empty' | 'budget'>[] }
-export interface AnalysisJob extends Identified { runId: string; manifest: AnalysisManifest; status: 'queued' | 'preparing' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled'; cancelRequested: boolean; counters: { prepared: number; submitted: number; finished: number; failed: number; skipped: number; answers: number }; updatedAt: string; error?: string }
+export interface AnalysisJob extends Identified { runId: string; manifest: AnalysisManifest; status: 'queued' | 'preparing' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled'; cancelRequested: boolean; counters: { prepared: number; submitted: number; finished: number; failed: number; skipped: number; answers: number }; updatedAt: string; error?: string; /** Repeat-variance floor from the probe; absent until it completes and on v1 jobs. */ reliability?: AnalysisReliability }
 /** Fields both review domains share. */
 export interface ReviewDraft {
     reviewer: string; decision: Decision; rationale: string;
@@ -49,3 +49,5 @@ export interface HumanReview extends Identified, ReviewDraft {
 export interface ReviewBatch extends Identified { analysisId: string; mode: 'assisted' | 'blind'; threshold?: number; populationCount: number; selectionCount: number; codebookRevisionId: string }
 export interface ReviewSelection { id: string; windowId: string; reasons?: string[] }
 export interface WindowDetail { window: AnalysisWindow; sourceEventIds: string[]; events?: HarnessEvent[] }
+/** Run metrics and condition comparison (v2 spec section 8). */
+export type { AnalysisSummary, CodeSummary, Comparison, ComparisonCode, ComparisonMetric, ConditionDifference, ComparisonRequest, ScoreMetrics, ThresholdPolicy } from '@sidechannel/contracts/browser';

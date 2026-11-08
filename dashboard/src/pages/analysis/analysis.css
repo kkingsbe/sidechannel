@@ -62,6 +62,8 @@ label.cf { cursor: pointer; }
 .an-plot { width: 100%; min-width: 0; }
 .an-plot svg { display: block; color: var(--blue); overflow: visible; }
 .an-gap { fill: var(--active); opacity: .7; }
+.an-floor { fill: var(--blue); opacity: .12; }
+.an-actor-row th { padding-left: 24px; font-weight: 400; }
 .an-hit { fill: transparent; stroke: none; cursor: pointer; }
 .an-hit:hover, .an-hit:focus { fill: var(--blue); opacity: .35; outline: none; }
 .an-rank { width: 100%; border: 0; border-top: 1px solid var(--rule); background: none; text-align: left; font-size: 13px; min-height: 40px; grid-template-columns: max-content minmax(0, 1fr) 44px; cursor: pointer; }

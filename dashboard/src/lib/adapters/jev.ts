@@ -96,6 +96,7 @@ export function toJob(raw: JevJob): AnalysisJob {
     return {
         id: raw.id, createdAt: raw.createdAt, runId: raw.runId, status: raw.status,
         cancelRequested: raw.cancelRequested, updatedAt: raw.updatedAt,
+        ...(raw.reliability ? { reliability: raw.reliability } : {}),
         ...(raw.error !== undefined ? { error: raw.error } : {}),
         counters: { prepared: raw.counters.preparedWindows, submitted: raw.counters.submittedWindows, finished: raw.counters.finishedWindows, failed: raw.counters.failedWindows, skipped: raw.counters.skippedWindows, answers: raw.counters.returnedAnswers },
         manifest: {

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardHeading, Empty, ErrorState, Loading } from "../../components/ui";
 import type { AnalysisWindow, BehaviorCode } from "../../lib/analysis-types";
 import { useAnalysisJob } from "./use-analysis-job";
+import { useAnalysisSummary } from "./use-analysis-summary";
 import { useAnalysisWindows } from "./use-analysis-windows";
 import { HeatmapTable } from "./heatmap-table";
 import { ProbabilityPlot } from "./probability-plot";
@@ -39,6 +40,8 @@ export function ScorePanel({
   const job = useAnalysisJob(id);
   const state = useAnalysisWindows(id);
   const [picked, setPicked] = useState<string>();
+  // Audit-excluded windows are hatched on the plot; the summary is optional context, so a failed load just omits them.
+  const audit = useAnalysisSummary(id, undefined, kind === "probability");
   if (job.loading) return <Loading />;
   if (!job.job) return <ErrorState error={job.error} retry={job.refresh} />;
   const codes = job.job.manifest.codebook.codes.filter((c) => c.enabled && !c.archived);
@@ -110,6 +113,8 @@ export function ScorePanel({
       onPick={setPicked}
       waiting={waiting}
       onSelect={open}
+      floors={job.job.reliability?.perCode}
+      excluded={audit.data ? new Set(audit.data.coverage.excludedWindowIds) : undefined}
       controls={<ThresholdInput threshold={state.threshold} onChange={state.setThreshold} />}
     />
   );
@@ -124,6 +129,8 @@ function ProbabilityView({
   waiting,
   onSelect,
   controls,
+  floors,
+  excluded,
 }: {
   codes: BehaviorCode[];
   windows: AnalysisWindow[];
@@ -133,6 +140,8 @@ function ProbabilityView({
   waiting: React.ReactNode;
   onSelect: (w: AnalysisWindow) => void;
   controls: React.ReactNode;
+  floors?: Record<string, { sd: number }>;
+  excluded?: ReadonlySet<string>;
 }) {
   const code =
     codes.find((c) => c.id === picked) ?? flaggedCounts(windows, codes, threshold)[0]?.code ?? codes[0];
@@ -164,7 +173,7 @@ function ProbabilityView({
         />
         {waiting ?? (
           <div className="card-body an-body">
-            <ProbabilityPlot code={code} windows={windows} threshold={threshold} onSelect={onSelect} />
+            <ProbabilityPlot code={code} windows={windows} threshold={threshold} onSelect={onSelect} floor={floors?.[code.id]?.sd} excluded={excluded} />
           </div>
         )}
         <div className="card-foot">
