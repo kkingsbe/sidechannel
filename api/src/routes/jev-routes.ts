@@ -21,11 +21,17 @@ export function createAnalysisRouteHandler(service: AnalysisService): ResearchRo
         const { method, path, query } = request, repo = service.repository, json = () => request.body();
         if (path === '/analyses' && method === 'GET') return { status: 200, data: await repo.listAllJobs(page(query)) };
         if (path === '/codebooks') {
-            if (method === 'GET') return { status: 200, data: await repo.listCodebooks(page(query)) };
+            if (method === 'GET') {
+                const archived = query.get('archived') ?? 'exclude';
+                if (archived !== 'exclude' && archived !== 'include' && archived !== 'only') throw new AnalysisValidation('archived must be exclude, include or only');
+                return { status: 200, data: await repo.listCodebooks(page(query), { archived }) };
+            }
             if (method === 'POST') return { status: 201, data: await service.createCodebook(await json() as unknown as { name: string; creator: string; definitions: BehaviorDefinition[] }) };
         }
         const revisions = path.match(/^\/codebooks\/([^/]+)\/revisions$/);
         if (revisions && method === 'GET') { const id = decode(revisions[1]!); if (!await repo.getCodebook(id)) throw new AnalysisNotFound('Codebook not found'); return { status: 200, data: await repo.listRevisions(id, page(query)) }; }
+        const archival = path.match(/^\/codebooks\/([^/]+)\/(archive|restore)$/);
+        if (archival && method === 'POST') { const id = decode(archival[1]!), input = await json() as unknown as { expectedRevisionId: string; actor: string }; return { status: 200, data: archival[2] === 'archive' ? await service.archiveCodebook(id, input) : await service.restoreCodebook(id, input) }; }
         const codebook = path.match(/^\/codebooks\/([^/]+)(?:\/revisions\/([^/]+))?$/);
         if (codebook) {
             const id = decode(codebook[1]!);
