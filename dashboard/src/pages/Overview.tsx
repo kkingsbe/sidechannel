@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Activity, ArrowUpRight, BookOpen, FlaskConical, ShieldCheck } from 'lucide-react';
 import { Badge, Button, Card, CardHeading, Empty, ErrorState, Loading, PageHeader, Table } from '../components/ui';
-import { useApi, arrayOf } from '../lib/api';
+import { useApi } from '../lib/api';
+import { useClients } from '../lib/clients/context';
 import type { Run, Draft } from '../lib/types';
+import { jobStatusMetaFor, overviewCards } from '../lib/status';
 import { short, when } from '../lib/utils';
-import { RunTable } from '../App';
+import { RunTable } from '../components/run-table';
 import { PairTable } from '../components/pairs/PairTable';
 import './Overview.css';
 
@@ -18,11 +20,11 @@ interface Job {
   manifest?: { settings?: { model?: string; windowSize?: number; stride?: number } };
 }
 function ResearchJobs({ title, path, destination }: { title: string; path: string; destination: string }) {
-  const jobs = useApi<{ items: Job[]; nextCursor: string | null }>(path, 5000), rows = arrayOf(jobs.data);
+  const jobs = useApi<{ items: Job[]; nextCursor: string | null }>(path, { interval: 5000 }), rows = jobs.data?.items ?? [];
   return <Card><CardHeading title={title} actions={<Button asChild variant="ghost" size="sm"><NavLink to={destination}>View all <ArrowUpRight size={15} /></NavLink></Button>} />
     {jobs.loading ? <Loading /> : jobs.error && !jobs.data ? <ErrorState error={jobs.error} retry={jobs.refresh} /> : !rows.length ? <Empty title={`No ${title.toLowerCase()} yet`} description="Start from a source run when you are ready." /> :
       <Table label={title} headers={['Job / source', 'Status', 'Updated']}>
-        {rows.map(job => <tr key={job.id}><td><NavLink className="table-title" to={`${destination}/${job.id}`}>{job.manifest?.settings?.model ? `${job.manifest.settings.model} · ${job.manifest.settings.windowSize} step windows` : `Evaluation · ${job.runIds?.length ?? 0} source runs`}</NavLink><small>{job.runId ? <NavLink className="text-link" to={`/runs/${job.runId}`}>Source run {short(job.runId)}</NavLink> : short(job.id)}</small></td><td><Badge status={job.status} /></td><td className="muted">{when(job.updatedAt || job.createdAt)}</td></tr>)}
+        {rows.map(job => <tr key={job.id}><td><NavLink className="table-title" to={`${destination}/${job.id}`}>{job.manifest?.settings?.model ? `${job.manifest.settings.model} · ${job.manifest.settings.windowSize} step windows` : `Evaluation · ${job.runIds?.length ?? 0} source runs`}</NavLink><small>{job.runId ? <NavLink className="text-link" to={`/runs/${job.runId}`}>Source run {short(job.runId)}</NavLink> : short(job.id)}</small></td><td>{(() => { const meta = jobStatusMetaFor(job.status); return <Badge tone={meta.tone}>{meta.label}</Badge>; })()}</td><td className="muted">{when(job.updatedAt || job.createdAt)}</td></tr>)}
       </Table>}
     {jobs.error && jobs.data && <div className="card-foot" role="status">Updates unavailable · last refreshed {jobs.updatedAt ? new Date(jobs.updatedAt).toLocaleTimeString() : 'unknown'}<Button variant="secondary" size="sm" onClick={jobs.refresh}>Retry</Button></div>}
     {jobs.data?.nextCursor && <div className="card-foot">Showing the latest page. Open the collection for more jobs.</div>}
@@ -41,20 +43,16 @@ function GettingStarted({ first }: { first: boolean }) {
   return <details className="card onboarding" open={open} onToggle={event => { const next = event.currentTarget.open; setOpen(next); try { localStorage.setItem(gettingStartedKey, next ? 'open' : 'closed'); } catch { /* Convenience only. */ } }}><summary>Getting started with the research workflow</summary><ol className="workflow-list">{steps.map(item => <li key={item.n}><NavLink to={item.to}><span>{item.n}</span><div><strong>{item.title}</strong><p>{item.text}</p></div><ArrowUpRight size={15} aria-hidden="true" /></NavLink></li>)}</ol></details>;
 }
 export default function Overview() {
-  const overview = useApi<OverviewData>('/overview', 5000), runs = useApi<{ items: Run[] }>('/runs?summary=true&limit=16', 5000);
-  const drafts = useApi<Draft[]>('/drafts');
-  const counts = overview.data?.counts, data = arrayOf(runs.data);
+  const clients = useClients();
+  const overview = useApi<OverviewData>(clients.workspace.paths.overview(), { interval: 5000 }), runs = useApi<{ items: Run[] }>(clients.runs.paths.list({ summary: true, limit: 16 }), { interval: 5000 });
+  const drafts = useApi<Draft[]>(clients.workspace.paths.drafts());
+  const counts = overview.data?.counts, data = runs.data?.items ?? [];
   const count = (...states: string[]) => counts ? states.reduce((sum, state) => sum + (counts[state] ?? 0), 0) : null;
-  const stats = [
-    { label: 'Active runs', value: count('running', 'reporting', 'stopping'), states: 'running,reporting,stopping', detail: 'Inspect execution progress', icon: Activity },
-    { label: 'Queued runs', value: count('queued'), states: 'queued', detail: 'Awaiting the experiment worker', icon: FlaskConical },
-    { label: 'Completed runs', value: count('completed'), states: 'completed', detail: 'Open recorded evidence', icon: BookOpen },
-    { label: 'Needs attention', value: count('failed', 'interrupted'), states: 'failed,interrupted', detail: 'Inspect failure or interruption', icon: ShieldCheck },
-  ];
+  const cards = overviewCards.map((card, index) => ({ ...card, value: count(...card.statuses), query: card.statuses.join(','), icon: [Activity, FlaskConical, BookOpen, ShieldCheck][index]! }));
   const noCompletedRuns = count('completed') === 0;
   return <><PageHeader title="Workspace overview" description="Resume research, inspect evidence, and follow independent jobs." actions={<Button asChild><NavLink to="/experiments/new"><FlaskConical size={16} aria-hidden="true" />New experiment</NavLink></Button>} />
     {noCompletedRuns && <GettingStarted first />}
-    <div className="stat-grid compact-stats">{stats.map(({ label, value, detail, states, icon: Icon }) => <NavLink className="card stat-card" to={`/runs?status=${encodeURIComponent(states)}`} key={label}><div>{label}<Icon size={18} aria-hidden="true" /></div><strong>{value ?? '—'}</strong><p>{detail}{overview.error && ' · stale'}</p></NavLink>)}</div>
+    <div className="stat-grid compact-stats">{cards.map(({ label, value, detail, query, icon: Icon }) => <NavLink className="card stat-card" to={`/runs?status=${encodeURIComponent(query)}`} key={label}><div>{label}<Icon size={18} aria-hidden="true" /></div><strong>{value ?? '—'}</strong><p>{detail}{overview.error && ' · stale'}</p></NavLink>)}</div>
     {overview.error && <ErrorState error={overview.error} retry={overview.refresh} />}
     {!!drafts.data?.length && <div className="resume-strip"><strong>{drafts.data.length} saved experiment {drafts.data.length === 1 ? 'draft' : 'drafts'}</strong><NavLink className="text-link" to="/experiments">Resume a draft <ArrowUpRight size={14} /></NavLink></div>}
     <div className="stack overview-operational">
@@ -64,7 +62,7 @@ export default function Overview() {
         {runs.loading ? <Loading /> : runs.error && !runs.data ? <ErrorState error={runs.error} retry={runs.refresh} /> : data.length ? <PairTable runs={data} label="Recent matched pairs" /> : <Empty title="Your first experiment starts here" description="Create a draft, validate its configuration, and launch a matched pair."><Button asChild><NavLink to="/experiments/new">Create experiment</NavLink></Button></Empty>}
         <div className="card-foot">{runs.error ? `Updates unavailable · last refreshed ${runs.updatedAt ? new Date(runs.updatedAt).toLocaleTimeString() : 'unknown'}` : runs.updatedAt ? `Evidence refreshed at ${new Date(runs.updatedAt).toLocaleTimeString()}` : 'Connecting to researcher API'}{runs.error && <Button size="sm" variant="secondary" onClick={runs.refresh}>Retry</Button>}</div>
       </Card>
-      <div className="form-grid"><ResearchJobs title="Analyses" path="/analyses?limit=6" destination="/analysis" /><ResearchJobs title="Monitor evaluations" path="/monitor-evaluations?limit=6" destination="/oversight" /></div>
+      <div className="form-grid"><ResearchJobs title="Analyses" path={clients.analyses.paths.list({ limit: 6 })} destination="/analysis" /><ResearchJobs title="Monitor evaluations" path={clients.monitor.paths.evaluations({ limit: 6 })} destination="/oversight" /></div>
       <Card><CardHeading title="Services & freshness" /><div className="card-body service-summary"><div><strong>Researcher API</strong><p>{overview.error ? 'Updates unavailable' : overview.data ? 'Connected' : 'Connecting'}{overview.updatedAt && ` · last success ${new Date(overview.updatedAt).toLocaleTimeString()}`}</p></div><div><strong>Experiment worker</strong>{overview.error && <p>Stale reading - last observed {overview.updatedAt ? new Date(overview.updatedAt).toLocaleTimeString() : 'unknown'}. Retry the API update to check availability.</p>}<p>{overview.data?.worker.available === true ? 'Available' : overview.data?.worker.available === false ? 'Unavailable' : 'Availability unknown'} · capacity {overview.data?.worker.capacity ?? 'unknown'}</p><p>{overview.data?.worker.note ?? 'API connectivity does not establish worker availability.'}</p></div></div></Card>
       {!noCompletedRuns && <GettingStarted first={false} />}
     </div>

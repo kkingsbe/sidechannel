@@ -1,6 +1,8 @@
 import type { PlaybookCatalogItem } from "@sidechannel/contracts/browser";
 import type { ExperimentConfig } from "../lib/types";
-import { post, useApi, useMutation } from "../lib/api";
+import { useMutation } from "../lib/api";
+import { useClients } from "../lib/clients/context";
+import { useResource } from "../lib/clients/query";
 import { Button, Field, Loading, Notice, Select } from "./ui";
 
 const key = (
@@ -26,7 +28,8 @@ export function PlaybookPicker({
   replace: (config: ExperimentConfig) => void;
   errors?: Record<string, string>;
 }) {
-  const catalog = useApi<PlaybookCatalogItem[]>("/playbooks");
+  const clients = useClients();
+  const catalog = useResource<PlaybookCatalogItem[]>("playbooks:catalog", () => clients.playbooks.list());
   const mutation = useMutation();
   const parseFailure = useMutation();
   const version = config.model.settings.playbookVersion;
@@ -71,9 +74,7 @@ export function PlaybookPicker({
       );
       return;
     }
-    const item = await mutation.run(() =>
-      post<PlaybookCatalogItem>("/playbooks", parsed),
-    );
+    const item = await mutation.run(() => clients.playbooks.upload(parsed));
     if (!item) return;
     void catalog.refresh();
     select(item);

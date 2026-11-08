@@ -33,7 +33,7 @@ try {
     const repeated = await (await submit()).json();
     assert.deepEqual(pair.map(run => run.id), repeated.map(run => run.id));
     for (const run of pair) {
-        const completed = await new HarnessScheduler({ repository, memory, adapter: new ScriptedAdapter(fixtureScript) }).run(run.id);
+        const completed = await new HarnessScheduler({ runState: repository, events: repository, memory, adapter: new ScriptedAdapter(fixtureScript) }).run(run.id);
         assert.equal(completed.status, 'completed', completed.failureReason);
         assert.equal(completed.reports.length, 2);
         assert.equal(completed.config.build.revision, metadata.revision);

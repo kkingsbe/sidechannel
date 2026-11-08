@@ -220,8 +220,8 @@ export function TimelinePanel({ events, provider, live = false, onInspect, onOpe
             <strong>{typeLabel(e.type)}</strong>
             <Badge>{e.agentId || 'system'}</Badge>
             <span className="tl-seq">#{e.sequence} · R{e.round ?? '—'} / T{e.turn ?? '—'}</span>
-            {FAILURE.test(e.type) && <Badge status="failed">Diagnostic</Badge>}
-            {errored && <Badge status="failed">Error</Badge>}
+            {FAILURE.test(e.type) && <Badge tone="danger">Diagnostic</Badge>}
+            {errored && <Badge tone="danger">Error</Badge>}
           </div>
           {quote ? <blockquote className="tl-quote">{quote}</blockquote> : <p className={cn('tl-summary', errored && 'tl-summary-error')}>{summarizeEvent(e, toolNames)}</p>}
           {bodyCall && renderBody(bodyCall)}
@@ -242,7 +242,7 @@ export function TimelinePanel({ events, provider, live = false, onInspect, onOpe
         <div className="tl-main tl-main-call">
           <div className="tl-head">
             <strong>model call</strong>
-            {call.failure && <Badge status="failed">Failed</Badge>}
+            {call.failure && <Badge tone="danger">Failed</Badge>}
             <Badge>{call.agentId || anchor.agentId || 'system'}</Badge>
             <span className="tl-seq">
               #{range[0] === range[1] ? range[0] : `${range[0]}–${range[1]}`} · R{call.round ?? '—'} / T{call.turn ?? '—'}
@@ -318,7 +318,7 @@ export function TimelinePanel({ events, provider, live = false, onInspect, onOpe
                       <strong>{typeLabel(e.type)}</strong>
                       <Badge>{e.agentId || 'system'}</Badge>
                       <span className="helper">#{e.sequence} · R{e.round ?? '—'} / T{e.turn ?? '—'}</span>
-                      {FAILURE.test(e.type) && <Badge status="failed">Diagnostic</Badge>}
+                      {FAILURE.test(e.type) && <Badge tone="danger">Diagnostic</Badge>}
                     </div>
                     <p>{pretty(e.data).slice(0, 190)}</p>
                   </div>

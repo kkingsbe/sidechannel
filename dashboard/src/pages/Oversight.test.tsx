@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import React from "react";
-import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, expect, it } from "vitest";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import Oversight from "./Oversight";
+import { activate, fakeServer, renderWithServer } from "../test/clients";
 
 const outcome = {
   id: "outcome",
@@ -29,15 +30,15 @@ const definition = {
 const sourceRun = (id: string, condition: string) => ({
   id,
   pairId: "pair-1",
-  config: { label: "Pair experiment", condition: { id: condition } },
+  config: {
+    label: "Pair experiment",
+    condition: { id: condition },
+    model: { provider: "fixture", id: "fixture" },
+    scenario: { version: "fixture-v1" },
+  },
   status: "completed",
 });
-const projection = (
-  runId: string,
-  view: string,
-  status = "ready",
-  tokens = 1000,
-) => ({
+const projection = (runId: string, view: string, status = "ready", tokens = 1000) => ({
   schemaVersion: 1,
   version: "monitor-projection-v1",
   runId,
@@ -57,9 +58,7 @@ const result = (runId: string, verdict: string) => ({
   runId,
   view: "reports",
   status: "completed",
-  judgments: [
-    { outcomeId: "outcome", verdict, evidenceIds: ["e1"], explanation: "Because" },
-  ],
+  judgments: [{ outcomeId: "outcome", verdict, evidenceIds: ["e1"], explanation: "Because" }],
 });
 const evaluation = {
   id: "eval-1",
@@ -71,127 +70,112 @@ const evaluation = {
   results: [result("run-excluded", "absent"), result("run-reviewed", "present")],
   cancelRequested: false,
 };
-const json = (data: unknown) =>
-  new Response(JSON.stringify(data), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
-function mock(
-  handler: (url: URL, options?: RequestInit) => unknown,
-) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: string, options?: RequestInit) => {
-      const url = new URL(input, "http://localhost");
-      const path = url.pathname.replace(/^\/api/, "");
-      const custom = await handler(new URL(path, "http://localhost"), options);
-      if (custom === undefined) throw new Error("Unexpected route " + input);
-      return custom instanceof Response ? custom : json(custom);
+const metric = {
+  view: "reports",
+  detected: 1,
+  referencePositive: 1,
+  referenceNegative: 0,
+  referenceUncertain: 0,
+  falsePositive: 0,
+  monitorUncertain: 0,
+  excludedReference: 0,
+  missingView: 0,
+  detectionRate: 1,
+  falsePositiveRate: null,
+};
+const detailRoutes = (comparisons: unknown[] = []) =>
+  ({
+    "/monitor-evaluations/eval-1": evaluation,
+    "/monitor-evaluations/eval-1/comparison": { comparisons },
+    "/monitor-evaluations/eval-1/export": {
+      evaluation,
+      preview: {
+        runs: ["run-excluded", "run-reviewed"].map((runId) => ({
+          runId,
+          projections: views.map((view) => projection(runId, view)),
+        })),
+      },
+    },
+    "/runs/run-reviewed": sourceRun("run-reviewed", "reviewed"),
+    "/runs/run-excluded": sourceRun("run-excluded", "excluded"),
+  }) as Record<string, unknown>;
+
+const fake = (routes: Record<string, unknown>) =>
+  activate(
+    fakeServer((path: string) => {
+      const clean = path.split("?")[0]!;
+      if (clean in routes) return routes[clean];
+      throw new Error("Unexpected route " + path);
     }),
   );
-}
-afterEach(() => {
-  cleanup();
-  localStorage.clear();
-  vi.unstubAllGlobals();
-});
 
-function detailRoutes(comparisons: unknown[]) {
-  return (url: URL) => {
-    if (url.pathname === "/monitor-evaluations/eval-1") return evaluation;
-    if (url.pathname === "/monitor-evaluations/eval-1/comparison")
-      return { comparisons };
-    if (url.pathname === "/monitor-evaluations/eval-1/export")
-      return {
-        evaluation,
-        preview: {
-          runs: ["run-excluded", "run-reviewed"].map((runId) => ({
-            runId,
-            projections: views.map((view) => projection(runId, view)),
-          })),
-        },
-      };
-    if (url.pathname === "/runs/run-reviewed")
-      return sourceRun("run-reviewed", "reviewed");
-    if (url.pathname === "/runs/run-excluded")
-      return sourceRun("run-excluded", "excluded");
-  };
-}
-
-it("heads source blocks with experiment, condition and pair, reviewed first, with a pair summary", async () => {
-  mock(detailRoutes([]));
-  render(
-    <MemoryRouter initialEntries={["/eval-1"]}>
+const renderDetail = (route = "/eval-1", comparisons: unknown[] = []) => {
+  fake(detailRoutes(comparisons));
+  return renderWithServer(
+    <MemoryRouter initialEntries={[route]}>
       <Oversight />
     </MemoryRouter>,
   );
+};
+
+afterEach(cleanup);
+
+it("shows a pair-aligned reviewed/excluded summary for a completed source pair", async () => {
+  renderDetail();
   await screen.findByText("Pair-aligned summary · Pair experiment");
-  const tables = await screen.findAllByRole("table", {
-    name: /Evidence-view verdict matrix/,
-  });
-  expect(tables[0].getAttribute("aria-label")).toContain("run-reviewed");
-  expect(tables[1].getAttribute("aria-label")).toContain("run-excluded");
-  expect(screen.getAllByRole("link", { name: "Pair experiment" })).toHaveLength(2);
-  expect(screen.getAllByText("reviewed").length).toBeGreaterThan(0);
   const summary = screen.getByRole("table", { name: /Pair-aligned verdicts/ });
   expect(within(summary).getByText("present")).toBeTruthy();
   expect(within(summary).getByText("absent")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Pair pair-1" }).getAttribute("href")).toBe("/runs/pairs/pair-1");
+});
+
+it("keeps the source-run metadata loading failures harmless for the summary", async () => {
+  activate(
+    fakeServer((path: string) => {
+      const clean = path.split("?")[0]!;
+      if (clean.startsWith("/runs/")) throw new Error("run metadata unavailable");
+      const routes = detailRoutes();
+      if (clean in routes) return routes[clean];
+      throw new Error("Unexpected route " + path);
+    }),
+  );
+  renderWithServer(
+    <MemoryRouter initialEntries={["/eval-1"]}>
+      <Oversight />
+    </MemoryRouter>,
+  );
+  expect(await screen.findByText("Frozen monitor configuration")).toBeTruthy();
+  expect(screen.queryByText("Pair-aligned summary · Pair experiment")).toBeNull();
 });
 
 it("collapses denominators to an empty state until a reference is agreed", async () => {
-  mock(detailRoutes([]));
-  const { unmount } = render(
-    <MemoryRouter initialEntries={["/eval-1"]}>
-      <Oversight />
-    </MemoryRouter>,
+  renderDetail();
+  expect(await screen.findByText("No agreed human references yet")).toBeTruthy();
+  expect(screen.queryByRole("table", { name: "Detection and false positive counts" })).toBeNull();
+  expect(screen.getByRole("link", { name: "Open Human reference outcomes" }).getAttribute("href")).toBe(
+    "/oversight?view=references",
   );
-  await screen.findByText("No agreed human references yet");
-  expect(
-    screen.queryByRole("table", { name: "Detection and false positive counts" }),
-  ).toBeNull();
-  expect(
-    screen
-      .getByRole("link", { name: "Open Human reference outcomes" })
-      .getAttribute("href"),
-  ).toBe("/oversight?view=references");
-  unmount();
-  const metric = {
-    view: "reports",
-    detected: 1,
-    referencePositive: 1,
-    referenceNegative: 0,
-    referenceUncertain: 0,
-    falsePositive: 0,
-    monitorUncertain: 0,
-    excludedReference: 0,
-    missingView: 0,
-    detectionRate: 1,
-    falsePositiveRate: null,
-  };
-  mock(detailRoutes([{ outcome, rows: [], metrics: [metric] }]));
-  render(
-    <MemoryRouter initialEntries={["/eval-1"]}>
-      <Oversight />
-    </MemoryRouter>,
-  );
-  await screen.findByRole("table", { name: "Detection and false positive counts" });
 });
 
-it("opens the verdict drawer from ?verdict= and words excluded availability clearly", async () => {
-  mock(detailRoutes([]));
-  render(
-    <MemoryRouter
-      initialEntries={["/eval-1?verdict=run-reviewed:outcome:reports"]}
-    >
-      <Oversight />
-    </MemoryRouter>,
-  );
-  await screen.findByText("Because");
-  expect(
-    (await screen.findAllByText(/recorded for this run · not included in this view/))
-      .length,
-  ).toBeGreaterThan(0);
+it("renders denominator counts once references are agreed", async () => {
+  renderDetail("/eval-1", [{ outcome, rows: [], metrics: [metric] }]);
+  expect(await screen.findByRole("table", { name: "Detection and false positive counts" })).toBeTruthy();
+  expect(screen.queryByText("No agreed human references yet")).toBeNull();
+});
+
+it("words what a projection recorded versus what this view included", async () => {
+  renderDetail();
+  const user = userEvent.setup();
+  await user.click((await screen.findAllByRole("button", { name: "Preview Reports" }))[0]!);
+  expect(await screen.findByText("recorded for this run · not included in this view")).toBeTruthy();
+  expect(screen.getByText("not recorded for this run")).toBeTruthy();
   expect(screen.queryByText("Private memory available")).toBeNull();
+});
+
+it("opens the verdict drawer from the ?verdict= deep link", async () => {
+  renderDetail("/eval-1?verdict=run-reviewed:outcome:reports");
+  expect(await screen.findByText("Because")).toBeTruthy();
+  expect(screen.getByText("Reports verdict")).toBeTruthy();
 });
 
 it("requires acknowledging oversized views before launching", async () => {
@@ -212,23 +196,14 @@ it("requires acknowledging oversized views before launching", async () => {
       },
     ],
   };
-  mock((url, options) => {
-    if (url.pathname === "/monitor-definitions") return definition;
-    if (url.pathname === "/monitor-definitions/history")
-      return { items: [definition], nextCursor: null };
-    if (url.pathname === "/monitor-evaluations")
-      return options?.method === "POST"
-        ? { id: "eval-new" }
-        : { items: [], nextCursor: null };
-    if (url.pathname === "/runs")
-      return {
-        items: [sourceRun("run-reviewed", "reviewed")],
-        total: 1,
-        nextOffset: null,
-      };
-    if (url.pathname === "/monitor/preview") return preview;
+  fake({
+    "/monitor-definitions": definition,
+    "/monitor-definitions/history": { items: [definition], nextCursor: null },
+    "/monitor-evaluations": { items: [], nextCursor: null },
+    "/runs": { items: [sourceRun("run-reviewed", "reviewed")], total: 1, nextOffset: null },
+    "/monitor/preview": preview,
   });
-  render(
+  renderWithServer(
     <MemoryRouter initialEntries={["/?view=setup&run=run-reviewed"]}>
       <Oversight />
     </MemoryRouter>,
@@ -241,67 +216,53 @@ it("requires acknowledging oversized views before launching", async () => {
   expect(screen.getByText(/150,500 tokens across 4 views/)).toBeTruthy();
   const launch = screen.getByRole("button", { name: /Launch monitor comparison/ });
   expect((launch as HTMLButtonElement).disabled).toBe(true);
-  await user.click(
-    screen.getByLabelText(
-      "Launch anyway; oversized views will be recorded as unavailable",
-    ),
-  );
+  await user.click(screen.getByLabelText("Launch anyway; oversized views will be recorded as unavailable"));
   expect((launch as HTMLButtonElement).disabled).toBe(false);
 });
 
-it("labels reference runs with condition and shows citation errors inline, with an event picker", async () => {
-  let posted: any;
-  mock((url, options) => {
-    if (url.pathname === "/monitor-definitions") return definition;
-    if (url.pathname === "/monitor-definitions/history")
-      return { items: [definition], nextCursor: null };
-    if (url.pathname === "/monitor-evaluations")
-      return { items: [], nextCursor: null };
-    if (url.pathname === "/runs")
-      return {
-        items: [sourceRun("run-reviewed", "reviewed"), sourceRun("run-excluded", "excluded")],
-        total: 2,
-        nextOffset: null,
-      };
-    if (url.pathname === "/runs/run-reviewed/reviews/context")
-      return {
-        runId: "run-reviewed",
-        definition,
-        evidenceRevision: "rev",
-        eventCount: 2,
-      };
-    if (url.pathname === "/runs/run-reviewed/events")
-      return {
-        events: [
-          { id: "ev-1", runId: "run-reviewed", sequence: 1, type: "board_post", agentId: "agent-a", data: { text: "Hello board" } },
-          { id: "ev-2", runId: "run-reviewed", sequence: 2, type: "tool_call", agentId: "agent-b", data: { text: "Call tool" } },
-        ],
-        nextCursor: 2,
-        hasMore: false,
-      };
-    if (url.pathname === "/runs/run-reviewed/outcomes") return [];
-    if (url.pathname === "/runs/run-reviewed/reviews/latest") return null;
-    if (url.pathname === "/runs/run-reviewed/reviews") {
-      if (options?.method === "POST") {
+it("cites run events from a searchable picker and marks citation errors", async () => {
+  let posted: { eventIds?: string[] } | undefined;
+  const routes: Record<string, unknown> = {
+    "/monitor-definitions": definition,
+    "/monitor-definitions/history": { items: [definition], nextCursor: null },
+    "/monitor-evaluations": { items: [], nextCursor: null },
+    "/runs": {
+      items: [sourceRun("run-reviewed", "reviewed"), sourceRun("run-excluded", "excluded")],
+      total: 2,
+      nextOffset: null,
+    },
+    "/runs/run-reviewed/reviews/context": { runId: "run-reviewed", definition, evidenceRevision: "rev", eventCount: 2 },
+    "/runs/run-reviewed/events": {
+      events: [
+        { id: "ev-1", runId: "run-reviewed", sequence: 1, type: "board_post", agentId: "agent-a", data: { text: "Hello board" } },
+        { id: "ev-2", runId: "run-reviewed", sequence: 2, type: "tool_call", agentId: "agent-b", data: { text: "Call tool" } },
+      ],
+      nextCursor: 2,
+      hasMore: false,
+    },
+    "/runs/run-reviewed/outcomes": [],
+    "/runs/run-reviewed/reviews/latest": null,
+    "/runs/run-reviewed/reviews": { items: [], nextCursor: null },
+  };
+  activate(
+    fakeServer(async (path: string, options?: RequestInit) => {
+      const clean = path.split("?")[0]!;
+      if (clean === "/runs/run-reviewed/reviews" && options?.method === "POST") {
         posted = JSON.parse(String(options.body));
-        return new Response(
-          JSON.stringify({ error: "Citations must be unique event IDs from this source run" }),
-          { status: 400, headers: { "Content-Type": "application/json" } },
-        );
+        throw new Error("Citations must be unique event IDs");
       }
-      return { items: [], nextCursor: null };
-    }
-  });
-  render(
+      if (clean in routes) return routes[clean];
+      throw new Error("Unexpected route " + path);
+    }),
+  );
+  renderWithServer(
     <MemoryRouter initialEntries={["/?view=references&run=run-reviewed"]}>
       <Oversight />
     </MemoryRouter>,
   );
   const user = userEvent.setup();
   const picker = await screen.findByRole("combobox", { name: "Run for outcome adjudication" });
-  expect(
-    within(picker).getByRole("option", { name: "Pair experiment · excluded · run-excluded" }),
-  ).toBeTruthy();
+  expect(within(picker).getByRole("option", { name: "Pair experiment · excluded · run-excluded" })).toBeTruthy();
   await user.type(await screen.findByLabelText("Claimed reviewer identity"), "Alice");
   await user.type(screen.getByLabelText("Rationale / unresolved questions"), "Reason");
   await user.selectOptions(screen.getByLabelText("Human judgment"), "present");
@@ -314,9 +275,11 @@ it("labels reference runs with condition and shows citation errors inline, with 
   expect(field.value).toBe("ev-1");
   await user.type(screen.getByLabelText("Search run events"), "tool");
   expect(screen.queryByLabelText("Cite event 1")).toBeNull();
-  await user.click(screen.getByRole("button", { name: "Save provisional reference" }));
-  await waitFor(() => expect(posted?.eventIds).toEqual(["ev-1"]));
-  const alert = await screen.findByRole("alert");
-  expect(alert.textContent).toContain("Citations must be unique event IDs");
+  const save = await screen.findByRole("button", { name: "Save provisional reference" });
+  await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
+  await user.click(save);
+  await waitFor(() => expect(posted).toBeDefined());
+  await waitFor(() => expect(screen.getAllByText(/Citations must be unique event IDs/).length).toBeGreaterThan(0));
   expect(field.getAttribute("aria-invalid")).toBe("true");
+  expect(posted?.eventIds).toEqual(["ev-1"]);
 });

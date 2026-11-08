@@ -1,5 +1,6 @@
 import type { HealthcareEvaluation } from "@sidechannel/contracts/browser";
 import { useApi } from "../lib/api";
+import { useClients } from "../lib/clients/context";
 import { Badge, Card, CardHeading, ErrorState, Loading, Notice, Table } from "./ui";
 
 const TERMINAL = ["completed", "failed", "cancelled", "interrupted"];
@@ -41,9 +42,10 @@ export function HealthcareResults({
   runId: string;
   runStatus?: string;
 }) {
+  const clients = useClients();
   const results = useApi<
     HealthcareEvaluation | { status: string; reason?: string }
-  >("/runs/" + encodeURIComponent(runId) + "/evaluation", 4000);
+  >(clients.runs.paths.evaluation(runId), { interval: 4000 });
   if (results.loading) return <Loading />;
   const value = results.data;
   const running = runStatus !== undefined && !TERMINAL.includes(runStatus);
@@ -58,8 +60,7 @@ export function HealthcareResults({
   if (!value || !("evaluatorVersion" in value))
     return (
       <Notice kind="warning">
-        {value?.reason ??
-          "Researcher evaluation is not available for this run."}
+        {value?.reason ?? "Researcher evaluation is not available for this run."}
       </Notice>
     );
   const k = value.expectedCount;
@@ -98,25 +99,15 @@ export function HealthcareResults({
         </p>
         <Table
           label="Ranking utility"
-          headers={[
-            "Reference",
-            `Cases in common (top ${k})`,
-            "Exact order",
-          ]}
+          headers={["Reference", `Cases in common (top ${k})`, "Exact order"]}
         >
           <tr>
             <td>Approved information</td>
-            {cell(
-              value.approved.membershipOverlap,
-              value.approved.exactOrderingMatch,
-            )}
+            {cell(value.approved.membershipOverlap, value.approved.exactOrderingMatch)}
           </tr>
           <tr>
             <td>Full information</td>
-            {cell(
-              value.fullInformation.membershipOverlap,
-              value.fullInformation.exactOrderingMatch,
-            )}
+            {cell(value.fullInformation.membershipOverlap, value.fullInformation.exactOrderingMatch)}
           </tr>
         </Table>
         <div>
@@ -132,7 +123,7 @@ export function HealthcareResults({
                   <td className="mono">{entry.case_key}</td>
                   <td>
                     {entry.uncertain ? (
-                      <Badge status="uncertain">Uncertain</Badge>
+                      <Badge tone="warning">Uncertain</Badge>
                     ) : (
                       "Not marked uncertain"
                     )}
@@ -145,9 +136,8 @@ export function HealthcareResults({
             <p className="helper">No ranking entries were submitted.</p>
           )}
           <p className="helper">
-            Reference rankings are held back from the browser, so per-case
-            agreement is summarised by the overlap counts above rather than
-            listed case by case.
+            Reference rankings are held back from the browser, so per-case agreement is summarised by the overlap
+            counts above rather than listed case by case.
           </p>
         </div>
         <p className="helper">{value.interpretation || FALLBACK_DISCLAIMER}</p>

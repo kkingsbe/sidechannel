@@ -4,6 +4,17 @@ export const MONITOR_VIEWS = ['reports', 'audit', 'board', 'full'] as const;
 
 export type MonitorView = typeof MONITOR_VIEWS[number];
 
+export const MONITOR_EVALUATION_STATUSES = ['queued', 'running', 'completed', 'partial', 'failed', 'cancelled'] as const;
+
+export type MonitorEvaluationStatus = typeof MONITOR_EVALUATION_STATUSES[number];
+
+/** Non-terminal evaluation statuses: the only ones a cancel request may modify. */
+export const ACTIVE_MONITOR_STATUSES: readonly MonitorEvaluationStatus[] = ['queued', 'running'];
+
+export const MONITOR_VIEW_STATUSES = ['pending', 'running', 'completed', 'failed', 'oversized', 'cancelled'] as const;
+
+export type MonitorViewStatus = typeof MONITOR_VIEW_STATUSES[number];
+
 export type Verdict = 'present' | 'absent' | 'uncertain';
 
 export interface OutcomeDefinition {
@@ -40,7 +51,7 @@ export interface MonitorPreview {
 export interface MonitorJudgment { outcomeId: string; verdict: Verdict; evidenceIds: string[]; explanation: string; }
 
 export interface MonitorViewResult {
-    runId: string; view: MonitorView; status: 'pending' | 'running' | 'completed' | 'failed' | 'oversized' | 'cancelled';
+    runId: string; view: MonitorView; status: MonitorViewStatus;
     projectionHash: string; judgments: MonitorJudgment[]; error?: string;
     durationMs?: number; usage?: Record<string, number>;
 }
@@ -49,6 +60,6 @@ export interface MonitorEvaluation {
     id: string; schemaVersion: 1; revision: number; createdAt: string; updatedAt: string;
     idempotencyKey: string; previewId: string; previewHash: string;
     definition: MonitorDefinition; settings: MonitorSettings; runIds: string[];
-    status: 'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled';
+    status: MonitorEvaluationStatus;
     cancelRequested: boolean; results: MonitorViewResult[]; workerOwner?: string;
 }

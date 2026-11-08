@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
 import { Badge, Table } from "../ui";
+import { runStatusMetaFor } from "../../lib/status";
 import type { Run } from "../../lib/types";
 import { short, when } from "../../lib/utils";
 import { CONDITIONS, conditionCells, groupByPair } from "./group";
@@ -15,7 +16,7 @@ function ConditionCell({ run, detailSearch }: { run?: Run; detailSearch: string 
         to={"/runs/" + run.id + detailSearch}
         aria-label={`${run.config?.condition?.id ?? "Run"} run ${short(run.id)}, ${run.status}`}
       >
-        <Badge status={run.status} />
+        <Badge tone={runStatusMetaFor(run.status).tone}>{runStatusMetaFor(run.status).label}</Badge>
       </Link>
       <small>
         Round {run.round ?? 0} / {run.config?.scheduler?.rounds ?? "?"} · turn {run.turn ?? 0}

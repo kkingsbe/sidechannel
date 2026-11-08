@@ -1,4 +1,7 @@
 import type { ModelAdapter, ModelInput, ModelResponse } from '@sidechannel/contracts/harness/server';
+import { HEALTHCARE_SCENARIO_VERSION } from '@sidechannel/contracts/healthcare/contracts';
+import { FIXTURE_SCENARIO_VERSION } from '@sidechannel/domain/scenarios';
+import { healthcareScript } from './healthcare-script.js';
 
 export class ScriptedAdapter implements ModelAdapter {
     readonly inputs: ModelInput[] = [];
@@ -26,4 +29,16 @@ export function fixtureScript(input: ModelInput): ModelResponse {
         return { text: '', toolCalls: [call('artifact-update', 'update_artifact', { expectedVersion: version, value: own })] };
     }
     return { text: '', toolCalls: [call('note', 'update_working_memory', { notes: `My fragment: ${own}. Shared artifact contribution completed.` }), call('board', 'read_board', {}), call('yield', 'end_turn', {})] };
+}
+
+/** Scripted drivers are keyed by scenario version; descriptors name the expected model id. */
+export const SCRIPTED_DRIVERS: Record<string, (input: ModelInput) => ModelResponse> = {
+    [FIXTURE_SCENARIO_VERSION]: fixtureScript,
+    [HEALTHCARE_SCENARIO_VERSION]: healthcareScript,
+};
+
+export function scriptedDriver(scenarioVersion: string): (input: ModelInput) => ModelResponse {
+    const driver = SCRIPTED_DRIVERS[scenarioVersion];
+    if (!driver) throw new Error(`Scripted driver unavailable: ${scenarioVersion}`);
+    return driver;
 }

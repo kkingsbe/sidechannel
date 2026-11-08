@@ -1,292 +1,25 @@
-import { useEffect, useState } from "react";
+import { History, Plus, Save } from "lucide-react";
 import {
-  ArrowDown,
-  ArrowUp,
-  Archive,
-  ArchiveRestore,
-  Copy,
-  History,
-  Plus,
-  Save,
-} from "lucide-react";
-import {
-  Badge,
   Button,
   Card,
   CardHeading,
-  Check,
-  Drawer,
   Empty,
   ErrorState,
-  Field,
-  Input,
   JsonView,
   Loading,
   Notice,
   PageHeader,
-  Select,
-  Textarea,
 } from "../components/ui";
-import { api, post, useApi, useMutation } from "../lib/api";
-import { ProseListEditor } from "../components/prose-list-editor";
-import { list, when } from "../lib/utils";
-import type {
-  BehaviorCode,
-  Codebook,
-  CodebookRevision,
-  Page,
-} from "../lib/analysis-types";
-function summarizeRevision(revision: CodebookRevision, previous?: CodebookRevision) {
-  if (revision.revision <= 1) return "Initial revision";
-  if (!previous) return revision.codes.length + " definitions (previous revision not loaded)";
-  const before = new Map(previous.codes.map(code => [code.id, JSON.stringify(code)]));
-  const ids = new Set(revision.codes.map(code => code.id));
-  const added = revision.codes.filter(code => !before.has(code.id)).length;
-  const removed = previous.codes.filter(code => !ids.has(code.id)).length;
-  const edited = revision.codes.filter(code => before.has(code.id) && before.get(code.id) !== JSON.stringify(code)).length;
-  const parts = [added && added + " added", edited && edited + " edited", removed && removed + " removed"].filter(Boolean);
-  return parts.length ? "Changed: " + parts.join(", ") : "No definition changes";
-}
+import { BehaviorEditor } from "./codebook/behavior-editor";
+import { BehaviorList } from "./codebook/behavior-list";
+import { CodebookSelector } from "./codebook/codebook-selector";
+import { RevisionHistoryDrawer } from "./codebook/revision-history-drawer";
+import { useCodebookDraft } from "./codebook/use-codebook-draft";
+
 export default function CodebookPage() {
-  const [bookCursor, setBookCursor] = useState<string | null>(null);
-  const [showArchived, setShowArchived] = useState(false);
-  const [hiddenIds, setHiddenIds] = useState<string[]>([]);
-  const [mutationKind, setMutationKind] = useState<"save" | "archive">("save");
-  const books = useApi<Page<Codebook>>("/codebooks?limit=30" + (showArchived ? "&archived=include" : "") + (bookCursor ? "&after=" + encodeURIComponent(bookCursor) : ""));
-  const [bookOptions, setBookOptions] = useState<Codebook[]>([]);
-  const [bookId, setBookId] = useState("");
-  const current = useApi<{ codebook: Codebook; revision: CodebookRevision }>(
-    bookId ? "/codebooks/" + bookId : null,
-  );
-  const [codes, setCodes] = useState<BehaviorCode[]>([]);
-  const [selected, setSelected] = useState("");
-  const [name, setName] = useState("");
-  const [author, setAuthor] = useState(
-    () => localStorage.getItem("sidechannel-reviewer") || "",
-  );
-  const [dirty, setDirty] = useState(false);
-  const [history, setHistory] = useState(false);
-  const [revisionCursor, setRevisionCursor] = useState<string | null>(null);
-  const [revisionPages, setRevisionPages] = useState<(string | null)[]>([]);
-  const [formBookId, setFormBookId] = useState("");
-  const [baseRevisionId, setBaseRevisionId] = useState("");
-  const [baseRevision, setBaseRevision] = useState(0);
-  const [recovery, setRecovery] = useState<{name:string;codes:BehaviorCode[];baseRevision:number}>();
-  const revisions = useApi<Page<CodebookRevision>>(
-    history && bookId ? "/codebooks/" + bookId + "/revisions?limit=30" + (revisionCursor ? "&after=" + encodeURIComponent(revisionCursor) : "") : null,
-  );
-  const [historyRevision, setHistoryRevision] = useState<CodebookRevision>();
-  const mutation = useMutation();
-  useEffect(() => {
-    if (books.data) setBookOptions(previous => [...new Map([...previous, ...books.data!.items].map(book => [book.id, book])).values()]);
-  }, [books.data]);
-  useEffect(() => { setRevisionCursor(null); setRevisionPages([]); setHistoryRevision(undefined); }, [bookId]);
-  const visibleItems = (books.data?.items ?? []).filter(book => !hiddenIds.includes(book.id));
-  useEffect(() => {
-    if (!bookId && visibleItems[0]) setBookId(visibleItems[0].id);
-  }, [books.data, bookId, hiddenIds]);
-  useEffect(() => {
-    if (!current.data || current.data.codebook.id !== bookId) return;
-    setFormBookId(current.data.codebook.id);
-    setBaseRevisionId(current.data.revision.id);
-    setBaseRevision(current.data.revision.revision);
-    setRecovery(undefined);
-    const key = "sidechannel-codebook-" + current.data.codebook.id;
-    const saved = localStorage.getItem(key);
-    if (saved) {
-      try {
-        const recovered = JSON.parse(saved);
-        if (Array.isArray(recovered.codes) && typeof recovered.name === 'string' && recovered.baseRevision === current.data.codebook.revision) {
-          setCodes(recovered.codes);
-          setName(recovered.name);
-          setSelected(recovered.codes[0]?.id || "");
-          touch();
-          return;
-        }
-        if (Array.isArray(recovered.codes) && typeof recovered.name === 'string') setRecovery(recovered);
-      } catch {
-        /* Invalid recovery copy. */
-      }
-    }
-    setCodes(structuredClone(current.data.revision.codes));
-    setName(current.data.codebook.name);
-    setSelected(current.data.revision.codes[0]?.id || "");
-    setDirty(false);
-  }, [current.data, bookId]);
-  useEffect(() => {
-    if (dirty && formBookId && formBookId === bookId)
-      localStorage.setItem(
-        "sidechannel-codebook-" + bookId,
-        JSON.stringify({
-          codes,
-          name,
-          baseRevision,
-        }),
-      );
-  }, [codes, name, dirty, bookId, formBookId, baseRevision]);
-  const selectedBook = current.data?.codebook.id === bookId ? current.data.codebook : undefined;
-  const readOnly = Boolean(selectedBook?.archived);
-  const touch = () => {
-    setDirty(true);
-    if (mutation.message) mutation.clear();
-  };
-  const edit = (patch: Partial<BehaviorCode>) => {
-    if (readOnly) return;
-    setCodes(
-      codes.map((code) =>
-        code.id === selected ? { ...code, ...patch } : code,
-      ),
-    );
-    touch();
-  };
-  const code = codes.find((code) => code.id === selected);
-  const add = () => {
-    if (readOnly) return;
-    const id = crypto.randomUUID();
-    setCodes([
-      ...codes,
-      {
-        id,
-        code: "",
-        name: "",
-        definition: "",
-        inclusionCriteria: [],
-        exclusionCriteria: [],
-        examples: [],
-        counterexamples: [],
-        qualifyingEvidenceTypes: ["executed action"],
-        enabled: true,
-        archived: false,
-        color: "#3b82f6",
-      },
-    ]);
-    setSelected(id);
-    touch();
-  };
-  const create = async () => {
-    const result = await mutation.run(() =>
-      post<{ codebook: Codebook; revision: CodebookRevision }>("/codebooks", {
-        name: "Study codebook",
-        author: author || "Researcher",
-      }),
-    );
-    if (result) {
-      setBookOptions(previous => [...previous.filter(book => book.id !== result.codebook.id), result.codebook]);
-      setBookId(result.codebook.id);
-      void books.refresh();
-    }
-  };
-  const save = async () => {
-    if (!current.data || formBookId !== bookId || !baseRevisionId || readOnly) return;
-    setMutationKind("save");
-    const result = await mutation.run(
-      () =>
-        api<{ codebook: Codebook; revision: CodebookRevision }>(
-          "/codebooks/" + bookId,
-          {
-            method: "PATCH",
-            body: JSON.stringify({
-              expectedRevisionId: baseRevisionId,
-              name,
-              codes: codes.map(code=>({...code,...Object.fromEntries((['inclusionCriteria','exclusionCriteria','examples','counterexamples','qualifyingEvidenceTypes'] as const).map(key=>[key,code[key].map(value=>value.trim()).filter(Boolean)]))})),
-              author,
-            }),
-          },
-        ),
-      "New immutable codebook revision saved. Existing analyses keep their frozen definitions.",
-    );
-    if (result) {
-      setDirty(false);
-      localStorage.removeItem("sidechannel-codebook-" + bookId);
-      void current.refresh();
-      void books.refresh();
-    }
-  };
-  const changeShowArchived = (checked: boolean) => {
-    setShowArchived(checked);
-    setBookCursor(null);
-    setBookOptions([]);
-    setHiddenIds([]);
-    if (!checked && selectedBook?.archived) setBookId("");
-  };
-  const discardEdits = () => {
-    localStorage.removeItem("sidechannel-codebook-" + bookId);
-    setDirty(false);
-    void current.refresh();
-  };
-  const ready = Boolean(current.data) && formBookId === bookId && Boolean(baseRevisionId);
-  const authorHint = "Enter a revision author to archive or restore a codebook.";
-  const archiveBlocked = !author.trim()
-    ? authorHint
-    : dirty
-      ? "Save or discard your unsaved edits before archiving this codebook."
-      : "";
-  const restoreBlocked = !author.trim() ? authorHint : "";
-  const setArchived = async (archive: boolean) => {
-    if (!ready || !selectedBook || (archive && dirty)) return;
-    if (
-      archive &&
-      !window.confirm(
-        `Archive "${selectedBook.name}"? Existing analyses are unaffected and keep their frozen definitions, but this codebook cannot be used for new analyses until it is restored.`,
-      )
-    )
-      return;
-    setMutationKind("archive");
-    const id = bookId;
-    const result = await mutation.run(
-      () =>
-        post<{ codebook: Codebook }>("/codebooks/" + id + "/" + (archive ? "archive" : "restore"), {
-          expectedRevisionId: baseRevisionId,
-          author: author.trim(),
-        }),
-      archive
-        ? "Codebook archived. Existing analyses are unaffected; restore it to start new analyses."
-        : "Codebook restored. It can be used for new analyses again.",
-    );
-    if (!result) return;
-    setBookOptions(previous => previous.map(book => (book.id === id ? { ...book, ...result.codebook, revision: book.revision } : book)));
-    if (archive && !showArchived) {
-      const next = bookOptions.find(book => book.id !== id && !book.archived && !hiddenIds.includes(book.id));
-      setHiddenIds(previous => [...previous, id]);
-      setBookId(next?.id ?? "");
-    }
-    void books.refresh();
-    void current.refresh();
-  };
-  const duplicate = () => {
-    if (!code || readOnly) return;
-    const id = crypto.randomUUID();
-    setCodes([
-      ...codes,
-      {
-        ...structuredClone(code),
-        id,
-        code: code.code + "_COPY",
-        name: code.name + " copy",
-      },
-    ]);
-    setSelected(id);
-    touch();
-  };
-  const reorder = (direction: number) => {
-    const index = codes.findIndex((c) => c.id === selected),
-      next = index + direction;
-    if (next < 0 || next >= codes.length || readOnly) return;
-    const result = [...codes];
-    [result[index], result[next]] = [result[next], result[index]];
-    setCodes(result);
-    touch();
-  };
-  const duplicateNames = codes
-    .filter((c) => !c.archived)
-    .some((c, i, arr) => arr.findIndex((other) => other.code === c.code) !== i);
-  const invalid =
-    !name.trim() ||
-    codes.some(
-      (c) =>
-        !c.archived &&
-        (!c.definition.trim() || !c.code.trim() || !c.name.trim()),
-    ) || duplicateNames;
+  const draft = useCodebookDraft();
+  const { command, validation, current } = draft;
+  const saveDisabled = command.busy || draft.loading || !validation.readyToSave || draft.readOnly;
   return (
     <>
       <PageHeader
@@ -295,40 +28,23 @@ export default function CodebookPage() {
         description="Define what Jev screens for. These exploratory codes are separate from run-level outcomes."
         actions={
           <>
-            <Button variant="secondary" onClick={create} disabled={mutation.busy || dirty}><Plus size={15} />New codebook</Button>
             <Button
               variant="secondary"
-              onClick={() => setHistory(true)}
-              disabled={!bookId}
+              onClick={draft.create}
+              disabled={command.busy || draft.dirty}
+            >
+              <Plus size={15} />
+              New codebook
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => draft.setHistoryOpen(true)}
+              disabled={!draft.bookId}
             >
               <History size={15} />
               Revision history
             </Button>
-            {readOnly ? (
-              <Button
-                variant="secondary"
-                onClick={() => void setArchived(false)}
-                disabled={mutation.busy || !ready || Boolean(restoreBlocked)}
-                aria-describedby={restoreBlocked ? "archive-hint" : undefined}
-              >
-                <ArchiveRestore size={15} />
-                Restore codebook
-              </Button>
-            ) : (
-              <Button
-                variant="secondary"
-                onClick={() => void setArchived(true)}
-                disabled={!bookId || mutation.busy || current.loading || !ready || Boolean(archiveBlocked)}
-                aria-describedby={archiveBlocked ? "archive-hint" : undefined}
-              >
-                <Archive size={15} />
-                Archive codebook
-              </Button>
-            )}
-            <Button
-              onClick={save}
-              disabled={mutation.busy || current.loading || formBookId !== bookId || !dirty || invalid || !author.trim() || readOnly}
-            >
+            <Button onClick={draft.save} disabled={saveDisabled}>
               <Save size={15} />
               Save revision
             </Button>
@@ -336,317 +52,93 @@ export default function CodebookPage() {
         }
       />
       <div className="save-status" role="status">
-        {mutation.busy ? 'Saving revision…' : !dirty ? 'No unsaved changes.' : !author.trim() ? 'Save is disabled until a revision author is entered.' : invalid ? 'Complete the name, display code and definition for every active behavior; display codes must be unique.' : 'Ready to save a new revision. Existing analyses keep their frozen definitions.'}
-        {dirty && <p>Save these edits before creating another codebook. Your recovery copy is local to this browser.</p>}
+        {command.busy ? "Saving revision…" : validation.status}
+        {draft.readOnly
+          ? " This codebook is archived. Archive or restore actions do not change its frozen definitions."
+          : " Saving creates a new immutable revision; it never overwrites an existing one."}
+        {draft.dirty && (
+          <p>
+            Save these edits before creating another codebook. Your recovery copy
+            is local to this browser.
+          </p>
+        )}
       </div>
-      {bookId && (readOnly ? restoreBlocked : archiveBlocked) && (
-        <p className="helper" id="archive-hint">
-          {readOnly ? restoreBlocked : archiveBlocked}
-          {!readOnly && dirty && author.trim() && <> <Button variant="ghost" size="sm" onClick={discardEdits}>Discard unsaved edits</Button></>}
-        </p>
-      )}
-      {mutation.error && mutationKind === "archive" && (
+      {command.error && (
         <Notice kind="error">
-          {mutation.error.message}
-          {"status" in mutation.error && mutation.error.status === 409 && (
-            <div><Button variant="secondary" onClick={() => { mutation.clear(); void current.refresh(); void books.refresh(); }}>Reload codebook</Button></div>
+          {command.error.message}
+          {"status" in command.error && command.error.status === 409 && (
+            <div>
+              <p>
+                Another researcher saved a newer revision. Your edits are
+                retained locally. Reload the latest revision, then reconcile your
+                changes before saving.
+              </p>
+              <Button variant="secondary" onClick={draft.loadLatest}>
+                Load latest for reconciliation
+              </Button>
+            </div>
           )}
         </Notice>
       )}
-      {mutation.error && mutationKind === "save" && (
-        <Notice kind="error">
-          {mutation.error.message}
-          {"status" in mutation.error && mutation.error.status === 409 && (
-            <div><p>
-              Another researcher saved a newer revision. Your edits are retained
-              locally. Reload the latest revision, then reconcile your changes
-              before saving.
-            </p><Button variant="secondary" onClick={() => { mutation.clear(); void current.refresh(); }}>Load latest for reconciliation</Button></div>
-          )}
-        </Notice>
+      {command.message && <Notice kind="success">{command.message}</Notice>}
+      {draft.recovery && (
+        <Card>
+          <CardHeading
+            title="Recover edits from an older revision"
+            description={`Your local edits started at revision ${draft.recovery.baseRevision}. The form below shows the latest saved revision ${current?.revision.revision}. Review both before saving.`}
+          />
+          <div className="card-body">
+            <JsonView value={draft.recovery} title="Preserved local edits" />
+            <JsonView value={current?.revision} title="Latest saved definitions" />
+            <Button variant="secondary" onClick={draft.restoreRecovery}>
+              Restore local edits for reconciliation
+            </Button>
+            <p className="helper">
+              Restoring does not save. New definitions from the latest revision
+              are retained; inspect changed fields before creating a revision.
+            </p>
+          </div>
+        </Card>
       )}
-      {mutation.message && <Notice kind="success">{mutation.message}</Notice>}
-      {recovery && !readOnly && <Card><CardHeading title="Recover edits from an older revision" description={`Your local edits started at revision ${recovery.baseRevision}. The form below shows the latest saved revision ${baseRevision}. Review both before saving.`}/><div className="card-body"><JsonView value={recovery} title="Preserved local edits"/><JsonView value={current.data?.revision} title="Latest saved definitions"/><Button variant="secondary" onClick={() => {
-        const localIds = new Set(recovery.codes.map(code => code.id));
-        setCodes([...recovery.codes, ...(current.data?.revision.codes ?? []).filter(code => !localIds.has(code.id))]);
-        setName(recovery.name); setSelected(recovery.codes[0]?.id ?? ''); touch(); setRecovery(undefined);
-      }}>Restore local edits for reconciliation</Button><p className="helper">Restoring does not save. New definitions from the latest revision are retained; inspect changed fields before creating a revision.</p></div></Card>}
-      {dirty && (
+      {draft.dirty && (
         <Notice>
           Unsaved codebook changes are kept in this browser. Saving creates a
           revision for future analyses only.
         </Notice>
       )}
-      {duplicateNames && (
+      {validation.duplicateNames && (
         <Notice kind="error">
           Display codes must be unique among active definitions.
         </Notice>
       )}
-      {books.loading ? (
+      {draft.booksLoading ? (
         <Loading />
-      ) : books.error ? (
-        <ErrorState error={books.error} retry={books.refresh} />
-      ) : !visibleItems.length ? (
+      ) : draft.booksError ? (
+        <ErrorState error={draft.booksError} retry={draft.booksRefresh} />
+      ) : !draft.books.length ? (
         <Card>
           <Empty
             title="Create the study codebook"
             description="Create an empty study codebook and add behavior definitions through the editor."
           >
-            <Button onClick={create} disabled={mutation.busy}>
+            <Button onClick={draft.create} disabled={command.busy}>
               <Plus size={14} />
               Create codebook
             </Button>
-            {!showArchived && (
-              <Button variant="ghost" onClick={() => changeShowArchived(true)}>
-                <ArchiveRestore size={14} />
-                Show archived codebooks
-              </Button>
-            )}
           </Empty>
         </Card>
       ) : (
         <>
-          <div className="form-grid three" style={{ marginBottom: 20 }}>
-            <Field label="Codebook">
-              <Select
-                value={bookId}
-                onChange={(e) => {
-                  if (
-                    dirty &&
-                    !window.confirm(
-                      "Switch codebook? Your unsaved changes are retained in this browser.",
-                    )
-                  )
-                    return;
-                  setBookId(e.target.value);
-                }}
-              >
-                {bookOptions.filter(book => !hiddenIds.includes(book.id)).map((book) => (
-                  <option key={book.id} value={book.id}>
-                    {book.name}{book.revision?` · r${book.revision}`:''}{book.archived?' · archived':''}
-                  </option>
-                ))}
-              </Select>
-              <Check
-                label="Show archived"
-                checked={showArchived}
-                onChange={(e) => changeShowArchived(e.target.checked)}
-              />
-              {books.data?.nextCursor && <Button variant="ghost" size="sm" onClick={() => setBookCursor(books.data!.nextCursor)}>Load more codebooks</Button>}
-            </Field>
-            <Field label="Codebook name" required error={dirty && !name.trim() ? "Enter a codebook name." : undefined}>
-              <Input
-                value={name}
-                disabled={readOnly}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  touch();
-                }}
-              />
-            </Field>
-            <Field
-              required
-              label="Revision author"
-              hint="Claimed identity in this open workspace, not an authenticated account."
-              error={dirty && !author.trim() ? "Enter a revision author to save your changes." : undefined}
-            >
-              <Input
-                value={author}
-                onChange={(e) => {
-                  setAuthor(e.target.value);
-                  localStorage.setItem("sidechannel-reviewer", e.target.value);
-                }}
-              />
-            </Field>
-          </div>
-          {readOnly && selectedBook && (
-            <Notice>
-              <strong>This codebook is archived</strong>
-              {selectedBook.archivedBy ? ` by ${selectedBook.archivedBy}` : ""}
-              {selectedBook.archivedAt ? ` on ${when(selectedBook.archivedAt)}` : ""}. It is read-only and cannot be
-              used for new analyses until it is restored. Existing analyses keep their frozen definitions.
-            </Notice>
-          )}
-          {current.loading ? (
+          <CodebookSelector draft={draft} />
+          {draft.loading ? (
             <Loading />
-          ) : current.error ? (
-            <ErrorState error={current.error} retry={current.refresh} />
+          ) : draft.error ? (
+            <ErrorState error={draft.error} retry={draft.loadLatest} />
           ) : (
             <div className="split">
-              <Card>
-                <CardHeading
-                  title="Behavior codes"
-                  description={`${codes.filter((c) => c.enabled && !c.archived).length} enabled · revision ${current.data?.codebook.revision ?? "—"}`}
-                  actions={
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Add behavior code"
-                      disabled={readOnly}
-                      onClick={add}
-                    >
-                      <Plus size={17} />
-                    </Button>
-                  }
-                />
-                {codes.map((item) => (
-                  <button
-                    className={
-                      "list-button " + (selected === item.id ? "selected" : "")
-                    }
-                    key={item.id}
-                    onClick={() => setSelected(item.id)}
-                  >
-                    <span
-                      className="color-dot"
-                      style={{ background: item.color }}
-                    />
-                    <div>
-                      <strong>{item.code || "Untitled behavior"}</strong>
-                      <small>{item.name && item.name !== item.code ? item.name : item.definition.split("\n")[0].slice(0, 80) || "No definition yet"}</small>
-                    </div>
-                    <Badge>
-                      {item.archived
-                        ? "Archived"
-                        : item.enabled
-                          ? "Enabled"
-                          : "Disabled"}
-                    </Badge>
-                  </button>
-                ))}
-                <div className="card-body" style={{ paddingTop: 18 }}>
-                  <Button variant="secondary" onClick={add} size="sm" disabled={readOnly}>
-                    <Plus size={13} />
-                    New behavior
-                  </Button>
-                </div>
-              </Card>
-              {code ? (
-                <Card>
-                  <CardHeading
-                    title={code.name || code.code || "New behavior"}
-                    description={`Stable internal ID · ${code.id}`}
-                    actions={
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Move code up"
-                          onClick={() => reorder(-1)}
-                          disabled={readOnly || codes[0]?.id === selected}
-                        >
-                          <ArrowUp size={15} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Move code down"
-                          onClick={() => reorder(1)}
-                          disabled={readOnly || codes.at(-1)?.id === selected}
-                        >
-                          <ArrowDown size={15} />
-                        </Button>
-                      </>
-                    }
-                  />
-                  <fieldset disabled={readOnly} className="card-body form-grid" style={{ border: 0, margin: 0, minWidth: 0 }}>
-                    <Field
-                      required label="Display code"
-                      error={
-                        codes.some(
-                          (c) =>
-                            c.id !== code.id &&
-                            !c.archived &&
-                            c.code === code.code,
-                        )
-                          ? "This display code is already used."
-                          : undefined
-                      }
-                    >
-                      <Input
-                        value={code.code}
-                        placeholder="e.g. PROHIBITED_ROUTE"
-                        onChange={(e) => edit({ code: e.target.value })}
-                      />
-                    </Field>
-                    <Field required label="Display name">
-                      <Input
-                        value={code.name}
-                        placeholder="e.g. Proposes a prohibited route"
-                        onChange={(e) => edit({ name: e.target.value })}
-                      />
-                    </Field>
-                    <Field
-                      required
-                      label="Definition"
-                      className="full"
-                      hint="Required. Explain what this behavior means in this study."
-                    >
-                      <Textarea
-                        rows={7}
-                        expandable editorLabel="Definition"
-                        value={code.definition}
-                        onChange={(e) => edit({ definition: e.target.value })}
-                      />
-                    </Field>
-                    {(
-                      [
-                        "inclusionCriteria",
-                        "exclusionCriteria",
-                        "examples",
-                        "counterexamples",
-                        "qualifyingEvidenceTypes",
-                      ] as const
-                    ).map((key) => (
-                      <ProseListEditor key={key} label={{
-                        inclusionCriteria: "Inclusion criteria", exclusionCriteria: "Exclusion criteria",
-                        examples: "Examples", counterexamples: "Counterexamples",
-                        qualifyingEvidenceTypes: "Qualifying evidence / action types",
-                      }[key]} values={code[key]} onChange={values => edit({ [key]: values })} />
-                    ))}
-                    <Field
-                      label="Chart color"
-                      hint="Codes are always identified by text as well as color."
-                    >
-                      <Input
-                        type="color"
-                        value={code.color}
-                        onChange={(e) => edit({ color: e.target.value })}
-                      />
-                    </Field>
-                    <div className="full actions">
-                      <Check
-                        label="Enabled in new analyses"
-                        checked={code.enabled && !code.archived}
-                        disabled={code.archived}
-                        onChange={(e) => edit({ enabled: e.target.checked })}
-                      />
-                      <Button variant="secondary" size="sm" onClick={duplicate}>
-                        <Copy size={13} />
-                        Duplicate
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          edit({
-                            archived: !code.archived,
-                            enabled: code.archived,
-                          })
-                        }
-                      >
-                        <Archive size={13} />
-                        {code.archived ? "Restore" : "Archive"}
-                      </Button>
-                    </div>
-                    <Notice>
-                      Archiving preserves historical analyses and reviews. A
-                      behavior label alone does not establish a violation or
-                      misconduct.
-                    </Notice>
-                    <div className="full editor-save-bar"><span>{dirty ? 'Unsaved changes' : 'Saved revision'}{mutation.error ? ' · Save failed; edits retained' : ''}</span>{dirty && !author.trim() && <span className="field-error">Add a revision author above to enable saving.</span>}<Button onClick={save} disabled={mutation.busy || current.loading || formBookId !== bookId || !dirty || invalid || !author.trim() || readOnly}>Save codebook edits</Button></div>
-                  </fieldset>
-                </Card>
+              <BehaviorList draft={draft} />
+              {draft.code ? (
+                <BehaviorEditor draft={draft} />
               ) : (
                 <Empty title="Select a behavior definition" />
               )}
@@ -654,52 +146,7 @@ export default function CodebookPage() {
           )}
         </>
       )}
-      <Drawer
-        open={history}
-        onOpenChange={setHistory}
-        title="Codebook revision history"
-        eyebrow="Codebook"
-        description="Immutable definitions used by past and future analyses."
-      >
-        {revisions.loading ? (
-          <Loading />
-        ) : revisions.error ? (
-          <ErrorState error={revisions.error} retry={revisions.refresh} />
-        ) : (
-          revisions.data?.items.map((revision, index, all) => (
-            <button
-              key={revision.id}
-              className="list-button"
-              onClick={() => setHistoryRevision(revision)}
-            >
-              <div>
-                <strong>
-                  Revision {revision.revision}{revision.name ? " · " + revision.name : ""}
-                </strong>
-                <small>
-                  {when(revision.createdAt)} · {revision.author} ·{" "}
-                  {revision.codes.length} definitions
-                </small>
-                <small>{summarizeRevision(revision, all.find(other => other.revision === revision.revision - 1))}</small>
-              </div>
-            </button>
-          ))
-        )}
-        {historyRevision && (
-          <div style={{ marginTop: 24 }}>
-            <h3>Revision {historyRevision.revision}</h3>
-            {historyRevision.codes.map((code) => (
-              <div style={{ marginTop: 14 }} key={code.id}>
-                <strong>
-                  {code.code} · {code.name}
-                </strong>
-                <p className="helper">{code.definition}</p>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="actions"><Button variant="secondary" disabled={!revisionPages.length || revisions.loading} onClick={() => { setRevisionCursor(revisionPages.at(-1) ?? null); setRevisionPages(previous => previous.slice(0,-1)); setHistoryRevision(undefined); }}>Previous revisions</Button><Button variant="secondary" disabled={!revisions.data?.nextCursor || revisions.loading} onClick={() => { setRevisionPages(previous => [...previous, revisionCursor]); setRevisionCursor(revisions.data!.nextCursor); setHistoryRevision(undefined); }}>Next revisions</Button></div>
-      </Drawer>
+      <RevisionHistoryDrawer draft={draft} />
     </>
   );
 }

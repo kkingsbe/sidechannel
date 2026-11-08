@@ -70,6 +70,10 @@
       "types": "./dist/analysis/store.d.ts",
       "import": "./dist/analysis/store.js"
     },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "import": "./dist/errors.js"
+    },
     "./harness/contracts": {
       "types": "./dist/harness/contracts.d.ts",
       "import": "./dist/harness/contracts.js"
@@ -81,6 +85,10 @@
     "./harness/server": {
       "types": "./dist/harness/server.d.ts",
       "import": "./dist/harness/server.js"
+    },
+    "./oversight/blob-store": {
+      "types": "./dist/oversight/blob-store.d.ts",
+      "import": "./dist/oversight/blob-store.js"
     },
     "./oversight/comparison": {
       "types": "./dist/oversight/comparison.d.ts",
@@ -101,6 +109,10 @@
     "./server/config-schema": {
       "types": "./dist/server/config-schema.d.ts",
       "import": "./dist/server/config-schema.js"
+    },
+    "./server/metadata": {
+      "types": "./dist/server/metadata.d.ts",
+      "import": "./dist/server/metadata.js"
     },
     "./server/contracts": {
       "types": "./dist/server/contracts.d.ts",

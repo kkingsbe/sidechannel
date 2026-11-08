@@ -20,7 +20,7 @@ const source = await MongoRepository.connect(process.env.TEST_MONGODB_URI ?? pro
 try {
     const snapshots = new Map<string, MemorySnapshot>();
     const run = createQueuedRun(resolveConfiguration(defaultFixtureConfiguration()), 'jev-smoke'); await source.createRun(run);
-    const finished = await new HarnessScheduler({ repository: source, adapter: new ScriptedAdapter(fixtureScript), memory: {
+    const finished = await new HarnessScheduler({ runState: source, events: source, adapter: new ScriptedAdapter(fixtureScript), memory: {
         async load(runId, actor) { return structuredClone(snapshots.get(runId + ':' + actor) ?? { version: 0, notes: '', messages: [] }); },
         async save(runId, actor, snapshot) { snapshots.set(runId + ':' + actor, structuredClone(snapshot)); },
     } }).run(run.id);

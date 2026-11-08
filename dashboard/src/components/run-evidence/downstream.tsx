@@ -1,8 +1,21 @@
 import { Link } from "react-router-dom";
 import { Badge, Button, Card, CardHeading } from "../ui";
-import { arrayOf, useApi } from "../../lib/api";
+import { useApi } from "../../lib/api";
+import type { Tone } from "../../lib/status";
 import { plural } from "./evidence-model";
 import { short, when } from "../../lib/utils";
+
+const rowsOf = <T,>(value: { items?: T[] } | T[] | undefined): T[] =>
+  Array.isArray(value) ? value : (value?.items ?? []);
+
+/** Semantic tone for dashboard job statuses (display copy stays the raw status). */
+export function jobTone(status: string | undefined): Tone {
+  if (status === "failed" || status === "cancelled" || status === "interrupted") return "danger";
+  if (status === "completed") return "success";
+  if (status === "running" || status === "reporting" || status === "preparing") return "info";
+  if (status === "queued" || status === "stopping") return "warning";
+  return "neutral";
+}
 
 type AnalysisSummary = {
   id: string;
@@ -46,10 +59,10 @@ export function Downstream({
   const outcomes = useApi<OutcomeSummary[]>(
     "/runs/" + encodeURIComponent(runId) + "/outcomes",
   );
-  const analysisRows = arrayOf<AnalysisSummary>(analyses.data).filter(
+  const analysisRows = rowsOf<AnalysisSummary>(analyses.data).filter(
     (row) => row && typeof row.id === "string",
   );
-  const evaluationRows = arrayOf<EvaluationSummary>(evaluations.data).filter(
+  const evaluationRows = rowsOf<EvaluationSummary>(evaluations.data).filter(
     (row) => Array.isArray(row?.runIds) && row.runIds.includes(runId),
   );
   const references = Array.isArray(outcomes.data) ? outcomes.data : [];
@@ -72,7 +85,7 @@ export function Downstream({
                   <Link to={"/analysis/" + job.id}>
                     Analysis {short(job.id)}
                   </Link>
-                  <Badge status={job.status}>{job.status ?? "unknown"}</Badge>
+                  <Badge tone={jobTone(job.status)}>{job.status ?? "unknown"}</Badge>
                   <span className="helper">
                     {[
                       settings?.model,
@@ -106,7 +119,7 @@ export function Downstream({
                 <Link to={"/oversight/" + job.id}>
                   Evaluation {short(job.id)}
                 </Link>
-                <Badge status={job.status}>{job.status ?? "unknown"}</Badge>
+                <Badge tone={jobTone(job.status)}>{job.status ?? "unknown"}</Badge>
                 <span className="helper">
                   {[
                     job.settings?.model?.id,

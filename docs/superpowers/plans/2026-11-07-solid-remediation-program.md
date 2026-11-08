@@ -357,13 +357,17 @@ Week 6        WS7 (vocabularies, gated hashing) ◄─────────�
 
 **Program done when:**
 
-- [ ] All 4 critical and 25 high findings are closed or explicitly accepted with written rationale in `docs/solid-remediation-decisions.md`.
-- [ ] Contract suites exist for every persistence port and run against both adapters in CI.
-- [ ] Architecture budgets in CI: largest page < 500 lines, no page defines data hooks, provider-settings copy count = 1, scenario literals ≤ 6, no byte-identical duplicate files, no `as unknown as` on ports.
-- [ ] Boundary verifier extended and green; structural lint rules active.
-- [ ] Evidence equivalence: scripted fixture runs match pre-refactor event sequence/artifact; integration suite green.
+- [x] All 4 critical and 25 high findings are closed or explicitly accepted with written rationale in `docs/solid-remediation-decisions.md`.
+- [x] Contract suites exist for every persistence port and run against both adapters in CI.
+- [x] Architecture budgets in CI: largest page < 500 lines, no page defines data hooks, provider-settings copy count = 1, scenario literals ≤ 6, no byte-identical duplicate files, no `as unknown as` on ports.
+- [x] Boundary verifier extended and green; structural lint rules active.
+- [x] Evidence equivalence: scripted fixture runs match pre-refactor event sequence/artifact; integration suite green.
 - [ ] Re-audit (rerun the SOLID audit) shows overall grade ≥ B and SRP ≥ C+, with 0 critical/high findings.
-- [ ] `README.md` points to the audit, plan, and decision log.
+- [x] `README.md` points to the audit, plan, and decision log.
+
+> **Execution record (2026-11-07):** the program was executed on branch `refactor/solid-remediation` in a dedicated worktree. Every workstream landed with its task-level gates green; the final measured census, commit anchors, gate evidence, accepted deferrals (notably WS7 T7.4 canonical hashing) and environment limitations are recorded in [`docs/solid-remediation-decisions.md`](../../solid-remediation-decisions.md). The single unchecked criterion — the independent re-audit — is an external acceptance step and was not run as part of this execution.
+>
+> **Main integration (2026-11-07):** while the program closed out, `main` advanced by seven commits (`48a2170`) with behaviour the audit predates. They were merged into the branch (`6dcb106`, never a rebase) and re-expressed on the refactored architecture: the `submit_report` report protocol, the expiring worker lease, inference fixes, artifact diagnostics with the 16,384-token default, scripted playbooks (registry + API + worker runtime + dashboard picker) and the model-call/trace run UI. The binding interfaces were extended in `2026-11-07-plan-conventions.md` (lease `WorkerGuard`/`WorkerStatus`, `ProviderProfile.adapterKind`/`validateModel`, `ResolvedTransport.assistantTextItemIds`, browser vocabulary/playbook exports). Evidence was re-recorded once, with the deltas recorded in the decision log §Main integration: scheduler snapshots +4/+10 events, the route-contract snapshot (+11 research / +1 demo cases, 44 v2/worker-shape changes, none removed), the committed fixture export regenerated 103 → 127 events, and the migration-equivalence baseline re-recorded through its explicit switch. Further `main` movement is integrated under the same policy and recorded there. A second wave then merged `main@3efcb2e` (28 commits: live turn-aligned timeline/SSE, dashboard review fixes, codebook archive, Jev fixes, deployment guards) as `61e3332` and ported it under the same policy; that wave's ports, interface extensions (event-page/turn/archive ports and the SSE transport seam), evidence (route-contract 58 → 73 cases, none removed; scheduler/fixture/migration evidence unchanged) and gates are recorded in the decision log.
 
 ## 10. Immediate next actions
 
@@ -419,6 +423,8 @@ All execution-ready plans live in `docs/superpowers/plans/` and follow [`2026-11
 WS0 has no separate plan; its tasks are inline in §4. Total: **58 tasks across nine execution plans, ~53–75 dev-days** (plus WS0's 2–3 days). When a plan's task list disagrees with this program plan, the execution plan wins (it was written against the source) — update this table rather than silently diverging.
 
 All plans were authored against baseline `20bc219`; the tree advanced to `5a31bf7` (unrelated smoke-test docs from a concurrent session) during authoring, so execution re-locates anchors by content.
+
+**Execution status (2026-11-07):** all nine plans and WS0 were executed on branch `refactor/solid-remediation`; see the execution record in [`docs/solid-remediation-decisions.md`](../../solid-remediation-decisions.md) for per-workstream commit anchors, the final architecture census, gate evidence, and the accepted deferrals (WS7 T7.4 canonical hashing, S6 usage provenance, S4/S7 backlog, P6/P9 accepted). The remaining program criterion is the independent re-audit.
 
 ## Appendix D — Decision log (to be maintained in `docs/solid-remediation-decisions.md`)
 

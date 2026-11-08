@@ -1,17 +1,10 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { Run } from '@sidechannel/contracts/harness/contracts';
 import { EVIDENCE_CATEGORIES, type AnalysisConfiguration, type AnalysisConfigurationInput, type BehaviorDefinition, type Codebook, type CodebookRevision } from '@sidechannel/contracts/analysis/evidence-contracts';
+import { canonicalHash, canonicalJson } from '../hashing.js';
 
-export function stableStringify(value: unknown): string {
-    const normalize = (v: unknown): unknown => {
-        if (Array.isArray(v)) return v.map(normalize);
-        if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([k, x]) => [k, normalize(x)]));
-        return v;
-    };
-    return JSON.stringify(normalize(value));
-}
-
-export function snapshotHash(value: unknown): string { return createHash('sha256').update(stableStringify(value)).digest('hex'); }
+export const stableStringify = canonicalJson;
+export const snapshotHash = canonicalHash;
 
 export function immutableSnapshot<T>(value: T): T {
     const copy = structuredClone(value);

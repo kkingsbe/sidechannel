@@ -31,14 +31,55 @@ export interface PrivateMemory {
     save(runId: string, agentId: string, snapshot: MemorySnapshot): Promise<void>;
 }
 
-export interface Repository {
+/** Run state: the scheduler's read/write/cas surface. */
+export interface RunStateStore {
     getRun(id: string): Promise<Run | null>;
     saveRun(run: Run): Promise<void>;
+    claimRun(runId: string, workerId: string): Promise<boolean>;
+    /** Cooperative cancellation: the worker uses this on SIGINT/SIGTERM; the API on POST /cancel. */
+    requestCancel(id: string): Promise<Run | null>;
+}
+
+/** Append-only evidence log. */
+export interface EventLog {
     appendEvent(event: NewEvent): Promise<HarnessEvent>;
     listEvents(runId: string, afterSequence?: number, limit?: number): Promise<HarnessEvent[]>;
-    listRuns(): Promise<Run[]>;
+}
+
+/** Work admission: enqueue and enumerate runs. */
+export interface RunQueue {
     createRun(run: Run): Promise<Run>;
-    claimRun(runId: string, workerId: string): Promise<boolean>;
+    createPair(runs: Run[]): Promise<Run[]>;
+    listRuns(): Promise<Run[]>;
+}
+
+/** Default time after which a worker that stopped heartbeating is presumed dead and its lease is takeable. */
+export const DEFAULT_WORKER_LEASE_MS = 30_000;
+
+/** Snapshot of the single-worker lease. `ageMs` is measured on the store clock and is null for a lease that never heartbeated. */
+export interface WorkerLeaseRecord {
+    owner: string;
+    startedAt?: string;
+    heartbeatAt?: string;
+    ageMs: number | null;
+}
+
+/**
+ * Single-worker lease. The holder renews a heartbeat; a crashed or killed holder stops renewing, so the
+ * lease expires on its own and no manual recovery is needed. Every operation is owner-scoped: only the
+ * current holder may renew or release, and a holder that lost the lease learns it from `heartbeatWorker`.
+ */
+export interface WorkerGuard {
+    /** Takes the lease when it is free or its holder's heartbeat is older than `leaseMs`. */
+    acquireWorker(owner: string, leaseMs?: number): Promise<boolean>;
+    /** Renews the lease; false means another worker took it over and this one must stop. */
+    heartbeatWorker(owner: string): Promise<boolean>;
+    releaseWorker(owner: string): Promise<void>;
+    workerLease(): Promise<WorkerLeaseRecord | null>;
+}
+
+/** Composition of the harness slices used by the API, domain projections and contract tests. */
+export interface Repository extends RunStateStore, EventLog, RunQueue, WorkerGuard {
 }
 
 export interface Scenario {

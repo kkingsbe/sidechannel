@@ -1,11 +1,13 @@
 import { MongoRepository } from '@sidechannel/persistence/harness/repository';
+import { MongoAnalysisRepository } from '@sidechannel/persistence/analysis/jev-repository';
+import { MongoReviewStore } from '@sidechannel/persistence/analysis/review-repository';
+import { MongoResearchStore } from '@sidechannel/persistence/analysis/store';
+import { MongoHealthcareCatalog } from '@sidechannel/persistence/healthcare/catalog';
+import { MongoPlaybookCatalog } from '@sidechannel/persistence/playbook/catalog';
 import { buildMetadata } from '@sidechannel/domain/harness/provenance';
 import { createResearcherServer } from './server/index.js';
 import { createJevExtension } from './routes/jev-extension.js';
-import { MongoResearchStore } from '@sidechannel/persistence/analysis/store';
 import { createOversightHandler } from './routes/oversight.js';
-import { MongoHealthcareCatalog } from '@sidechannel/persistence/healthcare/catalog';
-import { MongoPlaybookCatalog } from '@sidechannel/persistence/playbook/catalog';
 
 const host = process.env.HARNESS_HOST ?? '127.0.0.1';
 
@@ -20,8 +22,15 @@ const healthcareCatalog = new MongoHealthcareCatalog(repository.client, reposito
 await healthcareCatalog.initialize();
 const playbookCatalog = new MongoPlaybookCatalog(repository.db);
 await playbookCatalog.initialize();
+// The analysis and review stores are built here, not inside the route module: one
+// startup migration, one failure point, and no request path can construct storage.
+const analysisRepository = new MongoAnalysisRepository(repository.client, repository.db);
+await analysisRepository.initialize();
+const reviewStore = new MongoReviewStore(repository.db);
+await reviewStore.initialize();
 
-const server = createResearcherServer(repository, { host, healthcareCatalog, playbookCatalog, token: process.env.RESEARCHER_TOKEN, buildMetadata: await buildMetadata(), extensionHandlers: [await createJevExtension(repository), createOversightHandler(repository, researchStore)] });
+const server = createResearcherServer(repository, { host, healthcareCatalog, playbookCatalog, token: process.env.RESEARCHER_TOKEN, buildMetadata: await buildMetadata(),
+    extensionHandlers: [createJevExtension(analysisRepository, reviewStore, repository), createOversightHandler(repository, researchStore)] });
 
 server.listen(port, host, () => console.log(`Researcher dashboard: http://${host}:${port}`));
 

@@ -1,6 +1,8 @@
 import type { HarnessEvent, Run } from '@sidechannel/contracts/harness/contracts';
+import { isTerminalRun } from '@sidechannel/contracts/harness/contracts';
 import { EVIDENCE_CATEGORIES, type CanonicalStep, type CanonicalSideEffect, type CanonicalToolCall, type Diagnostic, type EvidenceAvailability, type NormalizedTrace, type ReasoningExtractor } from '@sidechannel/contracts/analysis/evidence-contracts';
 import { snapshotHash } from './configuration.js';
+import { SIDE_EFFECT_CATEGORIES, TOOL_DISPOSITION_STATUSES } from './evidence-selection.js';
 
 export const NORMALIZER_VERSION = 'jev-canonical-v1';
 
@@ -28,10 +30,7 @@ export function evidenceAvailability(steps: readonly CanonicalStep[]): EvidenceA
         a.assistantText ||= !!s.assistantText; a.finalReports ||= !!s.report?.raw;
         a.providerReasoning ||= !!s.providerReasoning?.length;
         for (const c of s.toolCalls) { a.toolArguments ||= c.arguments !== undefined; a.toolResults ||= c.result !== undefined || !!c.reason; }
-        for (const e of s.sideEffects) {
-            a.boardContent ||= e.type === 'board_post' || e.type === 'board_delivery';
-            a.boardDelivery ||= e.type === 'board_delivery'; a.artifactChanges ||= e.type === 'artifact_updated'; a.privateMemory ||= e.type === 'memory_updated';
-        }
+        for (const e of s.sideEffects) for (const category of SIDE_EFFECT_CATEGORIES[e.type]) a[category] ||= true;
     }
     return a;
 }
@@ -49,7 +48,7 @@ export function normalizeTrace(run: Run, input: readonly HarnessEvent[], options
         if (events[i]!.sequence === events[i - 1]!.sequence) throw new Error('Duplicate event sequence');
         if (events[i]!.sequence > events[i - 1]!.sequence + 1) diagnostics.push(diagnostic('sequence_gap', 'Unresolved sequence gap; allocation gaps alone do not establish missing evidence.', [events[i - 1]!, events[i]!]));
     }
-    if (!['completed', 'cancelled', 'failed', 'interrupted'].includes(run.status)) throw new Error('Analysis requires a terminal source run');
+    if (!isTerminalRun(run.status)) throw new Error('Analysis requires a terminal source run');
     if (run.status !== 'completed') diagnostics.push(diagnostic('incomplete_run', `Source run ended with status ${run.status}.`));
     const groups = new Map<string, HarnessEvent[]>();
     const operations = new Map<string, Set<string>>(); const toolOwners = new Map<string, Set<string>>();
@@ -107,16 +106,16 @@ export function normalizeTrace(run: Run, input: readonly HarnessEvent[], options
             if (e.type === 'tool_failed') call.status = 'failed';
             if (e.type === 'tool_result' || e.type === 'tool_deduplicated') {
                 call.result = structuredClone(d.result); const disposition = d.disposition ?? object(d.result).disposition;
-                call.status = ['denied', 'invalid', 'unexecuted'].includes(disposition) ? disposition : object(d.result).ok === false ? 'invalid' : 'executed';
+                call.status = TOOL_DISPOSITION_STATUSES.includes(disposition) ? disposition : object(d.result).ok === false ? 'invalid' : 'executed';
             }
             if (typeof d.reason === 'string') call.reason = d.reason;
         }
         for (const c of calls.values()) if (c.status === 'proposed') ds.push(diagnostic('missing_tool_outcome', `Tool ${c.id} has no recorded outcome.`, group.filter(e => c.eventIds.includes(e.id))));
-        const sideEffects = group.filter(e => ['board_post', 'board_delivery', 'memory_updated', 'artifact_updated'].includes(e.type)).map(e => {
+        const sideEffects = group.filter((e): e is HarnessEvent & { type: CanonicalSideEffect['type'] } => e.type in SIDE_EFFECT_CATEGORIES).map(e => {
             const d = object(e.data); const before = object(d.before); const after = object(d.after);
             const messages = Array.isArray(d.after) ? d.after : e.type === 'board_post' ? [d.after] : [];
             const memoryValue = (v: unknown) => { const x = object(v); return { ...(typeof x.version === 'number' ? { version: x.version } : {}), ...(typeof x.notes === 'string' ? { notes: x.notes } : {}) }; };
-            const effect: CanonicalSideEffect = { type: e.type as CanonicalSideEffect['type'], eventId: e.id, sequence: e.sequence, operationId: e.operationId, toolCallId: e.toolCallId,
+            const effect: CanonicalSideEffect = { type: e.type, eventId: e.id, sequence: e.sequence, operationId: e.operationId, toolCallId: e.toolCallId,
                 before: e.type === 'memory_updated' ? memoryValue(d.before) : structuredClone(d.before), after: e.type === 'memory_updated' ? memoryValue(d.after) : structuredClone(d.after), messageIds: messages.map(m => object(m).id).filter(id => typeof id === 'string'),
                 ...(typeof before.version === 'number' ? { beforeVersion: before.version } : {}), ...(typeof after.version === 'number' ? { afterVersion: after.version } : {}) };
             return effect;

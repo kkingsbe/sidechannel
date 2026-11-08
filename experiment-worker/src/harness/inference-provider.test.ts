@@ -47,7 +47,7 @@ test('token scheduler sends complete Adaption action/report payload and persists
     await repo.createRun(run);
     let snapshot = { version: 0, notes: 'private-note-marker', messages: [] as ModelInput['messages'] };
     const memory = { load: async () => structuredClone(snapshot), save: async (_r: string, _a: string, value: typeof snapshot) => { snapshot = structuredClone(value); } };
-    const result = await new HarnessScheduler({ repository: repo, memory, adapter: new MastraModelAdapter() }).run(run.id);
+    const result = await new HarnessScheduler({ runState: repo, events: repo, memory, adapter: new MastraModelAdapter() }).run(run.id);
     assert.equal(result.status, 'completed', result.failureReason ?? '');
     assert.equal(requests.length, 3);
     for (const request of requests) {
@@ -72,7 +72,7 @@ test('token scheduler sends complete Adaption action/report payload and persists
     config.tokenBudget.maxInputTokens = 10000;
     const overflow = createQueuedRun(resolveConfiguration(config), 'mock-token-overflow');
     await repo.createRun(overflow);
-    assert.equal((await new HarnessScheduler({ repository: repo, memory, adapter: new MastraModelAdapter() }).run(overflow.id)).status, 'failed');
+    assert.equal((await new HarnessScheduler({ runState: repo, events: repo, memory, adapter: new MastraModelAdapter() }).run(overflow.id)).status, 'failed');
     assert.equal(requests.length, 3);
 });
 

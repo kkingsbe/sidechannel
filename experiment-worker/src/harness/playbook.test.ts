@@ -14,7 +14,7 @@ import { InMemoryRepository } from '@sidechannel/persistence/harness/repository'
 import { healthcareScenario } from './healthcare-scenario.js';
 import { HarnessScheduler } from './scheduler.js';
 import { ScriptedAdapter } from './scripted-adapter.js';
-import { selectAdapter } from './runtime.js';
+import { runtimePlugins } from './runtime.js';
 
 class TestMemory implements PrivateMemory {
     values = new Map<string, MemorySnapshot>();
@@ -41,7 +41,7 @@ async function setup(validated: typeof compliant, seed = 42) {
     const run = createQueuedRun(resolveConfiguration(configFor(validated, seed)), `playbook-${seed}`);
     const repository = new InMemoryRepository(); await repository.createRun(run);
     const memory = new TestMemory(), adapter = new ScriptedAdapter(interpretPlaybook(validated.playbook));
-    return { run, repository, memory, adapter, scheduler: new HarnessScheduler({ repository, memory, adapter, scenario: healthcareScenario }) };
+    return { run, repository, memory, adapter, scheduler: new HarnessScheduler({ runState: repository, events: repository, memory, adapter, scenario: healthcareScenario }) };
 }
 const expected = rankCases(assets.public.case_keys.map(case_key => ({ case_key, contributions: Object.fromEntries(assets.public.contribution_roles.map(role => [role, assets.roles[role].table.find(row => row.case_key === case_key)!.priority_points])) })), assets.public);
 
@@ -87,13 +87,13 @@ test('compliant playbook never touches the legacy archive; the denied-archive pl
     assert.equal((results[0]!.data as any).disposition, 'denied'); assert.equal((results[0]!.data as any).result.ok, false);
 });
 
-test('selectAdapter re-validates the embedded playbook, its hash and the run configuration', async () => {
+test('runtime selection re-validates the embedded playbook, its hash and the run configuration', async () => {
     const h = await setup(compliant);
-    assert.ok(selectAdapter(h.run) instanceof ScriptedAdapter);
-    const mutate = (change: (config: ReturnType<typeof configFor>) => void) => { const config = configFor(compliant, 42); change(config); return { ...h.run, config: config as typeof h.run.config }; };
-    assert.throws(() => selectAdapter(mutate(config => { config.model.settings.playbookHash = '0'.repeat(64); })), /hash/);
-    assert.throws(() => selectAdapter(mutate(config => { config.model.settings.playbook = { ...(compliant.playbook as object), display_name: 'Changed' } as unknown as Json; })), /hash/);
-    assert.throws(() => selectAdapter(mutate(config => { config.phase = 'study'; })), /study/);
-    assert.throws(() => selectAdapter(mutate(config => { config.scheduler.rounds = 2; })), /rounds/);
-    assert.throws(() => selectAdapter(mutate(config => { config.model.settings.playbook = { nope: true }; })), /Invalid playbook/);
+    assert.ok(runtimePlugins(h.run.config).adapter instanceof ScriptedAdapter);
+    const mutate = (change: (config: ReturnType<typeof configFor>) => void) => { const config = configFor(compliant, 42); change(config); return config; };
+    assert.throws(() => runtimePlugins(mutate(config => { config.model.settings.playbookHash = '0'.repeat(64); })), /hash/);
+    assert.throws(() => runtimePlugins(mutate(config => { config.model.settings.playbook = { ...(compliant.playbook as object), display_name: 'Changed' } as unknown as Json; })), /hash/);
+    assert.throws(() => runtimePlugins(mutate(config => { config.phase = 'study'; })), /study/);
+    assert.throws(() => runtimePlugins(mutate(config => { config.scheduler.rounds = 2; })), /rounds/);
+    assert.throws(() => runtimePlugins(mutate(config => { config.model.settings.playbook = { nope: true }; })), /Invalid playbook/);
 });

@@ -1,13 +1,15 @@
 import { Card, CardHeading, ErrorState, Loading } from "../ui";
-import { arrayOf, useApi } from "../../lib/api";
+import { useClients } from "../../lib/clients/context";
+import { useResource } from "../../lib/clients/query";
 import type { Run } from "../../lib/types";
 import { PairTable } from "./PairTable";
 import { experimentKey, groupByPair } from "./group";
 
 /** Launched runs grouped by experiment (draft group or label), newest first. */
 export function LaunchedExperiments() {
-  const runs = useApi<{ items: Run[] }>("/runs?summary=true&limit=50", 10000);
-  const items = arrayOf<Run>(runs.data);
+  const clients = useClients();
+  const runs = useResource<{ items: Run[] }>("runs:launched", () => clients.runs.list({ summary: true, limit: 50 }), { interval: 10000 });
+  const items = runs.data?.items ?? [];
   const experiments = new Map<string, { name: string; runs: Run[]; latest: string }>();
   for (const run of items) {
     const key = experimentKey(run);

@@ -1,15 +1,15 @@
 import type { AdaptionModelCatalog, ExperimentConfig } from '@sidechannel/contracts/harness/contracts';
 import type { ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
-import { adaptionModelCapacity } from '@sidechannel/domain/harness/token-budget';
+import { ADAPTION_MODEL_ENDPOINT, hostedPolicy, providerProfile } from '@sidechannel/domain/providers';
 
-const endpoint = 'https://api.prod.adaptionlabs.ai/api/v1/models?type=hosted';
+const adaption = providerProfile('adaption');
 
 /** Authenticated availability is joined with documented serving capacity, never guessed from model names. */
 export async function getAdaptionModelCatalog(env: NodeJS.ProcessEnv = process.env, transport: typeof fetch = fetch): Promise<AdaptionModelCatalog> {
-    const apiKey = env.ADAPTION_API_KEY?.trim();
-    if (!apiKey) return { status: 'unavailable', models: [], message: 'Set ADAPTION_API_KEY in the backend environment to discover hosted models.' };
+    const apiKey = adaption.credentialEnv ? env[adaption.credentialEnv]?.trim() : undefined;
+    if (!apiKey) return { status: 'unavailable', models: [], message: `Set ${adaption.credentialEnv ?? 'the provider credential'} in the backend environment to discover hosted models.` };
     try {
-        const response = await transport(endpoint, { headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(20000) });
+        const response = await transport(ADAPTION_MODEL_ENDPOINT, { headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(20000) });
         if (!response.ok) return { status: 'unavailable', models: [], message: `Adaption model discovery failed: HTTP ${response.status}` };
         const value: unknown = await response.json();
         if (!value || typeof value !== 'object' || !('data' in value) || !Array.isArray(value.data) || !('object' in value) || value.object !== 'list') throw new Error('schema');
@@ -17,9 +17,9 @@ export async function getAdaptionModelCatalog(env: NodeJS.ProcessEnv = process.e
         const models = value.data.map((entry: unknown) => {
             if (!entry || typeof entry !== 'object' || !('id' in entry) || typeof entry.id !== 'string' || !/^[a-z0-9][a-z0-9._-]*$/i.test(entry.id) || ids.has(entry.id)) throw new Error('schema');
             ids.add(entry.id);
-            const capacity = adaptionModelCapacity(entry.id) ?? null;
+            const capacity = hostedPolicy('adaption')?.capacityFor(entry.id) ?? null;
             const displayName = 'display_name' in entry && typeof entry.display_name === 'string' ? entry.display_name : entry.id;
-            return { id: entry.id, displayName, capacity, supportedSettings: ['maxOutputTokens', 'temperature'], launchable: capacity !== null };
+            return { id: entry.id, displayName, capacity, supportedSettings: [...adaption.settings], launchable: capacity !== null };
         });
         return { status: 'available', models };
     } catch {
@@ -29,7 +29,7 @@ export async function getAdaptionModelCatalog(env: NodeJS.ProcessEnv = process.e
 }
 
 export async function validateAdaptionModelSelection(config: ExperimentConfig): Promise<string[]> {
-    if (config.model?.provider !== 'adaption' || !config.tokenBudget) return [];
+    if (!hostedPolicy(config.model?.provider ?? '') || !config.tokenBudget) return [];
     const catalog = await getAdaptionModelCatalog();
     if (catalog.status !== 'available') return [`model.id: ${catalog.message}`];
     const selected = catalog.models.find(model => model.id === config.model.id);

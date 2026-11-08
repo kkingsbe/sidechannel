@@ -1,8 +1,8 @@
 export type {
   ExperimentConfig,
   Run,
+  RunSummary,
   HarnessEvent,
-  BoardMessage,
   ArtifactVersion,
   Json,
 } from "@sidechannel/contracts/browser";
@@ -13,15 +13,15 @@ export interface Draft {
   revision?: number;
   updatedAt?: string;
 }
-export interface ConfigurationResponse {
-  default: ExperimentConfig;
-  [key: string]: unknown;
-}
 import type {
   MonitorDefinition,
   OutcomeDefinition,
   Verdict,
 } from "@sidechannel/contracts/browser";
+export interface OutcomeReviewInput {
+  reviewer: string; outcomeId: string; definitionRevisionId: string; evidenceRevision: string;
+  decision: Verdict; rationale: string; eventIds: string[]; supersedesId?: string;
+}
 export interface RunReviewContext {
   runId: string;
   evidenceRevision: string;

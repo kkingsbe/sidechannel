@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
-import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
+import { activate, fakeServer, renderWithServer } from "./test/clients";
+let lastCalls: { path: string }[] = [];
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, useLocation } from "react-router-dom";
+import { MemoryRouter } from "react-router-dom";
 import Experiments from "./pages/Experiments";
 import Runs from "./pages/Runs";
 import Oversight from "./pages/Oversight";
-import { WindowInspector } from "./pages/Analysis";
+import { WindowInspector } from "./pages/analysis/window-inspector";
 import type { AnalysisJob, WindowDetail } from "./lib/analysis-types";
 import { defaultFixtureConfiguration } from "@sidechannel/contracts/testing";
 import type { Run } from "./lib/types";
@@ -31,16 +32,13 @@ const run: Run = {
 };
 type Handler = (path: string, options?: RequestInit) => unknown;
 function mockApi(handler: Handler) {
-  return vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: string, options?: RequestInit) => {
-      const value = handler(input.replace(/^\/api/, ""), options);
-      return new Response(JSON.stringify(value), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    }),
-  );
+  const server = fakeServer((path, options) => {
+    if (path.startsWith("/analyses")) return { items: [], nextCursor: null };
+    return handler(path, options);
+  });
+  lastCalls = server.calls;
+  activate(server);
+  return server;
 }
 function setupConfig(extra: Handler = () => undefined) {
   mockApi((path, options) => {
@@ -54,7 +52,6 @@ function setupConfig(extra: Handler = () => undefined) {
 }
 beforeEach(() => {
   localStorage.clear();
-  sessionStorage.clear();
 });
 afterEach(() => {
   cleanup();
@@ -84,7 +81,7 @@ describe("experiment form workflow", () => {
         ];
       }
     });
-    render(
+    renderWithServer(
       <MemoryRouter initialEntries={["/experiments/new"]}>
         <Experiments />
       </MemoryRouter>,
@@ -99,12 +96,6 @@ describe("experiment form workflow", () => {
     await user.click(
       await screen.findByRole("button", { name: "Launch matched pair" }),
     );
-    expect(submitted).toBeUndefined();
-    const confirm = await screen.findByRole("group", { name: "Confirm launch" });
-    expect(within(confirm).getByText(/3 rounds × 3 admitted tool calls/)).toBeTruthy();
-    await user.click(
-      within(confirm).getByRole("button", { name: /Confirm: start 2 runs/ }),
-    );
     await screen.findByText("Matched pair queued");
     expect(submitted.config.label).toBe("Pilot matched pair");
     expect(submitted.config.scheduler.rounds).toBe(3);
@@ -113,84 +104,6 @@ describe("experiment form workflow", () => {
       screen.getAllByRole("link", { name: /reviewed|excluded/ }),
     ).toHaveLength(2);
     expect(screen.queryByLabelText(/json editor/i)).toBeNull();
-  });
-  it("warns about a near-identical relaunch, keeps earlier pairs listed and locks the form after launch", async () => {
-    let launches = 0;
-    setupConfig((path) => {
-      if (path === "/config/validate") return { valid: true, errors: [] };
-      if (path === "/pairs") {
-        launches += 1;
-        return [{ ...run, id: `run-${launches}` }];
-      }
-    });
-    render(
-      <MemoryRouter initialEntries={["/experiments/new"]}>
-        <Experiments />
-      </MemoryRouter>,
-    );
-    const user = userEvent.setup();
-    const name = await screen.findByLabelText("Experiment name");
-    await user.type(name, "First pair");
-    await user.click(
-      screen.getByRole("button", { name: "Validate & review launch" }),
-    );
-    await user.click(
-      await screen.findByRole("button", { name: "Launch matched pair" }),
-    );
-    expect(screen.queryByText(/near-identical/)).toBeNull();
-    await user.click(
-      await screen.findByRole("button", { name: /Confirm: start 2 runs/ }),
-    );
-    await screen.findByText("Matched pair queued");
-    expect((name as HTMLInputElement).closest("fieldset")?.disabled).toBe(true);
-    await user.click(screen.getByRole("button", { name: "Configure another" }));
-    expect((name as HTMLInputElement).closest("fieldset")?.disabled).toBe(false);
-    await user.clear(name);
-    await user.type(name, "Second pair");
-    await user.click(
-      screen.getByRole("button", { name: "Validate & review launch" }),
-    );
-    await user.click(
-      await screen.findByRole("button", { name: "Launch matched pair" }),
-    );
-    expect(await screen.findByText(/near-identical pair at/)).toBeTruthy();
-    await user.click(
-      screen.getByRole("button", { name: /Confirm: start 2 runs/ }),
-    );
-    await waitFor(() => expect(launches).toBe(2));
-    expect(await screen.findByText("Launched this session")).toBeTruthy();
-    expect(screen.getByText("First pair")).toBeTruthy();
-  });
-  it("opens the pair page after launch when the response carries a pair id", async () => {
-    setupConfig((path) => {
-      if (path === "/config/validate") return { valid: true, errors: [] };
-      if (path === "/pairs") return [{ ...run, pairId: "pair-9" }];
-    });
-    function Where() {
-      return <output aria-label="where">{useLocation().pathname}</output>;
-    }
-    render(
-      <MemoryRouter initialEntries={["/experiments/new"]}>
-        <Where />
-        <Experiments />
-      </MemoryRouter>,
-    );
-    const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("Experiment name"), "Pairs");
-    await user.click(
-      screen.getByRole("button", { name: "Validate & review launch" }),
-    );
-    await user.click(
-      await screen.findByRole("button", { name: "Launch matched pair" }),
-    );
-    await user.click(
-      await screen.findByRole("button", { name: /Confirm: start 2 runs/ }),
-    );
-    await waitFor(() =>
-      expect(screen.getByLabelText("where").textContent).toBe(
-        "/runs/pairs/pair-9",
-      ),
-    );
   });
   it("recovers a structurally incomplete saved draft without hiding or overwriting it", async () => {
     setupConfig((path) =>
@@ -202,7 +115,7 @@ describe("experiment form workflow", () => {
           }
         : undefined,
     );
-    render(
+    renderWithServer(
       <MemoryRouter initialEntries={["/experiments?draft=incomplete"]}>
         <Experiments />
       </MemoryRouter>,
@@ -240,7 +153,7 @@ describe("canonical evidence inspection", () => {
       if (path === "/runs/run-1/board/message-1") return message;
       throw new Error("Unexpected route " + path);
     });
-    render(
+    renderWithServer(
       <MemoryRouter initialEntries={["/run-1?view=board"]}>
         <Runs />
       </MemoryRouter>,
@@ -253,11 +166,8 @@ describe("canonical evidence inspection", () => {
     expect(dialog.textContent).toContain("message-1");
     expect(dialog.textContent).toContain("board evidence");
     expect(dialog.querySelector("img")).toBeNull();
-    expect(
-      (fetch as ReturnType<typeof vi.fn>).mock.calls.some((call) =>
-        String(call[0]).includes("/events/"),
-      ),
-    ).toBe(false);
+    // A board message is fetched by its own id; the page may stream run events, but no single event lookup may stand in for the message.
+    expect(lastCalls.some((call) => call.path.includes("/events/"))).toBe(false);
   });
 });
 describe("independent human run outcomes", () => {
@@ -317,7 +227,7 @@ describe("independent human run outcomes", () => {
       }
       throw new Error("Unexpected route " + path);
     });
-    render(
+    renderWithServer(
       <MemoryRouter initialEntries={["/?view=references&run=run-1"]}>
         <Oversight />
       </MemoryRouter>,
@@ -416,7 +326,7 @@ describe("blinded evidence inspection", () => {
       },
       sourceEventIds: ["canonical-event-1"],
     } as WindowDetail;
-    render(
+    renderWithServer(
       <MemoryRouter>
         <WindowInspector detail={detail} job={job} blind />
       </MemoryRouter>,

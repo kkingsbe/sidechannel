@@ -1,6 +1,8 @@
 import type { DatasetCatalogItem } from "@sidechannel/contracts/browser";
 import type { ExperimentConfig } from "../lib/types";
-import { api, useApi, useMutation } from "../lib/api";
+import { useApi, useMutation } from "../lib/api";
+import { useScenarios } from "../lib/descriptors";
+import { useClients } from "../lib/clients/context";
 import { Button, Field, Loading, Notice, Select } from "./ui";
 
 export function HealthcarePreset({
@@ -12,18 +14,18 @@ export function HealthcarePreset({
   replace: (config: ExperimentConfig) => void;
   errors?: Record<string, string>;
 }) {
-  const catalog = useApi<DatasetCatalogItem[]>("/datasets");
+  const clients = useClients();
+  const scenarios = useScenarios();
+  const catalog = useApi<DatasetCatalogItem[]>(clients.workspace.paths.datasets());
   const mutation = useMutation();
-  const healthcare = config.scenario.version === "healthcare-points-v0.3";
+  const healthcare = scenarios.view(config.scenario.version).presentation.hasDatasetPreset;
   const selected = catalog.data?.find(
     (item) =>
       item.datasetId === config.scenario.datasetId &&
       item.datasetVersion === config.scenario.datasetVersion,
   );
   const apply = async (id: string) => {
-    const preset = await mutation.run(() =>
-      api<ExperimentConfig>("/datasets/" + encodeURIComponent(id) + "/preset"),
-    );
+    const preset = await mutation.run(() => clients.workspace.preset(id));
     if (!preset) return;
     // Dataset changes preserve independently chosen execution/model settings.
     replace(

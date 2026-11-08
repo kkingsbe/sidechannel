@@ -20,3 +20,11 @@ export interface ReviewBatch {
 export interface ReviewListFilter { windowId?: string; reviewer?: string; subjectId?: string; scope?: 'window' | 'event' | 'run'; codeId?: string; latest?: boolean }
 
 export type ReviewQueueFilter = 'all' | 'unreviewed' | 'uncertain' | 'disagreement';
+
+export type ReviewReason = 'flagged' | 'random' | 'manual';
+
+/** A stored review-queue member; `order` is the queue sort key minted by the batch. */
+export interface ReviewMember { windowId: string; eligible: boolean; selected: boolean; reasons: ReviewReason[]; order: string }
+
+/** Blind queues deliberately omit `reasons`/`order`; assisted queues return full members. */
+export interface ReviewQueueItem { windowId: string; selected: boolean; eligible?: boolean; reasons?: ReviewReason[]; order?: string }

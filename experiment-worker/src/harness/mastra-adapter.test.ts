@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MastraModelAdapter, proposalTools, createMongoMemory } from './mastra-adapter.js';
 import type { ModelInput } from '@sidechannel/contracts/harness/server';
-import { configureExperimentRuntime, closeExperimentRuntime, flushExperimentTraces, experimentTraceStorage, verifyExperimentTrace } from '../mastra/index.js';
+import { openTraceRuntime, NO_TRACE_RUNTIME } from '../mastra/index.js';
 
 test('actual Mastra Agent returns ordered memory and batch proposals without execution or a second step', async () => {
     let requests = 0;
@@ -23,7 +23,7 @@ test('actual Mastra Agent returns ordered memory and batch proposals without exe
         ] };
     for (const tool of Object.values(proposalTools(input.tools)))
         assert.equal(tool.execute, undefined);
-    const result = await new MastraModelAdapter(model).complete(input);
+    const result = await new MastraModelAdapter(NO_TRACE_RUNTIME, model).complete(input);
     assert.equal(requests, 1);
     assert.deepEqual(result.toolCalls.map(call => call.id), ['call-0', 'call-1', 'call-2', 'call-3', 'call-4']);
     assert.equal(result.toolCalls[0].name, 'update_working_memory');
@@ -38,16 +38,16 @@ test('actual Mastra Agent returns ordered memory and batch proposals without exe
             ...result.toolCalls.map(call => ({ role: 'tool' as const, content: JSON.stringify({ ok: false, reason: 'unexecuted fixture' }), toolCallId: call.id, toolName: call.name })),
             { role: 'user' as const, content: 'Continue.' },
         ] };
-    await new MastraModelAdapter(model).complete(followup);
+    await new MastraModelAdapter(NO_TRACE_RUNTIME, model).complete(followup);
     assert.equal(requests, 2);
     assert.equal(received.prompt.filter((message: any) => message.role === 'tool').flatMap((message: any) => message.content).length, 5);
     assert.match(JSON.stringify(received.prompt), /do not auto apply/);
     assert.deepEqual(received.tools.map((tool: any) => tool.name), ['update_working_memory', 'end_turn']);
-    await assert.rejects(new MastraModelAdapter(model).complete({ ...input, model: { ...input.model, settings: { unsupportedControl: true } } }), /Unsupported model setting/);
+    await assert.rejects(new MastraModelAdapter(NO_TRACE_RUNTIME, model).complete({ ...input, model: { ...input.model, settings: { unsupportedControl: true } } }), /Unsupported model setting/);
 });
 
 test('native Mastra trace and usage persist through Mongo exporter', { skip: !process.env.TEST_MONGODB_URI }, async () => {
-    configureExperimentRuntime(process.env.TEST_MONGODB_URI!, 'sidechannel_adapter_trace_test');
+    const trace = openTraceRuntime(process.env.TEST_MONGODB_URI!, 'sidechannel_adapter_trace_test');
     const model: any = { specificationVersion: 'v2', provider: 'fixture', modelId: 'text-v2', supportedUrls: {},
         doGenerate: async () => ({ content: [{ type: 'text', text: 'fixture response' }], finishReason: 'stop', warnings: [],
             usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 } }) };
@@ -55,20 +55,20 @@ test('native Mastra trace and usage persist through Mongo exporter', { skip: !pr
         const input: ModelInput = { runId: crypto.randomUUID(), agentId: 'trace-agent', threadId: 'unused', resourceId: 'unused',
             invocationId: crypto.randomUUID(), phase: 'report', model: { provider: 'fixture', id: 'text-v2', settings: {} },
             messages: [{ role: 'user', content: 'Synthetic trace proof' }], tools: [], timeoutMs: 10000 };
-        const result = await new MastraModelAdapter(model).complete(input);
+        const result = await new MastraModelAdapter(trace, model).complete(input);
         assert.ok(result.trace?.traceId);
         assert.ok(result.trace?.spanId);
-        await flushExperimentTraces();
-        const store = await experimentTraceStorage!.getStore('observability');
-        const trace = await store!.getTrace({ traceId: result.trace!.traceId! });
-        assert.ok(trace?.spans.find(span => span.spanId === result.trace!.spanId)?.endedAt);
-        assert.ok(trace?.spans.some(span => {
+        await trace.flush();
+        const store = await trace.storage.getStore('observability');
+        const storedTrace = await store!.getTrace({ traceId: result.trace!.traceId! });
+        assert.ok(storedTrace?.spans.find(span => span.spanId === result.trace!.spanId)?.endedAt);
+        assert.ok(storedTrace?.spans.some(span => {
             const usage = span.attributes?.usage as { inputTokens?: number; outputTokens?: number } | undefined;
             return usage?.inputTokens === 4 && usage?.outputTokens === 2;
         }));
         // The scheduler constructs a fresh Agent for every step of the same role.
         // Its stable registration ID must not leave later instances without tracing.
-        const second = await new MastraModelAdapter(model).complete({ ...input, invocationId: crypto.randomUUID() });
+        const second = await new MastraModelAdapter(trace, model).complete({ ...input, invocationId: crypto.randomUUID() });
         assert.ok(second.trace?.traceId);
         assert.notEqual(second.trace?.traceId, result.trace?.traceId);
         const secondTrace = await store!.getTrace({ traceId: second.trace!.traceId! });
@@ -77,14 +77,14 @@ test('native Mastra trace and usage persist through Mongo exporter', { skip: !pr
         const getTrace = store!.getTrace.bind(store);
         store!.getTrace = async () => null;
         try {
-            await assert.rejects(verifyExperimentTrace(result.trace!.traceId, result.trace!.spanId), /not durably completed/);
+            await assert.rejects(trace.verify(result.trace!.traceId, result.trace!.spanId), /not durably completed/);
         }
         finally {
             store!.getTrace = getTrace;
         }
     }
     finally {
-        await closeExperimentRuntime();
+        await trace.close();
     }
 });
 

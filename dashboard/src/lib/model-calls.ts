@@ -6,220 +6,38 @@
  *   context_accounted -> model_requested -> model_response -> model_usage
  * plus tool lifecycle events (tool_requested/admitted/result/unexecuted/failed/
  * deduplicated) that carry `invocationId` + `toolCallId`.
+ *
+ * Split into focused modules (`model-calls-types`, `-reasoning`, `-tools`, `-summary`,
+ * `-format`); every previous export is re-exported here so the public import surface is
+ * unchanged.
  */
 import type { HarnessEvent } from '@sidechannel/contracts/browser';
+import {
+  MODEL_CALL_EVENT_TYPES,
+  isRecord,
+  num,
+  str,
+  type ModelCall,
+  type ModelCallTokens,
+  type ProposedToolCall,
+} from './model-calls-types';
+import { classifyReasoning, extractReasoning } from './model-calls-reasoning';
+import { isToolStatusEvent, resolveToolStatus } from './model-calls-tools';
+import { formatTokens, prettyArguments, safeJson } from './model-calls-format';
 
-/* ------------------------------------------------------------------ types */
-
-export interface ReasoningPart {
-  text: string;
-  /** Where the text was found, e.g. `raw.steps[0].reasoning[1]` or `reasoning`. */
-  source: string;
-  /** True only when the provider explicitly marked the part as a summary. */
-  summary: boolean;
-}
-
-export type ReasoningState = 'scripted' | 'returned' | 'summary' | 'hidden' | 'not_returned' | 'unknown';
-
-export type ToolCallStatus = 'proposed' | 'admitted' | 'executed' | 'unexecuted' | 'failed' | 'deduplicated';
-
-export interface ProposedToolCall {
-  id: string;
-  name: string;
-  arguments: unknown;
-  status: ToolCallStatus;
-  /** The lifecycle event that determined `status` (absent for `proposed`). */
-  statusEvent?: { id: string; sequence: number };
-  /** Reason text for unexecuted / failed calls. */
-  reason?: string;
-}
-
-export interface ModelCallTokens {
-  /** Estimated/measured input context size from `context_accounted`. */
-  context?: number;
-  input?: number;
-  output?: number;
-  reasoning?: number;
-}
-
-export interface ModelCall {
-  invocationId: string;
-  agentId?: string;
-  phase?: string;
-  round?: number;
-  turn?: number;
-  /** 1-based position of this call among the calls of the input, ordered by first event sequence. */
-  ordinal: number;
-  request?: HarnessEvent;
-  response?: HarnessEvent;
-  usage?: HarnessEvent;
-  context?: HarnessEvent;
-  /** [min, max] event sequence across every event of this call (incl. tool lifecycle). */
-  sequenceRange: [number, number];
-  startedAt: string;
-  finishedAt: string;
-  /** Milliseconds between model_requested and model_response timestamps. */
-  latencyMs?: number;
-  /** Assistant text output ('' when none or when the response is missing). */
-  text: string;
-  reasoning: ReasoningPart[];
-  reasoningState: ReasoningState;
-  tokens: ModelCallTokens;
-  finishReason?: string;
-  toolCalls: ProposedToolCall[];
-  inputSummary?: { messages: number; tools: number };
-  /**
-   * Set when the call never got a response and the same turn (or the run) then ended with an
-   * error, e.g. a model request timeout. `elapsedMs` runs from the request to that ending.
-   */
-  failure?: { reason: string; elapsedMs?: number; event: HarnessEvent };
-}
-
-/** Event types that belong to a model call; the timeline folds these into one row. */
-export const MODEL_CALL_EVENT_TYPES: ReadonlySet<string> = new Set([
-  'context_accounted',
-  'model_requested',
-  'model_response',
-  'model_usage',
-]);
-
-/** Where the visible page sits in the run's event stream; passed by the page that owns paging. */
-export interface PageNav {
-  hasPrevious: boolean;
-  hasNext: boolean;
-  /** Jump to the newest page; shown only when `hasNext`. */
-  onJumpToLatest?: () => void;
-}
-
-/* --------------------------------------------------------------- utilities */
-
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
-const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
-
-/** Format a number with thousands separators (en-US, stable across locales). */
-export function formatTokens(n: number): string {
-  return Number.isFinite(n) ? Math.round(n).toLocaleString('en-US') : String(n);
-}
-
-/** Compact/pretty JSON for display and search; never throws. */
-/** Tool arguments for display: string values that hold JSON are parsed so nested payloads pretty-print. */
-export function prettyArguments(value: unknown): string {
-  const expand = (v: unknown, depth: number): unknown => {
-    if (depth > 4) return v;
-    if (typeof v === 'string') {
-      const t = v.trim();
-      if ((t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))) {
-        try { return expand(JSON.parse(t), depth + 1); } catch { return v; }
-      }
-      return v;
-    }
-    if (Array.isArray(v)) return v.map(x => expand(x, depth + 1));
-    if (isRecord(v)) return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, expand(x, depth + 1)]));
-    return v;
-  };
-  return safeJson(expand(value, 0), 2) || '{}';
-}
-
-export function safeJson(value: unknown, space?: number): string {
-  try { return JSON.stringify(value, null, space) ?? ''; } catch { return String(value); }
-}
-
-/* --------------------------------------------------------------- reasoning */
-
-/**
- * Heuristic: a part is a summary only when the provider says so. We look for a key
- * containing "summary" (case-insensitive, truthy value, depth <= 3) inside
- * `providerMetadata` / `providerOptions`, or `summary: true` / a `kind`/`format` mentioning
- * summary on the part itself. We never infer summary-ness from the text or its length.
- */
-function isSummaryPart(part: Record<string, unknown>): boolean {
-  if (part.summary === true) return true;
-  for (const k of ['kind', 'format']) {
-    const v = part[k];
-    if (typeof v === 'string' && /summary/i.test(v)) return true;
-  }
-  const walk = (value: unknown, depth: number): boolean => {
-    if (!isRecord(value) || depth > 3) return false;
-    for (const [k, v] of Object.entries(value)) {
-      if (/summary/i.test(k) && v !== false && v !== null && v !== undefined && v !== '') return true;
-      if (walk(v, depth + 1)) return true;
-    }
-    return false;
-  };
-  return walk(part.providerMetadata, 0) || walk(part.providerOptions, 0);
-}
-
-/**
- * Extract reasoning text from a `model_response` event's `data`.
- * Sources, in order: `data.reasoning` (string), then for each `raw.steps[i]` the
- * `reasoning[]` parts of `type === 'reasoning'` with non-empty text; if a step has no
- * such parts, its `reasoningText` is used as a fallback. Reasoning is never inferred
- * from regular output text.
- */
-export function extractReasoning(responseData: unknown): ReasoningPart[] {
-  if (!isRecord(responseData)) return [];
-  const out: ReasoningPart[] = [];
-  if (typeof responseData.reasoning === 'string' && responseData.reasoning.trim()) {
-    out.push({ text: responseData.reasoning, source: 'reasoning', summary: false });
-  }
-  const raw = responseData.raw;
-  const steps = isRecord(raw) && Array.isArray(raw.steps) ? raw.steps : [];
-  steps.forEach((step, i) => {
-    if (!isRecord(step)) return;
-    const before = out.length;
-    if (Array.isArray(step.reasoning)) {
-      step.reasoning.forEach((part, j) => {
-        if (!isRecord(part) || part.type !== 'reasoning') return;
-        const text = str(part.text);
-        if (!text || !text.trim()) return;
-        out.push({ text, source: `raw.steps[${i}].reasoning[${j}]`, summary: isSummaryPart(part) });
-      });
-    }
-    if (out.length === before) {
-      const t = str(step.reasoningText);
-      if (t && t.trim()) out.push({ text: t, source: `raw.steps[${i}].reasoningText`, summary: false });
-    }
-  });
-  return out;
-}
-
-/**
- * Decide which reasoning availability state applies. Checked in order:
- * scripted -> summary (all parts are summaries) / returned (any parts) ->
- * hidden (no parts, reasoningTokens > 0) -> not_returned (no parts, reasoningTokens === 0) -> unknown.
- */
-export function classifyReasoning(args: {
-  provider?: string;
-  parts: ReasoningPart[];
-  reasoningTokens?: number;
-  usageSource?: string;
-}): ReasoningState {
-  const { provider, parts, reasoningTokens, usageSource } = args;
-  if (provider === 'scripted' || usageSource === 'scripted') return 'scripted';
-  if (parts.length > 0) return parts.every(p => p.summary) ? 'summary' : 'returned';
-  if (usageSource !== 'unavailable' && typeof reasoningTokens === 'number') {
-    return reasoningTokens > 0 ? 'hidden' : 'not_returned';
-  }
-  return 'unknown';
-}
-
-/* -------------------------------------------------------------- tool calls */
-
-const TOOL_STATUS_BY_EVENT: Record<string, ToolCallStatus> = {
-  tool_requested: 'proposed',
-  tool_admitted: 'admitted',
-  tool_result: 'executed',
-  tool_unexecuted: 'unexecuted',
-  tool_failed: 'failed',
-  tool_deduplicated: 'deduplicated',
-};
-
-function reasonOf(data: unknown): string | undefined {
-  if (!isRecord(data)) return undefined;
-  const r = data.reason ?? data.error;
-  return typeof r === 'string' ? r : undefined;
-}
+export type {
+  ModelCall,
+  ModelCallTokens,
+  PageNav,
+  ProposedToolCall,
+  ReasoningPart,
+  ReasoningState,
+  ToolCallStatus,
+} from './model-calls-types';
+export { MODEL_CALL_EVENT_TYPES } from './model-calls-types';
+export { classifyReasoning, extractReasoning } from './model-calls-reasoning';
+export { buildToolNames, humanizeCode, summarizeEvent } from './model-calls-summary';
+export { formatTokens, prettyArguments, safeJson } from './model-calls-format';
 
 /* ------------------------------------------------------------------- build */
 
@@ -233,7 +51,7 @@ export function buildModelCalls(events: HarnessEvent[], opts: { provider: string
   const groups = new Map<string, HarnessEvent[]>();
   for (const e of sorted) {
     if (!e.invocationId) continue;
-    if (!MODEL_CALL_EVENT_TYPES.has(e.type) && !(e.type in TOOL_STATUS_BY_EVENT)) continue;
+    if (!MODEL_CALL_EVENT_TYPES.has(e.type) && !isToolStatusEvent(e.type)) continue;
     const g = groups.get(e.invocationId);
     if (g) g.push(e); else groups.set(e.invocationId, [e]);
   }
@@ -268,17 +86,8 @@ export function buildModelCalls(events: HarnessEvent[], opts: { provider: string
       reasoning: reasoningTokens,
     };
 
-    const statusFor = (id: string): Pick<ProposedToolCall, 'status' | 'statusEvent' | 'reason'> => {
-      let latest: HarnessEvent | undefined;
-      for (const e of evs) if (e.toolCallId === id && e.type in TOOL_STATUS_BY_EVENT) latest = e;
-      if (!latest) return { status: 'proposed' };
-      const reason = reasonOf(latest.data);
-      return {
-        status: TOOL_STATUS_BY_EVENT[latest.type],
-        statusEvent: { id: latest.id, sequence: latest.sequence },
-        ...(reason ? { reason } : {}),
-      };
-    };
+    const statusFor = (id: string): Pick<ProposedToolCall, 'status' | 'statusEvent' | 'reason'> =>
+      resolveToolStatus(evs, id);
     const toolCalls: ProposedToolCall[] = [];
     const seen = new Set<string>();
     const proposed = Array.isArray(respData?.toolCalls) ? respData.toolCalls : [];
@@ -346,173 +155,6 @@ function findFailure(call: ModelCall, sorted: HarnessEvent[]): ModelCall['failur
     return { reason, elapsedMs: Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, end - start) : undefined, event: e };
   }
   return undefined;
-}
-
-/* ----------------------------------------------------------- summarizeEvent */
-
-const clip = (s: string, n = 160) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
-
-const CODE_LABELS: Record<string, string> = {
-  explicit_yield: 'yielded turn',
-  budget_exhausted: 'action budget used up',
-  allowance_exhausted: 'action allowance used up',
-  memory_updated: 'memory updated',
-  board_post: 'board post',
-  board_delivery: 'board delivery',
-};
-
-/** Plain label for an event or reason code: "budget_exhausted" -> "action budget used up". */
-export function humanizeCode(code: string): string {
-  return CODE_LABELS[code] ?? code.replace(/[_-]+/g, ' ').trim();
-}
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-const oneLine = (s: string, max = 120) => clip(s.replace(/\s+/g, ' ').trim(), max);
-
-/** Tool name by toolCallId from every event that records a call (not only the model response). */
-export function buildToolNames(events: HarnessEvent[], calls: ModelCall[] = []): Map<string, string> {
-  const names = new Map<string, string>();
-  for (const e of events) {
-    if (!e.toolCallId || !isRecord(e.data) || !isRecord(e.data.call)) continue;
-    const name = str(e.data.call.name);
-    if (name) names.set(e.toolCallId, name);
-  }
-  for (const c of calls) for (const t of c.toolCalls) if (t.name !== 'unknown') names.set(t.id, t.name);
-  return names;
-}
-
-function describeToolResult(result: unknown): string | undefined {
-  if (!isRecord(result)) return undefined;
-  if (result.ok === false) return `error: ${str(result.error) ?? 'failed'}`;
-  if (Array.isArray(result.messages)) return plural(result.messages.length, 'message');
-  if (Array.isArray(result.agents)) return plural(result.agents.length, 'agent');
-  const holder = isRecord(result.value) ? result.value : result;
-  if (typeof holder.version === 'number') {
-    const rest = Object.entries(holder).filter(([k]) => k !== 'version' && k !== 'ok');
-    if (rest.every(([, v]) => v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0))) {
-      return `version ${holder.version}, empty`;
-    }
-    const first = rest.map(([, v]) => (typeof v === 'string' ? v : '')).find(Boolean);
-    return first ? `version ${holder.version}, ${oneLine(first, 80)}` : `version ${holder.version}`;
-  }
-  if (isRecord(result.value)) {
-    const entries = Object.entries(result.value);
-    if (entries.length === 0) return 'empty';
-    return oneLine(entries.map(([k, v]) => `${k}: ${typeof v === 'object' && v !== null ? '…' : String(v)}`).join(' · '), 100);
-  }
-  return undefined;
-}
-
-/** Payload-derived one-liner for recorded side-effect events (board, memory, artifact). */
-function describeChange(e: HarnessEvent, d: Record<string, unknown>): string | undefined {
-  const after = d.after;
-  const who = e.agentId ?? 'agent';
-  switch (e.type) {
-    case 'board_post':
-    case 'board_posted': {
-      const text = isRecord(after) ? str(after.text) : str(d.text);
-      const author = (isRecord(after) ? str(after.authorId) : undefined) ?? who;
-      return text ? `${author} posted: ${oneLine(text)}` : undefined;
-    }
-    case 'board_delivery':
-    case 'board_delivered': {
-      if (!Array.isArray(after)) return undefined;
-      if (after.length === 0) return `no new posts delivered to ${who}`;
-      const seqs = after.map(m => (isRecord(m) ? num(m.sequence) : undefined)).filter((n): n is number => n !== undefined);
-      const range = seqs.length > 1 ? ` #${Math.min(...seqs)}–#${Math.max(...seqs)}` : seqs.length === 1 ? ` #${seqs[0]}` : '';
-      return `delivered ${after.length === 1 ? 'post' : 'posts'}${range} to ${who}`;
-    }
-    case 'memory_updated': {
-      if (!isRecord(after)) return undefined;
-      const notes = str(after.notes) ?? '';
-      const before = isRecord(d.before) ? str(d.before.notes) ?? '' : '';
-      const lines = (t: string) => (t.trim() ? t.trim().split('\n').length : 0);
-      const delta = lines(notes) - lines(before);
-      const version = num(after.version);
-      const head = `memory${version !== undefined ? ` v${version}` : ''}${delta ? ` (${delta > 0 ? '+' : '−'}${plural(Math.abs(delta), 'line')})` : ''}`;
-      const first = notes.split('\n').find(l => l.trim());
-      return first ? `${head}: ${oneLine(first, 90)}` : head;
-    }
-    case 'artifact_updated': {
-      if (!isRecord(after)) return undefined;
-      const version = num(after.version);
-      return `artifact${version !== undefined ? ` v${version}` : ''} updated`;
-    }
-    default: return undefined;
-  }
-}
-
-/**
- * One-line human summary of an event; never throws. `toolNames` (toolCallId → name) lets
- * events that carry only a toolCallId, such as tool_result, name the tool.
- */
-export function summarizeEvent(e: HarnessEvent, toolNames?: ReadonlyMap<string, string>): string {
-  try {
-    const d = isRecord(e.data) ? e.data : {};
-    const callName = () => (isRecord(d.call) ? str(d.call.name) : undefined)
-      ?? (e.toolCallId ? toolNames?.get(e.toolCallId) : undefined) ?? e.toolCallId ?? 'tool';
-    switch (e.type) {
-      case 'run_started': return 'Run started';
-      case 'run_completed': return 'Run completed';
-      case 'run_terminated': return clip(`Run terminated${str(d.status) ? `: ${d.status}` : ''}${str(d.reason) ? ` · ${d.reason}` : ''}`);
-      case 'turn_started': {
-        const allowance = num(d.allowance);
-        const parts = [allowance === undefined ? 'Allowance ? actions' : `Allowance ${plural(allowance, 'action')}`];
-        if (num(d.orderPosition) !== undefined) parts.push(`order position ${d.orderPosition}`);
-        return parts.join(' · ');
-      }
-      case 'turn_ended': {
-        const left = num(d.remainingAllowance);
-        return clip(`Ended: ${humanizeCode(str(d.reason) ?? 'unknown')}${left !== undefined ? ` · ${plural(left, 'action')} left` : ''}${str(d.error) ? ` · ${d.error}` : ''}`);
-      }
-      case 'context_accounted': {
-        const n = num(d.measured) ?? num(d.estimated);
-        return `Context ${n !== undefined ? formatTokens(n) : '?'} tokens${num(d.measured) === undefined ? ' (est.)' : ''}${str(d.phase) ? ` · ${d.phase}` : ''}`;
-      }
-      case 'context_limit_exceeded': {
-        const limit = num(d.limit);
-        return `Context limit exceeded${limit !== undefined ? ` (limit ${formatTokens(limit)})` : ''}`;
-      }
-      case 'model_requested': {
-        const m = Array.isArray(d.messages) ? d.messages.length : undefined;
-        const t = Array.isArray(d.tools) ? d.tools.length : undefined;
-        return `Model request${str(d.phase) ? ` · ${d.phase}` : ''}${m !== undefined ? ` · ${plural(m, 'message')}` : ''}${t !== undefined ? ` · ${plural(t, 'tool')}` : ''}`;
-      }
-      case 'model_response': {
-        const calls = Array.isArray(d.toolCalls) ? d.toolCalls.length : 0;
-        const text = str(d.text)?.trim();
-        return clip(`Model response · ${calls} tool call${calls === 1 ? '' : 's'}${text ? ` · ${text.replace(/\s+/g, ' ')}` : ''}`);
-      }
-      case 'model_usage': {
-        const u = isRecord(d.usage) ? d.usage : undefined;
-        return u
-          ? `Usage · ${formatTokens(num(u.inputTokens) ?? 0)} in · ${formatTokens(num(u.outputTokens) ?? 0)} out`
-          : `Usage ${str(d.source) ?? 'unavailable'}`;
-      }
-      case 'tool_requested': return `${callName()} · requested`;
-      case 'tool_admitted': return `${callName()} · admitted${num(d.remainingAllowance) !== undefined ? ` · ${d.remainingAllowance} left` : ''}`;
-      case 'tool_result': {
-        const detail = describeToolResult(d.result);
-        return clip(`${callName()} · ${str(d.disposition) ?? 'executed'}${detail ? ` → ${detail}` : ''}`);
-      }
-      case 'tool_unexecuted': return clip(`${callName()} · unexecuted${str(d.reason) ? `: ${humanizeCode(String(d.reason))}` : ''}`);
-      case 'tool_failed': return clip(`${callName()} · failed${str(d.reason) ? `: ${d.reason}` : ''}`);
-      case 'tool_deduplicated': return `${callName()} · deduplicated`;
-      case 'report_submitted': return d.invalid ? 'Report submitted · invalid' : 'Report submitted';
-      case 'report_missing': return clip(`Report missing${str(d.reason) ? `: ${d.reason}` : ''}`);
-      default: {
-        const change = describeChange(e, d);
-        if (change) return clip(change);
-        const bits: string[] = [];
-        for (const [k, v] of Object.entries(d)) {
-          if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') bits.push(`${k}: ${v}`);
-        }
-        return clip(bits.join(' · ') || String(e.type).replace(/_/g, ' '));
-      }
-    }
-  } catch {
-    return String(e?.type ?? 'event');
-  }
 }
 
 /* ------------------------------------------------------------------ search */

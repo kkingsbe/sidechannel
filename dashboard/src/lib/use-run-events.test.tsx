@@ -1,19 +1,21 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import type { HarnessEvent } from '@sidechannel/contracts/browser';
+import { ApiClientProvider } from '../lib/clients/context';
+import { clientsFor, fakeServer, type FakeServer } from '../test/clients';
 import { FakeEventSource } from '../testing/fake-event-source';
 import { useRunEvents } from './use-run-events';
 
 const ev = (sequence: number) => ({ schemaVersion: 1, id: `e${sequence}`, runId: 'run-1', sequence, type: 'step', timestamp: '2026-11-07T12:00:00Z', agentId: 'alpha', round: 1, turn: 1, data: {} }) as HarnessEvent;
-function mockPages(page: (path: string) => unknown) {
-  const calls: string[] = [];
-  vi.stubGlobal('fetch', vi.fn(async (input: string) => {
-    const path = String(input).replace(/^\/api/, '');
-    calls.push(path);
-    return new Response(JSON.stringify(page(path)), { status: 200, headers: { 'Content-Type': 'application/json' } });
-  }));
-  return calls;
+function serverFor(page: (path: string) => unknown): FakeServer {
+  return fakeServer((path) => page(path));
+}
+function wrapperFor(server: FakeServer) {
+  return ({ children }: { children: ReactNode }) => (
+    <ApiClientProvider clients={clientsFor(server)}>{children}</ApiClientProvider>
+  );
 }
 
 beforeEach(() => { FakeEventSource.reset(); vi.stubGlobal('EventSource', FakeEventSource); });
@@ -21,13 +23,14 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('useRunEvents', () => {
   it('opens at the newest turn, then follows the stream until the run ends', async () => {
-    const calls = mockPages(() => ({ events: [ev(4), ev(5)], hasMore: true }));
-    const { result } = renderHook(() => useRunEvents('run-1', { actor: 'alpha' }, { start: 'latest', follow: true, enabled: true }));
+    const server = serverFor(() => ({ events: [ev(4), ev(5)], hasMore: true }));
+    const { result } = renderHook(() => useRunEvents('run-1', { actor: 'alpha' }, { start: 'latest', follow: true, enabled: true }), { wrapper: wrapperFor(server) });
     await waitFor(() => expect(result.current.events.map(e => e.sequence)).toEqual([4, 5]));
     expect(result.current.hasEarlier).toBe(true);
-    expect(calls[0]).toContain('before=9007199254740991');
-    expect(calls[0]).toContain('snap=turn');
-    expect(calls[0]).toContain('actor=alpha');
+    const first = server.calls[0]!.path;
+    expect(first).toContain('before=9007199254740991');
+    expect(first).toContain('snap=turn');
+    expect(first).toContain('actor=alpha');
     await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
     const source = FakeEventSource.instances[0]!;
     expect(source.url).toBe('/api/runs/run-1/events/stream?actor=alpha&after=5');
@@ -40,10 +43,10 @@ describe('useRunEvents', () => {
   });
 
   it('opens at an anchor without streaming and loads earlier turns on request', async () => {
-    const calls = mockPages(path => path.includes('before=20') ? { events: [ev(18), ev(19)], hasMore: false } : { events: [ev(20), ev(21)], hasMore: false });
-    const { result } = renderHook(() => useRunEvents('run-1', {}, { start: 20, follow: false, enabled: true }));
+    const server = serverFor(path => path.includes('before=20') ? { events: [ev(18), ev(19)], hasMore: false } : { events: [ev(20), ev(21)], hasMore: false });
+    const { result } = renderHook(() => useRunEvents('run-1', {}, { start: 20, follow: false, enabled: true }), { wrapper: wrapperFor(server) });
     await waitFor(() => expect(result.current.events).toHaveLength(2));
-    expect(calls[0]).toContain('after=19');
+    expect(server.calls[0]!.path).toContain('after=19');
     expect(result.current.hasEarlier).toBe(true);
     let added = 0;
     await act(async () => { added = await result.current.loadEarlier(); });
@@ -54,8 +57,8 @@ describe('useRunEvents', () => {
   });
 
   it('reopens exactly one stream from the new window when filters change while following', async () => {
-    mockPages(path => (path.includes('actor=beta') ? { events: [ev(9)], hasMore: false } : { events: [ev(4), ev(5)], hasMore: false }));
-    const { result, rerender } = renderHook(({ actor }) => useRunEvents('run-1', { actor }, { start: 'latest', follow: true, enabled: true }), { initialProps: { actor: 'alpha' } });
+    const server = serverFor(path => (path.includes('actor=beta') ? { events: [ev(9)], hasMore: false } : { events: [ev(4), ev(5)], hasMore: false }));
+    const { result, rerender } = renderHook(({ actor }: { actor: string }) => useRunEvents('run-1', { actor }, { start: 'latest', follow: true, enabled: true }), { wrapper: wrapperFor(server), initialProps: { actor: 'alpha' } });
     await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
     rerender({ actor: 'beta' });
     await waitFor(() => expect(result.current.events.map(e => e.sequence)).toEqual([9]));
@@ -65,8 +68,8 @@ describe('useRunEvents', () => {
   });
 
   it('falls back to polling when the stream is closed by the browser', async () => {
-    mockPages(() => ({ events: [ev(1)], hasMore: false }));
-    const { result } = renderHook(() => useRunEvents('run-1', {}, { start: 'latest', follow: true, enabled: true }));
+    const server = serverFor(() => ({ events: [ev(1)], hasMore: false }));
+    const { result } = renderHook(() => useRunEvents('run-1', {}, { start: 'latest', follow: true, enabled: true }), { wrapper: wrapperFor(server) });
     await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
     const source = FakeEventSource.instances[0]!;
     act(() => { source.readyState = FakeEventSource.CLOSED; source.onerror?.(); });

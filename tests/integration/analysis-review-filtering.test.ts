@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { IncomingMessage } from 'node:http';
-import type { AnalysisRepository } from '@sidechannel/contracts/analysis/jev-repository';
 import { MemoryReviewStore } from '@sidechannel/persistence/analysis/review-repository';
 import { ReviewService } from '@sidechannel/domain/analysis/jev-reviews';
+import { AnalysisNotFound, AnalysisValidation } from '@sidechannel/contracts/analysis/jev-repository';
 import type { Review, ReviewContext, ReviewQueueFilter } from '@sidechannel/contracts/analysis/jev-reviews';
+import { analysisJob } from './contracts/fixtures.js';
 import { createReviewRouteHandler } from '../../api/src/routes/review-routes.js';
 
 const context: ReviewContext = { analysisId: 'large-analysis', runId: 'source', definitionRevision: 'definition', evidenceRevision: 'frozen-source', codeIds: ['supply', 'challenge'],
@@ -69,15 +69,33 @@ test('filtered review and queue routes validate filters and apply the service se
     const service = fixture();
     await service.save(context.analysisId, input('e179', { scope: 'event', eventIds: ['e179'], decision: 'uncertain' }));
     const batch = await service.createBatch(context.analysisId, { seed: 'route-filter', randomSize: 180 });
-    const repository = { getJob: async () => ({ id: context.analysisId }) } as unknown as AnalysisRepository;
+    const repository = { getJob: async () => analysisJob(context.analysisId) };
     const handler = createReviewRouteHandler(service, repository);
-    const get = (path: string) => handler({ method: 'GET' } as IncomingMessage, new URL(`http://local/api/analyses/${context.analysisId}/${path}`));
+    const get = (suffix: string) => { const url = new URL('http://local/analyses/' + context.analysisId + '/' + suffix); return handler({ method: 'GET', path: url.pathname, query: url.searchParams, body: async () => ({}) }); };
     const history = await get('reviews?windowId=w179&subjectId=e179&scope=event&codeId=supply&reviewer=alice&latest=true&limit=1');
-    assert.equal(history!.status, 200); assert.equal((history!.body as { items: Review[] }).items[0]!.subjectId, 'e179');
+    assert.equal(history!.status, 200); assert.equal((history!.data as { items: Review[] }).items[0]!.subjectId, 'e179');
     const queue = await get(`review-batches/${batch.id}?filter=uncertain&limit=1&reviewer=alice`);
-    assert.equal(queue!.status, 200); assert.equal((queue!.body as unknown as { items: { windowId: string }[] }).items[0]!.windowId, 'w179');
-    assert.equal((await get('reviews?latest=unexpected'))!.status, 400);
-    assert.equal((await get('reviews?scope=unexpected'))!.status, 400);
-    assert.equal((await get(`review-batches/${batch.id}?filter=unknown`))!.status, 400);
-    assert.equal((await get(`review-batches/${batch.id}?filter=unreviewed`))!.status, 400);
+    assert.equal(queue!.status, 200); assert.equal((queue!.data as unknown as { items: { windowId: string }[] }).items[0]!.windowId, 'w179');
+    await assert.rejects(get('reviews?latest=unexpected'), AnalysisValidation);
+    await assert.rejects(get('reviews?scope=unexpected'), AnalysisValidation);
+    await assert.rejects(get(`review-batches/${batch.id}?filter=unknown`), AnalysisValidation);
+    await assert.rejects(get(`review-batches/${batch.id}?filter=unreviewed`), AnalysisValidation);
+});
+
+test('review route failures are typed, not message-matched', async () => {
+    const service = fixture();
+    const repository = { getJob: async () => analysisJob(context.analysisId) };
+    const handler = createReviewRouteHandler(service, repository);
+    const call = (suffix: string) => { const url = new URL('http://local/analyses/' + context.analysisId + '/' + suffix); return handler({ method: 'GET', path: url.pathname, query: url.searchParams, body: async () => ({}) }); };
+    await assert.rejects(call('review-batches/missing'), AnalysisNotFound);
+    await assert.rejects(call('reviews?latest=unexpected'), AnalysisValidation);
+    await assert.rejects(call('reviews?scope=unexpected'), AnalysisValidation);
+});
+
+test('event-scope reviews require exactly one source event', async () => {
+    const service = fixture(), first = context.windows[0]!;
+    await assert.rejects(
+        service.save(context.analysisId, { scope: 'event', subjectId: first.eventIds[0]!, codeId: context.codeIds[0]!, reviewer: 'reviewer-a', decision: 'uncertain', rationale: 'test', eventIds: [first.eventIds[0]!, context.windows[1]!.eventIds[0]!], stepIds: [], predictionsVisible: true, definitionRevision: context.definitionRevision, evidenceRevision: context.evidenceRevision }),
+        /exactly one source event/,
+    );
 });

@@ -96,10 +96,17 @@ export interface RunQueue {
     listRuns(): Promise<Run[]>;
 }
 export interface WorkerGuard {
-    acquireWorker(owner: string): Promise<boolean>;
+    DEFAULT_WORKER_LEASE_MS: 30_000;
+    acquireWorker(owner: string, leaseMs?: number): Promise<boolean>;
+    heartbeatWorker(owner: string): Promise<boolean>;
     releaseWorker(owner: string): Promise<void>;
+    workerLease(): Promise<WorkerLeaseRecord | null>;
 }
 ```
+
+> **Post-program integration (2026-11-07):** `main` moved seven commits while the program ran; the branch was merged with `main@48a2170` and the features re-expressed on this architecture. The `WorkerGuard` port is now the expiring single-worker lease (`DEFAULT_WORKER_LEASE_MS`, `heartbeatWorker`, `workerLease`) with takeover after heartbeat expiry and `interruptAbandonedRuns` on startup; the worker records the lease based `WorkerStatus` described below. `ProviderProfile` also gained the data-only adapter extension documented in §3.3. These are the executed shapes, and `docs/solid-remediation-decisions.md` §"Main integration" records the evidence deltas.
+>
+> **Second integration wave (2026-11-07):** `main` then advanced 28 more commits (live turn-aligned event timeline with SSE and turn paging, dashboard review fixes, codebook archive, Jev ordering/chart fixes, deployment update guards). Those were merged (`61e3332`) and ported, adding the wave-2 shapes: `EventQuery` gains `before`/`order` and `TurnSummary`; `EvidenceReader` gains `listTurns` and an optional `subscribeEvents` wake-up hint (polling stays the contract); `CodebookStore` gains `listCodebooks(page, filter)`/`setCodebookArchived` with `Codebook.archivedAt/archivedBy` and a write guard for archived codebooks; the API transport owns a raw-write SSE seam (`eventStreamRoute` + injectable timing) while JSON routes keep the handler contract; the dashboard's live hooks go through the WS5 requester/`EventSource` seam and typed clients gained codebook archive methods. The second-wave evidence record (route-contract +15 cases with none removed, extended adapter parity suites, unchanged scheduler/fixture/migration evidence) is in the decision log.
 
 `HarnessScheduler` constructor options become
 `{ runState: RunStateStore; events: EventLog; memory: PrivateMemory; adapter: ModelAdapter; scenario?: Scenario }`.
@@ -136,7 +143,14 @@ export interface ResearcherRepository extends RunStateStore, EventLog, RunQueue,
 `WorkerStatus` is the typed interface already introduced by WS1:
 
 ```ts
-export interface WorkerStatus { capacity: number; available: null; status: 'registered' | 'unknown'; startedAt?: string; note?: string; }
+export interface WorkerStatus {
+    capacity: number;
+    available: boolean;
+    status: 'active' | 'stale' | 'stopped' | 'registered' | 'unknown';
+    heartbeatAt?: string;
+    startedAt?: string;
+    note?: string;
+}
 ```
 
 Extension handlers take only the slice they use, e.g. `createHealthcareHandler(catalog: HealthcareCatalog, runs: Pick<RunStateStore, 'getRun'>)`.
@@ -197,7 +211,12 @@ Domain stays provider-agnostic (no Mastra imports). In `packages/domain/src/prov
 
 ```ts
 export type TransportModel = string | { providerId: string; modelId: string; url: string; apiKey: string; api: 'responses' };
-export interface ResolvedTransport { model: TransportModel; providerOptions: unknown; }
+export interface ResolvedTransport {
+    model: TransportModel;
+    providerOptions: unknown;
+    /** Adaption's Responses API needs item ids on replayed assistant text. */
+    assistantTextItemIds?: boolean;
+}
 
 export interface ProviderProfile {
     readonly id: string;
@@ -206,6 +225,10 @@ export interface ProviderProfile {
     readonly settings: readonly string[];
     /** Returns human-readable validation errors; empty means valid. */
     validateSettings(settings: Record<string, unknown>): string[];
+    /** How the worker obtains a `ModelAdapter`; data, never a name check in call sites. */
+    readonly adapterKind: 'mastra' | 'scripted' | 'embedded-playbook';
+    /** Provider-specific model-id/settings validation run by the configuration validator. */
+    validateModel?(config: ExperimentConfig): string[];
     resolveTransport(model: ExperimentConfig['model'], env: NodeJS.ProcessEnv): ResolvedTransport;
     readonly credentialEnv?: string;
     readonly usageSource: 'scripted' | 'provider-reported';

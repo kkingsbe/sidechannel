@@ -1,8 +1,5 @@
-import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Readable } from 'node:stream';
-import type { IncomingMessage } from 'node:http';
 import { InMemoryRepository } from '@sidechannel/persistence/harness/repository';
 import { defaultFixtureConfiguration } from '@sidechannel/domain/harness/config';
 import { createQueuedRun } from '@sidechannel/domain/harness/initialization';
@@ -113,9 +110,16 @@ test('repository failure drains sibling responses before finalizing partial work
 test('oversized input stays intact and no-evidence input is skipped without false zero scores', async () => {
     const oversized = await fixture(3, { inputLimits: { singleQuestionTokens: 20, combinedQuestionTokens: 30, headroomTokens: 1 } }); let calls = 0;
     const provider: JevProvider = { classify: async r => { calls++; return response(r); } };
-    await new AnalysisWorker(oversized.repository, { provider }).runOnce(); assert.equal(calls, 0); assert.equal((await oversized.repository.getJob(oversized.job.id))!.status, 'failed');
+    await new AnalysisWorker(oversized.repository, { provider }).runOnce(); assert.equal(calls, 0);
+    const oversizedJob = (await oversized.repository.getJob(oversized.job.id))!;
+    assert.equal(oversizedJob.status, 'failed');
+    // Oversized windows are unscored and never retried: they count as skipped, not failed or expected.
+    assert.deepEqual(oversizedJob.counters, { preparedWindows: 1, submittedWindows: 0, finishedWindows: 0, failedWindows: 0, skippedWindows: 1, returnedAnswers: 0, expectedAnswers: 0 });
     const w = (await oversized.repository.listWindows(oversized.job.id)).items[0]!; assert.equal(w.status, 'oversized'); assert.ok((await oversized.service.getWindow(oversized.job.id, w.id)).input.state.includes('Current output 2'));
-    const empty = await fixture(1, { evidence: { assistantText: false } }); await new AnalysisWorker(empty.repository, { provider }).runOnce(); assert.equal(calls, 0); assert.equal((await empty.repository.listResults(empty.job.id)).items.length, 0); assert.equal((await empty.repository.getJob(empty.job.id))!.status, 'completed');
+    const empty = await fixture(1, { evidence: { assistantText: false } }); await new AnalysisWorker(empty.repository, { provider }).runOnce(); assert.equal(calls, 0); assert.equal((await empty.repository.listResults(empty.job.id)).items.length, 0);
+    const emptyJob = (await empty.repository.getJob(empty.job.id))!;
+    assert.equal(emptyJob.status, 'completed');
+    assert.deepEqual(emptyJob.counters, { preparedWindows: 1, submittedWindows: 0, finishedWindows: 0, failedWindows: 0, skippedWindows: 1, returnedAnswers: 0, expectedAnswers: 0 });
 });
 
 test('lease fences reject stale writes and cancelled abandoned work is recoverable', async () => {
@@ -181,90 +185,20 @@ test('export contains exact inputs, source and provider requests with Unicode-sa
 
 test('backend validation and routes expose paginated windows and reproducible stream export', async () => {
     const f = await fixture(), handler = createAnalysisRouteHandler(f.service);
-    const req = (method = 'GET', value?: unknown) => Object.assign(Readable.from(value ? [JSON.stringify(value)] : []), { method }) as IncomingMessage;
+    const call = (path: string, method = 'GET', value?: unknown) => { const url = new URL('http://localhost' + path); return handler({ method, path: url.pathname, query: url.searchParams, body: async () => (value as Record<string, unknown>) ?? {} }); };
     await assert.rejects(f.service.preview(f.run.id, { codebookId: f.codebook.id, settings: { window: { size: 0 } } }), AnalysisValidation);
-    await assert.rejects(handler(req(), new URL(`http://localhost/api/analyses/${f.job.id}/windows?limit=0`)), AnalysisValidation);
-    const windows = await handler(req(), new URL(`http://localhost/api/analyses/${f.job.id}/windows?limit=1`)); assert.equal(windows!.status, 200);
-    const exported = await handler(req(), new URL(`http://localhost/api/analyses/${f.job.id}/export`)); assert.equal(exported!.headers!['Content-Type'], 'application/x-ndjson; charset=utf-8');
-    const overview = await handler(req(), new URL('http://localhost/api/analyses?limit=1')); assert.equal((overview!.body as { items: unknown[] }).items.length, 1);
-    const revisions = await handler(req(), new URL(`http://localhost/api/codebooks/${f.codebook.id}/revisions`)); assert.equal((revisions!.body as { items: unknown[] }).items.length, 1);
+    await assert.rejects(call(`/analyses/${f.job.id}/windows?limit=0`), AnalysisValidation);
+    const windows = await call(`/analyses/${f.job.id}/windows?limit=1`); assert.equal(windows!.status, 200);
+    const exported = await call(`/analyses/${f.job.id}/export`); assert.equal(exported!.headers!['Content-Type'], 'application/x-ndjson; charset=utf-8');
+    const overview = await call('/analyses?limit=1'); assert.equal((overview!.data as { items: unknown[] }).items.length, 1);
+    const revisions = await call(`/codebooks/${f.codebook.id}/revisions`); assert.equal((revisions!.data as { items: unknown[] }).items.length, 1);
     const window = (await f.repository.listWindows(f.job.id)).items[0]!;
-    const previewed = await handler(req('POST', { codebookId: f.codebook.id, previewHash: f.preview.previewHash }), new URL(`http://localhost/api/runs/${f.run.id}/analyses/preview/windows/${window.id}`));
-    assert.equal((previewed!.body as { input: { hash: string } }).input.hash, window.inputHash);
+    const previewed = await call(`/runs/${f.run.id}/analyses/preview/windows/${window.id}`, 'POST', { codebookId: f.codebook.id, previewHash: f.preview.previewHash });
+    assert.equal((previewed!.data as { input: { hash: string } }).input.hash, window.inputHash);
     await assert.rejects(f.service.previewWindow(f.run.id, window.id, { codebookId: f.codebook.id, previewHash: 'stale' }), AnalysisConflict);
-    assert.equal(await handler(req('POST'), new URL(`http://localhost/api/analyses/${f.job.id}/cancel/extra`)), null);
-    await assert.rejects(handler(req(), new URL('http://localhost/api/analyses/%ZZ')), AnalysisValidation);
+    assert.equal(await call(`/analyses/${f.job.id}/cancel/extra`, 'POST'), null);
+    await assert.rejects(call('/analyses/%ZZ'), AnalysisValidation);
     await new AnalysisWorker(f.repository, { provider: { classify: async r => response(r) } }).runOnce();
-    const joined = await handler(req(), new URL(`http://localhost/api/analyses/${f.job.id}/windows?withResults=true&limit=1`));
-    const item = (joined!.body as { items: { results: unknown[]; input?: unknown }[] }).items[0]!; assert.equal(item.results.length, 2); assert.equal(item.input, undefined);
-});
-test('codebook archive lists by filter with stable pagination and restores without creating a revision', async () => {
-    const f = await fixture(), revisionsBefore = (await f.repository.listRevisions(f.codebook.id)).items.length;
-    const seed = (await f.repository.listCodebooks()).items.find(b => b.id === 'tentative-default')!;
-    const { codebook: third } = await f.service.createCodebook({ name: 'Third', creator: 'Researcher', definitions: (await f.repository.getRevision(seed.id, seed.currentRevisionId))!.definitions.slice(0, 1) });
-    const { codebook } = await f.service.archiveCodebook(f.codebook.id, { expectedRevisionId: f.codebook.currentRevisionId, actor: 'curator' });
-    assert.equal(codebook.archivedBy, 'curator'); assert.ok(codebook.archivedAt); assert.equal(codebook.currentRevisionId, f.codebook.currentRevisionId);
-    const ids = async (archived?: 'exclude' | 'include' | 'only') => (await f.repository.listCodebooks(undefined, archived ? { archived } : undefined)).items.map(b => b.id).sort();
-    assert.deepEqual(await ids(), [seed.id, third.id].sort()); assert.deepEqual(await ids('exclude'), await ids()); assert.deepEqual(await ids('only'), [f.codebook.id]); assert.deepEqual(await ids('include'), [seed.id, third.id, f.codebook.id].sort());
-    const walked: string[] = []; let after: string | undefined;
-    do { const p = await f.repository.listCodebooks({ limit: 1, after }, { archived: 'include' }); walked.push(...p.items.map(b => b.id)); after = p.nextCursor ?? undefined; } while (after);
-    assert.deepEqual(walked, [seed.id, third.id, f.codebook.id].sort());
-    const onlyArchived = await f.repository.listCodebooks({ limit: 1 }, { archived: 'only' }); assert.equal(onlyArchived.nextCursor, null);
-    assert.equal((await f.repository.getCodebook(f.codebook.id))!.archivedAt, codebook.archivedAt);
-    await assert.rejects(f.service.archiveCodebook(f.codebook.id, { expectedRevisionId: f.codebook.currentRevisionId, actor: 'curator' }), /already archived/);
-    const restored = (await f.service.restoreCodebook(f.codebook.id, { expectedRevisionId: f.codebook.currentRevisionId, actor: 'curator' })).codebook;
-    assert.equal('archivedAt' in restored, false); assert.equal('archivedBy' in restored, false);
-    await assert.rejects(f.service.restoreCodebook(f.codebook.id, { expectedRevisionId: f.codebook.currentRevisionId, actor: 'curator' }), /not archived/);
-    assert.equal((await f.repository.listRevisions(f.codebook.id)).items.length, revisionsBefore);
-    assert.deepEqual(await ids('only'), []);
-});
-
-test('codebook archive validates input, revision and existence', async () => {
-    const f = await fixture();
-    await assert.rejects(f.service.archiveCodebook(f.codebook.id, { expectedRevisionId: 'stale', actor: 'curator' }), AnalysisConflict);
-    await assert.rejects(f.service.archiveCodebook(f.codebook.id, { expectedRevisionId: f.codebook.currentRevisionId, actor: ' ' }), AnalysisValidation);
-    assert.equal((await f.repository.getCodebook(f.codebook.id))!.archivedAt, undefined);
-    await assert.rejects(f.service.archiveCodebook('missing', { expectedRevisionId: 'x', actor: 'curator' }), /Codebook not found/);
-    await assert.rejects(f.service.restoreCodebook('missing', { expectedRevisionId: 'x', actor: 'curator' }), /Codebook not found/);
-    await f.service.archiveCodebook(f.codebook.id, { expectedRevisionId: f.codebook.currentRevisionId, actor: 'curator' });
-    await assert.rejects(f.service.restoreCodebook(f.codebook.id, { expectedRevisionId: 'stale', actor: 'curator' }), AnalysisConflict);
-    await assert.rejects(f.repository.setCodebookArchived('missing', 'x', null), /not found/);
-});
-
-test('archived codebooks reject edits and new analyses but leave existing analyses untouched', async () => {
-    const f = await fixture(), old = (await f.repository.getRevision(f.codebook.id, f.codebook.currentRevisionId))!, jobBefore = await f.repository.getJob(f.job.id);
-    await f.service.archiveCodebook(f.codebook.id, { expectedRevisionId: old.id, actor: 'curator' });
-    await assert.rejects(f.service.reviseCodebook(f.codebook.id, { creator: 'editor', definitions: old.definitions, expectedRevisionId: old.id }), /Codebook is archived; restore it before editing/);
-    const msg = /Codebook is archived; restore it before starting a new analysis/;
-    await assert.rejects(f.service.preview(f.run.id, { codebookId: f.codebook.id }), msg);
-    await assert.rejects(f.service.launch(f.run.id, { ...f.launch, idempotencyKey: 'archived-launch' }), msg);
-    assert.deepEqual(await f.repository.getJob(f.job.id), jobBefore); assert.equal((await f.service.getJob(f.job.id)).manifest.codebook.id, old.id);
-    assert.ok(await f.repository.getRevision(f.codebook.id, old.id));
-    await f.service.restoreCodebook(f.codebook.id, { expectedRevisionId: old.id, actor: 'curator' });
-    assert.ok((await f.service.preview(f.run.id, { codebookId: f.codebook.id })).previewHash);
-});
-
-test('archive between preview and launch blocks the launch; archived seed is not resurrected', async () => {
-    const f = await fixture(), p = await f.service.preview(f.run.id, { codebookId: f.codebook.id });
-    await f.service.archiveCodebook(f.codebook.id, { expectedRevisionId: f.codebook.currentRevisionId, actor: 'curator' });
-    await assert.rejects(f.service.launch(f.run.id, { ...f.launch, previewHash: p.previewHash, idempotencyKey: 'late' }), /Codebook is archived/);
-    const seed = await f.service.seedCodebook(); await f.service.archiveCodebook(seed.id, { expectedRevisionId: seed.currentRevisionId, actor: 'curator' });
-    const again = await f.service.seedCodebook(); assert.equal(again.id, seed.id); assert.ok(again.archivedAt);
-    assert.equal((await f.repository.listCodebooks()).items.some(b => b.id === seed.id), false);
-    assert.equal((await f.repository.listCodebooks(undefined, { archived: 'only' })).items.filter(b => b.id === seed.id).length, 1);
-    assert.equal((await f.repository.listRevisions(seed.id)).items.length, 1);
-});
-
-test('a revise or second archive that read the codebook before it was archived cannot clear or overwrite the archive', async () => {
-    const source = new InMemoryRepository(), repository = new InMemoryAnalysisRepository(), service = new AnalysisService(repository, source);
-    const seed = await service.seedCodebook(), definitions = (await repository.getRevision(seed.id, seed.currentRevisionId))!.definitions.slice(0, 1);
-    const { codebook: race } = await service.createCodebook({ name: 'Race', creator: 'test', definitions });
-    const stale = (await repository.getCodebook(race.id))!;
-    await service.archiveCodebook(race.id, { expectedRevisionId: race.currentRevisionId, actor: 'curator' });
-    const lateRevision = { id: randomUUID(), codebookId: race.id, revision: 2, createdAt: new Date().toISOString(), createdBy: 'late', definitions };
-    await assert.rejects(repository.saveCodebook({ ...stale, currentRevisionId: lateRevision.id }, lateRevision, race.currentRevisionId), AnalysisConflict);
-    await assert.rejects(repository.setCodebookArchived(race.id, race.currentRevisionId, { archivedAt: new Date().toISOString(), archivedBy: 'second' }), AnalysisConflict);
-    await assert.rejects(repository.setCodebookArchived(seed.id, seed.currentRevisionId, null), AnalysisConflict);
-    const kept = (await repository.getCodebook(race.id))!; assert.equal(kept.archivedBy, 'curator'); assert.equal(kept.currentRevisionId, race.currentRevisionId);
-    assert.equal((await repository.listRevisions(race.id)).items.length, 1);
+    const joined = await call(`/analyses/${f.job.id}/windows?withResults=true&limit=1`);
+    const item = (joined!.data as { items: { results: unknown[]; input?: unknown }[] }).items[0]!; assert.equal(item.results.length, 2); assert.equal(item.input, undefined);
 });

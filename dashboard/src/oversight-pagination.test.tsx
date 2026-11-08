@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import React from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { activate, fakeServer, renderWithServer } from './test/clients';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import Oversight from './pages/Oversight';
@@ -12,26 +12,25 @@ const config = {label: 'Fixture', condition: {id: 'reviewed'}, model: {provider:
 const runs = Array.from({ length: 125 }, (_, index) => ({ id: `run-${index + 1}`, config: { ...config, label: `Source ${index + 1}` }, status: 'completed' }));
 const reviews = Array.from({ length: 125 }, (_, index) => ({ id: `review-${String(index + 1).padStart(3, '0')}`, runId: 'run-125', outcomeId: 'outcome', definitionRevisionId: 'definition:1', reviewer: 'Alice', reviewerKey: 'alice', revision: index + 1, sequence: index + 1, rationale: `Historical rationale ${index + 1}`, decision: 'uncertain', eventIds: [], outcomeDefinition: outcome, createdAt: '2026-11-07T12:00:00Z' }));
 function page<T extends {id: string}>(rows: T[], url: URL) { const after = url.searchParams.get('after') || ''; const start = after ? rows.findIndex(row => row.id === after) + 1 : 0; const size = Number(url.searchParams.get('limit') || 25); const items = rows.slice(start, start + size); return {items, nextCursor: start + size < rows.length ? items.at(-1)!.id : null}; }
-function response(data: unknown) { return new Response(JSON.stringify(data), {status: 200, headers: {'Content-Type': 'application/json'}}); }
 function mock(extra: (url: URL, options?: RequestInit) => unknown = () => undefined) {
-  vi.stubGlobal('fetch', vi.fn(async (input: string, options?: RequestInit) => {
-    const url = new URL(input, 'http://localhost');
-    const custom = await extra(url, options); if (custom !== undefined) return custom instanceof Response ? custom : response(custom);
-    if (url.pathname === '/api/monitor-definitions') return response(definition(2));
-    if (url.pathname === '/api/monitor-definitions/history') return response(page([definition(1), definition(2)], url));
-    if (url.pathname === '/api/monitor-evaluations') return response({items: [], nextCursor: null});
-    if (url.pathname === '/api/runs') { const offset = Number(url.searchParams.get('offset') || 0), size = Number(url.searchParams.get('limit') || 25); return response({items: runs.slice(offset, offset + size), total: runs.length, nextOffset: offset + size < runs.length ? offset + size : null}); }
-    if (url.pathname.endsWith('/reviews/context')) return response({runId: 'run-125', definition: definition(Number(url.searchParams.get('definitionRevisionId')?.split(':')[1] || 2)), evidenceRevision: 'source-hash', eventCount: 1, sequenceBoundary: 1});
-    if (url.pathname.endsWith('/outcomes')) return response([]);
-    if (url.pathname.endsWith('/reviews/latest')) return response(reviews.at(-1));
-    if (url.pathname.endsWith('/reviews')) return response(page(reviews, url));
+  activate(fakeServer(async (path, options) => {
+    const url = new URL(path, 'http://localhost');
+    const custom = await extra(url, options); if (custom !== undefined) return custom;
+    if (url.pathname === '/monitor-definitions') return definition(2);
+    if (url.pathname === '/monitor-definitions/history') return page([definition(1), definition(2)], url);
+    if (url.pathname === '/monitor-evaluations') return {items: [], nextCursor: null};
+    if (url.pathname === '/runs') { const offset = Number(url.searchParams.get('offset') || 0), size = Number(url.searchParams.get('limit') || 25); return {items: runs.slice(offset, offset + size), total: runs.length, nextOffset: offset + size < runs.length ? offset + size : null}; }
+    if (url.pathname.endsWith('/reviews/context')) return {runId: 'run-125', definition: definition(Number(url.searchParams.get('definitionRevisionId')?.split(':')[1] || 2)), evidenceRevision: 'source-hash', eventCount: 1, sequenceBoundary: 1};
+    if (url.pathname.endsWith('/outcomes')) return [];
+    if (url.pathname.endsWith('/reviews/latest')) return reviews.at(-1);
+    if (url.pathname.endsWith('/reviews')) return page(reviews, url);
     throw new Error('Unexpected route ' + url);
   }));
 }
 afterEach(() => { cleanup(); localStorage.clear(); vi.unstubAllGlobals(); });
 
 it('pages beyond one hundred source runs while retaining selections across source pages', async () => {
-  mock(); render(<MemoryRouter initialEntries={['/?view=setup']}><Oversight /></MemoryRouter>); const user = userEvent.setup();
+  mock(); renderWithServer(<MemoryRouter initialEntries={['/?view=setup']}><Oversight /></MemoryRouter>); const user = userEvent.setup();
   await user.click(await screen.findByLabelText(/Source 1 ·/));
   const sources = screen.getByText('Completed source runs').parentElement!;
   for (let pageNumber = 1; pageNumber <= 4; pageNumber++) { await user.click(within(sources).getByRole('button', {name: 'Next'})); await screen.findByLabelText(new RegExp(`Source ${pageNumber * 25 + 1} ·`)); }
@@ -47,7 +46,7 @@ it('uses an exact latest reviewer query beyond visible history and keeps histori
     if (url.pathname.endsWith('/reviews/latest') && url.searchParams.get('reviewer') === 'bob') return new Promise(resolve => {releaseBob = resolve;});
     if (url.pathname.endsWith('/reviews') && options?.method === 'POST') {submitted = JSON.parse(String(options.body)); return {...reviews.at(-1), id: 'review-126'};}
   });
-  render(<MemoryRouter initialEntries={['/?view=references&run=run-125&definition=definition:1']}><Oversight /></MemoryRouter>);
+  renderWithServer(<MemoryRouter initialEntries={['/?view=references&run=run-125&definition=definition:1']}><Oversight /></MemoryRouter>);
   const user = userEvent.setup(); const identity = await screen.findByLabelText('Claimed reviewer identity');
   expect((screen.getByRole('combobox', {name: 'Reference definition revision'}) as HTMLSelectElement).value).toBe('definition:1');
   expect(screen.getByRole('link', {name: 'Reference export'}).getAttribute('href')).toContain('definitionRevisionId=definition%3A1');
@@ -64,15 +63,15 @@ it('uses an exact latest reviewer query beyond visible history and keeps histori
   fireEvent.change(identity, {target: {value: 'Bob'}});
   await waitFor(() => expect(releaseBob).toBeTypeOf('function'));
   expect((screen.getByRole('button', {name: 'Save provisional reference'}) as HTMLButtonElement).disabled).toBe(true);
-  releaseBob!(response(null));
+  releaseBob!(null);
   await waitFor(() => expect((screen.getByRole('button', {name: 'Save provisional reference'}) as HTMLButtonElement).disabled).toBe(false));
 });
 
 it('pages definition history and evaluation jobs rather than silently limiting the dataset', async () => {
   const definitions = Array.from({length: 125}, (_, index) => definition(index + 1));
   const jobs = Array.from({length: 55}, (_, index) => ({id: `job-${String(index + 1).padStart(3, '0')}`, settings: {model: {provider: 'fixture', id: `Monitor ${index + 1}`}}, runIds: ['run-1'], definition: definition(1), status: 'completed', createdAt: '2026-11-07T12:00:00Z'}));
-  mock(url => url.pathname === '/api/monitor-definitions/history' ? page(definitions, url) : url.pathname === '/api/monitor-evaluations' ? page(jobs, url) : undefined);
-  render(<MemoryRouter initialEntries={['/?view=jobs']}><Oversight /></MemoryRouter>); const user = userEvent.setup();
+  mock(url => url.pathname === '/monitor-definitions/history' ? page(definitions, url) : url.pathname === '/monitor-evaluations' ? page(jobs, url) : undefined);
+  renderWithServer(<MemoryRouter initialEntries={['/?view=jobs']}><Oversight /></MemoryRouter>); const user = userEvent.setup();
   await screen.findByText('fixture/Monitor 1');
   await user.click(screen.getByRole('button', {name: 'Next'})); await screen.findByText('fixture/Monitor 26');
   await user.click(screen.getByRole('button', {name: 'Next'})); await screen.findByText('fixture/Monitor 55');

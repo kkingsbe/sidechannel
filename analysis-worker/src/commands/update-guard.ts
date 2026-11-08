@@ -1,13 +1,16 @@
 import { MongoRepository } from '@sidechannel/persistence/harness/repository';
+import { ACTIVE_JOB_STATUSES } from '@sidechannel/contracts/analysis/jev-repository';
+import { ACTIVE_MONITOR_STATUSES } from '@sidechannel/contracts/oversight/contracts';
 
 /**
  * Pre-update hook for the image updater (WUD `wud.hook.*` labels in compose.portainer.yaml).
  * Replacing this worker abandons in-flight Jev analysis and oversight jobs. Exit codes:
  * 0 = idle, safe to replace; 1 = jobs queued or active, defer; 2 = state unknown, defer.
+ * Active vocabularies come from the contracts tables so a new status cannot drift here.
  */
 const ACTIVE = {
-    analysis_jobs: ['preparing', 'queued', 'running'],
-    research_monitor_evaluations: ['queued', 'running'],
+    analysis_jobs: ACTIVE_JOB_STATUSES,
+    research_monitor_evaluations: ACTIVE_MONITOR_STATUSES,
 };
 
 const deadline = setTimeout(() => { console.error('update-guard: timed out checking jobs; deferring update'); process.exit(2); }, 20_000);

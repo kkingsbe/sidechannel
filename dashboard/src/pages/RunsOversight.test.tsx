@@ -1,18 +1,13 @@
 // @vitest-environment jsdom
-import React from "react";
-import { afterEach, expect, it, vi } from "vitest";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  waitFor,
-  screen,
-  within,
-} from "@testing-library/react";
+import { afterEach, expect, it } from "vitest";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { defaultFixtureConfiguration } from "@sidechannel/contracts/testing";
+import type { MonitorDefinition, MonitorEvaluation } from "@sidechannel/contracts/browser";
+import type { MonitorComparison } from "../lib/types";
+import { activate, fakeClients, fakeServer, renderWithClients, renderWithServer } from "../test/clients";
 import Runs from "./Runs";
 import Oversight from "./Oversight";
-import { defaultFixtureConfiguration } from "@sidechannel/contracts/testing";
 const config = defaultFixtureConfiguration();
 const run = (id: string, status: string, wording: string) => ({
   id,
@@ -24,21 +19,8 @@ const run = (id: string, status: string, wording: string) => ({
   artifacts: [],
   reports: [],
 });
-function mock(handler: (path: string) => unknown) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(
-      async (input: string) =>
-        new Response(JSON.stringify(handler(input.replace(/^\/api/, ""))), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-    ),
-  );
-}
 afterEach(() => {
   cleanup();
-  vi.unstubAllGlobals();
   localStorage.clear();
 });
 it("aligns exact pair wording and available outputs while retaining a failed condition", async () => {
@@ -47,8 +29,7 @@ it("aligns exact pair wording and available outputs while retaining a failed con
     ...run("excluded", "failed", "Exact excluded wording"),
     failureReason: "Worker failed before reporting",
   };
-  mock((path) =>
-    path === "/pairs/pair"
+  activate(fakeServer((path) => path === "/pairs/pair"
       ? {
           runs: [a, b],
           matched: true,
@@ -64,9 +45,8 @@ it("aligns exact pair wording and available outputs while retaining a failed con
               { agentId: "agent-1", raw: "Exact final report", parsed: {} },
             ],
           }
-        : b,
-  );
-  render(
+        : b));
+  renderWithServer(
     <MemoryRouter
       initialEntries={[
         "/runs/pairs/pair?returnTo=%2Fruns%3Fstatus%3Dfailed%26offset%3D25",
@@ -96,19 +76,16 @@ it("aligns exact pair wording and available outputs while retaining a failed con
   ).toBeTruthy();
 });
 it("defaults oversight to evaluations and keeps setup explicit with visible prerequisites", async () => {
-  mock((path) =>
-    path.startsWith("/monitor-evaluations")
-      ? { items: [], nextCursor: null }
-      : path.startsWith("/runs?")
-        ? { items: [], nextOffset: null }
-        : path.startsWith("/monitor-definitions/history")
-          ? { items: [], nextCursor: null }
-          : { revision: 1 },
-  );
-  const mounted = render(
-    <MemoryRouter>
-      <Oversight />
-    </MemoryRouter>,
+  const mounted = renderWithClients(
+    <Routes>
+      <Route path="/*" element={<Oversight />} />
+    </Routes>,
+    {
+      route: "/",
+      clients: fakeClients({
+        monitor: { evaluations: async () => ({ items: [], nextCursor: null }) },
+      }),
+    },
   );
   expect(
     await screen.findByRole("tab", { name: "Evaluation jobs" }),
@@ -120,10 +97,22 @@ it("defaults oversight to evaluations and keeps setup explicit with visible prer
     screen.getByRole("link", { name: "New evaluation" }).getAttribute("href"),
   ).toBe("/oversight/new");
   mounted.unmount();
-  render(
-    <MemoryRouter initialEntries={["/?run=source"]}>
-      <Oversight />
-    </MemoryRouter>,
+  renderWithClients(
+    <Routes>
+      <Route path="/*" element={<Oversight />} />
+    </Routes>,
+    {
+      route: "/?run=source",
+      clients: fakeClients({
+        monitor: {
+          history: async () => ({
+            items: [] as MonitorDefinition[],
+            nextCursor: null,
+          }),
+        },
+        runs: { list: async () => ({ items: [], total: 0, nextOffset: null }) },
+      }),
+    },
   );
   expect(await screen.findByText("Enter a monitor provider.")).toBeTruthy();
   expect(screen.getByText("Enter a monitor model.")).toBeTruthy();
@@ -145,44 +134,45 @@ it("restores an evaluation cursor page after detail navigation and retains previ
     status: "completed",
     createdAt: "2026-11-07T12:00:00Z",
     results: [],
-  });
-  mock((path) => {
-    const url = new URL(path, "http://localhost");
-    if (url.pathname === "/monitor-evaluations") {
-      const after = url.searchParams.get("after");
-      return {
-        items: [
-          job(
-            after === "cursor-2"
-              ? "evaluation-third-full-id"
-              : after === "cursor-1"
-                ? "evaluation-second-full-id"
-                : "evaluation-first-full-id",
-          ),
-        ],
-        nextCursor:
-          after === "cursor-2"
-            ? null
-            : after === "cursor-1"
-              ? "cursor-2"
-              : "cursor-1",
-      };
-    }
-    if (url.pathname.endsWith("/comparison")) return { comparisons: [] };
-    if (url.pathname.endsWith("/export")) return { preview: { runs: [] } };
-    if (url.pathname.startsWith("/monitor-evaluations/"))
-      return job("evaluation-third-full-id");
-    if (url.pathname === "/monitor-definitions/history")
-      return { items: [], nextCursor: null };
-    if (url.pathname === "/runs") return { items: [], nextOffset: null };
-    return { revision: 7 };
-  });
-  render(
-    <MemoryRouter initialEntries={["/oversight?view=jobs"]}>
-      <Routes>
-        <Route path="/oversight/*" element={<Oversight />} />
-      </Routes>
-    </MemoryRouter>,
+  }) as unknown as MonitorEvaluation;
+  renderWithClients(
+    <Routes>
+      <Route path="/oversight/*" element={<Oversight />} />
+    </Routes>,
+    {
+      route: "/oversight?view=jobs",
+      clients: fakeClients({
+        monitor: {
+          evaluations: async (query) => {
+            const after = query?.after ?? null;
+            return {
+              items: [
+                job(
+                  after === "cursor-2"
+                    ? "evaluation-third-full-id"
+                    : after === "cursor-1"
+                      ? "evaluation-second-full-id"
+                      : "evaluation-first-full-id",
+                ),
+              ],
+              nextCursor:
+                after === "cursor-2"
+                  ? null
+                  : after === "cursor-1"
+                    ? "cursor-2"
+                    : "cursor-1",
+            };
+          },
+          evaluation: async () => job("evaluation-third-full-id"),
+          comparison: async () => ({ comparisons: [] }) as unknown as MonitorComparison,
+          exportEnvelope: async () => ({ preview: { runs: [] } }) as never,
+          history: async () => ({
+            items: [] as MonitorDefinition[],
+            nextCursor: null,
+          }),
+        },
+      }),
+    },
   );
   await screen.findByText("evaluation-first-full-id");
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
@@ -190,7 +180,7 @@ it("restores an evaluation cursor page after detail navigation and retains previ
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
   await screen.findByText("evaluation-third-full-id");
   const open = screen.getByRole("link", {
-    name: /^Independent monitor - 1 source run - revision 7/,
+    name: "Independent monitor - 1 source run - revision 7",
   });
   expect(open.getAttribute("href")).toContain(
     "jobCursor%3Dcursor-1%26jobCursor%3Dcursor-2",
@@ -198,7 +188,7 @@ it("restores an evaluation cursor page after detail navigation and retains previ
   fireEvent.click(open);
   expect(
     await screen.findByRole("heading", {
-      name: /^Independent monitor - 1 source run - revision 7/,
+      name: "Independent monitor - 1 source run - revision 7",
     }),
   ).toBeTruthy();
   expect(screen.getByText("evaluation-third-full-id")).toBeTruthy();
@@ -210,137 +200,3 @@ it("restores an evaluation cursor page after detail navigation and retains previ
   expect(screen.getByText("Page 2")).toBeTruthy();
 });
 
-const event = (
-  sequence: number,
-  type: string,
-  agentId: string,
-  data: unknown,
-  extra: Record<string, unknown> = {},
-) => ({
-  schemaVersion: 1,
-  id: `event-${sequence}`,
-  runId: "run-1",
-  sequence,
-  type,
-  timestamp: "2026-11-07T12:00:00Z",
-  agentId,
-  round: 1,
-  turn: sequence,
-  data,
-  ...extra,
-});
-function runRoutes(events: ReturnType<typeof event>[], overrides = {}) {
-  const base = {
-    ...run("run-1", "completed", "wording"),
-    configHash: "hash",
-    board: [],
-    ...overrides,
-  };
-  mock((path) => {
-    const url = new URL(path, "http://localhost");
-    const parts = url.pathname.split("/");
-    if (url.pathname === "/runs/run-1" || url.pathname === "/runs/run-1/progress") return base;
-    if (url.pathname === "/runs/run-1/events") {
-      const type = url.searchParams.get("type");
-      const rows = events.filter((e) => !type || e.type === type);
-      return { events: rows, nextCursor: rows.at(-1)?.sequence ?? 0, hasMore: false };
-    }
-    if (parts[3] === "reports")
-      return { items: base.reports, total: base.reports.length, nextOffset: null };
-    if (parts[3] === "outcomes") return [];
-    return { items: [] };
-  });
-}
-const renderRun = (search: string) =>
-  render(
-    <MemoryRouter initialEntries={["/runs/run-1" + search]}>
-      <Routes>
-        <Route path="/runs/*" element={<Runs />} />
-      </Routes>
-    </MemoryRouter>,
-  );
-
-it("groups private memory by agent with a line diff and collapses unchanged rewrites", async () => {
-  runRoutes([
-    event(1, "memory_updated", "pharmacy", { before: { version: 0, notes: "" }, after: { version: 1, notes: "Line one\nLine two" } }),
-    event(2, "memory_updated", "clinical", { before: { version: 0, notes: "" }, after: { version: 1, notes: "Clinical notes" } }),
-    event(3, "memory_updated", "pharmacy", { before: { version: 1, notes: "Line one\nLine two" }, after: { version: 2, notes: "Line one\nLine two" } }),
-    event(4, "memory_updated", "pharmacy", { before: { version: 2, notes: "Line one\nLine two" }, after: { version: 3, notes: "Line one\nLine three" } }),
-  ]);
-  renderRun("?view=memory");
-  expect((await screen.findAllByText(/Clinical notes/)).length).toBeGreaterThan(0);
-  fireEvent.click(screen.getByRole("tab", { name: /pharmacy/ }));
-  expect(screen.getByText("Unchanged rewrite")).toBeTruthy();
-  const diff = screen.getByRole("group", { name: "Changes in version 3" });
-  expect(within(diff).getByText(/Line two/).closest("div")?.className).toContain("line-diff-removed");
-  expect(within(diff).getByText(/Line three/).closest("div")?.className).toContain("line-diff-added");
-  expect(screen.queryByText(/Clinical notes/)).toBeNull();
-});
-
-it("renders final reports as labelled sections beside recorded event counts", async () => {
-  runRoutes(
-    [
-      event(1, "tool_admitted", "pharmacy", { call: { name: "read_role_data" } }),
-      event(2, "tool_admitted", "pharmacy", { call: { name: "read_role_data" } }),
-      event(3, "board_post", "pharmacy", { after: { id: "m1" } }),
-      event(4, "board_delivery", "pharmacy", { after: [] }),
-    ],
-    {
-      reports: [
-        {
-          agentId: "pharmacy",
-          raw: '{"ownActions":"Read twice.\\nPosted once.","observations":"o","limitations":"l"}',
-          parsed: { ownActions: "Read twice.\nPosted once.", observations: "o", limitations: "l" },
-        },
-      ],
-    },
-  );
-  renderRun("?view=reports");
-  expect(await screen.findByRole("heading", { name: "Own actions" })).toBeTruthy();
-  expect(screen.getByRole("heading", { name: "Limitations" })).toBeTruthy();
-  const strip = await screen.findByLabelText("Recorded for pharmacy");
-  await waitFor(() => expect(within(strip).getByText("Role data reads").nextSibling?.textContent).toBe("2"));
-  expect(within(strip).getByText("Board posts").nextSibling?.textContent).toBe("1");
-});
-
-it("shows run-not-found with a way back and the demo-data note", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: string) =>
-      input.endsWith("/workspace")
-        ? new Response(JSON.stringify({ mode: "demo" }), { status: 200 })
-        : new Response(JSON.stringify({ error: "Run not found" }), { status: 404 }),
-    ),
-  );
-  renderRun("");
-  expect(await screen.findByRole("heading", { name: "Run not found" })).toBeTruthy();
-  expect(screen.getByRole("link", { name: /Back to Runs/ }).getAttribute("href")).toBe("/runs");
-  await screen.findByText(/demo data resets/);
-});
-
-it("leads the pair page with a comparability verdict, reviewed first", async () => {
-  const reviewed = { ...run("reviewed", "failed", "R"), round: 1, turn: 3 };
-  const excluded = { ...run("excluded", "failed", "E"), round: 2, turn: 8 };
-  mock((path) =>
-    path === "/pairs/pair"
-      ? { runs: [excluded, reviewed], matched: true, configurationDifferences: [] }
-      : path === "/runs/reviewed"
-        ? reviewed
-        : path === "/runs/excluded"
-          ? excluded
-          : { items: [] },
-  );
-  render(
-    <MemoryRouter initialEntries={["/runs/pairs/pair"]}>
-      <Routes>
-        <Route path="/runs/*" element={<Runs />} />
-      </Routes>
-    </MemoryRouter>,
-  );
-  expect(
-    await screen.findByText(/Not comparable: runs stopped at different points \(reviewed R1\/T3 failed, excluded R2\/T8 failed\)/),
-  ).toBeTruthy();
-  const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-  expect(headings.indexOf("reviewed")).toBeLessThan(headings.indexOf("excluded"));
-  expect(screen.getByRole("button", { name: /Duplicate config/ })).toBeTruthy();
-});

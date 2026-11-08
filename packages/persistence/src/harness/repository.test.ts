@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { InMemoryRepository } from './repository.js';
 import { defaultFixtureConfiguration, resolveConfiguration, resolvePair } from '@sidechannel/domain/harness/config';
 import { createQueuedRun } from '@sidechannel/domain/harness/initialization';
@@ -42,4 +43,16 @@ test('matched pair validation and identity checks are atomic', async () => {
     await other.saveRun(stale);
     assert.equal((await other.getRun(stale.id))!.pairId, 'pair');
     assert.equal((await other.getRun(stale.id))!.pairingSeed, 42);
+});
+
+test('launch and pair invariants are defined only in the domain', async () => {
+    const directory = new URL('.', import.meta.url);
+    for (const file of ['repository.ts', 'schema.ts', 'memory/repository.ts', 'mongo/repository.ts']) {
+        const source = await readFile(new URL(file, directory), 'utf8');
+        assert.ok(!/function assertSameLaunch\b/.test(source), `${file} redefines assertSameLaunch`);
+        assert.ok(!/function assertPair\b/.test(source), `${file} redefines assertPair`);
+    }
+    const domain = await readFile(new URL('../../../domain/src/harness/launch.ts', directory), 'utf8');
+    assert.match(domain, /export function assertSameLaunchConfiguration/);
+    assert.match(domain, /export function assertMatchedPair/);
 });

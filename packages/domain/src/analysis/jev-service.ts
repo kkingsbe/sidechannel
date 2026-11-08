@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { HarnessEvent } from '@sidechannel/contracts/harness/contracts';
+import { isTerminalRun } from '@sidechannel/contracts/harness/contracts';
 import type { Repository } from '@sidechannel/contracts/harness/server';
 import type { BehaviorDefinition, CodebookRevision, SerializedWindow } from '@sidechannel/contracts/analysis/evidence-contracts';
 import { createSeedCodebook, resolveAnalysisConfiguration, snapshotHash, staticContextForRun, validateBehaviorDefinitions } from './configuration.js';
@@ -7,17 +8,20 @@ import { normalizeTrace } from './normalization.js';
 import { buildWindows, selectSteps } from './windows.js';
 import { serializeWindow, preflightQuestions, SERIALIZATION_VERSION } from './serialization.js';
 import { buildBehaviorQuestions, JEV_ADAPTER_VERSION, JEV_SDK_VERSION, QUESTION_TEMPLATE_VERSION } from './jev-questions.js';
-import { AnalysisConflict, AnalysisNotFound, AnalysisPayloadTooLarge, AnalysisValidation, type AnalysisJob, type AnalysisRepository, type PageOptions, type WindowRecord } from '@sidechannel/contracts/analysis/jev-repository';
+import { AnalysisConflict, AnalysisNotFound, AnalysisPayloadTooLarge, AnalysisValidation, type AnalysisJob, type AnalysisRepository, type WindowRecord } from '@sidechannel/contracts/analysis/jev-repository';
 import { emptyCounters } from './jev-repository.js';
+import { iteratePages, type PageFetcher } from '../pagination.js';
 import type { PreviewInput, LaunchInput } from '@sidechannel/contracts/analysis/jev-service';
 
 const text = (v: unknown, label: string, max = 200): string => { if (typeof v !== 'string' || !v.trim() || v.length > max) throw new AnalysisValidation(`${label} must be a nonempty string of at most ${max} characters`); return v.trim(); };
 
 const validate = <T>(fn: () => T): T => { try { return fn(); } catch (e) { throw new AnalysisValidation(e instanceof Error ? e.message : 'Invalid analysis input'); } };
 
-export async function* pages<T>(fetch: (p: PageOptions) => Promise<{ items: T[]; nextCursor: string | null }>): AsyncGenerator<T> { let after: string | undefined; do { const p = await fetch({ limit: 100, after }); for (const item of p.items) yield item; after = p.nextCursor ?? undefined; } while (after); }
+/** Compatibility wrapper for the analysis worker; one cursor loop implementation for the whole codebase. */
+export function pages<T>(fetch: PageFetcher<T>): AsyncGenerator<T> { return iteratePages(fetch, 100); }
 
 export class AnalysisService {
+    /** Composed analysis port: this service is the codebook + job lifecycle entry point. */
     constructor(readonly repository: AnalysisRepository, private readonly source: Pick<Repository, 'getRun' | 'listEvents'>) {}
     async seedCodebook() { const existing = await this.repository.getCodebook('tentative-default'); if (existing) return existing; const { codebook, revision } = createSeedCodebook(); codebook.id = 'tentative-default'; codebook.currentRevisionId = revision.id = 'tentative-default-v1'; revision.codebookId = codebook.id; try { await this.repository.saveCodebook(codebook, revision); } catch (e) { if (!(e instanceof AnalysisConflict)) throw e; } return (await this.repository.getCodebook(codebook.id))!; }
     async createCodebook(input: { name: string; creator: string; definitions: BehaviorDefinition[] }) {
@@ -47,7 +51,7 @@ export class AnalysisService {
     }
     private async prepare(runId: string, input: PreviewInput) {
         const run = await this.source.getRun(runId); if (!run) throw new AnalysisNotFound('Source run not found');
-        if (!['completed', 'failed', 'cancelled', 'interrupted'].includes(run.status)) throw new AnalysisConflict('Analysis requires a terminal source run');
+        if (!isTerminalRun(run.status)) throw new AnalysisConflict('Analysis requires a terminal source run');
         const book = await this.repository.getCodebook(text(input.codebookId, 'Codebook ID')); if (!book) throw new AnalysisNotFound('Codebook not found');
         if (book.archivedAt) throw new AnalysisConflict('Codebook is archived; restore it before starting a new analysis');
         if (input.codebookRevisionId && input.codebookRevisionId !== book.currentRevisionId) throw new AnalysisConflict('Codebook changed since preview');

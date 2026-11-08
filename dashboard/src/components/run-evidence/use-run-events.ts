@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { api } from "../../lib/api";
+import { useRequester } from "../../lib/api";
+import type { Requester } from "../../lib/transport";
 import type { HarnessEvent } from "../../lib/types";
 
 const PAGE = 1000;
@@ -8,9 +9,9 @@ const MAX_PAGES = 10;
 export const EVENT_PAGE_SIZE = 50;
 
 /** Highest recorded event sequence, found with a few one-row probes (no reverse paging exists). */
-export async function findLatestSequence(runId: string): Promise<number> {
+export async function findLatestSequence(runId: string, requester: Requester): Promise<number> {
   const hasAfter = async (after: number) => {
-    const result = await api<{ events?: unknown[] }>(
+    const result = await requester<{ events?: unknown[] }>(
       `/runs/${encodeURIComponent(runId)}/events?limit=1&after=${after}`,
     );
     return Array.isArray(result?.events) && result.events.length > 0;
@@ -38,11 +39,11 @@ export interface RunEventsByType {
   partial: boolean;
 }
 
-async function fetchAll(runId: string, type: string) {
+async function fetchAll(runId: string, type: string, requester: Requester) {
   const events: HarnessEvent[] = [];
   let after = 0;
   for (let page = 0; page < MAX_PAGES; page++) {
-    const result = await api<{
+    const result = await requester<{
       events?: HarnessEvent[];
       nextCursor?: number;
       hasMore?: boolean;
@@ -64,6 +65,7 @@ export function useRunEventsByType(
   enabled: boolean,
   refreshMs = 0,
 ): RunEventsByType {
+  const requester = useRequester();
   const [state, setState] = useState<RunEventsByType>({
     events: {},
     loading: enabled,
@@ -80,7 +82,7 @@ export function useRunEventsByType(
     const load = async () => {
       try {
         const results = await Promise.all(
-          types.map((type) => fetchAll(runId, type)),
+          types.map((type) => fetchAll(runId, type, requester)),
         );
         if (cancelled) return;
         setState({
@@ -107,6 +109,6 @@ export function useRunEventsByType(
       cancelled = true;
       clearInterval(timer);
     };
-  }, [runId, enabled, key, refreshMs]);
+  }, [requester, runId, enabled, key, refreshMs]);
   return state;
 }

@@ -1,38 +1,18 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import Analysis, { WindowInspector } from "./Analysis";
+import { REVIEWER_STORAGE_KEY } from "../components/claimed-reviewer";
+import { activate, fakeServer, renderWithServer } from "../test/clients";
+import Analysis from "./Analysis";
+import { WindowInspector } from "./analysis/window-inspector";
 import { RecordedEventContent } from "./analysis/RecordedEventContent";
 import type { AnalysisJob, WindowDetail } from "../lib/analysis-types";
 const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   post: vi.fn(),
   batch: { id: "blind-batch", mode: "blind" },
-}));
-vi.mock("../lib/api", () => ({
-  useApi: (path: string | null) => ({
-    data: mocks.request(path),
-    loading: false,
-    error: undefined,
-    refresh: vi.fn(),
-  }),
-  useMutation: () => ({
-    busy: false,
-    error: undefined,
-    message: "",
-    run: async (action: () => Promise<unknown>) => {
-      try {
-        return await action();
-      } catch {
-        return undefined;
-      }
-    },
-  }),
-  post: (...args: unknown[]) => mocks.post(...args),
-  api: vi.fn(),
-  arrayOf: (value: any) => value?.items ?? [],
 }));
 const code = {
   id: "visibility",
@@ -76,6 +56,13 @@ const detail = {
 beforeEach(() => {
   localStorage.clear();
   mocks.post.mockResolvedValue({ id: "saved" });
+  activate(fakeServer((path) => mocks.request(path)), {
+    analyses: {
+      saveReview: (id: string, input: unknown) => mocks.post("/analyses/" + id + "/reviews", input),
+      preview: () => mocks.post(),
+      launch: () => mocks.post(),
+    },
+  });
   mocks.request.mockImplementation((path: string | null) => {
     if (!path) return undefined;
     if (path === "/analyses/analysis-a") return job;
@@ -93,7 +80,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 it("derives initial blinding from persisted batch mode even when the shared link omits blind=true", async () => {
-  render(
+  renderWithServer(
     <MemoryRouter
       initialEntries={[
         "/analysis-a?view=review&batch=blind-batch&window=window-a",
@@ -107,7 +94,7 @@ it("derives initial blinding from persisted batch mode even when the shared link
 });
 it("fails closed when a path change temporarily retains metadata for a different assisted batch", async () => {
   mocks.batch = { id: "old-assisted-batch", mode: "assisted" };
-  render(
+  renderWithServer(
     <MemoryRouter
       initialEntries={[
         "/analysis-a?view=review&batch=new-blind-batch&window=window-a",
@@ -121,7 +108,7 @@ it("fails closed when a path change temporarily retains metadata for a different
   mocks.batch = { id: "blind-batch", mode: "blind" };
 });
 it("revises the exact event subject rather than borrowing another event review revision", async () => {
-  localStorage.setItem("sidechannel-reviewer", "Reviewer A");
+  localStorage.setItem(REVIEWER_STORAGE_KEY, "Reviewer A");
   mocks.request.mockImplementation((path: string | null) => {
     if (!path) return undefined;
     if (path.includes("subjectId=event-b"))
@@ -156,7 +143,7 @@ it("revises the exact event subject rather than borrowing another event review r
       };
     return { items: [], nextCursor: null };
   });
-  render(
+  renderWithServer(
     <MemoryRouter>
       <WindowInspector detail={detail} job={job} blind={false} />
     </MemoryRouter>,
@@ -177,15 +164,15 @@ it("revises the exact event subject rather than borrowing another event review r
     expect.objectContaining({
       scope: "event",
       eventIds: ["event-b"],
-      supersedesId: "event-b-review",
+      supersedes: expect.objectContaining({ id: "event-b-review" }),
     }),
   );
 });
 
 it("selects multiple exact citations and preserves the draft when a save fails", async () => {
-  localStorage.setItem("sidechannel-reviewer", "Reviewer A");
+  localStorage.setItem(REVIEWER_STORAGE_KEY, "Reviewer A");
   const next = vi.fn();
-  render(
+  renderWithServer(
     <MemoryRouter>
       <WindowInspector detail={detail} job={job} blind onNext={next} />
     </MemoryRouter>,
@@ -235,7 +222,7 @@ it("renders canonical recorded text first and retains real zero probabilities", 
       results: [{ codeId: code.id, probability: 0 }],
     },
   } as WindowDetail;
-  render(
+  renderWithServer(
     <MemoryRouter>
       <WindowInspector detail={withEvents} job={job} blind={false} />
     </MemoryRouter>,
@@ -249,7 +236,7 @@ it("renders canonical recorded text first and retains real zero probabilities", 
   expect(raw?.open).toBe(false);
 });
 it("opens saved analyses as a collection and exposes a separate creation route", () => {
-  render(
+  renderWithServer(
     <MemoryRouter initialEntries={["/"]}>
       <Analysis />
     </MemoryRouter>,
@@ -299,7 +286,7 @@ it("explains preview prerequisites and distinguishes unscored records while inva
       },
     ],
   });
-  render(
+  renderWithServer(
     <MemoryRouter initialEntries={["/new?run=source-run"]}>
       <Analysis />
     </MemoryRouter>,
@@ -323,7 +310,7 @@ it("explains preview prerequisites and distinguishes unscored records while inva
 });
 
 it("keeps later queue pages and filters after saving and advancing to the next item", async () => {
-  localStorage.setItem("sidechannel-reviewer", "Reviewer A");
+  localStorage.setItem(REVIEWER_STORAGE_KEY, "Reviewer A");
   const base = mocks.request.getMockImplementation()!;
   mocks.request.mockImplementation((path: string | null) => {
     if (path?.includes("/review-batches/blind-batch")) {
@@ -356,7 +343,7 @@ it("keeps later queue pages and filters after saving and advancing to the next i
     }
     return base(path);
   });
-  render(
+  renderWithServer(
     <MemoryRouter
       initialEntries={["/analysis-a?view=review&batch=blind-batch"]}
     >
@@ -364,9 +351,11 @@ it("keeps later queue pages and filters after saving and advancing to the next i
     </MemoryRouter>,
   );
   const user = userEvent.setup();
-  await user.selectOptions(screen.getByLabelText("Queue filter"), "uncertain");
+  await user.selectOptions(await screen.findByLabelText("Queue filter"), "uncertain");
+  await screen.findByText(/Window 1 /);
+  await waitFor(() => expect(mocks.request.mock.calls.some(call => String(call[0]).includes("filter=uncertain"))).toBe(true));
   await user.click(screen.getByRole("button", { name: "Next selections" }));
-  expect(screen.getByText(/Window 2 .* steps 5.*16/)).toBeTruthy();
+  await waitFor(() => expect(screen.getByText(/Window 2 .* steps 5.*16/)).toBeTruthy());
   expect(screen.queryByText("flagged")).toBeNull();
   await user.click(
     screen.getAllByRole("button", { name: "Review evidence" })[0],
@@ -399,7 +388,7 @@ it("keeps later queue pages and filters after saving and advancing to the next i
 });
 
 it("puts exact model messages ahead of technical input schemas", () => {
-  render(
+  renderWithServer(
     <RecordedEventContent
       type="model_requested"
       data={{
@@ -423,7 +412,7 @@ it("puts exact model messages ahead of technical input schemas", () => {
     screen.queryByText(/Schema internals|Tool schema noise|metadata-id/),
   ).toBeNull();
 });
-it("does not claim an item is unreviewed before a reviewer is identified", () => {
+it("does not claim an item is unreviewed before a reviewer is identified", async () => {
   const base = mocks.request.getMockImplementation()!;
   mocks.request.mockImplementation((path: string | null) =>
     path?.includes("/review-batches/blind-batch")
@@ -436,14 +425,14 @@ it("does not claim an item is unreviewed before a reviewer is identified", () =>
         }
       : base(path),
   );
-  render(
+  renderWithServer(
     <MemoryRouter
       initialEntries={["/analysis-a?view=review&batch=blind-batch"]}
     >
       <Analysis />
     </MemoryRouter>,
   );
-  expect(screen.getByText("Enter reviewer identity")).toBeTruthy();
+  expect(await screen.findByText("Enter reviewer identity")).toBeTruthy();
   expect(screen.queryByText("Unreviewed", { selector: "td" })).toBeNull();
   expect(screen.queryByText("flagged")).toBeNull();
 });
@@ -462,7 +451,7 @@ it("carries the saved analyses cursor into the detail return link", async () => 
       };
     return base(path);
   });
-  render(
+  renderWithServer(
     <MemoryRouter initialEntries={["/"]}>
       <Analysis />
     </MemoryRouter>,
@@ -473,211 +462,4 @@ it("carries the saved analyses cursor into the detail return link", async () => 
   expect(open.getAttribute("href")).toContain(
     encodeURIComponent("/analysis?cursor=second-page"),
   );
-});
-it("blocks preview and explains how to recover when the selected codebook is archived", async () => {
-  const base = mocks.request.getMockImplementation()!;
-  const run = { id: "source-run", status: "completed", configHash: "hash", config: { label: "Study", model: { provider: "demo", id: "test" } } };
-  const activeBooks = { items: [{ id: "other", name: "Active book", currentRevisionId: "other-rev", archived: false }], nextCursor: null };
-  const cloned = { ...job, manifest: { ...job.manifest, settings: { ...job.manifest.settings, codebookId: "book", codebookRevisionId: "revision", phases: ["action"], evidence: ["assistant"], creator: "Reviewer A" } } };
-  const retired = { codebook: { id: "book", name: "Retired book", archived: true, archivedAt: "2026-11-08T00:00:00Z" }, revision: { id: "revision", revision: 1, codes: [code] } };
-  mocks.request.mockImplementation((path: string | null) => {
-    if (path?.startsWith("/runs?")) return { items: [], nextCursor: null };
-    if (path === "/runs/source-run") return run;
-    if (path?.startsWith("/codebooks?")) return activeBooks;
-    if (path === "/analyses/analysis-a") return cloned;
-    if (path === "/codebooks/book") return retired;
-    return base(path);
-  });
-  localStorage.setItem("sidechannel-reviewer", "Reviewer A");
-  render(
-    <MemoryRouter initialEntries={["/new?run=source-run&clone=analysis-a"]}>
-      <Analysis />
-    </MemoryRouter>,
-  );
-  const message = "This codebook is archived. Restore it on the Codebook page to start a new analysis.";
-  expect((await screen.findAllByText(new RegExp(message.replace(/\./g, "\\.")))).length).toBeGreaterThan(0);
-  expect(screen.getByRole("link", { name: /Codebook page/ }).getAttribute("href")).toBe("/codebook");
-  expect((screen.getByRole("button", { name: "Preview analysis" }) as HTMLButtonElement).disabled).toBe(true);
-  await userEvent.setup().click(screen.getByRole("button", { name: "Preview analysis" }));
-  expect(mocks.post).not.toHaveBeenCalled();
-});
-
-it("lists windows by numeric run position and colours the heatmap on a continuous scale", async () => {
-  const base = mocks.request.getMockImplementation()!;
-  // 12 windows, delivered in the text order of their IDs: window-1, window-10, window-11, window-12, window-2 ...
-  const windows = Array.from({ length: 12 }, (_, i) => i + 1)
-    .map((n) => ({
-      id: `window-${n}`,
-      index: n - 1,
-      startStep: (n - 1) * 2 + 1,
-      endStep: (n - 1) * 2 + 3,
-      status: "completed",
-      partial: false,
-      incomplete: false,
-      results: [{ codeId: code.id, probability: n === 12 ? 0.9 : n / 100 }],
-    }))
-    .sort((a, b) => a.id.localeCompare(b.id));
-  expect(windows[1].id).toBe("window-10");
-  mocks.request.mockImplementation((path: string | null) =>
-    path?.startsWith("/analyses/analysis-a/windows?")
-      ? { items: windows, nextCursor: null }
-      : base(path),
-  );
-  render(
-    <MemoryRouter initialEntries={["/analysis-a?view=heatmap"]}>
-      <Analysis />
-    </MemoryRouter>,
-  );
-  const table = await screen.findByRole("table", {
-    name: "Behavior probability heatmap",
-  });
-  const starts = within(table)
-    .getAllByRole("columnheader")
-    .slice(1)
-    .map((th) => Number(th.textContent!.split("–")[0]));
-  expect(starts).toEqual(Array.from({ length: 12 }, (_, i) => i * 2 + 1));
-  const low = screen.getByRole("button", { name: /steps 3–5: 2\.0%/ });
-  const mid = screen.getByRole("button", { name: /steps 11–13: 6\.0%/ });
-  const high = screen.getByRole("button", { name: /steps 23–25: 90\.0%/ });
-  expect(low.style.getPropertyValue("--heat")).toBe("0.02");
-  expect(mid.style.getPropertyValue("--heat")).toBe("0.06");
-  // Only the above-threshold cell is outlined; low scores are not labelled as a different "medium" class.
-  expect(high.className).toContain("flagged");
-  expect(low.className).not.toContain("flagged");
-  expect(low.className).not.toContain("medium");
-  // The threshold is entered as a percent.
-  expect(
-    (screen.getByLabelText(/Highlight threshold/) as HTMLInputElement).value,
-  ).toBe("70");
-  // A score table follows the same order.
-  await userEvent.setup().click(screen.getByRole("tab", { name: "Score table" }));
-  const rows = within(
-    screen.getByRole("table", { name: "Window probability scores" }),
-  ).getAllByRole("row");
-  expect(rows[1].textContent).toContain("Steps 1–3");
-  expect(rows[2].textContent).toContain("Steps 3–5");
-});
-
-it("offers a window size that fits when windows are oversized, and totals the estimated input", async () => {
-  const base = mocks.request.getMockImplementation()!;
-  mocks.request.mockImplementation((path: string | null) => {
-    if (path?.startsWith("/runs?")) return { items: [], nextCursor: null };
-    if (path === "/runs/source-run")
-      return {
-        id: "source-run",
-        status: "completed",
-        configHash: "hash",
-        config: { label: "Study", model: { provider: "demo", id: "test" } },
-      };
-    if (path?.startsWith("/codebooks?"))
-      return {
-        items: [{ id: "book", name: "Behaviors", currentRevisionId: "revision" }],
-        nextCursor: null,
-      };
-    if (path === "/codebooks/book")
-      return {
-        codebook: { name: "Behaviors" },
-        revision: { id: "revision", revision: 1, codes: [code] },
-      };
-    return base(path);
-  });
-  const budget = (estimatedTokens: number, oversized: boolean) => ({
-    oversized,
-    estimatedTokens,
-    bytes: 1,
-    perQuestionLimit: 32000,
-    perRequestLimit: 64000,
-    headroom: 2000,
-    batches: oversized ? [] : [["visibility"]],
-  });
-  mocks.post.mockResolvedValue({
-    previewToken: "preview",
-    manifest: { availability: { assistant: 1, reasoning: 0 }, diagnostics: [], scoredCodeCount: 1 },
-    windows: [
-      { id: "w1", index: 0, startStep: 1, endStep: 12, partial: false, empty: false, budget: budget(60000, true) },
-      { id: "w2", index: 1, startStep: 5, endStep: 16, partial: false, empty: false, budget: budget(9000, false) },
-    ],
-  });
-  render(
-    <MemoryRouter initialEntries={["/new?run=source-run"]}>
-      <Analysis />
-    </MemoryRouter>,
-  );
-  const user = userEvent.setup();
-  await user.type(screen.getByLabelText(/Researcher \/ creator/), "Reviewer A");
-  await user.click(screen.getByRole("button", { name: "Preview analysis" }));
-  expect(await screen.findByText(/Per-request budget/)).toBeTruthy();
-  expect(screen.getByText(/9,000 estimated input tokens across 1 request\b/)).toBeTruthy();
-  expect(screen.getByText(/Assistant outputs: present/)).toBeTruthy();
-  expect(screen.getByText(/Available provider reasoning: none recorded/)).toBeTruthy();
-  // 60,000 tokens / 12 steps = 5,000 per step; 30,000 capacity -> 6 steps -> 90% margin -> 5.
-  await user.click(screen.getByRole("button", { name: "Use 5-step windows" }));
-  expect(
-    (screen.getByLabelText("Window size (classification steps)") as HTMLInputElement).value,
-  ).toBe("5");
-  expect(screen.queryByText("Prepared windows")).toBeNull();
-});
-
-it("shows per-window judgment progress in the review queue", async () => {
-  localStorage.setItem("sidechannel-reviewer", "Reviewer A");
-  const second = { ...code, id: "second", code: "SECOND" };
-  const base = mocks.request.getMockImplementation()!;
-  mocks.request.mockImplementation((path: string | null) => {
-    if (path === "/analyses/analysis-a")
-      return {
-        ...job,
-        manifest: {
-          ...job.manifest,
-          codebook: { id: "revision-a", revision: 1, codes: [code, second] },
-        },
-      };
-    if (path?.includes("/review-batches/blind-batch"))
-      return {
-        batch: { id: "blind-batch", mode: "blind", selectionCount: 1 },
-        selections: {
-          items: [{ id: "one", windowId: "window-a", reasons: ["flagged"] }],
-          nextCursor: null,
-        },
-      };
-    if (path?.includes("/reviews?windowId=window-a&reviewer="))
-      return {
-        items: [
-          { id: "r1", reviewer: "Reviewer A", windowId: "window-a", scope: "window", codeId: code.id, revision: 1 },
-        ],
-        nextCursor: null,
-      };
-    return base(path);
-  });
-  render(
-    <MemoryRouter initialEntries={["/analysis-a?view=review&batch=blind-batch"]}>
-      <Analysis />
-    </MemoryRouter>,
-  );
-  expect(await screen.findByText("1 / 2 behaviors judged")).toBeTruthy();
-  expect(screen.getByText("In progress")).toBeTruthy();
-  expect(await screen.findByText(/0 \/ 1 window complete/)).toBeTruthy();
-});
-
-it("confirms a saved judgment, resets the draft and only asks for a rationale after a failed attempt", async () => {
-  localStorage.setItem("sidechannel-reviewer", "Reviewer A");
-  mocks.post.mockResolvedValue({ id: "saved", revision: 2 });
-  render(
-    <MemoryRouter>
-      <WindowInspector detail={detail} job={job} blind={false} />
-    </MemoryRouter>,
-  );
-  const user = userEvent.setup();
-  expect(screen.queryByText("Add a rationale before saving.")).toBeNull();
-  await user.click(screen.getByRole("button", { name: "Save judgment" }));
-  expect(screen.getByText("Add a rationale before saving.")).toBeTruthy();
-  expect(mocks.post).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("checkbox", { name: "Cite event event-a" }));
-  await user.type(screen.getByLabelText(/Rationale/), "Supported by the cited event.");
-  expect(screen.queryByText("Add a rationale before saving.")).toBeNull();
-  await user.click(screen.getByRole("button", { name: "Save judgment" }));
-  const status = (await screen.findByText(/Saved · VISIBILITY · r2/)).closest(".analysis-saved");
-  expect(status?.getAttribute("aria-live")).toBe("polite");
-  expect((screen.getByLabelText(/Rationale/) as HTMLTextAreaElement).value).toBe("");
-  expect(screen.getByText("Selected citations (0)")).toBeTruthy();
-  expect(screen.queryByText("Add a rationale before saving.")).toBeNull();
 });

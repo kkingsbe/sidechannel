@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { MastraModelAdapter, createMongoMemory, memoryIdentity } from '../harness/mastra-adapter.js';
-import { configureExperimentRuntime, closeExperimentRuntime, flushExperimentTraces } from '../mastra/index.js';
+import { openTraceRuntime } from '../mastra/index.js';
 import type { ModelInput } from '@sidechannel/contracts/harness/server';
 import type { MemorySnapshot } from '@sidechannel/contracts/harness/contracts';
 import { adaptionBaseUrl, resolveInferenceProvider } from '../harness/inference-provider.js';
@@ -37,7 +37,7 @@ const uri = process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27018/?directConnect
 
 const dbName = process.env.MASTRA_DB_NAME ?? 'sidechannel_mastra';
 
-configureExperimentRuntime(uri, dbName);
+const trace = openTraceRuntime(uri, dbName);
 
 const memory = createMongoMemory(uri, dbName);
 
@@ -57,19 +57,19 @@ try {
         messages: [{ role: 'system', content: `Private notes:\n${saved.notes}` }, ...saved.messages,
             { role: 'user', content: 'Reply with the synthetic continuity marker in your private notes. No tools are available.' }],
         tools: [], timeoutMs: 60000 };
-    const response = await new MastraModelAdapter().complete(input);
+    const response = await new MastraModelAdapter(trace).complete(input);
     assert.equal(response.toolCalls.length, 0);
     assert.ok(response.text.length > 0);
     assert.ok(response.text.includes('cobalt-seven'));
     saved.messages.push({ role: 'assistant', content: response.text });
     await memory.save(runId, agentId, saved);
     assert.deepEqual(await memory.load(runId, agentId), saved);
-    await flushExperimentTraces();
+    await trace.flush();
     // No provider request, headers, raw responses, credential values or notes are printed.
     console.log(JSON.stringify({ kind: 'live-provider-smoke', runId, provider, modelId,
         responseReceived: true, memoryPersisted: true, usage: response.usage, trace: response.trace }));
 }
 finally {
     await memory.storage.close();
-    await closeExperimentRuntime();
+    await trace.close();
 }

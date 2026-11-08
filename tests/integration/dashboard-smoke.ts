@@ -60,7 +60,7 @@ export async function createDashboardSmoke() {
     await repository.saveDraft('fixture-incomplete-draft', { label: 'SCRIPTED FIXTURE · incomplete draft' }, undefined, { name: 'SCRIPTED FIXTURE · invalid draft remains editable' });
     const pair = await repository.createPair(resolvePair(config).map((resolvedConfig, pairPosition) => ({ ...createQueuedRun(resolvedConfig, `dashboard-fixture:${pairPosition}`, 'pair-dashboard-fixture'), pairingSeed: 42, pairPosition, sourceDraft: { id: draft.id, revision: draft.revision, notes: draft.notes! } })));
     for (const run of pair) {
-        const result = await new HarnessScheduler({ repository, memory, adapter: new ScriptedAdapter(fixtureScript) }).run(run.id);
+        const result = await new HarnessScheduler({ runState: repository, events: repository, memory, adapter: new ScriptedAdapter(fixtureScript) }).run(run.id);
         if (result.status !== 'completed') throw new Error('Dashboard fixture failed: ' + result.failureReason);
     }
     const codebook = await analysis.seedCodebook();
@@ -95,7 +95,7 @@ export async function createDashboardSmoke() {
                 const run = (await repository.getRun(queue.items[0].id))!;
                 if (run.config.model.provider !== 'scripted' || run.config.scenario.version !== 'fixture-v1') {
                     run.status = 'failed'; run.failureReason = 'The smoke workspace only executes scripted fixture-v1 experiments. No provider was called.'; await repository.saveRun(run);
-                } else await new HarnessScheduler({ repository, memory, adapter: new ScriptedAdapter(fixtureScript) }).run(run.id);
+                } else await new HarnessScheduler({ runState: repository, events: repository, memory, adapter: new ScriptedAdapter(fixtureScript) }).run(run.id);
             }
             await analysisWorker.runOnce();
             await processNextMonitorJob(repository, researchStore, fakeMonitor, 'fixture-monitor-worker');

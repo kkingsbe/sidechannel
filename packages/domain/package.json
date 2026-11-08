@@ -99,6 +99,10 @@
       "types": "./dist/harness/initialization.d.ts",
       "import": "./dist/harness/initialization.js"
     },
+    "./harness/launch": {
+      "types": "./dist/harness/launch.d.ts",
+      "import": "./dist/harness/launch.js"
+    },
     "./harness/provenance": {
       "types": "./dist/harness/provenance.d.ts",
       "import": "./dist/harness/provenance.js"
@@ -150,6 +154,26 @@
     "./harness/token-budget": {
       "types": "./dist/harness/token-budget.d.ts",
       "import": "./dist/harness/token-budget.js"
+    },
+    "./harness/configuration-schema": {
+      "types": "./dist/harness/configuration-schema.d.ts",
+      "import": "./dist/harness/configuration-schema.js"
+    },
+    "./providers": {
+      "types": "./dist/providers/index.d.ts",
+      "import": "./dist/providers/index.js"
+    },
+    "./providers/profile": {
+      "types": "./dist/providers/profile.d.ts",
+      "import": "./dist/providers/profile.js"
+    },
+    "./scenarios": {
+      "types": "./dist/scenarios/index.d.ts",
+      "import": "./dist/scenarios/index.js"
+    },
+    "./pagination": {
+      "types": "./dist/pagination.d.ts",
+      "import": "./dist/pagination.js"
     },
     "./playbook/package": {
       "types": "./dist/playbook/package.d.ts",

@@ -1,8 +1,10 @@
 import type { ExperimentConfig } from "../lib/types";
 import type { AdaptionModelCatalog } from "@sidechannel/contracts/browser";
-import { useApi } from "../lib/api";
-import { Button, Field, Input, Notice, Select } from "./ui";
+import { useClients } from "../lib/clients/context";
+import { useResource } from "../lib/clients/query";
+import { providerOptions, useProviders, useScenarios } from "../lib/descriptors";
 import { PlaybookPicker } from "./playbook-picker";
+import { Button, Field, Input, Notice, Select } from "./ui";
 
 export function ModelControls({
   config,
@@ -13,8 +15,14 @@ export function ModelControls({
   replace: (config: ExperimentConfig) => void;
   errors?: Record<string, string>;
 }) {
-  const models = useApi<AdaptionModelCatalog>(
-    config.model.provider === "adaption" ? "/models/adaption" : null,
+  const clients = useClients();
+  const providers = useProviders();
+  const scenarios = useScenarios();
+  const provider = providers.view(config.model.provider);
+  const scenario = scenarios.view(config.scenario.version);
+  const models = useResource<AdaptionModelCatalog>(
+    provider.catalogPath ? `provider-catalog:${provider.catalogPath}` : null,
+    () => clients.request<AdaptionModelCatalog>(provider.catalogPath!),
   );
   const budget = config.tokenBudget;
   const selectModel = (id: string) => {
@@ -34,22 +42,19 @@ export function ModelControls({
           data-config-path="model.provider"
           value={config.model.provider}
           onChange={(event) => {
-            const provider = event.target.value;
+            const nextProvider = providers.view(event.target.value);
             const settings = { ...config.model.settings };
             delete settings.playbook;
             delete settings.playbookHash;
             delete settings.playbookVersion;
             const next = {
               ...config,
-              phase:
-                provider === "scripted" || provider === "playbook"
-                  ? ("development" as const)
-                  : ("pilot" as const),
+              phase: nextProvider.defaultPhase ?? config.phase,
               model: {
                 ...config.model,
-                provider,
+                provider: nextProvider.id,
+                id: nextProvider.defaultModelId ?? "",
                 settings,
-                id: provider === "scripted" ? "healthcare-points-v0.3" : "",
               },
             };
             if (next.tokenBudget) {
@@ -59,19 +64,17 @@ export function ModelControls({
             replace(next);
           }}
         >
-          <option value="scripted">Scripted healthcare · development</option>
-          <option value="adaption">Live Adaption · pilot</option>
-          <option value="playbook">Uploaded playbook · development</option>
-          {!["scripted", "adaption", "playbook"].includes(
-            config.model.provider,
-          ) && (
-            <option value={config.model.provider}>
-              {config.model.provider}
+          {providerOptions(providers.providers).map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.optionLabel}
             </option>
+          ))}
+          {!providerOptions(providers.providers).some((option) => option.id === config.model.provider) && (
+            <option value={config.model.provider}>{config.model.provider}</option>
           )}
         </Select>
       </Field>
-      {config.model.provider === "adaption" ? (
+      {provider.catalogPath ? (
         <>
           <Field
             label="Hosted Adaption model"
@@ -86,47 +89,38 @@ export function ModelControls({
             >
               <option value="">Select an available deployment</option>
               {config.model.id &&
-                !models.data?.models.some(
-                  (model) => model.id === config.model.id,
-                ) && (
+                !models.data?.models.some((model) => model.id === config.model.id) && (
                   <option value={config.model.id}>
                     {config.model.id} · availability unverified
                   </option>
                 )}
               {models.data?.models.map((model) => (
                 <option key={model.id} value={model.id}>
-                  {model.displayName} ·{" "}
-                  {model.capacity
-                    ? `${model.capacity.tokens.toLocaleString()} tokens`
-                    : "capacity unverified"}
+                  {model.displayName} · {model.capacity ? `${model.capacity.tokens.toLocaleString()} tokens` : "capacity unverified"}
                 </option>
               ))}
             </Select>
           </Field>
           {(models.error || models.data?.status === "unavailable") && (
             <Notice kind="warning">
-              {models.error?.message ??
-                models.data?.message ??
-                "Hosted models are unavailable."}{" "}
+              {models.error?.message ?? models.data?.message ?? "Hosted models are unavailable."}{" "}
               <Button variant="ghost" size="sm" onClick={models.refresh}>
                 Retry model discovery
               </Button>
             </Notice>
           )}
         </>
-      ) : config.model.provider === "playbook" ? (
+      ) : provider.playbook ? (
         <>
           <p className="helper">
-            Playbook execution replays an uploaded tool-call script through the
-            real scheduler. It validates instrumentation and is never study
-            data.
+            Playbook execution replays an uploaded tool-call script through the real scheduler. It validates
+            instrumentation and is never study data.
           </p>
           <PlaybookPicker config={config} replace={replace} errors={errors} />
         </>
       ) : (
         <p className="helper">
-          Scripted execution validates instrumentation. It is not spontaneous
-          agent behavior.
+          Scripted execution validates instrumentation. It is not spontaneous agent behavior.
         </p>
       )}
       {budget ? (
@@ -143,36 +137,21 @@ export function ModelControls({
               step={1}
               value={budget.maxInputTokens}
               onChange={(event) =>
-                replace({
-                  ...config,
-                  tokenBudget: {
-                    ...budget,
-                    maxInputTokens: event.target.valueAsNumber,
-                  },
-                })
+                replace({ ...config, tokenBudget: { ...budget, maxInputTokens: event.target.valueAsNumber } })
               }
             />
           </Field>
-          <Field
-            label="Maximum output tokens"
-            error={errors?.["model.settings.maxOutputTokens"]}
-          >
+          <Field label="Maximum output tokens" error={errors?.["model.settings.maxOutputTokens"]}>
             <Input
               data-config-path="model.settings.maxOutputTokens"
               type="number"
               min={1}
               step={1}
-              value={Number(config.model.settings.maxOutputTokens ?? 16384)}
+              value={Number(config.model.settings.maxOutputTokens ?? 4096)}
               onChange={(event) =>
                 replace({
                   ...config,
-                  model: {
-                    ...config.model,
-                    settings: {
-                      ...config.model.settings,
-                      maxOutputTokens: event.target.valueAsNumber,
-                    },
-                  },
+                  model: { ...config.model, settings: { ...config.model.settings, maxOutputTokens: event.target.valueAsNumber } },
                 })
               }
             />
@@ -188,26 +167,19 @@ export function ModelControls({
               step={1}
               value={config.memory.maxPrivateNoteCharacters ?? 32000}
               onChange={(event) =>
-                replace({
-                  ...config,
-                  memory: {
-                    ...config.memory,
-                    maxPrivateNoteCharacters: event.target.valueAsNumber,
-                  },
-                })
+                replace({ ...config, memory: { ...config.memory, maxPrivateNoteCharacters: event.target.valueAsNumber } })
               }
             />
           </Field>
-          {errors?.tokenBudget && (
-            <Notice kind="error">{errors.tokenBudget}</Notice>
-          )}
+          {errors?.tokenBudget && <Notice kind="error">{errors.tokenBudget}</Notice>}
         </>
       ) : (
         <Notice kind="warning">
-          This saved configuration uses a legacy character budget. Apply the
-          healthcare preset to explicitly create a token-budget draft.
+          This saved configuration uses a legacy character budget. Apply the healthcare preset to explicitly create a
+          token-budget draft.
         </Notice>
       )}
+      {scenario.modelSection === "catalog" ? null : null}
     </>
   );
 }
