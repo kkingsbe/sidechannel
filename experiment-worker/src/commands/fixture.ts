@@ -39,8 +39,8 @@ try {
             break;
         cursor = page.at(-1)!.sequence;
     }
-    await mkdir(new URL('../../../agent/examples/', import.meta.url), { recursive: true });
-    const file = new URL('../../../agent/examples/completed-fixture.json', import.meta.url);
+    await mkdir(new URL('../../../data/exports/', import.meta.url), { recursive: true });
+    const file = new URL('../../../data/exports/completed-fixture.json', import.meta.url);
     await writeFile(file, JSON.stringify({ schemaVersion: 1, kind: 'scripted-development-fixture', run, events }, null, 2) + '\n');
     console.log(JSON.stringify({ runId: run.id, status: run.status, events: events.length, export: file.pathname }));
     if (run.status !== 'completed')

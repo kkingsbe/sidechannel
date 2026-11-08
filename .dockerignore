@@ -23,6 +23,8 @@
 !data/healthcare/
 !data/healthcare/points-out/
 !data/healthcare/points-out/**
+!data/exports/
+!data/exports/**
 **/node_modules
 **/.npm-cache
 **/dist
@@ -40,5 +42,5 @@
 **/examples
 **/src/mastra/public
 .git
-.agents
+.claude
 .codex

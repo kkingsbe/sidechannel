@@ -9,8 +9,8 @@
     "test": "node ../scripts/test.mjs src",
     "lint": "eslint src",
     "dev": "node ../scripts/dev.mjs api",
-    "dev:local": "tsx watch --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env src/main.ts",
-    "start": "node --env-file-if-exists=../.env --env-file-if-exists=../agent/.env --env-file-if-exists=.env dist/main.js"
+    "dev:local": "tsx watch --env-file-if-exists=../.env --env-file-if-exists=.env src/main.ts",
+    "start": "node --env-file-if-exists=../.env --env-file-if-exists=.env dist/main.js"
   },
   "dependencies": {
     "mongodb": "7.7.0",

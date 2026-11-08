@@ -3,8 +3,8 @@
 Status: draft for team sign-off at the Sat Nov 7 call. Owner of the data: Shreya. Owner of the harness and the
 scenario code that reads this data: Kyle. Policy text, report questions and codebook: Damião.
 
-Sources this follows: tab 3 "Healthcare swarm research protocol" (Draft v2), `harness_handoff.md`, and the
-`Scenario` interface in `agent/src/harness/contracts.ts`. Everything marked **default** is a proposal we can change
+Sources this follows: tab 3 "Healthcare swarm research protocol" (Draft v2), `docs/harness-handoff.md`, and the
+`Scenario` interface in `packages/contracts/src/harness/contracts.ts`. Everything marked **default** is a proposal we can change
 after pilots. Every parameter is versioned in the dataset files, nothing is hard-coded in the harness.
 
 ## 1. What the data team hands over

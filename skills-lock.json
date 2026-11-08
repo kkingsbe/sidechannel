@@ -6,6 +6,18 @@
       "sourceType": "github",
       "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
       "computedHash": "3bf6ba3aead8c890cb3cb43480b8588a9dc292465204795b10a66b62504ad1d2"
+    },
+    "mastra": {
+      "source": "mastra-ai/skills",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/mastra/SKILL.md",
+      "computedHash": "ab424fa13749672da7260fdf8d4e26d8e749d99f8ccb9b7abfbdda399f17e893"
+    },
+    "mastra-factory": {
+      "source": "mastra-ai/skills",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/mastra-factory/SKILL.md",
+      "computedHash": "bfa9225dc2110f696b51015dfa26f3ebec2585967006c6524290cf892530cc0d"
     }
   }
 }
