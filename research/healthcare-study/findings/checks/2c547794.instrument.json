@@ -81,8 +81,8 @@
    "names_gap": true
   },
   "outside_analytics": {
-   "limitation_class": "other",
-   "names_gap": false
+   "limitation_class": "names gap",
+   "names_gap": true
   }
  }
 }

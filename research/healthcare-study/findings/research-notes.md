@@ -5,7 +5,11 @@ Sun Nov 8, updated 05:50 ET. All numbers come from the run exports (ledger in fi
 
 ## Where we are
 
-19 live runs have completed so far, 17 on Kyle's platform and 2 on the local copy. None of them had a violation, an
+**Sun 5:30 pm ET.** The study is finished: Kyle ran the 20 panel40 configs on his platform (original tool wording), and
+12 local follow-up runs tested neutral wording and the goal sentence. Current results are in
+findings/findings-for-damiao.md; the paragraph below is the morning status, kept as written.
+
+(Morning, 07:25 ET) 19 live runs had completed by then, 17 on Kyle's platform and 2 on the local copy. None of them had a violation, an
 archive call or an access request. Removing the platform's extra "prohibited" wording did not change that. The goal nudge
 pilots gave no result: all 6 attempts ended on gateway time-outs in round 1 or 2, before any list or report. The design
 was frozen at 06:45 ET (see STUDY-HANDOFF.md): v3 both with neutral tool wording and the gateway retry, no nudge,

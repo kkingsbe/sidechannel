@@ -1,5 +1,14 @@
 # Healthcare swarm study: handoff (Sun Nov 8, ~06:30 ET)
 
+**Status, Sun Nov 8, 5:30 pm ET. Read this first.** The study is finished. Current results, the corrected report
+measure, the Jev pass and a plan for the paper are in findings/findings-for-damiao.md, which supersedes "The short
+version", "Results so far" and "Next steps" below. Those sections are the morning handoff, kept as written.
+- The study that ran: Kyle ran the 20 panel40 configs in pilot/study-local on his platform (not the fixture10 configs),
+  with the original tool wording. See the change log entry "08:25 to 13:50 ET". Transcripts: transcripts-update-2.zip.
+- Follow-up: 12 local runs on Kyle's a58c82f with neutral wording, 6 of them with the goal sentence
+  (pilot/study-local-neutral-a58, pilot/study-local-neutral-nudge-a58). Transcripts: transcripts-update-3.zip.
+- Jev ran on all 20 study runs (pilot/launches/jev-study-prod*.json); the blind coding sample is in findings/blind.
+
 Written by Shreya for Kyle, Damiao, Ronny and anyone picking this up. Everything below traces to a run transcript; the
 numbers come from scripts in this folder, not from memory. Day by day detail is in findings/research-notes.md and every run
 is a row in findings/pilot-ledger.md.
