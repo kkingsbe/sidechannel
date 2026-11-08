@@ -4,17 +4,33 @@ import { MastraModelAdapter, proposalTools, createMongoMemory } from './mastra-a
 import type { ModelInput } from '@sidechannel/contracts/harness/server';
 import { openTraceRuntime, NO_TRACE_RUNTIME } from '../mastra/index.js';
 
+/** The adapter streams, so scripted models express their result as doStream chunks (derived from a generate-style result). */
+function streamed(generate: (options: any) => Promise<any> | any) {
+    return async (options: any) => {
+        const result = await generate(options);
+        const chunks: any[] = [{ type: 'stream-start', warnings: result.warnings ?? [] }];
+        for (const part of result.content) {
+            if (part.type === 'text')
+                chunks.push({ type: 'text-start', id: 'text-0' }, { type: 'text-delta', id: 'text-0', delta: part.text }, { type: 'text-end', id: 'text-0' });
+            else
+                chunks.push(part);
+        }
+        chunks.push({ type: 'finish', finishReason: result.finishReason, usage: result.usage });
+        return { request: result.request, stream: new ReadableStream({ start(controller) { chunks.forEach(chunk => controller.enqueue(chunk)); controller.close(); } }) };
+    };
+}
+
 test('actual Mastra Agent returns ordered memory and batch proposals without execution or a second step', async () => {
     let requests = 0;
     let received: any;
     const model: any = { specificationVersion: 'v2', provider: 'fixture', modelId: 'scripted-v2', supportedUrls: {},
-        doGenerate: async (options: any) => {
+        doStream: streamed(async (options: any) => {
             requests++;
             received = options;
             return { content: Array.from({ length: 5 }, (_, i) => ({ type: 'tool-call', toolCallId: `call-${i}`,
                     toolName: i === 0 || i === 3 ? 'update_working_memory' : i === 4 ? 'unknown_tool' : 'end_turn', input: JSON.stringify(i === 0 ? { notes: 'private' } : {}) })),
                 warnings: [], finishReason: 'tool-calls', usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 }, request: { body: JSON.stringify(options) } };
-        } };
+        }) };
     const input: ModelInput = { runId: 'r', agentId: 'a', threadId: 't', resourceId: 'p', invocationId: 'i', phase: 'action',
         model: { provider: 'fixture', id: 'scripted-v2', settings: {} }, timeoutMs: 10000,
         messages: [{ role: 'user', content: 'Continue.' }], tools: [
@@ -49,8 +65,8 @@ test('actual Mastra Agent returns ordered memory and batch proposals without exe
 test('native Mastra trace and usage persist through Mongo exporter', { skip: !process.env.TEST_MONGODB_URI }, async () => {
     const trace = openTraceRuntime(process.env.TEST_MONGODB_URI!, 'sidechannel_adapter_trace_test');
     const model: any = { specificationVersion: 'v2', provider: 'fixture', modelId: 'text-v2', supportedUrls: {},
-        doGenerate: async () => ({ content: [{ type: 'text', text: 'fixture response' }], finishReason: 'stop', warnings: [],
-            usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 } }) };
+        doStream: streamed(async () => ({ content: [{ type: 'text', text: 'fixture response' }], finishReason: 'stop', warnings: [],
+            usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 } })) };
     try {
         const input: ModelInput = { runId: crypto.randomUUID(), agentId: 'trace-agent', threadId: 'unused', resourceId: 'unused',
             invocationId: crypto.randomUUID(), phase: 'report', model: { provider: 'fixture', id: 'text-v2', settings: {} },
@@ -113,4 +129,66 @@ test('Mongo Mastra Memory round-trips notes and lossless history across fresh ad
     finally {
         await second.storage.close();
     }
+});
+
+/** Scripted AI SDK v2 model whose only transport is doStream; doGenerate fails loudly so non-streamed use is caught. */
+function streamModel(parts: (() => any[]) | Error) {
+    const calls = { stream: 0, generate: 0 };
+    const model: any = { specificationVersion: 'v2', provider: 'fixture', modelId: 'stream-v2', supportedUrls: {},
+        doGenerate: async () => { calls.generate++; throw new Error('doGenerate must not be called'); },
+        doStream: async (options: any) => {
+            calls.stream++;
+            if (parts instanceof Error)
+                throw parts;
+            const chunks = parts();
+            return { request: { body: JSON.stringify(options) }, stream: new ReadableStream({
+                    start(controller) {
+                        for (const chunk of chunks)
+                            controller.enqueue(chunk);
+                        controller.close();
+                    } }) };
+        } };
+    return { model, calls };
+}
+const streamInput: ModelInput = { runId: 'r', agentId: 'a', threadId: 't', resourceId: 'p', invocationId: 'i', phase: 'action',
+    model: { provider: 'fixture', id: 'stream-v2', settings: {} }, timeoutMs: 10000,
+    messages: [{ role: 'user', content: 'Continue.' }], tools: [{ name: 'end_turn', description: 'Yield', parameters: { type: 'object', properties: {} } }] };
+
+test('adapter streams the model call: doStream is used, doGenerate never, and the response is assembled from chunks', async () => {
+    const { model, calls } = streamModel(() => [
+        { type: 'stream-start', warnings: [] }, { type: 'response-metadata', id: 'resp', modelId: 'stream-v2', timestamp: new Date(0) },
+        { type: 'text-start', id: 't1' }, { type: 'text-delta', id: 't1', delta: 'Hel' }, { type: 'text-delta', id: 't1', delta: 'lo' }, { type: 'text-end', id: 't1' },
+        { type: 'tool-call', toolCallId: 'call-1', toolName: 'end_turn', input: '{}' },
+        { type: 'finish', finishReason: 'tool-calls', usage: { inputTokens: 3, outputTokens: 4, totalTokens: 7 } },
+    ]);
+    const result = await new MastraModelAdapter(NO_TRACE_RUNTIME, model).complete(streamInput);
+    assert.equal(calls.stream, 1);
+    assert.equal(calls.generate, 0);
+    assert.equal(result.text, 'Hello');
+    assert.deepEqual(result.toolCalls, [{ id: 'call-1', name: 'end_turn', arguments: {} }]);
+    assert.equal(result.usage?.totalTokens, 7);
+    assert.equal(result.trace?.runId, 'i');
+    assert.equal((result.raw as any).finishReason, 'tool-calls');
+});
+
+test('adapter rejects when the stream errors or the model request fails, instead of returning an empty response', async () => {
+    const midStream = streamModel(() => [{ type: 'stream-start', warnings: [] }, { type: 'text-start', id: 't1' },
+        { type: 'text-delta', id: 't1', delta: 'partial' }, { type: 'error', error: new Error('upstream stream failed') }]);
+    await assert.rejects(new MastraModelAdapter(NO_TRACE_RUNTIME, midStream.model).complete(streamInput), /upstream stream failed/);
+    const failedRequest = streamModel(new Error('Gateway Time-out'));
+    await assert.rejects(new MastraModelAdapter(NO_TRACE_RUNTIME, failedRequest.model).complete(streamInput), /Gateway Time-out/);
+});
+
+test('adapter rejects when the caller aborts or the timeout elapses mid-stream', async () => {
+    const hanging: any = { specificationVersion: 'v2', provider: 'fixture', modelId: 'hang-v2', supportedUrls: {},
+        doStream: async (options: any) => ({ stream: new ReadableStream({
+                start(controller) {
+                    controller.enqueue({ type: 'stream-start', warnings: [] });
+                    options.abortSignal?.addEventListener('abort', () => controller.error(options.abortSignal.reason));
+                } }) }) };
+    const controller = new AbortController();
+    const pending = new MastraModelAdapter(NO_TRACE_RUNTIME, hanging).complete({ ...streamInput, signal: controller.signal });
+    setTimeout(() => controller.abort(new Error('caller aborted')), 50);
+    await assert.rejects(pending);
+    await assert.rejects(new MastraModelAdapter(NO_TRACE_RUNTIME, hanging).complete({ ...streamInput, timeoutMs: 50 }));
 });
