@@ -17,7 +17,7 @@ export function HeatmapTable({
   windows: AnalysisWindow[];
   codes: BehaviorCode[];
   threshold: number;
-  onSelect: (window: AnalysisWindow) => void;
+  onSelect: (window: AnalysisWindow, code: BehaviorCode) => void;
 }) {
   const [ref, width] = useElementWidth<HTMLDivElement>();
   const pitch = (width - LABEL_W) / Math.max(1, windows.length);
@@ -71,7 +71,7 @@ export function HeatmapTable({
                           ? `${code.code}, ${range}: no score. Inspect window.`
                           : `${code.code}, ${range}: ${percent(score)}%. Inspect window.`
                       }
-                      onClick={() => onSelect(w)}
+                      onClick={() => onSelect(w, code)}
                     >
                       {missing ? "" : percent(score)}
                     </button>

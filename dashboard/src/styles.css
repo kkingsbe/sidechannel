@@ -469,9 +469,13 @@ a.trow:hover { background: var(--subtle); }
 .drawer-overlay { position: fixed; inset: 0; background: #07101e60; z-index: 45; animation: fade-in 150ms; }
 .drawer { position: fixed; right: 0; top: 0; bottom: 0; width: min(660px, 95vw); background: var(--card); z-index: 50; box-shadow: -12px 0 40px #0002; display: flex; flex-direction: column; animation: slide-in 180ms ease-out; }
 .drawer-wide { width: min(1240px, 96vw); }
+.drawer-inspector { width: min(900px, 100vw); }
+.drawer-heading-text { min-width: 0; }
+.drawer-heading-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.drawer-title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .drawer-heading { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--border); }
 .drawer-heading h2 { font-size: 18px; line-height: 24px; }
-.drawer-heading p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.drawer-heading p, .drawer-description { font-size: 13px; color: var(--muted); margin-top: 4px; }
 .drawer-content { padding: 24px; overflow: auto; flex: 1; }
 .json-view { border: 1px solid var(--border); border-radius: var(--radius-control); margin-bottom: 15px; overflow: hidden; }
 .json-view summary { padding: 8px 12px; cursor: pointer; font-size: 13px; font-weight: 500; background: var(--subtle); }
@@ -602,7 +606,7 @@ html { scroll-padding-block: 20px 90px; }
   .run-metadata { gap: 6px 16px; }
   .card-foot { flex-wrap: wrap; }
   .card-foot > span:last-child:not(:first-child) { margin-left: 0; }
-  .drawer-wide { width: 100vw; }
+  .drawer-wide, .drawer-inspector { width: 100vw; }
   .breadcrumbs { font-size: 12px; gap: 6px; }
   .editor-save-bar { position: static; }
   .overview-operational table { min-width: 600px; }

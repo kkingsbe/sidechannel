@@ -1,15 +1,24 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { EyeOff } from "lucide-react";
-import { Badge, Button, ErrorState, Field, Input, JsonView, Notice, Pager, Select, Textarea } from "../../components/ui";
+import { useMemo, useState } from "react";
+import { X } from "lucide-react";
+import { Button, ErrorState, Field, Input, JsonView, Notice, Pager, Select, Textarea } from "../../components/ui";
 import { useApi, useMutation, usePage } from "../../lib/api";
 import { useClients } from "../../lib/clients/context";
 import { useClaimedReviewer } from "../../components/claimed-reviewer";
 import { ReviewHistoryRow } from "../../components/review-history";
-import type { AnalysisJob, Decision, HumanReview, Page, WindowDetail } from "../../lib/analysis-types";
+import type { AnalysisJob, AnalysisWindow, Decision, HumanReview, Page, WindowDetail } from "../../lib/analysis-types";
 import { list, short, when } from "../../lib/utils";
-import { CanonicalEvent } from "./canonical-event";
-const decisions: Decision[] = ["present", "absent", "uncertain"];
+import type { HarnessEvent } from "@sidechannel/contracts/browser";
+import { CanonicalEvent, eventKind } from "./canonical-event";
+import { scoreOf } from "./analysis-view";
+import { BehaviorGrid, BlindPanel, LeadFigure, RunStrip } from "./inspector-scores";
+import "./window-inspector.css";
+
+const decisions: { value: Decision; label: string }[] = [
+  { value: "present", label: "Present" },
+  { value: "absent", label: "Absent" },
+  { value: "uncertain", label: "Uncertain" },
+];
+type Filter = "all" | "action" | "context";
 
 export function WindowInspector({
   detail,
@@ -18,6 +27,10 @@ export function WindowInspector({
   onSaved,
   onNext,
   onReturn,
+  windows,
+  threshold = 0.7,
+  initialCodeId,
+  onCodeChange,
 }: {
   onSaved?: () => void;
   onNext?: () => void;
@@ -25,6 +38,14 @@ export function WindowInspector({
   detail: WindowDetail;
   job: AnalysisJob;
   blind: boolean;
+  /** Every window of the run, for the run strip. */
+  windows?: AnalysisWindow[];
+  /** The shared 0–1 score threshold. */
+  threshold?: number;
+  /** The behaviour the reviewer clicked to get here. */
+  initialCodeId?: string | null;
+  /** Reports a behaviour picked inside the inspector so navigation can carry it. */
+  onCodeChange?: (codeId: string) => void;
 }) {
   const { reviewer, identifyReviewer } = useClaimedReviewer();
   const clients = useClients();
@@ -32,13 +53,20 @@ export function WindowInspector({
     clients.analyses.paths.reviews(job.id, { windowId: detail.window.id }),
     { interval: 4000, limit: 30 },
   );
+  const allCodes = job.manifest.codebook.codes;
+  const activeCodes = allCodes.filter((c) => c.enabled && !c.archived);
   const [scope, setScope] = useState<"window" | "event">("window");
   const [codeId, setCodeId] = useState(
-    job.manifest.codebook.codes.find((c) => c.enabled && !c.archived)?.id || "",
+    (initialCodeId && allCodes.some((c) => c.id === initialCodeId) ? initialCodeId : undefined) ||
+      activeCodes[0]?.id ||
+      "",
   );
   const [decision, setDecision] = useState<Decision>("uncertain");
   const [rationale, setRationale] = useState("");
   const [eventIds, setEventIds] = useState("");
+  const [editingReviewer, setEditingReviewer] = useState(() => !reviewer.trim());
+  const [filter, setFilter] = useState<Filter>("all");
+  const [openEvents, setOpenEvents] = useState<ReadonlySet<string>>(new Set());
   const ownPresence = useApi<Page<HumanReview>>(
     reviewer.trim()
       ? clients.analyses.paths.reviews(job.id, { windowId: detail.window.id, reviewer, latest: "true", limit: 1 })
@@ -96,333 +124,366 @@ export function WindowInspector({
       if (advance) onNext?.();
     }
   };
+
+  const pickCode = (id: string) => {
+    setCodeId(id);
+    onCodeChange?.(id);
+  };
+  const selectedCode = allCodes.find((c) => c.id === codeId);
+  const cited = list(eventIds);
+  const supplied = useMemo(() => new Map((detail.events ?? []).map((e) => [e.id, e])), [detail.events]);
+  // Events not supplied with the window are fetched row by row; each row reports back here.
+  const [fetched, setFetched] = useState<ReadonlyMap<string, HarnessEvent>>(new Map());
+  const remember = (event: HarnessEvent) =>
+    setFetched((previous) => (previous.get(event.id) === event ? previous : new Map(previous).set(event.id, event)));
+  const eventById = useMemo(() => new Map([...fetched, ...supplied]), [fetched, supplied]);
+  const kindOf = (id: string) => {
+    const event = eventById.get(id);
+    return event ? eventKind(event.type) : "action";
+  };
+  const counts = useMemo(() => {
+    const actions = detail.window.eventIds.filter((id) => {
+      const event = eventById.get(id);
+      return !event || eventKind(event.type) === "action";
+    }).length;
+    return { all: detail.window.eventIds.length, action: actions, context: detail.window.eventIds.length - actions };
+  }, [detail.window.eventIds, eventById]);
+  const shownIds = detail.window.eventIds.filter((id) => filter === "all" || kindOf(id) === filter);
+  const allOpen = shownIds.length > 0 && shownIds.every((id) => openEvents.has(id));
+  const setOpen = (id: string, open: boolean) =>
+    setOpenEvents((previous) => {
+      const next = new Set(previous);
+      if (open) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  const seqOf = (id: string) => eventById.get(id)?.sequence ?? detail.window.eventIds.indexOf(id) + 1;
+  const labelOf = (id: string) => {
+    const type = eventById.get(id)?.type;
+    if (!type) return "Source event";
+    const spaced = type.replaceAll("_", " ");
+    return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+  };
+
+  const blocked: string[] = [];
+  if (!reviewer.trim()) blocked.push("Enter a claimed reviewer identity.");
+  if (!rationale.trim()) blocked.push("Add a rationale before saving.");
+  if (scope === "event" && cited.length !== 1) blocked.push("Select exactly one source event for event scope.");
+  if (ownLatest.error) blocked.push("Latest revision unavailable; retry loading before saving.");
+  const cannotSave =
+    mutation.busy || ownLatest.loading || !!ownLatest.error || !reviewer.trim() || !rationale.trim() || !codeId ||
+    (scope === "event" && cited.length !== 1);
+  const question =
+    scope === "window"
+      ? `Is ${selectedCode?.code ?? "this behavior"} present in this window?`
+      : cited[0]
+        ? `Is ${selectedCode?.code ?? "this behavior"} present in event ${seqOf(cited[0])}?`
+        : `Is ${selectedCode?.code ?? "this behavior"} present in the selected event?`;
+  const saveLabel = latest ? "Append revised judgment" : "Save judgment";
+  const priorReviews = reviews.data.filter((r) => r.windowId === detail.window.id);
+
   return (
-    <>
-      <dl className="definition-list">
-        <dt>Source run</dt>
-        <dd>
-          <Link className="table-title" to={"/runs/" + job.runId}>
-            {job.runId}
-          </Link>
-        </dd>
-        <dt>Source steps</dt>
-        <dd>
-          {detail.window.startStep}–{detail.window.endStep}
-        </dd>
-        <dt>Coverage</dt>
-        <dd>
-          {detail.window.partial ? "Partial window. " : ""}
-          {detail.window.incomplete ? "Incomplete evidence. " : ""}
-          {detail.window.status}
-        </dd>
-        <dt>Frozen definitions</dt>
-        <dd>Codebook revision {job.manifest.codebook.revision}</dd>
-      </dl>
-      <hr className="section-divider" />
+    <div className="wi">
+      {detail.window.error && <Notice kind="warning">{detail.window.error}</Notice>}
       {!predictionsVisible ? (
-        <div className="blind-banner">
-          <EyeOff size={16} aria-hidden="true" /> Blind initial review. Model
-          scores and selection cues remain hidden until you save a judgment.
-        </div>
+        <BlindPanel codes={activeCodes} />
       ) : (
-        <div className="actions" style={{ marginBottom: 18 }}>
-          {job.manifest.codebook.codes
-            .filter((c) => c.enabled && !c.archived)
-            .map((code) => (
-              <Badge key={code.id}>
-                {code.code}:{" "}
-                {(() => {
-                  const probability = detail.window.results?.find((r) => r.codeId === code.id)?.probability;
-                  return probability == null ? "missing" : (probability * 100).toFixed(1) + "%";
-                })()}
-              </Badge>
-            ))}
-        </div>
+        selectedCode && (
+          <>
+            <section className="wi-lead" aria-label="Selected behavior">
+              <LeadFigure
+                code={selectedCode}
+                probability={scoreOf(detail.window, selectedCode.id)}
+                threshold={threshold}
+              />
+              <RunStrip
+                windows={windows ?? []}
+                current={detail.window}
+                code={selectedCode}
+                threshold={threshold}
+              />
+            </section>
+            <BehaviorGrid
+              window={detail.window}
+              codes={activeCodes}
+              selected={codeId}
+              threshold={threshold}
+              onPick={pickCode}
+            />
+          </>
+        )
       )}
-      {detail.window.error && (
-        <Notice kind="warning">{detail.window.error}</Notice>
-      )}
-      <nav className="analysis-review-nav" aria-label="Review sections">
-        <a href="#analysis-evidence">Read evidence</a>
-        <a href="#analysis-judgment">Jump to judgment</a>
-      </nav>
-      <div className="analysis-review-layout">
-        <section
-          id="analysis-evidence"
-          tabIndex={-1}
-          aria-label="Source evidence"
-        >
-          <h3>Source events ({detail.window.eventIds.length})</h3>
-          <p className="helper">
-            Recorded content in source order. Tool requests are proposals until
-            their admission and result are recorded. Select citations to support
-            your judgment.
+      <div className="wi-split">
+        <section id="analysis-evidence" aria-labelledby="wi-events-h" className="wi-events-col">
+          <div className="wi-events-head">
+            <h2 id="wi-events-h">Source events</h2>
+            <div className="wi-seg" role="group" aria-label="Filter events">
+              {(
+                [
+                  ["all", "All"],
+                  ["action", "Actions"],
+                  ["context", "Context"],
+                ] as [Filter, string][]
+              ).map(([value, label]) => (
+                <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>
+                  {label} <span className="wi-count">{counts[value]}</span>
+                </button>
+              ))}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="wi-toggle-all"
+              disabled={!shownIds.length}
+              onClick={() => setOpenEvents(allOpen ? new Set() : new Set(shownIds))}
+            >
+              {allOpen ? "Collapse all" : "Expand all"}
+            </Button>
+          </div>
+          <p className="wi-helper">
+            In source order. Tool requests are proposals until the harness admits them and records a result.
           </p>
           {!detail.window.eventIds.length && (
             <p>
               No source events in this window.
-              {detail.window.incomplete
-                ? " Source evidence is incomplete."
-                : ""}
+              {detail.window.incomplete ? " Source evidence is incomplete." : ""}
             </p>
           )}
-          {detail.window.eventIds.map((eventId) => (
-            <CanonicalEvent
-              key={eventId}
-              eventId={eventId}
-              runId={job.runId}
-              supplied={detail.events?.find((e) => e.id === eventId)}
-              selected={list(eventIds).includes(eventId)}
-              onToggle={() =>
-                setEventIds((previous) =>
-                  list(previous).includes(eventId)
-                    ? list(previous)
-                        .filter((id) => id !== eventId)
-                        .join("\n")
-                    : [...list(previous), eventId].join("\n"),
-                )
-              }
-              onAnnotate={() => {
-                setScope("event");
-                setEventIds(eventId);
-              }}
-            />
-          ))}
-          <JsonView
-            value={detail.window.state}
-            title="Exact normalized evidence used for this window"
-          />
-        </section>
-        <section
-          id="analysis-judgment"
-          tabIndex={-1}
-          aria-label="Human judgment"
-          className="analysis-judgment"
-        >
-          <hr className="section-divider" />
-          <h3 style={{ marginBottom: 15 }}>Record a human judgment</h3>
-          <a className="table-title" href="#analysis-evidence">
-            Back to evidence
-          </a>
-          {mutation.error && (
-            <Notice kind="error">{mutation.error.message}</Notice>
+          {!!detail.window.eventIds.length && !shownIds.length && (
+            <p className="wi-helper">No {filter} events in this window.</p>
           )}
-          {mutation.message && (
-            <Notice kind="success">{mutation.message}</Notice>
-          )}
-          <div className="form-grid">
-            <Field label="Claimed reviewer identity" required>
-              <Input
-                value={reviewer}
-                onChange={(e) => identifyReviewer(e.target.value)}
+          <div className="wi-events">
+            {shownIds.map((eventId) => (
+              <CanonicalEvent
+                key={eventId}
+                eventId={eventId}
+                runId={job.runId}
+                supplied={supplied.get(eventId)}
+                onLoaded={remember}
+                selected={cited.includes(eventId)}
+                onToggle={() =>
+                  setEventIds((previous) =>
+                    list(previous).includes(eventId)
+                      ? list(previous).filter((id) => id !== eventId).join("\n")
+                      : [...list(previous), eventId].join("\n"),
+                  )
+                }
+                open={openEvents.has(eventId)}
+                onOpenChange={(open) => setOpen(eventId, open)}
+                onJudgeOnly={() => {
+                  setScope("event");
+                  setEventIds(eventId);
+                }}
               />
-            </Field>
-            <Field label="Judgment scope">
-              <Select
-                value={scope}
-                onChange={(e) => setScope(e.target.value as "window" | "event")}
-              >
-                <option value="window">Whole window</option>
-                <option value="event">One source event</option>
-              </Select>
-            </Field>
-            <Field label="Behavior definition">
-              <Select
-                value={codeId}
-                onChange={(e) => setCodeId(e.target.value)}
-              >
-                {job.manifest.codebook.codes.map((code) => (
+            ))}
+          </div>
+          <JsonView value={detail.window.state} title="Normalized window state used for scoring" />
+        </section>
+        <aside id="analysis-judgment" aria-labelledby="wi-judgment-h" className="wi-rail">
+          <div className="wi-card">
+            <div>
+              <h2 id="wi-judgment-h">Your judgment</h2>
+              {editingReviewer ? (
+                <div className="wi-reviewer-edit">
+                  <Field label="Claimed reviewer identity" required>
+                    <Input value={reviewer} onChange={(e) => identifyReviewer(e.target.value)} />
+                  </Field>
+                  {reviewer.trim() && (
+                    <Button variant="ghost" size="sm" onClick={() => setEditingReviewer(false)}>
+                      Done
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <p className="wi-sub">
+                  Reviewing as {reviewer.trim()} ·{" "}
+                  <button type="button" className="wi-link" onClick={() => setEditingReviewer(true)}>
+                    change
+                  </button>
+                </p>
+              )}
+            </div>
+            {mutation.error && <Notice kind="error">{mutation.error.message}</Notice>}
+            {mutation.message && <Notice kind="success">{mutation.message}</Notice>}
+            <Field label="Behavior">
+              <Select value={codeId} onChange={(e) => pickCode(e.target.value)}>
+                {allCodes.map((code) => (
                   <option key={code.id} value={code.id}>
                     {code.code}
                   </option>
                 ))}
               </Select>
             </Field>
-            <div className="full analysis-definition">
-              {job.manifest.codebook.codes
-                .filter((c) => c.id === codeId)
-                .map((code) => (
-                  <div key={code.id}>
-                    <h4>{code.name || code.code}</h4>
-                    <p className="text-block">{code.definition}</p>
-                    {[
-                      ["Include", code.inclusionCriteria],
-                      ["Exclude", code.exclusionCriteria],
-                      ["Examples", code.examples],
-                      ["Counterexamples", code.counterexamples],
-                    ].map(
-                      ([label, values]) =>
-                        Array.isArray(values) &&
-                        values.length > 0 && (
-                          <div key={String(label)}>
-                            <strong>{String(label)}</strong>
-                            <ul>
-                              {values.map((value) => (
-                                <li key={value}>{value}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ),
-                    )}
-                  </div>
-                ))}
+            <div className="wi-group">
+              <span id="wi-scope-l" className="wi-label">
+                Scope
+              </span>
+              <div className="wi-seg wi-seg-fill" role="group" aria-labelledby="wi-scope-l">
+                <button type="button" aria-pressed={scope === "window"} onClick={() => setScope("window")}>
+                  Whole window
+                </button>
+                <button type="button" aria-pressed={scope === "event"} onClick={() => setScope("event")}>
+                  One event
+                </button>
+              </div>
             </div>
-            <Field label="Judgment">
-              <Select
-                value={decision}
-                onChange={(e) => setDecision(e.target.value as Decision)}
-              >
+            <div className="wi-group">
+              <span id="wi-decision-l" className="wi-label">
+                {question}
+              </span>
+              <div className="wi-decisions" role="group" aria-labelledby="wi-decision-l">
                 {decisions.map((d) => (
-                  <option key={d}>{d}</option>
+                  <button key={d.value} type="button" aria-pressed={decision === d.value} onClick={() => setDecision(d.value)}>
+                    {d.label}
+                  </button>
                 ))}
-              </Select>
-            </Field>
-            <div className="full">
-              <strong>Selected citations ({list(eventIds).length})</strong>
-              {list(eventIds).map((id) => (
-                <div className="actions" key={id}>
-                  <a className="table-title" href={`#citation-${id}`}>
-                    Source event {detail.window.eventIds.indexOf(id) + 1} - {id}
+              </div>
+            </div>
+            <div className="wi-group">
+              <span className="wi-label">
+                Citations <span className="wi-count">{cited.length}</span>
+              </span>
+              {!cited.length && <p className="wi-empty">None yet. Tick an event to cite it.</p>}
+              {cited.map((id) => (
+                <div className="wi-cite" key={id}>
+                  <span className="wi-count">{seqOf(id)}</span>
+                  <a href={`#citation-${id}`} title={id}>
+                    {labelOf(id)}
                   </a>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setEventIds((previous) =>
-                        list(previous)
-                          .filter((value) => value !== id)
-                          .join("\n"),
-                      )
-                    }
+                  <button
+                    type="button"
+                    aria-label={`Remove citation ${seqOf(id)}`}
+                    onClick={() => setEventIds((previous) => list(previous).filter((value) => value !== id).join("\n"))}
                   >
-                    Remove citation
-                  </Button>
+                    <X size={13} aria-hidden="true" />
+                  </button>
                 </div>
               ))}
             </div>
-            <Field label="Rationale / limitations" className="full" required>
-              <Textarea
-                value={rationale}
-                onChange={(e) => setRationale(e.target.value)}
-              />
+            {selectedCode && (
+              <details className="wi-def">
+                <summary>Definition and criteria</summary>
+                <div>
+                  <h3>{selectedCode.name || selectedCode.code}</h3>
+                  <p>{selectedCode.definition}</p>
+                  {(
+                    [
+                      ["Include", selectedCode.inclusionCriteria],
+                      ["Exclude", selectedCode.exclusionCriteria],
+                      ["Examples", selectedCode.examples],
+                      ["Counterexamples", selectedCode.counterexamples],
+                    ] as const
+                  ).map(
+                    ([label, values]) =>
+                      Array.isArray(values) &&
+                      values.length > 0 && (
+                        <div key={label}>
+                          <strong>{label}</strong>
+                          <ul>
+                            {values.map((value) => (
+                              <li key={value}>{value}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ),
+                  )}
+                </div>
+              </details>
+            )}
+            <Field label="Rationale and limitations" required>
+              <Textarea value={rationale} onChange={(e) => setRationale(e.target.value)} />
             </Field>
-            <div className="full actions">
-              <Button
-                disabled={
-                  mutation.busy ||
-                  ownLatest.loading ||
-                  !!ownLatest.error ||
-                  !reviewer.trim() ||
-                  !rationale.trim() ||
-                  !codeId ||
-                  (scope === "event" && list(eventIds).length !== 1)
-                }
-                onClick={() => save()}
-              >
-                {latest ? "Append revised judgment" : "Save judgment"}
-              </Button>
-              {onNext && (
-                <Button
-                  variant="secondary"
-                  disabled={
-                    mutation.busy ||
-                    ownLatest.loading ||
-                    !!ownLatest.error ||
-                    !reviewer.trim() ||
-                    !rationale.trim() ||
-                    !codeId ||
-                    (scope === "event" && list(eventIds).length !== 1)
-                  }
-                  onClick={() => save(true)}
-                >
-                  Save and next
-                </Button>
+            <div className="wi-actions">
+              {onNext ? (
+                <>
+                  <Button className="wi-wide" disabled={cannotSave} onClick={() => save(true)}>
+                    Save and next window
+                  </Button>
+                  <div className="wi-pair">
+                    <Button variant="secondary" disabled={cannotSave} onClick={() => save()}>
+                      {latest ? "Append revision" : "Save"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        if (
+                          !rationale.trim() ||
+                          window.confirm("Keep this item unreviewed and discard this unsaved draft?")
+                        )
+                          onNext();
+                      }}
+                    >
+                      Skip window
+                    </Button>
+                  </div>
+                  {onReturn && (
+                    <Button variant="ghost" onClick={onReturn}>
+                      Return to queue
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Button className="wi-wide" disabled={cannotSave} onClick={() => save()}>
+                    {saveLabel}
+                  </Button>
+                  {onReturn && (
+                    <Button variant="ghost" onClick={onReturn}>
+                      Return to queue
+                    </Button>
+                  )}
+                </>
               )}
-              {onReturn && (
-                <Button variant="ghost" onClick={onReturn}>
-                  Return to queue
-                </Button>
-              )}
-              {onNext && (
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    if (
-                      !rationale.trim() ||
-                      window.confirm(
-                        "Keep this item unreviewed and discard this unsaved draft?",
-                      )
-                    )
-                      onNext();
-                  }}
-                >
-                  Skip for now
-                </Button>
-              )}
-              <Badge>
-                {predictionsVisible
-                  ? "Suggestions visible"
-                  : "Suggestions hidden"}
-              </Badge>
+              <p className={"wi-helper-line" + (blocked.length ? " blocked" : "")}>
+                {blocked.length
+                  ? blocked.join(" ")
+                  : predictionsVisible
+                    ? "Recorded with suggestions visible."
+                    : "Recorded as suggestions hidden."}
+                {onNext ? " Skip window leaves the item unreviewed; it does not record a judgment." : ""}
+              </p>
             </div>
           </div>
-          <p className="helper">
-            {!reviewer.trim() ? "Enter a claimed reviewer identity. " : ""}
-            {!rationale.trim() ? "Add a rationale before saving. " : ""}
-            {scope === "event" && list(eventIds).length !== 1
-              ? "Select exactly one source event for event scope. "
-              : ""}
-            {ownLatest.error
-              ? "Latest revision unavailable; retry loading before saving. "
-              : ""}
-            {onNext
-              ? "Skip for now leaves the item unreviewed; it does not record a judgment."
-              : ""}
-          </p>
-        </section>
+          <div className="wi-history">
+            <div className="wi-history-head">
+              <h3>Earlier judgments</h3>
+              {predictionsVisible && !reviews.error && (
+                <span>
+                  {priorReviews.length} on this window
+                </span>
+              )}
+            </div>
+            {!predictionsVisible ? (
+              <p className="wi-helper">Prior judgments are hidden until your initial judgment is saved.</p>
+            ) : reviews.error ? (
+              <ErrorState error={reviews.error} retry={reviews.refresh} />
+            ) : (
+              priorReviews.map((review) => (
+                <ReviewHistoryRow
+                  key={review.id}
+                  reviewer={review.reviewer}
+                  decision={review.decision}
+                  meta={
+                    <>
+                      {review.scope} · r{review.revision} · {when(review.createdAt)}
+                    </>
+                  }
+                  rationale={review.rationale}
+                  note={
+                    <>
+                      {review.predictionsVisible ? "Suggestions visible" : "Initial judgment blinded"}
+                      {review.supersedesId ? " · Revises " + short(review.supersedesId) : ""}
+                    </>
+                  }
+                />
+              ))
+            )}
+            {predictionsVisible && (
+              <Pager page={reviews.page} hasMore={reviews.hasMore} onChange={reviews.onChange} />
+            )}
+          </div>
+        </aside>
       </div>
-      <hr className="section-divider" />
-      <h3>Review history</h3>
-      {!predictionsVisible ? (
-        <p className="helper">
-          Prior judgments are hidden until your initial judgment is saved.
-        </p>
-      ) : reviews.error ? (
-        <ErrorState error={reviews.error} retry={reviews.refresh} />
-      ) : (
-        reviews.data
-          .filter((r) => r.windowId === detail.window.id)
-          .map((review) => (
-            <ReviewHistoryRow
-              key={review.id}
-              reviewer={review.reviewer}
-              decision={review.decision}
-              meta={
-                <>
-                  {review.scope} · r{review.revision} · {when(review.createdAt)}
-                </>
-              }
-              rationale={review.rationale}
-              note={
-                <>
-                  {review.predictionsVisible
-                    ? "Suggestions visible"
-                    : "Initial judgment blinded"}
-                  {review.supersedesId
-                    ? " · Revises " + short(review.supersedesId)
-                    : ""}
-                </>
-              }
-            />
-          ))
-      )}
-      {predictionsVisible && (
-        <Pager
-          page={reviews.page}
-          hasMore={reviews.hasMore}
-          onChange={reviews.onChange}
-        />
-      )}
-    </>
+    </div>
   );
 }
