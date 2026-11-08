@@ -16,6 +16,13 @@ import {
   Select,
 } from "../../components/ui";
 import { ArtifactView } from "../../components/artifact-view";
+import { ReadableValue } from "../../components/readable-value";
+import { BoardDeliveries } from "../../components/run-evidence/board-deliveries";
+import { MemoryPanel as MemoryEvidencePanel } from "../../components/run-evidence/memory-panel";
+import { ActivityStrip, ReportSections } from "../../components/run-evidence/report-sections";
+import { DiffView } from "../../components/run-evidence/line-diff";
+import { ACTIVITY_EVENT_TYPES, activityByAgent, isTerminal, roundTurn } from "../../components/run-evidence/evidence-model";
+import { useRunEventsByType } from "../../components/run-evidence/use-run-events";
 import { BudgetSummary } from "../../components/budget-summary";
 import { HealthcareResults } from "../../components/healthcare-results";
 import type { ArtifactVersion } from "../../lib/types";
@@ -93,21 +100,52 @@ export function TracesPanel() {
   return <EventsPanel kind="traces" />;
 }
 
-/** Board, artifacts, private memory and reports share one paginated evidence shape. */
+/** Board, artifacts, private memory and reports: main's readable evidence family. */
 export function EvidencePanel({ kind }: { kind: "board" | "artifacts" | "memory" | "reports" }) {
   const id = useRunId();
   const run = useRunRecordOnly(id);
   const evidence = useRunEvidence(kind);
   const scenarios = useScenarios();
   const { inspect } = useRunRoute();
-  const board = kind === "board" ? evidence.payload as BoardPage | undefined : undefined;
-  const reporting = kind === "reports" && evidence.payload && "reporting" in evidence.payload
-    ? (evidence.payload as ReportPage).reporting
-    : undefined;
+  const board = kind === "board" ? (evidence.payload as BoardPage | undefined) : undefined;
+  const reporting =
+    kind === "reports" && evidence.payload && "reporting" in evidence.payload
+      ? (evidence.payload as ReportPage).reporting
+      : undefined;
+  const active = !!run.data && !isTerminal(run.data.status);
+  const sideTypes =
+    kind === "board" ? ["board_post"] : kind === "artifacts" ? ["artifact_updated"] : kind === "reports" ? ACTIVITY_EVENT_TYPES : [];
+  const sideEvents = useRunEventsByType(id, sideTypes, sideTypes.length > 0 && !!id, active ? 10000 : 0);
   if (run.loading) return <Loading />;
   if (!run.data) return <ErrorState error={run.error} retry={run.refresh} />;
   const data = run.data;
+  const terminal = isTerminal(data.status);
   const items = evidence.data;
+  const postEvents = new Map(
+    (sideEvents.events.board_post ?? []).map((event) => [
+      String((event.data as { after?: { id?: string } })?.after?.id),
+      event,
+    ]),
+  );
+  const versionEvents = new Map(
+    (sideEvents.events.artifact_updated ?? []).map((event) => [
+      Number((event.data as { after?: { version?: number } })?.after?.version),
+      event,
+    ]),
+  );
+  const activity = activityByAgent(sideEvents.events);
+  const displayItems =
+    kind === "artifacts"
+      ? [...items].sort((a, b) => {
+          const left = a as ArtifactVersion;
+          const right = b as ArtifactVersion;
+          return left.frozen !== right.frozen
+            ? left.frozen
+              ? -1
+              : 1
+            : right.version - left.version;
+        })
+      : items;
   return (
     <Card>
       <CardHeading
@@ -138,14 +176,28 @@ export function EvidencePanel({ kind }: { kind: "board" | "artifacts" | "memory"
           board_delivery and paginate through the source events.
         </Notice>
       )}
-      {evidence.error && <ErrorState error={evidence.error} retry={evidence.refresh} />}
-      {evidence.loading ? (
+      {kind !== "memory" && evidence.error && <ErrorState error={evidence.error} retry={evidence.refresh} />}
+      {kind !== "memory" && sideEvents.partial && (
+        <Notice kind="warning">
+          Recorded event history was capped; round/turn details and counts on this tab may be incomplete.
+        </Notice>
+      )}
+      {kind === "memory" ? (
+        <MemoryEvidencePanel runId={id!} active={active} onInspect={inspect} />
+      ) : evidence.loading ? (
         <Loading />
-      ) : items.length ? (
+      ) : displayItems.length ? (
         <div className="card-body stack">
-          {items.map((item, index) => {
+          {displayItems.map((item, index) => {
             const object = item as Record<string, unknown>;
             const key = evidenceKey(item, index);
+            const postEvent = kind === "board" ? postEvents.get(String(object.id)) : undefined;
+            const versionEvent =
+              kind === "artifacts" ? versionEvents.get(Number(object.version)) : undefined;
+            const previous =
+              kind === "artifacts" && typeof object.previousVersion === "number"
+                ? (items as ArtifactVersion[]).find((candidate) => candidate.version === object.previousVersion)
+                : undefined;
             return (
               <Card key={key}>
                 <div className="card-heading">
@@ -154,31 +206,33 @@ export function EvidencePanel({ kind }: { kind: "board" | "artifacts" | "memory"
                       {kind === "board"
                         ? `Post ${object.sequence ?? index + 1} · ${object.authorId ?? "Unknown author"}`
                         : kind === "artifacts"
-                          ? `Version ${object.version ?? index + 1}`
-                          : kind === "memory"
-                            ? `${object.agentId ?? "Agent"} · ${object.type ?? "Memory snapshot"}`
-                            : `Report · ${object.agentId ?? "Unknown agent"}`}
+                          ? object.frozen === true
+                            ? `Final frozen version ${object.version ?? index + 1}`
+                            : `Version ${object.version ?? index + 1}`
+                          : `Report · ${object.agentId ?? "Unknown agent"}`}
                     </h3>
                     <p>
-                      {object.id
-                        ? String(object.id).length > 23
-                          ? String(object.id).slice(0, 12) + "…" + String(object.id).slice(-6)
-                          : String(object.id)
-                        : object.operationId
-                          ? String(object.operationId)
-                          : "Recorded evidence"}
+                      {kind === "board"
+                        ? [
+                            postEvent ? roundTurn(postEvent) : "Round/turn not loaded",
+                            typeof object.timestamp === "string" ? when(object.timestamp) : undefined,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")
+                        : kind === "artifacts"
+                          ? object.frozen === true
+                            ? `Frozen at the end of the run${typeof object.previousVersion === "number" ? ` from version ${object.previousVersion}` : ""}`
+                            : [
+                                String(object.authorId ?? "unknown author"),
+                                versionEvent ? roundTurn(versionEvent) : "Round/turn not loaded",
+                              ].join(" · ")
+                          : "Submitted final report"}
                     </p>
                   </div>
                   <div className="actions">
                     {object.frozen === true && <Badge>Frozen final</Badge>}
                     {kind === "reports" && object.parsed === null && <Badge tone="danger">Invalid / unparsed</Badge>}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() =>
-                        inspect(key, kind === "memory" && typeof object.sequence === "number" ? object.sequence : undefined)
-                      }
-                    >
+                    <Button variant="secondary" size="sm" onClick={() => inspect(key)}>
                       Inspect
                     </Button>
                   </div>
@@ -187,25 +241,39 @@ export function EvidencePanel({ kind }: { kind: "board" | "artifacts" | "memory"
                   {kind === "artifacts" ? (
                     <ArtifactView
                       value={object.value}
-                      artifactSchemaVersion={scenarios.view(data.config.scenario.version).artifactSchemaVersion}
+                      schemaVersion={data.config.artifactSchemaVersion}
+                      scenarioVersion={data.config.scenario.version}
+                      terminal={terminal}
                     />
+                  ) : kind === "reports" ? (
+                    <>
+                      <ReportSections parsed={object.parsed} raw={String(object.raw ?? "")} />
+                      <ActivityStrip
+                        agentId={String(object.agentId)}
+                        activity={activity.get(String(object.agentId))}
+                        partial={sideEvents.partial}
+                        loading={sideEvents.loading}
+                      />
+                    </>
                   ) : (
-                    <p className="text-block">
-                      {kind === "board"
-                        ? String(object.text ?? "")
-                        : kind === "reports"
-                          ? String(object.raw ?? "")
-                          : pretty(object.value ?? object.data ?? item).slice(0, 500)}
-                    </p>
+                    <p className="text-block">{String(object.text ?? "")}</p>
                   )}
-                  {kind === "board" && <BoardDelivery id={String(object.id)} deliveries={board?.deliveries} />}
-                  {kind === "artifacts" && index > 0 && (
+                  {kind === "board" && (
+                    <BoardDeliveries
+                      postId={String(object.id)}
+                      authorId={String(object.authorId)}
+                      roles={data.config.roles.map((role) => role.id)}
+                      deliveries={board?.deliveries}
+                    />
+                  )}
+                  {kind === "artifacts" && previous && (
                     <details style={{ marginTop: 12 }}>
-                      <summary className="helper">Compare to previous version</summary>
-                      <div className="form-grid">
-                        <JsonView value={(items[index - 1] as ArtifactVersion).value} title="Previous version" />
-                        <JsonView value={object.value} title="Selected version" />
-                      </div>
+                      <summary className="helper">Compare to version {previous.version}</summary>
+                      <DiffView
+                        before={pretty(previous.value)}
+                        after={pretty(object.value)}
+                        label={`Changes from version ${previous.version}`}
+                      />
                     </details>
                   )}
                 </div>
@@ -213,13 +281,18 @@ export function EvidencePanel({ kind }: { kind: "board" | "artifacts" | "memory"
             );
           })}
         </div>
+      ) : kind === "artifacts" && !terminal ? (
+        <Empty
+          title="No submission yet"
+          description="The run is still in progress; artifact versions appear as agents submit them."
+        />
       ) : (
         <Empty
           title={"No " + kind + " recorded on this page"}
           description="Unavailable evidence is distinct from an empty agent action or a negative finding."
         />
       )}
-      <Pager page={evidence.page} hasMore={evidence.hasMore} onChange={evidence.onChange} />
+      {kind !== "memory" && <Pager page={evidence.page} hasMore={evidence.hasMore} onChange={evidence.onChange} />}
     </Card>
   );
 }

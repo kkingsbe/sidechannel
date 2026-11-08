@@ -1,5 +1,5 @@
-import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ArrowLeft, Copy } from "lucide-react";
 import {
   Badge,
   Button,
@@ -14,6 +14,7 @@ import {
 } from "../../components/ui";
 import { ArtifactView } from "../../components/artifact-view";
 import { useClients } from "../../lib/clients/context";
+import { useCommand } from "../../components/use-command";
 import { useScenarios } from "../../lib/descriptors";
 import { useResource } from "../../lib/clients/query";
 import type { Run } from "../../lib/types";
@@ -135,6 +136,8 @@ export function PairCondition({ summary, returnTo }: { summary: Run; returnTo: s
 
 export function PairDetail() {
   const clients = useClients();
+  const navigate = useNavigate();
+  const command = useCommand();
   const [params] = useSearchParams();
   const { id } = useParams();
   const pair = useResource<{ runs: Run[]; configurationDifferences: unknown[]; matched: boolean }>(
@@ -143,9 +146,30 @@ export function PairDetail() {
   );
   if (pair.loading) return <Loading />;
   if (!pair.data) return <ErrorState error={pair.error} retry={pair.refresh} />;
+  const duplicatePair = async () => {
+    const result = await command.run(() =>
+      clients.request<{ id: string }>(`/pairs/${encodeURIComponent(id!)}/duplicate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Copy of " + (pair.data!.runs[0]?.config?.label ?? id) }),
+      }),
+    );
+    if (result) navigate("/experiments?draft=" + result.id);
+  };
   return (
     <>
-      <PageHeader eyebrow="MATCHED EXECUTIONS" title="Pair comparison" description={id!} />
+      <PageHeader
+        eyebrow="MATCHED PAIR"
+        title={pair.data.runs[0]?.config?.label || "Pair comparison"}
+        description={`Matched pair comparison · ${id}`}
+        actions={
+          <Button variant="secondary" onClick={duplicatePair} disabled={command.busy}>
+            <Copy size={14} />
+            Duplicate config
+          </Button>
+        }
+      />
+      {command.error && <Notice kind="error">{command.error.message}</Notice>}
       <Notice kind={pair.data.matched ? "success" : "warning"}>
         {pair.data.matched
           ? "Frozen configurations match outside the intended condition difference."
