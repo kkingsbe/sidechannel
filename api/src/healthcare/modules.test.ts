@@ -83,6 +83,6 @@ test('healthcare rules live only in the domain configuration validator', async (
     }));
     for (const rule of [/roles: Healthcare requires exactly the five canonical roles/,
         /artifactSchemaVersion: Unsupported healthcare artifact schema/,
-        /model.provider: Healthcare supports scripted development or Adaption/])
+        /model.provider: Healthcare supports scripted development, playbook development, or Adaption/])
         assert.equal(domainSources.filter(source => rule.test(source)).length, 1, `healthcare rule ${rule} must have exactly one domain definition site`);
 });
