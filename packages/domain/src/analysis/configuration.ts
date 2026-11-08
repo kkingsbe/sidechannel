@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Run } from '@sidechannel/contracts/harness/contracts';
-import { EVIDENCE_CATEGORIES, type AnalysisConfiguration, type AnalysisConfigurationInput, type BehaviorDefinition, type Codebook, type CodebookRevision } from '@sidechannel/contracts/analysis/evidence-contracts';
+import { ANALYSIS_PRESETS, EVIDENCE_CATEGORIES, type AnalysisConfiguration, type AnalysisConfigurationInput, type BehaviorDefinition, type Codebook, type CodebookRevision } from '@sidechannel/contracts/analysis/evidence-contracts';
 import { canonicalHash, canonicalJson } from '../hashing.js';
 import { DEFAULT_TOKEN_ESTIMATOR_VERSION, isTokenEstimatorVersion } from './token-estimator.js';
 
@@ -21,14 +21,19 @@ function allowedKeys(value: unknown, allowed: readonly string[], name: string): 
 }
 
 export function resolveAnalysisConfiguration(input: AnalysisConfigurationInput = {}): AnalysisConfiguration {
-    allowedKeys(input, ['version', 'model', 'window', 'selection', 'evidence', 'inputLimits', 'concurrency', 'timeoutMs', 'maxAttempts', 'retryBaseMs', 'longContext'], 'analysis');
+    allowedKeys(input, ['version', 'model', 'window', 'selection', 'evidence', 'inputLimits', 'concurrency', 'timeoutMs', 'maxAttempts', 'retryBaseMs', 'longContext', 'preset', 'probe'], 'analysis');
+    if (input.probe !== undefined && input.probe !== null) allowedKeys(input.probe, ['windows', 'repeats', 'seed'], 'probe');
+    if (input.preset !== undefined && !ANALYSIS_PRESETS.includes(input.preset)) throw new Error('Unknown analysis preset');
+    const { probe: probeInput, preset, ...rest } = input;
     if (input.window !== undefined) allowedKeys(input.window, ['size', 'stride'], 'window');
     if (input.selection !== undefined) allowedKeys(input.selection, ['phases', 'startOrdinal', 'endOrdinal'], 'selection');
     if (input.evidence !== undefined) allowedKeys(input.evidence, EVIDENCE_CATEGORIES, 'evidence');
     if (input.inputLimits !== undefined) allowedKeys(input.inputLimits, ['singleQuestionTokens', 'combinedQuestionTokens', 'maxBodyBytes', 'headroomTokens', 'estimatorVersion'], 'input limit');
     const config: AnalysisConfiguration = {
         version: 1, model: 'jev-1.14.0', concurrency: 2, timeoutMs: 120_000, maxAttempts: 3, retryBaseMs: 1_000,
-        ...input, longContext: false,
+        ...rest, longContext: false,
+        ...(preset !== undefined ? { preset } : {}),
+        ...(probeInput ? { probe: { windows: 6, repeats: 4, seed: 'probe-v1', ...probeInput } } : {}),
         window: { size: 12, stride: 4, ...input.window },
         selection: { phases: ['action', 'report'], ...input.selection },
         evidence: { ...Object.fromEntries(EVIDENCE_CATEGORIES.map(c => [c, true])), ...input.evidence } as AnalysisConfiguration['evidence'],
