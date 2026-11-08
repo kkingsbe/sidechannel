@@ -9,7 +9,7 @@ import "./pairs.css";
 function ConditionLane({ run, condition, detailSearch }: { run?: Run; condition: string; detailSearch: string }) {
   if (!run)
     return (
-      <div className="lane lane-empty">
+      <div className={"lane lane-empty" + (condition === "excluded" ? " excluded" : "")}>
         <span className="cond">{condition}</span>
         <span className="muted small">Not recorded</span>
       </div>
