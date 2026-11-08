@@ -53,10 +53,29 @@ export interface RunQueue {
     listRuns(): Promise<Run[]>;
 }
 
-/** Single-worker registration. Registration is a guard, not a heartbeat. */
+/** Default time after which a worker that stopped heartbeating is presumed dead and its lease is takeable. */
+export const DEFAULT_WORKER_LEASE_MS = 30_000;
+
+/** Snapshot of the single-worker lease. `ageMs` is measured on the store clock and is null for a lease that never heartbeated. */
+export interface WorkerLeaseRecord {
+    owner: string;
+    startedAt?: string;
+    heartbeatAt?: string;
+    ageMs: number | null;
+}
+
+/**
+ * Single-worker lease. The holder renews a heartbeat; a crashed or killed holder stops renewing, so the
+ * lease expires on its own and no manual recovery is needed. Every operation is owner-scoped: only the
+ * current holder may renew or release, and a holder that lost the lease learns it from `heartbeatWorker`.
+ */
 export interface WorkerGuard {
-    acquireWorker(owner: string): Promise<boolean>;
+    /** Takes the lease when it is free or its holder's heartbeat is older than `leaseMs`. */
+    acquireWorker(owner: string, leaseMs?: number): Promise<boolean>;
+    /** Renews the lease; false means another worker took it over and this one must stop. */
+    heartbeatWorker(owner: string): Promise<boolean>;
     releaseWorker(owner: string): Promise<void>;
+    workerLease(): Promise<WorkerLeaseRecord | null>;
 }
 
 /** Composition of the harness slices used by the API, domain projections and contract tests. */

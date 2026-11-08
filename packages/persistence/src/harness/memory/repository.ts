@@ -3,6 +3,7 @@ import { assertMatchedPair, assertSameLaunchConfiguration } from '@sidechannel/d
 import type { HarnessEvent, NewEvent, Run } from '@sidechannel/contracts/harness/contracts';
 import { ACTIVE_RUN_STATUSES, CANCEL_OVERRIDE_RUN_STATUSES } from '@sidechannel/contracts/harness/contracts';
 import type { ResearcherRepository, WorkerStatus } from '@sidechannel/contracts/server/contracts';
+import { DEFAULT_WORKER_LEASE_MS } from '@sidechannel/contracts/harness/server';
 import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, EVIDENCE_KEY_FIELD, type EvidenceKind, type EvidencePage } from '@sidechannel/contracts/harness/repository';
 import { toRunSummary } from '@sidechannel/domain/harness/repository';
 
@@ -24,7 +25,7 @@ export class InMemoryRepository implements ResearcherRepository {
     protected events: HarnessEvent[] = [];
     protected drafts = new Map<string, Draft>();
     private claims = new Set<string>();
-    private workerGuard: string | undefined;
+    private workerLeaseState: { owner: string; startedAt: Date; heartbeatAt: Date } | undefined;
     async getRun(id: string) { return clone(this.runs.get(id) ?? null); }
     async getRunByLaunchKey(launchKey: string) { return clone([...this.runs.values()].find(run => run.launchKey === launchKey) ?? null); }
     async listRuns() { return clone([...this.runs.values()].reverse()); }
@@ -96,14 +97,36 @@ export class InMemoryRepository implements ResearcherRepository {
     async getEvidenceItem(id: string, kind: EvidenceKind, key: string): Promise<unknown | null> { const rows = this.runs.get(id)?.[kind] ?? []; const field = EVIDENCE_KEY_FIELD[kind]; return clone(rows.find(row => String((row as unknown as Record<string, unknown>)[field]) === key) ?? null); }
     async queryEvents(id: string, query: EventQuery) { const offset = query.offset ?? 0; return clone(this.events.filter(event => event.runId === id && matchesEvent(event, query)).slice(offset, offset + (query.limit ?? 200))); }
     async getEvent(runId: string, eventId: string) { return clone(this.events.find(event => event.runId === runId && event.id === eventId) ?? null); }
-    async workerStatus(): Promise<WorkerStatus> { return { capacity: 1, available: null, status: this.workerGuard ? 'registered' : 'unknown', ...(this.workerGuard ? { startedAt: this.workerGuard } : {}), note: 'Worker registration has no heartbeat; current availability is unknown.' }; }
-    async acquireWorker(owner: string) {
-        if (this.workerGuard)
+    /** Mirrors the Mongo lease: the heartbeat age is measured on the same wall clock the lease compares against. */
+    async workerLease() {
+        const lease = this.workerLeaseState;
+        if (!lease)
+            return null;
+        return { owner: lease.owner, startedAt: lease.startedAt.toISOString(), heartbeatAt: lease.heartbeatAt.toISOString(), ageMs: Date.now() - lease.heartbeatAt.getTime() };
+    }
+    async workerStatus(leaseMs = DEFAULT_WORKER_LEASE_MS): Promise<WorkerStatus> {
+        const lease = await this.workerLease();
+        if (!lease)
+            return { capacity: 1, available: false, status: 'stopped', note: 'No experiment worker holds the lease.' };
+        const live = lease.ageMs !== null && lease.ageMs < leaseMs;
+        return { capacity: 1, available: live, status: live ? 'active' : 'stale', ...(lease.startedAt ? { startedAt: lease.startedAt } : {}), ...(lease.heartbeatAt ? { heartbeatAt: lease.heartbeatAt } : {}),
+            note: live ? `Worker heartbeat ${Math.round(lease.ageMs! / 1000)}s ago.` : 'Worker lease expired; the next worker to start takes it over and interrupts abandoned runs.' };
+    }
+    async acquireWorker(owner: string, leaseMs = DEFAULT_WORKER_LEASE_MS) {
+        const now = new Date();
+        const current = this.workerLeaseState;
+        if (current && now.getTime() - current.heartbeatAt.getTime() < leaseMs)
             return false;
-        this.workerGuard = owner;
+        this.workerLeaseState = { owner, startedAt: now, heartbeatAt: now };
         return true;
     }
-    async releaseWorker(owner: string) { if (this.workerGuard === owner) this.workerGuard = undefined; }
+    async heartbeatWorker(owner: string) {
+        if (this.workerLeaseState?.owner !== owner)
+            return false;
+        this.workerLeaseState.heartbeatAt = new Date();
+        return true;
+    }
+    async releaseWorker(owner: string) { if (this.workerLeaseState?.owner === owner) this.workerLeaseState = undefined; }
     async requestCancel(id: string) {
         const run = this.runs.get(id);
         if (run && ACTIVE_RUN_STATUSES.includes(run.status)) {

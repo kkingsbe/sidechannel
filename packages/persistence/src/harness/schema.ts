@@ -7,6 +7,7 @@ export const COLLECTIONS = {
     operations: 'operations',
     drafts: 'drafts',
     counters: 'counters',
+    /** Single lease document per database: `{ key: 'single-worker', owner, startedAt, heartbeatAt }`. */
     workerGuard: 'worker_guard',
 } as const;
 
@@ -22,6 +23,7 @@ export const HARNESS_INDEXES: readonly IndexSpec[] = [
     { collection: COLLECTIONS.operations, keys: { runId: 1, operationId: 1 }, unique: true },
     { collection: COLLECTIONS.drafts, keys: { id: 1 }, unique: true },
     { collection: COLLECTIONS.counters, keys: { runId: 1 }, unique: true },
+    // First writer wins the lease; takeover is a conditional heartbeatAt update on the same document.
     { collection: COLLECTIONS.workerGuard, keys: { key: 1 }, unique: true },
 ];
 

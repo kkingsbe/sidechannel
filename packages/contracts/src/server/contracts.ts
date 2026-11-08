@@ -2,11 +2,18 @@ import type { EventLog, RunQueue, RunStateStore, WorkerGuard } from '../harness/
 import type { HarnessEvent, Run } from '../harness/contracts.js';
 import type { Draft, DraftMetadata, EventQuery, EvidenceKind, EvidencePage, RunQuery, RunSummary } from '../harness/repository.js';
 
-/** Single-worker registration is a guard, not a heartbeat; availability is always unknown. */
+/**
+ * Single-worker lease state as reported to the dashboard.
+ * - `active`: a worker holds the lease and its heartbeat is current.
+ * - `stale`: a lease exists but its heartbeat expired (or it predates heartbeats); the next worker takes it over.
+ * - `stopped`: no worker holds the lease.
+ * - `registered`/`unknown`: adapters that cannot observe heartbeats (test doubles, early boot).
+ */
 export interface WorkerStatus {
     capacity: number;
-    available: null;
-    status: 'registered' | 'unknown';
+    available: boolean;
+    status: 'active' | 'stale' | 'stopped' | 'registered' | 'unknown';
+    heartbeatAt?: string;
     startedAt?: string;
     note?: string;
 }

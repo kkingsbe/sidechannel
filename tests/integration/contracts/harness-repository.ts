@@ -97,13 +97,37 @@ export function harnessRepositoryContract(harness: RepositoryHarness): void {
         assert.equal((await repository.queryRuns({ designation: 'fixture', limit: 10, offset: 0 })).total, 2);
     });
 
-    test(`${harness.name}: worker status is the documented shape`, async (t) => {
+    test(`${harness.name}: the worker lease reports availability and is owner-scoped`, async (t) => {
         const { repository, dispose } = await harness.fixture();
         t.after(dispose);
-        const status = await repository.workerStatus();
-        assert.equal(status.capacity, 1);
-        assert.equal(status.available, null);
-        assert.ok(status.status === 'registered' || status.status === 'unknown');
-        if (status.startedAt !== undefined) assert.equal(typeof status.startedAt, 'string');
+
+        const stopped = await repository.workerStatus();
+        assert.equal(stopped.capacity, 1);
+        assert.equal(stopped.available, false);
+        assert.equal(stopped.status, 'stopped');
+        if (stopped.note !== undefined) assert.equal(typeof stopped.note, 'string');
+        assert.equal(await repository.workerLease(), null);
+
+        assert.equal(await repository.acquireWorker('contract-holder'), true);
+        assert.equal(await repository.acquireWorker('contender'), false, 'a live lease blocks other workers');
+        const active = await repository.workerStatus();
+        assert.equal(active.available, true);
+        assert.equal(active.status, 'active');
+        if (active.startedAt !== undefined) assert.equal(typeof active.startedAt, 'string');
+        if (active.heartbeatAt !== undefined) assert.equal(typeof active.heartbeatAt, 'string');
+
+        const lease = await repository.workerLease();
+        assert.equal(lease?.owner, 'contract-holder');
+        if (lease?.heartbeatAt !== undefined) assert.equal(typeof lease.heartbeatAt, 'string');
+        assert.equal(typeof lease?.ageMs, 'number');
+
+        assert.equal(await repository.heartbeatWorker('contender'), false, 'only the holder may renew');
+        assert.equal(await repository.heartbeatWorker('contract-holder'), true);
+
+        await repository.releaseWorker('contender');
+        assert.equal((await repository.workerLease())?.owner, 'contract-holder', 'a non-holder cannot release the lease');
+        await repository.releaseWorker('contract-holder');
+        assert.equal(await repository.workerLease(), null);
+        assert.equal((await repository.workerStatus()).status, 'stopped');
     });
 }
