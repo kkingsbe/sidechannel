@@ -15,8 +15,15 @@ import { validateCodebook } from "./validate-codebook";
 /** Selection, hydrating draft, recovery, immutable saves and revision history for one codebook. */
 export function useCodebookDraft() {
   const clients = useClients();
-  const booksPage = useResourcePage<Codebook>("codebooks", (cursor) =>
-    clients.codebooks.list({ limit: 30, after: cursor ?? undefined }),
+  const [showArchived, setShowArchived] = useState(false);
+  const booksPage = useResourcePage<Codebook>(
+    showArchived ? "codebooks:with-archived" : "codebooks",
+    (cursor) =>
+      clients.codebooks.list({
+        limit: 30,
+        after: cursor ?? undefined,
+        ...(showArchived ? { archived: "include" as const } : {}),
+      }),
   );
   const [bookOptions, setBookOptions] = useState<Codebook[]>([]);
   const [bookId, setBookId] = useState("");
@@ -184,6 +191,40 @@ export function useCodebookDraft() {
     setCodes(result);
     setDirty(true);
   };
+  const selectedBook = current.data?.codebook;
+  const readOnly = Boolean(selectedBook?.archivedAt);
+  const changeShowArchived = (checked: boolean) => {
+    setShowArchived(checked);
+    setBookOptions([]);
+    if (!checked && selectedBook?.archivedAt) setBookId("");
+  };
+  const setArchived = async (archive: boolean) => {
+    if (!current.data || formBookId !== bookId || !baseRevisionId) return;
+    if (!author.trim()) return;
+    if (archive && dirty) return;
+    if (
+      archive &&
+      !window.confirm(
+        `Archive "${name}"? Existing analyses are unaffected and keep their frozen definitions, but this codebook cannot be used for new analyses until it is restored.`,
+      )
+    )
+      return;
+    const result = await command.run(
+      () =>
+        (archive ? clients.codebooks.archive : clients.codebooks.restore)(bookId, {
+          expectedRevisionId: baseRevisionId,
+          author: author.trim(),
+        }),
+      archive
+        ? "Codebook archived. Existing analyses keep their frozen definitions."
+        : "Codebook restored. It can be used for new analyses.",
+    );
+    if (result) {
+      setDirty(false);
+      void current.refresh();
+      void booksPage.refresh();
+    }
+  };
   const restoreRecovery = () => {
     if (!recovery) return;
     const localIds = new Set(recovery.codes.map((item) => item.id));
@@ -242,6 +283,11 @@ export function useCodebookDraft() {
     revisions: revisions.data,
     revisionsLoading: revisions.loading,
     revisionsError: revisions.error,
+    selectedBook,
+    readOnly,
+    showArchived,
+    changeShowArchived,
+    setArchived,
     historyRevision,
     selectRevision: setHistoryRevision,
     revisionsPage: {

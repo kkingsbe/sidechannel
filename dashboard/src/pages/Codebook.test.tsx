@@ -9,7 +9,7 @@ import CodebookPage from './Codebook';
 
 const definition: BehaviorCode = { id:'supply', code:'SUPPLY', name:'Supply', definition:'Original definition', inclusionCriteria:[], exclusionCriteria:[], examples:[], counterexamples:[], qualifyingEvidenceTypes:[], enabled:true, archived:false, color:'#123456' };
 const revisionRecord = (number:number) => ({id:'revision-'+number, codebookId:'book', revision:number, createdAt:'2026-11-07T12:00:00Z', author:'Researcher', codes: number===1?[definition]:[{...definition,definition:'Teammate definition'},{...definition,id:'new',code:'NEW',name:'Added by teammate'}]});
-const viewBook = (number:number) => ({id:'book', name:'Study', currentRevisionId:'revision-'+number, archived:false, revision:number, createdAt:'2026-11-07T12:00:00Z'});
+const viewBook = (number:number) => ({id:'book', name:'Study', currentRevisionId:'revision-'+number, revision:number, createdAt:'2026-11-07T12:00:00Z'});
 
 beforeEach(() => localStorage.clear());
 afterEach(cleanup);

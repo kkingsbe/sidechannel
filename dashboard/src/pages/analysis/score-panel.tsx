@@ -14,6 +14,7 @@ import { useAnalysisWindows } from "./use-analysis-windows";
 import { HeatmapTable } from "./heatmap-table";
 import { ProbabilityPlot } from "./probability-plot";
 import { ScoreTable } from "./score-table";
+import { plural, sortWindows } from "./analysis-view";
 
 /**
  * The probability/heatmap/table views. One data owner for the window page, the coverage
@@ -34,12 +35,12 @@ export function ScorePanel({
     (c) => c.enabled && !c.archived,
   );
   const shown = codes.filter((c) => !state.visible || state.visible.includes(c.id));
-  const current = state.windows;
+  const current = sortWindows(state.windows);
   return (
     <>
       <Notice>
-        Coverage on this page: {current.length} windows -{" "}
-        {current.filter((w) => w.partial).length} partial -{" "}
+        Coverage on this page: {plural(current.length, "window")} -{" "}
+        {plural(current.filter((w) => w.partial).length, "partial window", "partial windows")} -{" "}
         {current.filter((w) => !w.results?.length).length} without scores.
         Estimated probability the behavior occurs in this window. Values are
         exploratory estimates, not calibrated accuracy or run-level reference

@@ -9,7 +9,7 @@ export interface Identified { id: string; createdAt: string }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 export interface BehaviorCode { id: string; code: string; name: string; definition: string; inclusionCriteria: string[]; exclusionCriteria: string[]; examples: string[]; counterexamples: string[]; qualifyingEvidenceTypes: string[]; enabled: boolean; archived: boolean; color: string }
 export interface CodebookRevision extends Identified { revision: number; codebookId: string; name?: string; codes: BehaviorCode[]; author: string; parentRevisionId?: string | null }
-export interface Codebook extends Identified { revision?: number; name: string; currentRevisionId: string }
+export interface Codebook extends Identified { revision?: number; name: string; currentRevisionId: string; archivedAt?: string; archivedBy?: string }
 /** Server-frozen settings captured for a duplicate so a re-submit is byte-identical. */
 export interface FrozenAnalysisSettings {
     evidence: AnalysisConfiguration['evidence'];

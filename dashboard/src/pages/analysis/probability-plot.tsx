@@ -1,4 +1,5 @@
 import type { AnalysisWindow, BehaviorCode } from "../../lib/analysis-types";
+import { linePath, plotX, plotY, sortWindows, stepTicks } from "./analysis-view";
 
 export function ProbabilityPlot({
   code,
@@ -9,21 +10,13 @@ export function ProbabilityPlot({
   windows: AnalysisWindow[];
   onSelect: (w: AnalysisWindow) => void;
 }) {
-  const min = Math.min(...windows.map((w) => w.startStep)),
-    max = Math.max(...windows.map((w) => w.endStep));
-  const x = (end: number) => 36 + ((end - min) / Math.max(1, max - min)) * 624;
-  const y = (p: number) => 91 - p * 75;
-  let path = "";
-  let connected = false;
-  for (const w of windows) {
-    const score = w.results?.find((r) => r.codeId === code.id)?.probability;
-    if (score == null) {
-      connected = false;
-      continue;
-    }
-    path += (connected ? " L" : " M") + x(w.endStep) + "," + y(score);
-    connected = true;
-  }
+  const ordered = sortWindows(windows);
+  const min = Math.min(...ordered.map((w) => w.startStep)),
+    max = Math.max(...ordered.map((w) => w.endStep));
+  const x = (end: number) => plotX(end, min, max);
+  const y = plotY;
+  const path = linePath(ordered, code.id, min, max);
+  const ticks = stepTicks(min, max);
   return (
     <section style={{ marginBottom: 20 }}>
       <div className="actions" style={{ justifyContent: "space-between" }}>
@@ -54,7 +47,7 @@ export function ProbabilityPlot({
           0%
         </text>
         <path d={path} className="chart-line" />
-        {windows.map((w) => {
+        {ordered.map((w) => {
           const score = w.results?.find(
             (r) => r.codeId === code.id,
           )?.probability;
@@ -90,12 +83,11 @@ export function ProbabilityPlot({
             </circle>
           );
         })}
-        <text x="36" y="109" className="chart-label">
-          {min}
-        </text>
-        <text x="657" y="109" className="chart-label">
-          {max}
-        </text>
+        {ticks.map((tick) => (
+          <text key={tick} x={plotX(tick, min, max)} y="109" className="chart-label" textAnchor="middle">
+            {tick}
+          </text>
+        ))}
       </svg>
     </section>
   );

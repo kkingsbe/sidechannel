@@ -45,7 +45,12 @@ export function toRevision(raw: JevRevision): CodebookRevision {
 
 /** The server has no codebook-level `archived` flag; the view model must not invent one. */
 export function toCodebook(raw: JevCodebook, current?: JevRevision): Codebook {
-    return { id: raw.id, createdAt: raw.createdAt, name: raw.name, currentRevisionId: raw.currentRevisionId, ...(current ? { revision: current.revision } : {}) };
+    const archived = raw as { archivedAt?: string; archivedBy?: string };
+    return {
+        id: raw.id, createdAt: raw.createdAt, name: raw.name, currentRevisionId: raw.currentRevisionId,
+        ...(current ? { revision: current.revision } : {}),
+        ...(archived.archivedAt ? { archivedAt: archived.archivedAt, archivedBy: archived.archivedBy } : {}),
+    };
 }
 
 export function toSettings(raw: AnalysisConfiguration, revision: JevRevision, creator: string, parentAnalysisId?: string): AnalysisSettings {

@@ -1,5 +1,5 @@
 ﻿import { REVIEWER_STORAGE_KEY } from "../../components/claimed-reviewer";
-import { Button, Field, Input, Select } from "../../components/ui";
+import { Badge, Button, Field, Input, Notice, Select } from "../../components/ui";
 import type { useCodebookDraft } from "./use-codebook-draft";
 
 /** Codebook choice, editable name and claimed revision author. */
@@ -31,6 +31,17 @@ export function CodebookSelector({
             </option>
           ))}
         </Select>
+        <label className="check-row">
+          <input
+            type="checkbox"
+            checked={draft.showArchived}
+            onChange={(e) => draft.changeShowArchived(e.target.checked)}
+          />
+          Show archived codebooks
+        </label>
+        {draft.selectedBook?.archivedAt && (
+          <Badge tone="warning">Archived</Badge>
+        )}
         {draft.hasMoreBooks && (
           <Button
             variant="ghost"
@@ -66,6 +77,43 @@ export function CodebookSelector({
           }}
         />
       </Field>
+      <div className="full">
+        {draft.selectedBook && (
+          <>
+            <div className="actions">
+              {draft.selectedBook.archivedAt ? (
+                <Button
+                  variant="secondary"
+                  disabled={draft.command.busy || !draft.author.trim()}
+                  onClick={() => void draft.setArchived(false)}
+                >
+                  Restore codebook
+                </Button>
+              ) : (
+                <Button
+                  variant="secondary"
+                  disabled={draft.command.busy || !draft.author.trim() || draft.dirty}
+                  onClick={() => void draft.setArchived(true)}
+                >
+                  Archive codebook
+                </Button>
+              )}
+            </div>
+            {!draft.author.trim() && (
+              <p className="helper">Enter a revision author to archive or restore a codebook.</p>
+            )}
+            {!draft.selectedBook.archivedAt && draft.dirty && (
+              <p className="helper">Save or discard your unsaved edits before archiving this codebook.</p>
+            )}
+            {draft.selectedBook.archivedAt && (
+              <Notice kind="warning">
+                This codebook is archived. Existing analyses keep their frozen definitions; restore it to
+                edit or use it for new analyses.
+              </Notice>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

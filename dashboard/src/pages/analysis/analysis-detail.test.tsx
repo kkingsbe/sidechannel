@@ -32,7 +32,7 @@ it("keeps the frozen job header, coverage notice and heatmap scores", async () =
     clients: clients(),
   });
   expect(
-    await screen.findByText(/Coverage on this page: 1 windows .* 1 partial/),
+    await screen.findByText(/Coverage on this page: 1 window .* 1 partial window/),
   ).toBeTruthy();
   expect(
     screen.getByRole("tab", { name: "Heatmap" }).getAttribute("aria-selected"),

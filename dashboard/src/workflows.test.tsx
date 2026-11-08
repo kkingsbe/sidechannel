@@ -166,7 +166,8 @@ describe("canonical evidence inspection", () => {
     expect(dialog.textContent).toContain("message-1");
     expect(dialog.textContent).toContain("board evidence");
     expect(dialog.querySelector("img")).toBeNull();
-    expect(lastCalls.some((call) => call.path.includes("/events"))).toBe(false);
+    // A board message is fetched by its own id; the page may stream run events, but no single event lookup may stand in for the message.
+    expect(lastCalls.some((call) => call.path.includes("/events/"))).toBe(false);
   });
 });
 describe("independent human run outcomes", () => {

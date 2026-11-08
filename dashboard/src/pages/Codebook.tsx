@@ -19,7 +19,7 @@ import { useCodebookDraft } from "./codebook/use-codebook-draft";
 export default function CodebookPage() {
   const draft = useCodebookDraft();
   const { command, validation, current } = draft;
-  const saveDisabled = command.busy || draft.loading || !validation.readyToSave;
+  const saveDisabled = command.busy || draft.loading || !validation.readyToSave || draft.readOnly;
   return (
     <>
       <PageHeader
@@ -53,6 +53,9 @@ export default function CodebookPage() {
       />
       <div className="save-status" role="status">
         {command.busy ? "Saving revision…" : validation.status}
+        {draft.readOnly
+          ? " This codebook is archived. Archive or restore actions do not change its frozen definitions."
+          : " Saving creates a new immutable revision; it never overwrites an existing one."}
         {draft.dirty && (
           <p>
             Save these edits before creating another codebook. Your recovery copy
