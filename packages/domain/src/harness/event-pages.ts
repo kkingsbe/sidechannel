@@ -36,8 +36,17 @@ export function snapBackward(rowsDesc: HarnessEvent[], limit: number, slack = TU
     return { events: [...page.events].reverse(), hasMore: page.hasMore };
 }
 
+/**
+ * Report-first phase classification: a declared `report` phase, a `report*` event type or a `:report:`
+ * invocation id all classify as `report`. This is the WS1 parity rule the Mongo adapter's `$or` filter
+ * encodes; main's helper preferred a declared `action` over the event type, which made the memory and
+ * Mongo adapters disagree for a report event that carried a stale declared phase.
+ */
 export function eventPhase(event: HarnessEvent): string {
-    return (event.data as { phase?: string } | null)?.phase ?? (event.type.startsWith('report') || event.invocationId?.includes(':report:') ? 'report' : 'action');
+    const declared = (event.data as { phase?: string } | null)?.phase;
+    if (declared === 'report' || event.type.startsWith('report') || event.invocationId?.includes(':report:'))
+        return 'report';
+    return declared ?? 'action';
 }
 
 export function matchesEventQuery(event: HarnessEvent, query: EventQuery): boolean {

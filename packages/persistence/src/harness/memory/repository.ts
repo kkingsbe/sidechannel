@@ -1,20 +1,13 @@
 import { randomUUID } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import { assertMatchedPair, assertSameLaunchConfiguration } from '@sidechannel/domain/harness/launch';
 import type { HarnessEvent, NewEvent, Run } from '@sidechannel/contracts/harness/contracts';
 import { ACTIVE_RUN_STATUSES, CANCEL_OVERRIDE_RUN_STATUSES } from '@sidechannel/contracts/harness/contracts';
 import type { ResearcherRepository, WorkerStatus } from '@sidechannel/contracts/server/contracts';
 import { DEFAULT_WORKER_LEASE_MS } from '@sidechannel/contracts/harness/server';
-import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, EVIDENCE_KEY_FIELD, type EvidenceKind, type EvidencePage } from '@sidechannel/contracts/harness/repository';
+import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, EVIDENCE_KEY_FIELD, type EvidenceKind, type EvidencePage, type TurnSummary } from '@sidechannel/contracts/harness/repository';
+import { matchesEventQuery, summarizeTurns } from '@sidechannel/domain/harness/event-pages';
 import { toRunSummary } from '@sidechannel/domain/harness/repository';
-
-function eventPhase(event: HarnessEvent): string {
-    const declared = (event.data as { phase?: string } | null)?.phase;
-    if (declared === 'report' || event.type.startsWith('report') || event.invocationId?.includes(':report:'))
-        return 'report';
-    return declared ?? 'action';
-}
-
-function matchesEvent(event: HarnessEvent, query: EventQuery) { return event.sequence > (query.after ?? 0) && (!query.actor || event.agentId === query.actor) && (!query.type || event.type === query.type) && (!query.phase || eventPhase(event) === query.phase) && (query.from === undefined || event.sequence >= query.from) && (query.to === undefined || event.sequence <= query.to); }
 
 function matchesRun(run: Run, q: RunQuery) { return (!q.status || q.status.split(',').includes(run.status)) && (!q.model || run.config.model.id === q.model) && (!q.condition || run.config.condition.id === q.condition) && (!q.scenario || [run.config.scenario.version, run.config.scenario.datasetId].includes(q.scenario)) && (!q.designation || (run.config.model.provider === 'scripted' ? 'fixture' : run.config.phase) === q.designation); }
 
@@ -25,6 +18,7 @@ export class InMemoryRepository implements ResearcherRepository {
     protected events: HarnessEvent[] = [];
     protected drafts = new Map<string, Draft>();
     private claims = new Set<string>();
+    private appended = new EventEmitter().setMaxListeners(0);
     private workerLeaseState: { owner: string; startedAt: Date; heartbeatAt: Date } | undefined;
     async getRun(id: string) { return clone(this.runs.get(id) ?? null); }
     async getRunByLaunchKey(launchKey: string) { return clone([...this.runs.values()].find(run => run.launchKey === launchKey) ?? null); }
@@ -80,6 +74,7 @@ export class InMemoryRepository implements ResearcherRepository {
     async appendEvent(event: NewEvent) {
         const record: HarnessEvent = { ...clone(event), schemaVersion: 1, id: randomUUID(), timestamp: new Date().toISOString(), sequence: this.events.filter(e => e.runId === event.runId).length + 1 };
         this.events.push(record);
+        this.appended.emit(event.runId);
         return clone(record);
     }
     async listEvents(id: string, afterSequence = 0, limit = 1000) { return clone(this.events.filter(e => e.runId === id && e.sequence > afterSequence).slice(0, Math.min(limit, 10_000))); }
@@ -95,7 +90,15 @@ export class InMemoryRepository implements ResearcherRepository {
         return clone({ items: run[kind].slice(offset, offset + limit), total: run[kind].length, ...(kind === 'reports' ? { reporting: { instructions: run.config.reportInstructions, schemaVersion: run.config.reportSchemaVersion } } : {}) });
     }
     async getEvidenceItem(id: string, kind: EvidenceKind, key: string): Promise<unknown | null> { const rows = this.runs.get(id)?.[kind] ?? []; const field = EVIDENCE_KEY_FIELD[kind]; return clone(rows.find(row => String((row as unknown as Record<string, unknown>)[field]) === key) ?? null); }
-    async queryEvents(id: string, query: EventQuery) { const offset = query.offset ?? 0; return clone(this.events.filter(event => event.runId === id && matchesEvent(event, query)).slice(offset, offset + (query.limit ?? 200))); }
+    async queryEvents(id: string, query: EventQuery) {
+        const offset = query.offset ?? 0;
+        const rows = this.events.filter(event => event.runId === id && matchesEventQuery(event, query));
+        if (query.order === 'desc')
+            rows.reverse();
+        return clone(rows.slice(offset, offset + (query.limit ?? 200)));
+    }
+    async listTurns(runId: string): Promise<TurnSummary[]> { return summarizeTurns(this.events.filter(event => event.runId === runId)); }
+    subscribeEvents(runId: string, onAppend: () => void) { this.appended.on(runId, onAppend); return () => { this.appended.off(runId, onAppend); }; }
     async getEvent(runId: string, eventId: string) { return clone(this.events.find(event => event.runId === runId && event.id === eventId) ?? null); }
     /** Mirrors the Mongo lease: the heartbeat age is measured on the same wall clock the lease compares against. */
     async workerLease() {

@@ -4,7 +4,7 @@ import { assertMatchedPair, assertSameLaunchConfiguration } from '@sidechannel/d
 import type { HarnessEvent, NewEvent, Run } from '@sidechannel/contracts/harness/contracts';
 import { ACTIVE_RUN_STATUSES, CANCEL_OVERRIDE_RUN_STATUSES } from '@sidechannel/contracts/harness/contracts';
 import type { ResearcherRepository, WorkerStatus } from '@sidechannel/contracts/server/contracts';
-import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, EVIDENCE_KEY_COERCION, EVIDENCE_KEY_FIELD, type EvidenceKind, type EvidencePage } from '@sidechannel/contracts/harness/repository';
+import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, EVIDENCE_KEY_COERCION, EVIDENCE_KEY_FIELD, type EvidenceKind, type EvidencePage, type TurnSummary } from '@sidechannel/contracts/harness/repository';
 import type { WorkerGuard, WorkerLeaseRecord } from '@sidechannel/contracts/harness/server';
 import { DEFAULT_WORKER_LEASE_MS } from '@sidechannel/contracts/harness/server';
 import { summaryProjection, toRunSummary, type SummaryRun } from '@sidechannel/domain/harness/repository';
@@ -130,15 +130,37 @@ export class MongoRepository implements ResearcherRepository, WorkerGuard {
         return row?.item ?? null;
     }
     async queryEvents(runId: string, query: EventQuery) {
-        const filter: Document = { runId, sequence: { $gt: query.after ?? 0, ...(query.from === undefined ? {} : { $gte: query.from }), ...(query.to === undefined ? {} : { $lte: query.to }) } };
+        const filter: Document = { runId, sequence: { $gt: query.after ?? 0, ...(query.before === undefined ? {} : { $lt: query.before }), ...(query.from === undefined ? {} : { $gte: query.from }), ...(query.to === undefined ? {} : { $lte: query.to }) } };
         if (query.actor) filter.agentId = query.actor;
         if (query.type) filter.type = query.type;
         const reporting = { $or: [{ 'data.phase': 'report' }, { type: /^report/ }, { invocationId: /:report:/ }] };
         if (query.phase === 'report') Object.assign(filter, reporting);
         else if (query.phase === 'action') filter.$nor = [reporting];
-        return (await this.db.collection(COLLECTIONS.events).find(filter).sort({ sequence: 1 }).skip(query.offset ?? 0).limit(query.limit ?? 200).toArray()).map(row => clean<HarnessEvent>(row)!);
+        return (await this.db.collection(COLLECTIONS.events).find(filter).sort({ sequence: query.order === 'desc' ? -1 : 1 }).skip(query.offset ?? 0).limit(query.limit ?? 200).toArray()).map(row => clean<HarnessEvent>(row)!);
     }
     async getEvent(runId: string, id: string) { return clean<HarnessEvent>(await this.db.collection(COLLECTIONS.events).findOne({ runId, id })); }
+    async listTurns(runId: string): Promise<TurnSummary[]> {
+        const rows = await this.db.collection(COLLECTIONS.events).aggregate<{ _id: { agentId: string; round?: number | null; turn: number }; firstSequence: number; lastSequence: number; eventCount: number; calls: (string | null)[]; failures: number }>([
+            { $match: { runId, agentId: { $nin: [null, ''] }, turn: { $gt: 0 } } },
+            { $group: {
+                _id: { agentId: '$agentId', round: '$round', turn: '$turn' },
+                firstSequence: { $min: '$sequence' },
+                lastSequence: { $max: '$sequence' },
+                eventCount: { $sum: 1 },
+                calls: { $addToSet: { $cond: [{ $eq: ['$type', 'model_requested'] }, { $ifNull: ['$invocationId', null] }, null] } },
+                failures: { $sum: { $cond: [{ $regexMatch: { input: '$type', regex: 'denied|error|fail' } }, 1, 0] } },
+            } },
+            { $sort: { firstSequence: 1 } },
+        ]).toArray();
+        return rows.map(({ _id, calls, ...counts }) => ({ agentId: _id.agentId, ...(_id.round == null ? {} : { round: _id.round }), turn: _id.turn, ...counts, modelCalls: calls.filter(call => call !== null).length }));
+    }
+    /** Wake-up hint from a change stream. On a standalone server the stream errors and callers fall back to polling. */
+    subscribeEvents(runId: string, onAppend: () => void) {
+        const stream = this.db.collection(COLLECTIONS.events).watch([{ $match: { operationType: 'insert', 'fullDocument.runId': runId } }]);
+        stream.on('change', () => onAppend());
+        stream.on('error', () => { /* the consumer's poll interval keeps delivering events */ });
+        return () => { void stream.close().catch(() => undefined); };
+    }
     /** The current lease with its heartbeat age measured on the database clock; `ageMs` is null for a lease that never heartbeated. */
     async workerLease(): Promise<WorkerLeaseRecord | null> {
         const [row] = await this.db.collection(COLLECTIONS.workerGuard).aggregate([
