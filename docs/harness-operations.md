@@ -109,6 +109,23 @@ Set `OPENAI_API_KEY` and/or `ADAPTION_API_KEY` in the stack's environment variab
 
 Open `http://<docker-host>:4310` after deployment. `DASHBOARD_PORT` can change the host port; `DASHBOARD_BIND_ADDRESS` defaults to `0.0.0.0`. The dashboard follows the initial open deployment configuration (`RESEARCHER_TOKEN` is blank), so anyone who can reach that port can use it. MongoDB has no published host port. This stack creates a new stack-scoped `mongo-data` volume and does not copy the development database. Keep the stack name and volume when updating, and cancel active experiments before redeploying workers.
 
+Every service has a memory limit so that one container cannot exhaust the host; without limits, memory pressure during a live run or an image update took the API and the Cloudflare connector offline. Defaults total about 3.4 GB. Override them in the stack's environment variables to fit the host:
+
+| Service | Memory limit variable (default) | Related setting (default) |
+| --- | --- | --- |
+| MongoDB | `MONGO_MEMORY_LIMIT` (`1g`) | `MONGO_CACHE_GB` (`0.5`), WiredTiger cache; keep at or below half the limit |
+| API | `API_MEMORY_LIMIT` (`512m`) | `API_NODE_HEAP_MB` (`384`) |
+| Experiment worker | `EXPERIMENT_WORKER_MEMORY_LIMIT` (`1g`) | `EXPERIMENT_WORKER_NODE_HEAP_MB` (`768`) |
+| Analysis worker | `ANALYSIS_WORKER_MEMORY_LIMIT` (`512m`) | `ANALYSIS_WORKER_NODE_HEAP_MB` (`384`) |
+| Cloudflare connector | `CLOUDFLARED_MEMORY_LIMIT` (`128m`) | |
+| Image updater | `UPDATER_MEMORY_LIMIT` (`256m`) | |
+
+Keep each Node heap about 75% of its container limit so garbage collection runs before the kernel kills the container. Leave headroom on the host for image pulls during automatic updates.
+
+Automatic updates never replace a busy worker. Each worker carries a WUD pre-update hook that runs `dist/commands/update-guard.js` inside the current container; it exits non-zero while experiment runs are queued, running, reporting or stopping (experiment worker), or while Jev analysis or oversight jobs are preparing, queued or running (analysis worker), and when it cannot reach MongoDB. A failing pre-update hook makes the updater skip the update and leave the container running; with `ONCE=false` the update is retried on each check until the worker is idle. The API is not guarded: replacing it briefly interrupts the dashboard but not runs. Look for `update-guard: deferring update` in the updater's logs.
+
+The hook executes in the container being replaced, so the running image must already contain the guard. When adopting these labels, first let the publishing workflow build an image that includes `update-guard.js`, then paste the updated stack file and redeploy with **Re-pull image** so the guarded images are running. An older worker without the guard fails the hook and blocks its own automatic updates until it is redeployed manually.
+
 #### Cloudflare Tunnel in Portainer
 
 Set `CLOUDFLARE_TUNNEL_TOKEN` in the same Portainer stack environment variables. Use the token from the dedicated remotely managed tunnel's connector installation command (the value after `--token`, not the whole command or a Cloudflare API token). Compose passes it to cloudflared as `TUNNEL_TOKEN`; no local secret file is needed. See [Cloudflare tunnel tokens](https://developers.cloudflare.com/tunnel/reference/tunnel-tokens/).
