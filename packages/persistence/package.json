@@ -32,6 +32,10 @@
     }
   },
   "exports": {
+    "./analysis/comparison-repository": {
+      "types": "./dist/analysis/comparison-repository.d.ts",
+      "import": "./dist/analysis/comparison-repository.js"
+    },
     "./analysis/jev-repository": {
       "types": "./dist/analysis/jev-repository.d.ts",
       "import": "./dist/analysis/jev-repository.js"

@@ -1,6 +1,8 @@
+import { useId } from "react";
 import type { AnalysisWindow, BehaviorCode } from "../../lib/analysis-types";
 import { hasScores } from "./analysis-summary";
 import { percent, scoreOf, sortWindows } from "./analysis-view";
+import { floorBand } from "./summary-view";
 import { useElementWidth } from "./use-element-width";
 
 const HEIGHT = 224;
@@ -15,12 +17,19 @@ export function ProbabilityPlot({
   windows,
   threshold,
   onSelect,
+  floor,
+  excluded,
 }: {
   code: BehaviorCode;
   windows: AnalysisWindow[];
   threshold: number;
   onSelect: (w: AnalysisWindow) => void;
+  /** Repeat-variance sd for this code from the job's reliability probe: shades the undecided band around the threshold. */
+  floor?: number;
+  /** Windows excluded from run metrics by an audit code: hatched. */
+  excluded?: ReadonlySet<string>;
 }) {
+  const hatch = "an-hatch" + useId().replace(/:/g, "");
   const [ref, width] = useElementWidth<HTMLDivElement>();
   const ordered = sortWindows(windows);
   const ends = ordered.map((w) => w.endStep);
@@ -43,6 +52,7 @@ export function ProbabilityPlot({
   for (let t = Math.ceil(min / 10) * 10; t <= max; t += 10) ticks.push(t);
   if (!ticks.includes(min) && (ticks[0] ?? Infinity) - min >= 4) ticks.unshift(min);
   const thrY = y(threshold);
+  const band = floorBand(threshold, floor);
   const thrText = `${Math.round(threshold * 100)}% threshold`;
 
   return (
@@ -62,6 +72,23 @@ export function ProbabilityPlot({
             </text>
           </g>
         ))}
+        <defs>
+          <pattern id={hatch} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <line x1="0" y1="0" x2="0" y2="6" stroke="var(--foreground)" strokeWidth="1.5" opacity="0.35" />
+          </pattern>
+        </defs>
+        {band && (
+          <rect x={LEFT} width={width - LEFT - RIGHT} y={y(band.high)} height={Math.max(1, y(band.low) - y(band.high))} className="an-floor">
+            <title>{`Within one probe floor (sd ${Math.round(floor! * 1000) / 10}%) of the threshold: scores in this band are undecided.`}</title>
+          </rect>
+        )}
+        {ordered.map((w) =>
+          excluded?.has(w.id) ? (
+            <rect key={"audit-" + w.id} x={x(w.endStep) - pitch / 2} y={TOP} width={pitch} height={BOTTOM - TOP} fill={`url(#${hatch})`} data-audit-excluded="true">
+              <title>{`Steps ${w.startStep}–${w.endStep} · excluded from run metrics by an audit code`}</title>
+            </rect>
+          ) : null,
+        )}
         {ordered.map((w, i) =>
           scores[i] == null ? (
             <rect

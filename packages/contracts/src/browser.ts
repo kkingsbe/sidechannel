@@ -8,6 +8,9 @@ export type { AnalysisConfiguration, BehaviorDefinition, Codebook, CodebookRevis
 export type { AnalysisJob, AnalysisResult, JobStatus, Page, WindowRecord } from './analysis/jev-repository.js';
 export { DEFAULT_TOKEN_ESTIMATOR_VERSION, TOKEN_ESTIMATOR_VERSIONS } from './analysis/serialization.js';
 export type { TokenEstimatorVersion } from './analysis/serialization.js';
+export type { AnalysisSummary, CodeSummary, ChoiceMetrics, Comparison, ComparisonCode, ComparisonGroup, ComparisonInput, ComparisonMetric, ComparisonRequest, ComparisonRunValue, ComparisonWarning, ConditionDifference, CoverageSummary, PairedDifference, BootstrapInterval, ResolvedThreshold, ScoreLevelMetrics, ScoreMetrics, ThresholdPolicy, ThresholdSource } from './analysis/aggregation.js';
+export { AUDIT_EXCLUSION_THRESHOLD, COMPARISON_METRICS, DEFAULT_K_STRIKES, FIXED_THRESHOLDS, MIN_RUNS_PER_CONDITION } from './analysis/aggregation.js';
+export type { AnalysisReliability } from './analysis/jev-repository.js';
 export type { BatchShortfall, BatchStrategy, CodeValidation, Review, ReviewBatch, ValidationStatus } from './analysis/jev-reviews.js';
 export type { MonitorDefinition, MonitorEvaluation, MonitorPreview, MonitorSettings, MonitorView, OutcomeDefinition, Projection, Verdict, MonitorJudgment } from './oversight/contracts.js';
 

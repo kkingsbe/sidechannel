@@ -2,6 +2,7 @@ import type { AnalysisJob, AnalysisPreview, AnalysisSettings, AnalysisWindow, Hu
 import { canonical, jobFor, type JevSession } from '../adapters/jev';
 import type { Requester } from '../transport';
 import { withQuery } from '../transport';
+import { createAggregationClient, type AggregationClient } from './aggregation';
 
 export const analysisPaths = {
     list: (query: { limit?: number; after?: string } = {}) => withQuery('/analyses', query),
@@ -19,7 +20,7 @@ export const analysisPaths = {
     batch: (id: string, batchId: string, query: Record<string, string | number | undefined>) => withQuery('/analyses/' + encodeURIComponent(id) + '/review-batches/' + encodeURIComponent(batchId), query),
 };
 
-export interface AnalysesClient {
+export interface AnalysesClient extends AggregationClient {
     paths: typeof analysisPaths;
     list(query?: { limit?: number; after?: string }): Promise<Page<AnalysisJob>>;
     job(id: string): Promise<AnalysisJob>;
@@ -45,6 +46,7 @@ export function createAnalysesClient(request: Requester, session: JevSession): A
     const payloadFor = (settings: AnalysisSettings) => ({ codebookId: settings.codebookId, codebookRevisionId: settings.codebookRevisionId, settings: canonical(settings) });
     return {
         paths: analysisPaths,
+        ...createAggregationClient(request),
         list: query => request(analysisPaths.list(query)),
         job: id => request(analysisPaths.job(id)),
         windows: (id, query) => request(analysisPaths.windows(id, query)),

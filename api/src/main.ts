@@ -7,6 +7,9 @@ import { MongoPlaybookCatalog } from '@sidechannel/persistence/playbook/catalog'
 import { buildMetadata } from '@sidechannel/domain/harness/provenance';
 import { createResearcherServer } from './server/index.js';
 import { createJevExtension } from './routes/jev-extension.js';
+import { createAggregationRouteHandler } from './routes/jev-aggregation.js';
+import { AnalysisAggregationService } from '@sidechannel/domain/analysis/aggregation-service';
+import { MongoComparisonStore } from '@sidechannel/persistence/analysis/comparison-repository';
 import { createOversightHandler } from './routes/oversight.js';
 
 const host = process.env.HARNESS_HOST ?? '127.0.0.1';
@@ -28,9 +31,11 @@ const analysisRepository = new MongoAnalysisRepository(repository.client, reposi
 await analysisRepository.initialize();
 const reviewStore = new MongoReviewStore(repository.db);
 await reviewStore.initialize();
+const comparisonStore = new MongoComparisonStore(repository.db);
+await comparisonStore.initialize();
 
 const server = createResearcherServer(repository, { host, healthcareCatalog, playbookCatalog, token: process.env.RESEARCHER_TOKEN, buildMetadata: await buildMetadata(),
-    extensionHandlers: [createJevExtension(analysisRepository, reviewStore, repository), createOversightHandler(repository, researchStore)] });
+    extensionHandlers: [createAggregationRouteHandler(new AnalysisAggregationService({ jobs: analysisRepository, windows: analysisRepository, results: analysisRepository, runs: repository, comparisons: comparisonStore })), createJevExtension(analysisRepository, reviewStore, repository), createOversightHandler(repository, researchStore)] });
 
 server.listen(port, host, () => console.log(`Researcher dashboard: http://${host}:${port}`));
 

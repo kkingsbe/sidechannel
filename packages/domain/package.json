@@ -51,6 +51,14 @@
     }
   },
   "exports": {
+    "./analysis/aggregation": {
+      "types": "./dist/analysis/aggregation.d.ts",
+      "import": "./dist/analysis/aggregation.js"
+    },
+    "./analysis/aggregation-service": {
+      "types": "./dist/analysis/aggregation-service.d.ts",
+      "import": "./dist/analysis/aggregation-service.js"
+    },
     "./analysis/codebook": {
       "types": "./dist/analysis/codebook.d.ts",
       "import": "./dist/analysis/codebook.js"
