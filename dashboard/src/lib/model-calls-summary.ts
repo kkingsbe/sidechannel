@@ -145,6 +145,10 @@ export function summarizeEvent(e: HarnessEvent, toolNames?: ReadonlyMap<string, 
           ? `Usage · ${formatTokens(num(u.inputTokens) ?? 0)} in · ${formatTokens(num(u.outputTokens) ?? 0)} out`
           : `Usage ${str(d.source) ?? 'unavailable'}`;
       }
+      case 'model_retry': {
+        const attempt = num(d.nextAttempt), max = num(d.maxAttempts), delay = num(d.delayMs), status = num(d.statusCode);
+        return clip(`Model retry${attempt !== undefined ? ` · attempt ${attempt}${max !== undefined ? ` of ${max}` : ''}` : ''}${delay !== undefined ? ` in ${Math.round(delay / 100) / 10}s` : ''}${status !== undefined ? ` · HTTP ${status}` : ''}${str(d.reason) ? ` · ${d.reason}` : ''}`);
+      }
       case 'tool_requested': return `${callName()} · requested`;
       case 'tool_admitted': return `${callName()} · admitted${num(d.remainingAllowance) !== undefined ? ` · ${d.remainingAllowance} left` : ''}`;
       case 'tool_result': {

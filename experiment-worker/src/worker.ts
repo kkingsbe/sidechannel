@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout } from 'node:timers/promises';
 import type { EventLog, RunQueue, RunStateStore, WorkerGuard } from '@sidechannel/contracts/harness/server';
 import type { Run } from '@sidechannel/contracts/harness/contracts';
-import { acquireWorkerLease, interruptAbandonedRuns, workerLeaseMs, type WorkerLease } from './harness/worker-lease.js';
+import { acquireWorkerLease, interruptAbandonedRuns, workerConcurrency, workerLeaseMs, type WorkerLease } from './harness/worker-lease.js';
 
 /** Everything the loop needs. No concrete adapter, no Mastra, no database driver. */
 export interface WorkerDeps {
@@ -17,21 +17,36 @@ export interface WorkerDeps {
 
 const ABANDONED_REASON = 'Worker stopped before the run finished; a replacement worker interrupted it (no automatic resume)';
 
+/** Queue order: oldest launch first, and a matched pair's positions in order. */
+const queueOrder = (a: Run, b: Run) => a.createdAt.localeCompare(b.createdAt) || ((a.pairPosition ?? 0) - (b.pairPosition ?? 0));
+
+export interface WorkerOptions {
+    owner?: string;
+    leaseMs?: number;
+    /** Parallel run lanes; defaults to `WORKER_CONCURRENCY`. */
+    concurrency?: number;
+    /** Stops the worker like SIGINT/SIGTERM: active runs are cancelled and awaited. */
+    signal?: AbortSignal;
+}
+
 /**
- * Runs queued runs one at a time while holding the single-worker lease. A crashed holder stops
- * heartbeating, so its lease expires and a replacement takes over: it marks the abandoned run
- * interrupted (never resumed) and starts work instead of blocking until someone recovers manually.
+ * Runs up to `concurrency` queued runs at once while holding the single-worker lease. Each run
+ * owns its board, artifacts, scenario state, events and private memory, so lanes share nothing
+ * but the process. A crashed holder stops heartbeating, so its lease expires and a replacement
+ * takes over: it marks every run this process left active interrupted (never resumed).
  */
-export async function runWorker(deps: WorkerDeps, owner: string = randomUUID(), leaseMs: number = workerLeaseMs()): Promise<void> {
-    let stopping = false;
-    let activeId: string | undefined;
+export async function runWorker(deps: WorkerDeps, options: WorkerOptions = {}): Promise<void> {
+    const { owner = randomUUID(), leaseMs = workerLeaseMs(), concurrency = workerConcurrency(), signal } = options;
+    let stopping = signal?.aborted ?? false;
+    const active = new Map<string, Promise<void>>();
     let lease: WorkerLease | undefined;
-    const stop = async () => { stopping = true; if (activeId) await deps.runState.requestCancel(activeId); };
+    const stop = async () => { stopping = true; await Promise.all([...active.keys()].map(id => deps.runState.requestCancel(id))); };
     const onSignal = () => void stop();
     process.on('SIGINT', onSignal);
     process.on('SIGTERM', onSignal);
+    signal?.addEventListener('abort', onSignal, { once: true });
     // Node exits on these by default without running the finally below. Free the lease first so a
-    // restarted worker starts at once; it interrupts whatever run this process left active.
+    // restarted worker starts at once; it interrupts whatever runs this process left active.
     const fatal = async (error: unknown) => {
         console.error('Experiment worker crashed:', error);
         await Promise.race([lease?.release().catch(() => { }), setTimeout(5_000)]);
@@ -40,12 +55,33 @@ export async function runWorker(deps: WorkerDeps, owner: string = randomUUID(), 
     const onFatal = (error: unknown) => void fatal(error);
     process.on('uncaughtException', onFatal);
     process.on('unhandledRejection', onFatal);
+    const execute = async (run: Run) => {
+        try {
+            const result = await deps.scheduler(run).run(run.id);
+            await deps.flush();
+            console.log(`${run.id}: ${result.status}`);
+        }
+        catch (error) {
+            try {
+                const latest = await deps.runState.getRun(run.id);
+                if (latest) {
+                    latest.status = 'interrupted';
+                    latest.failureReason = error instanceof Error ? error.message : 'Worker failed';
+                    await deps.runState.saveRun(latest);
+                    await deps.events.appendEvent({ runId: run.id, type: 'worker_interrupted', data: { reason: latest.failureReason } });
+                }
+            }
+            catch { }
+            console.error(`${run.id}: execution stopped; inspect persisted failure evidence`);
+        }
+    };
     try {
         lease = await acquireWorkerLease(deps.guard, owner, {
             leaseMs,
+            capacity: concurrency,
             shouldStop: () => stopping,
             onLost(reason) {
-                // Another worker may already be executing runs; continuing would mean two writers.
+                // Another worker may already be executing runs; continuing would mean two writers per run.
                 console.error(`Worker lease lost (${reason}); exiting without touching further runs.`);
                 process.exit(1);
             },
@@ -60,41 +96,26 @@ export async function runWorker(deps: WorkerDeps, owner: string = randomUUID(), 
         }, ABANDONED_REASON);
         for (const id of interrupted)
             console.log(`${id}: interrupted (abandoned by a previous worker)`);
-        console.log('Harness worker ready; one run at a time.');
+        console.log(`Harness worker ready; up to ${concurrency} run${concurrency === 1 ? '' : 's'} at a time.`);
         while (!stopping) {
-            const queued = (await deps.queue.listRuns()).filter(run => run.status === 'queued').sort((a, b) => a.createdAt.localeCompare(b.createdAt) || ((a.pairPosition ?? 0) - (b.pairPosition ?? 0)));
-            const run = queued[0];
-            if (!run) {
-                await setTimeout(500);
-                continue;
-            }
-            activeId = run.id;
-            try {
-                const result = await deps.scheduler(run).run(run.id);
-                await deps.flush();
-                console.log(`${run.id}: ${result.status}`);
-            }
-            catch (error) {
-                try {
-                    const latest = await deps.runState.getRun(run.id);
-                    if (latest) {
-                        latest.status = 'interrupted';
-                        latest.failureReason = error instanceof Error ? error.message : 'Worker failed';
-                        await deps.runState.saveRun(latest);
-                        await deps.events.appendEvent({ runId: run.id, type: 'worker_interrupted', data: { reason: latest.failureReason } });
-                    }
+            if (active.size < concurrency) {
+                const queued = (await deps.queue.listRuns()).filter(run => run.status === 'queued' && !active.has(run.id)).sort(queueOrder);
+                // The scheduler's claim is the compare-and-set; `active` only stops this process starting a run twice.
+                for (const run of queued.slice(0, concurrency - active.size)) {
+                    if (stopping)
+                        break;
+                    active.set(run.id, execute(run).finally(() => { active.delete(run.id); }));
                 }
-                catch { }
-                console.error(`${run.id}: execution stopped; inspect persisted failure evidence`);
             }
-            finally {
-                activeId = undefined;
-            }
+            await Promise.race([setTimeout(500), ...active.values()]);
         }
+        // Stopping cancelled every active run; wait for each to reach its terminal state.
+        await Promise.allSettled(active.values());
     }
     finally {
         process.off('SIGINT', onSignal);
         process.off('SIGTERM', onSignal);
+        signal?.removeEventListener('abort', onSignal);
         process.off('uncaughtException', onFatal);
         process.off('unhandledRejection', onFatal);
         await lease?.release();

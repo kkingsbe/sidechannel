@@ -4489,7 +4489,7 @@
         ],
         "worker": {
           "available": false,
-          "capacity": 1,
+          "capacity": 0,
           "note": "No experiment worker holds the lease.",
           "status": "stopped"
         }

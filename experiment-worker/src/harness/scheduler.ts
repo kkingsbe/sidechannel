@@ -5,6 +5,7 @@ import { fixtureScenario } from './scenario.js';
 import { validateTokenBudget } from '@sidechannel/domain/harness/token-budget';
 import { EventRecorder } from './event-recorder.js';
 import { InferenceGateway, modelInputFor } from './inference-gateway.js';
+import type { RetryPolicy } from './inference-retry.js';
 import { ReportPhase } from './report-phase.js';
 import { ToolAdmission, type TurnState } from './tool-admission.js';
 import { RunTermination } from './termination.js';
@@ -18,6 +19,8 @@ export interface SchedulerOptions {
     memory: PrivateMemory;
     adapter: ModelAdapter;
     scenario?: Scenario;
+    /** Transport retry policy for model requests; defaults to `DEFAULT_RETRY_POLICY`. */
+    retry?: RetryPolicy;
 }
 
 export class HarnessScheduler {
@@ -45,7 +48,7 @@ export class HarnessScheduler {
             if (Date.now() - started > run.config.limits.maxDurationMs)
                 throw new Error('Run duration cap exceeded');
         };
-        const gateway = new InferenceGateway({ runId, run, adapter, recorder, checkpoint: boundary, startedAt: started });
+        const gateway = new InferenceGateway({ runId, run, adapter, recorder, checkpoint: boundary, startedAt: started, ...(this.ports.retry ? { retry: this.ports.retry } : {}) });
         const admission = new ToolAdmission({ runId, run, scenario, memory, recorder, checkpoint: boundary });
         const report = new ReportPhase({ runId, run, scenario, memory, gateway, recorder, checkpoint: boundary });
         try {

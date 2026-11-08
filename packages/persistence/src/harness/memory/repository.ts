@@ -7,7 +7,7 @@ import type { ResearcherRepository, WorkerStatus } from '@sidechannel/contracts/
 import { DEFAULT_WORKER_LEASE_MS } from '@sidechannel/contracts/harness/server';
 import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, EVIDENCE_KEY_FIELD, type EvidenceKind, type EvidencePage, type TurnSummary } from '@sidechannel/contracts/harness/repository';
 import { matchesEventQuery, summarizeTurns } from '@sidechannel/domain/harness/event-pages';
-import { toRunSummary } from '@sidechannel/domain/harness/repository';
+import { toRunSummary, workerStatusOf } from '@sidechannel/domain/harness/repository';
 
 function matchesRun(run: Run, q: RunQuery) { return (!q.status || q.status.split(',').includes(run.status)) && (!q.model || run.config.model.id === q.model) && (!q.condition || run.config.condition.id === q.condition) && (!q.scenario || [run.config.scenario.version, run.config.scenario.datasetId].includes(q.scenario)) && (!q.designation || (run.config.model.provider === 'scripted' ? 'fixture' : run.config.phase) === q.designation); }
 
@@ -19,7 +19,7 @@ export class InMemoryRepository implements ResearcherRepository {
     protected drafts = new Map<string, Draft>();
     private claims = new Set<string>();
     private appended = new EventEmitter().setMaxListeners(0);
-    private workerLeaseState: { owner: string; startedAt: Date; heartbeatAt: Date } | undefined;
+    private workerLeaseState: { owner: string; startedAt: Date; heartbeatAt: Date; capacity?: number } | undefined;
     async getRun(id: string) { return clone(this.runs.get(id) ?? null); }
     async getRunByLaunchKey(launchKey: string) { return clone([...this.runs.values()].find(run => run.launchKey === launchKey) ?? null); }
     async listRuns() { return clone([...this.runs.values()].reverse()); }
@@ -105,22 +105,15 @@ export class InMemoryRepository implements ResearcherRepository {
         const lease = this.workerLeaseState;
         if (!lease)
             return null;
-        return { owner: lease.owner, startedAt: lease.startedAt.toISOString(), heartbeatAt: lease.heartbeatAt.toISOString(), ageMs: Date.now() - lease.heartbeatAt.getTime() };
+        return { owner: lease.owner, startedAt: lease.startedAt.toISOString(), heartbeatAt: lease.heartbeatAt.toISOString(), ageMs: Date.now() - lease.heartbeatAt.getTime(), ...(lease.capacity === undefined ? {} : { capacity: lease.capacity }) };
     }
-    async workerStatus(leaseMs = DEFAULT_WORKER_LEASE_MS): Promise<WorkerStatus> {
-        const lease = await this.workerLease();
-        if (!lease)
-            return { capacity: 1, available: false, status: 'stopped', note: 'No experiment worker holds the lease.' };
-        const live = lease.ageMs !== null && lease.ageMs < leaseMs;
-        return { capacity: 1, available: live, status: live ? 'active' : 'stale', ...(lease.startedAt ? { startedAt: lease.startedAt } : {}), ...(lease.heartbeatAt ? { heartbeatAt: lease.heartbeatAt } : {}),
-            note: live ? `Worker heartbeat ${Math.round(lease.ageMs! / 1000)}s ago.` : 'Worker lease expired; the next worker to start takes it over and interrupts abandoned runs.' };
-    }
-    async acquireWorker(owner: string, leaseMs = DEFAULT_WORKER_LEASE_MS) {
+    async workerStatus(leaseMs = DEFAULT_WORKER_LEASE_MS): Promise<WorkerStatus> { return workerStatusOf(await this.workerLease(), leaseMs); }
+    async acquireWorker(owner: string, leaseMs = DEFAULT_WORKER_LEASE_MS, capacity?: number) {
         const now = new Date();
         const current = this.workerLeaseState;
         if (current && now.getTime() - current.heartbeatAt.getTime() < leaseMs)
             return false;
-        this.workerLeaseState = { owner, startedAt: now, heartbeatAt: now };
+        this.workerLeaseState = { owner, startedAt: now, heartbeatAt: now, ...(capacity === undefined ? {} : { capacity }) };
         return true;
     }
     async heartbeatWorker(owner: string) {

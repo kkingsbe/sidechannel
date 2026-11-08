@@ -111,7 +111,7 @@ Define a turn end-reason enum, such as `explicit_yield`, `budget_exhausted`, `te
 
 The fixed round count is the normal experimental stopping rule. Completing a task artifact early does not silently end the run or give some agents extra turns. Cancellation, timeouts and cost limits produce visibly distinct outcomes.
 
-Recommended run states: queued, running, reporting, completed, failed, interrupted and cancelled. Keep configuration drafts separate from run execution state. Use a backend ownership guard or lease so two workers cannot execute the same run. Start with one run at a time; cross-run concurrency can be added only after isolation is proven.
+Recommended run states: queued, running, reporting, completed, failed, interrupted and cancelled. Keep configuration drafts separate from run execution state. Use a backend ownership guard or lease so two workers cannot execute the same run. Start with one run at a time; cross-run concurrency can be added only after isolation is proven. (Done 2026-11-07: one worker runs up to `WORKER_CONCURRENCY` runs, default 4, after a concurrent-versus-serial evidence equivalence test; see `docs/harness-operations.md#parallel-runs`.)
 
 # Tool accounting and execution
 

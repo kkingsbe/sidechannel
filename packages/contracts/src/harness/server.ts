@@ -56,22 +56,29 @@ export interface RunQueue {
 /** Default time after which a worker that stopped heartbeating is presumed dead and its lease is takeable. */
 export const DEFAULT_WORKER_LEASE_MS = 30_000;
 
+/** Default parallel run lanes in the single experiment worker. */
+export const DEFAULT_WORKER_CONCURRENCY = 4;
+/** Upper bound on `WORKER_CONCURRENCY`; provider rate limits bite long before this. */
+export const MAX_WORKER_CONCURRENCY = 16;
+
 /** Snapshot of the single-worker lease. `ageMs` is measured on the store clock and is null for a lease that never heartbeated. */
 export interface WorkerLeaseRecord {
     owner: string;
     startedAt?: string;
     heartbeatAt?: string;
     ageMs: number | null;
+    /** Run lanes the holder offers; absent on leases written before parallel runs (one lane). */
+    capacity?: number;
 }
 
 /**
- * Single-worker lease. The holder renews a heartbeat; a crashed or killed holder stops renewing, so the
+ * Single-worker lease. One process holds it and may execute several runs in parallel lanes. The holder renews a heartbeat; a crashed or killed holder stops renewing, so the
  * lease expires on its own and no manual recovery is needed. Every operation is owner-scoped: only the
  * current holder may renew or release, and a holder that lost the lease learns it from `heartbeatWorker`.
  */
 export interface WorkerGuard {
-    /** Takes the lease when it is free or its holder's heartbeat is older than `leaseMs`. */
-    acquireWorker(owner: string, leaseMs?: number): Promise<boolean>;
+    /** Takes the lease when it is free or its holder's heartbeat is older than `leaseMs`; `capacity` is the holder's run lanes. */
+    acquireWorker(owner: string, leaseMs?: number, capacity?: number): Promise<boolean>;
     /** Renews the lease; false means another worker took it over and this one must stop. */
     heartbeatWorker(owner: string): Promise<boolean>;
     releaseWorker(owner: string): Promise<void>;

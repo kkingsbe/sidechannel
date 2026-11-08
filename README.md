@@ -71,6 +71,7 @@ A run is the experimental unit; messages, agents, and patient records within it 
 The first milestone exercises two agents over three rounds using a simple fragment-contribution task. It includes:
 
 - An application-owned scheduler with seeded order, one active agent at a time, and a shared per-turn tool-call allowance.
+- Up to four isolated runs executing in parallel in one worker, with logged retries for provider rate limits.
 - One shared text board, explicit reads, stable pagination, and records of exactly which messages each read delivered.
 - Persistent private conversation history and thread-scoped working memory, isolated by agent and run.
 - Versioned shared artifacts, deterministic finalization, and separate private final reports.

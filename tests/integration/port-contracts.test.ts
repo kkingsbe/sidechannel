@@ -44,7 +44,7 @@ test('researcher capability slices are satisfied by one adapter instance indepen
     assert.equal(await drafts.getDraft('missing'), null);
     assert.deepEqual(await evidence.getEvidencePage(run.id, 'board', 0, 10), { items: [], total: 0 });
     assert.deepEqual(await evidence.queryEvents(run.id, {}), []);
-    assert.equal((await supervisor.workerStatus()).capacity, 1);
+    assert.equal((await supervisor.workerStatus()).capacity, 0, 'no lease holder offers no run lanes');
 });
 
 test('the analysis worker port does not require codebook operations', async () => {

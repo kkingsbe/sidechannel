@@ -102,7 +102,7 @@ export function harnessRepositoryContract(harness: RepositoryHarness): void {
         t.after(dispose);
 
         const stopped = await repository.workerStatus();
-        assert.equal(stopped.capacity, 1);
+        assert.equal(stopped.capacity, 0, 'no lease holder offers no run lanes');
         assert.equal(stopped.available, false);
         assert.equal(stopped.status, 'stopped');
         if (stopped.note !== undefined) assert.equal(typeof stopped.note, 'string');
@@ -113,6 +113,7 @@ export function harnessRepositoryContract(harness: RepositoryHarness): void {
         const active = await repository.workerStatus();
         assert.equal(active.available, true);
         assert.equal(active.status, 'active');
+        assert.equal(active.capacity, 1, 'a holder that records no lanes offers one');
         if (active.startedAt !== undefined) assert.equal(typeof active.startedAt, 'string');
         if (active.heartbeatAt !== undefined) assert.equal(typeof active.heartbeatAt, 'string');
 
@@ -129,6 +130,11 @@ export function harnessRepositoryContract(harness: RepositoryHarness): void {
         await repository.releaseWorker('contract-holder');
         assert.equal(await repository.workerLease(), null);
         assert.equal((await repository.workerStatus()).status, 'stopped');
+
+        assert.equal(await repository.acquireWorker('laned-holder', undefined, 4), true);
+        assert.equal((await repository.workerLease())?.capacity, 4);
+        assert.equal((await repository.workerStatus()).capacity, 4, 'the holder reports its parallel run lanes');
+        await repository.releaseWorker('laned-holder');
     });
 
     test(`${harness.name}: event pages, turn index and subscription hints`, async (t) => {

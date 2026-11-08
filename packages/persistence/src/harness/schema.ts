@@ -7,7 +7,7 @@ export const COLLECTIONS = {
     operations: 'operations',
     drafts: 'drafts',
     counters: 'counters',
-    /** Single lease document per database: `{ key: 'single-worker', owner, startedAt, heartbeatAt }`. */
+    /** Single lease document per database: `{ key: 'single-worker', owner, startedAt, heartbeatAt, capacity }`; `capacity` is the holder's parallel run lanes. */
     workerGuard: 'worker_guard',
 } as const;
 
