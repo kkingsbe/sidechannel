@@ -2,10 +2,11 @@ import type { ComponentType } from "react";
 import { Table } from "./ui";
 import { pretty } from "../lib/utils";
 import { ReadableValue } from "./readable-value";
+import { scenarioView } from "../lib/descriptors";
 type ArtifactRenderer = ComponentType<{ value: unknown; terminal: boolean }>;
-/** Scenario renderers are registered in source, never supplied as executable scenario code. */
+/** Artifact renderers are keyed by the artifact schema version a scenario declares, never by its scenario version. */
 const artifactRenderers: Record<string, ArtifactRenderer> = {
-  "healthcare-points-v0.3": HealthcareArtifact,
+  "healthcare-ranking-v0.3": HealthcareArtifact,
 };
 function HealthcareArtifact({
   value,
@@ -79,10 +80,14 @@ export function ArtifactView({
       ? String((value as Record<string, unknown>).kind ?? "generic")
       : "generic";
   const schema = schemaVersion ?? artifactSchemaVersion ?? "";
+  // The dashboard-owned scenario descriptors know which artifact schema a scenario declares, so a run
+  // stored before the schema field was populated (or a fixture config selecting the healthcare
+  // scenario) still renders with its scenario renderer. Renderers are keyed by artifact schema
+  // version, never by a scenario-version literal.
+  const scenarioSchema = scenarioVersion ? scenarioView(scenarioVersion, []).artifactSchemaVersion : "";
   const Renderer =
-    artifactRenderers[scenarioVersion ?? ""] ??
-    artifactRenderers[`${kind}@${schema}`] ??
-    (schema ? artifactRenderers[schema] : undefined);
+    (schema ? artifactRenderers[schema] : undefined) ??
+    (scenarioSchema ? artifactRenderers[scenarioSchema] : undefined);
   return Renderer ? (
     <Renderer value={value} terminal={terminal} />
   ) : (

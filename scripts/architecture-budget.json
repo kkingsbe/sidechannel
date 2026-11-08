@@ -50,11 +50,11 @@
             "note": "packages/domain/src/providers/settings.ts is the only supported-sampling-control list; WS6 removed the dashboard copy."
         },
         "providerNameBranchSites": {
-            "max": 6,
-            "target": 6,
+            "max": 7,
+            "target": 7,
             "audit": 16,
             "baseline": 20,
-            "note": "Recorded integration change (2026-11-07): main's model-call timeline adds one dashboard presentation branch (`provider === 'scripted'` chooses the 'scripted' reasoning label in lib/model-calls.ts). Like the fixture badge and capacity copy it reads an already-resolved run configuration to pick copy; it is not provider policy. Final sites: 2 dashboard presentation checks, 1 model-call reasoning label, and 3 backend capability checks that read registry data."
+            "note": "Recorded integration change: dashboard presentation checks (fixture badge, capacity copy, model-call reasoning label, pair-table designation) read an already-resolved run configuration to pick copy; they are not provider policy. Backend sites read registry data. Wave-2 added the pair-table presentation branch."
         },
         "scenarioVersionLiteralSites": {
             "max": 6,
@@ -78,11 +78,11 @@
             "note": "WS4 deleted the duplicated inference-provider resolver."
         },
         "statusVocabularyTableDefinitions": {
-            "max": 12,
-            "target": 12,
+            "max": 16,
+            "target": 16,
             "audit": null,
             "baseline": null,
-            "note": "Canonical vocabulary tables (RUN_STATUSES, TERMINAL_RUN_STATUSES, EVIDENCE_KINDS, JOB_STATUSES, MONITOR_VIEW_BUILDERS, dashboard status.ts tables, ...). Expected; each is the single source for its vocabulary."
+            "note": "Canonical vocabulary tables (RUN_STATUSES/terminal+active sets, JOB_STATUSES/active+retryable, MONITOR_EVALUATION_STATUSES/active, EVIDENCE_KINDS, SIDE_EFFECT_CATEGORIES, MONITOR_VIEW_BUILDERS, dashboard status.ts tables and the feature tables added by the wave-2 integrations such as healthcare-results status metadata and run-detail tab metadata). Each is the single source for its vocabulary; ad-hoc copies are counted by statusVocabularyDuplicateSites instead."
         },
         "statusVocabularyDuplicateSites": {
             "max": 3,
