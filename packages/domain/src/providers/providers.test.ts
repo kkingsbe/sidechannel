@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { PLAYBOOK_SETTINGS_KEYS } from '@sidechannel/contracts/playbook/contracts';
 import { defaultFixtureConfiguration } from '../harness/config.js';
 import { ADAPTION_SETTINGS, GENERIC_SETTINGS, genericSettingErrors } from './settings.js';
 import { HOSTED_POLICIES, PROVIDERS, hostedPolicy, providerCatalog, providerProfile, usageSource } from './index.js';
@@ -17,13 +18,27 @@ test('catalog lists selectable providers in display order and marks fixtures', (
     assert.deepEqual(providerCatalog(), [
         { id: 'scripted', label: 'Scripted driver', settings: [...GENERIC_SETTINGS], fixture: true },
         { id: 'adaption', label: 'Adaption hosted', settings: [...ADAPTION_SETTINGS], fixture: false },
+        { id: 'playbook', label: 'Registered playbook', settings: [...PLAYBOOK_SETTINGS_KEYS], fixture: true },
     ]);
     assert.equal(providerProfile('adaption').fixture, false);
     assert.equal(providerProfile('adaption').credentialEnv, 'ADAPTION_API_KEY');
     assert.equal(providerProfile('adaption').usageSource, 'provider-reported');
     assert.equal(providerProfile('scripted').usageSource, 'scripted');
     assert.equal(usageSource('adaption'), 'provider-reported');
-    assert.equal(Object.keys(PROVIDERS).sort().join(','), 'adaption,generic,scripted');
+    assert.equal(Object.keys(PROVIDERS).sort().join(','), 'adaption,generic,playbook,scripted');
+});
+
+test('adapterKind is registry data, not a provider-name branch in the worker', () => {
+    assert.equal(providerProfile('openai').adapterKind, 'mastra');
+    assert.equal(providerProfile('adaption').adapterKind, 'mastra');
+    assert.equal(providerProfile('scripted').adapterKind, 'scripted');
+    assert.equal(providerProfile('playbook').adapterKind, 'embedded-playbook');
+    const playbook = providerProfile('playbook');
+    assert.equal(playbook.fixture, true);
+    assert.equal(playbook.usageSource, 'scripted');
+    assert.equal(playbook.credentialEnv, undefined);
+    assert.deepEqual([...playbook.settings], [...PLAYBOOK_SETTINGS_KEYS]);
+    assert.equal(hostedPolicy('playbook'), undefined);
 });
 
 test('generic settings validation keeps the historical messages and accepts provider passthrough', () => {
@@ -58,6 +73,7 @@ test('adaption transport resolution keeps the historical failure messages and pa
     assert.deepEqual(adaption.resolveTransport(model, { ADAPTION_API_KEY: ' backend-only ' }), {
         model: { providerId: 'adaption', modelId: 'gemma-4-31b-it', url: 'https://api.prod.adaptionlabs.ai/api/v1', apiKey: 'backend-only', api: 'responses' },
         providerOptions: { openai: { store: false } },
+        assistantTextItemIds: true,
     });
     const generic = providerProfile('openai').resolveTransport({ provider: 'openai', id: 'existing-model', settings: { providerOptions: { openai: { store: false } } } }, {});
     assert.deepEqual(generic, { model: 'openai/existing-model', providerOptions: { openai: { store: false } } });

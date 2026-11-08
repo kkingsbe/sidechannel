@@ -45,8 +45,13 @@ export const adaptionProvider: ProviderProfile = {
             model: { providerId: 'adaption', modelId: model.id, url: adaptionBaseUrl, apiKey, api: 'responses' },
             // History is owned by Sidechannel. Direct models have no stack agentic memory.
             providerOptions: { openai: { store: false } },
+            // Adaption's Responses validator rejects an assistant message whose content is an
+            // output_text list unless the item has an `id` (or explicit type), and the AI SDK
+            // omits both. Any assistant preamble text alongside tool calls hit this on step 2.
+            assistantTextItemIds: true,
         };
     },
+    adapterKind: 'mastra',
     credentialEnv: ADAPTION_CREDENTIAL_ENV,
     usageSource: 'provider-reported',
     fixture: false,

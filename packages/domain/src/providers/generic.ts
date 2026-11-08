@@ -13,6 +13,7 @@ export const genericProvider: ProviderProfile = {
     resolveTransport(model, _env) {
         return { model: `${model.provider}/${model.id}`, providerOptions: model.settings.providerOptions };
     },
+    adapterKind: 'mastra',
     usageSource: 'provider-reported',
     fixture: false,
 };
