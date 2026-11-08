@@ -1057,6 +1057,114 @@
       ]
     },
     {
+      "case": "jev codebooks archived invalid",
+      "status": 400,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "error": "archived must be exclude, include or only"
+      }
+    },
+    {
+      "case": "jev codebooks list",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "items": [
+          {
+            "createdAt": "<timestamp>",
+            "currentRevisionId": "tentative-default-v1",
+            "id": "tentative-default",
+            "name": "Tentative behavior codebook",
+            "updatedAt": "<timestamp>"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "case": "jev codebooks archived only before archive",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "items": [],
+        "nextCursor": null
+      }
+    },
+    {
+      "case": "jev codebook archive",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "codebook": {
+          "archivedAt": "<timestamp>",
+          "archivedBy": "contract",
+          "createdAt": "<timestamp>",
+          "currentRevisionId": "tentative-default-v1",
+          "id": "tentative-default",
+          "name": "Tentative behavior codebook",
+          "updatedAt": "<timestamp>"
+        }
+      }
+    },
+    {
+      "case": "jev codebooks archived only",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "items": [
+          {
+            "archivedAt": "<timestamp>",
+            "archivedBy": "contract",
+            "createdAt": "<timestamp>",
+            "currentRevisionId": "tentative-default-v1",
+            "id": "tentative-default",
+            "name": "Tentative behavior codebook",
+            "updatedAt": "<timestamp>"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "case": "jev codebooks archived exclude",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "items": [],
+        "nextCursor": null
+      }
+    },
+    {
+      "case": "jev codebook restore",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "codebook": {
+          "createdAt": "<timestamp>",
+          "currentRevisionId": "tentative-default-v1",
+          "id": "tentative-default",
+          "name": "Tentative behavior codebook",
+          "updatedAt": "<timestamp>"
+        }
+      }
+    },
+    {
+      "case": "jev codebook restore not archived",
+      "status": 409,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "error": "Codebook is not archived"
+      }
+    },
+    {
+      "case": "jev codebook archive missing",
+      "status": 404,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "error": "Codebook not found"
+      }
+    },
+    {
       "case": "drafts empty",
       "status": 200,
       "contentType": "application/json; charset=utf-8",
@@ -3130,6 +3238,224 @@
       }
     },
     {
+      "case": "runs events backward page",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "events": [
+          {
+            "agentId": "beta",
+            "data": {
+              "index": 1
+            },
+            "id": "<uuid>",
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 2,
+            "timestamp": "<timestamp>",
+            "type": "model_response"
+          },
+          {
+            "agentId": "alpha",
+            "data": {
+              "index": 2
+            },
+            "id": "<uuid>",
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 3,
+            "timestamp": "<timestamp>",
+            "type": "memory_updated"
+          }
+        ],
+        "hasMore": true,
+        "items": [
+          {
+            "agentId": "beta",
+            "data": {
+              "index": 1
+            },
+            "id": "<uuid>",
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 2,
+            "timestamp": "<timestamp>",
+            "type": "model_response"
+          },
+          {
+            "agentId": "alpha",
+            "data": {
+              "index": 2
+            },
+            "id": "<uuid>",
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 3,
+            "timestamp": "<timestamp>",
+            "type": "memory_updated"
+          }
+        ],
+        "nextCursor": 3,
+        "previousCursor": 2
+      }
+    },
+    {
+      "case": "runs events snap turn",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "events": [
+          {
+            "agentId": "alpha",
+            "data": {
+              "index": 0
+            },
+            "id": "<uuid>",
+            "round": 1,
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 4,
+            "timestamp": "<timestamp>",
+            "turn": 1,
+            "type": "turn_step"
+          },
+          {
+            "agentId": "alpha",
+            "data": {
+              "index": 1
+            },
+            "id": "<uuid>",
+            "round": 1,
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 5,
+            "timestamp": "<timestamp>",
+            "turn": 1,
+            "type": "turn_step"
+          }
+        ],
+        "hasMore": true,
+        "items": [
+          {
+            "agentId": "alpha",
+            "data": {
+              "index": 0
+            },
+            "id": "<uuid>",
+            "round": 1,
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 4,
+            "timestamp": "<timestamp>",
+            "turn": 1,
+            "type": "turn_step"
+          },
+          {
+            "agentId": "alpha",
+            "data": {
+              "index": 1
+            },
+            "id": "<uuid>",
+            "round": 1,
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 5,
+            "timestamp": "<timestamp>",
+            "turn": 1,
+            "type": "turn_step"
+          }
+        ],
+        "nextCursor": 5
+      }
+    },
+    {
+      "case": "runs events snap turn backward",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "events": [
+          {
+            "agentId": "beta",
+            "data": {
+              "index": 0
+            },
+            "id": "<uuid>",
+            "round": 1,
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 6,
+            "timestamp": "<timestamp>",
+            "turn": 2,
+            "type": "turn_step"
+          }
+        ],
+        "hasMore": true,
+        "items": [
+          {
+            "agentId": "beta",
+            "data": {
+              "index": 0
+            },
+            "id": "<uuid>",
+            "round": 1,
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 6,
+            "timestamp": "<timestamp>",
+            "turn": 2,
+            "type": "turn_step"
+          }
+        ],
+        "nextCursor": 6,
+        "previousCursor": 6
+      }
+    },
+    {
+      "case": "runs events before and after conflict",
+      "status": 400,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "error": "Use either after or before, not both"
+      }
+    },
+    {
+      "case": "runs turns",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "turns": [
+          {
+            "agentId": "alpha",
+            "eventCount": 2,
+            "failures": 0,
+            "firstSequence": 4,
+            "lastSequence": 5,
+            "modelCalls": 0,
+            "round": 1,
+            "turn": 1
+          },
+          {
+            "agentId": "beta",
+            "eventCount": 2,
+            "failures": 0,
+            "firstSequence": 6,
+            "lastSequence": 7,
+            "modelCalls": 0,
+            "round": 1,
+            "turn": 2
+          }
+        ]
+      }
+    },
+    {
+      "case": "runs turns missing",
+      "status": 404,
+      "contentType": "application/json; charset=utf-8",
+      "body": {
+        "error": "Run not found"
+      }
+    },
+    {
       "case": "runs event item",
       "status": 200,
       "contentType": "application/json; charset=utf-8",
@@ -3295,6 +3621,62 @@
             "sequence": 3,
             "timestamp": "<timestamp>",
             "type": "memory_updated"
+          },
+          {
+            "agentId": "alpha",
+            "data": {
+              "index": 0
+            },
+            "id": "<uuid>",
+            "round": 1,
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 4,
+            "timestamp": "<timestamp>",
+            "turn": 1,
+            "type": "turn_step"
+          },
+          {
+            "agentId": "alpha",
+            "data": {
+              "index": 1
+            },
+            "id": "<uuid>",
+            "round": 1,
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 5,
+            "timestamp": "<timestamp>",
+            "turn": 1,
+            "type": "turn_step"
+          },
+          {
+            "agentId": "beta",
+            "data": {
+              "index": 0
+            },
+            "id": "<uuid>",
+            "round": 1,
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 6,
+            "timestamp": "<timestamp>",
+            "turn": 2,
+            "type": "turn_step"
+          },
+          {
+            "agentId": "beta",
+            "data": {
+              "index": 1
+            },
+            "id": "<uuid>",
+            "round": 1,
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 7,
+            "timestamp": "<timestamp>",
+            "turn": 2,
+            "type": "turn_step"
           }
         ],
         "exportedAt": "<timestamp>",
@@ -3460,6 +3842,62 @@
             "sequence": 3,
             "timestamp": "<timestamp>",
             "type": "memory_updated"
+          },
+          {
+            "agentId": "alpha",
+            "data": {
+              "index": 0
+            },
+            "id": "<uuid>",
+            "round": 1,
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 4,
+            "timestamp": "<timestamp>",
+            "turn": 1,
+            "type": "turn_step"
+          },
+          {
+            "agentId": "alpha",
+            "data": {
+              "index": 1
+            },
+            "id": "<uuid>",
+            "round": 1,
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 5,
+            "timestamp": "<timestamp>",
+            "turn": 1,
+            "type": "turn_step"
+          },
+          {
+            "agentId": "beta",
+            "data": {
+              "index": 0
+            },
+            "id": "<uuid>",
+            "round": 1,
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 6,
+            "timestamp": "<timestamp>",
+            "turn": 2,
+            "type": "turn_step"
+          },
+          {
+            "agentId": "beta",
+            "data": {
+              "index": 1
+            },
+            "id": "<uuid>",
+            "round": 1,
+            "runId": "<uuid>",
+            "schemaVersion": 1,
+            "sequence": 7,
+            "timestamp": "<timestamp>",
+            "turn": 2,
+            "type": "turn_step"
           }
         ],
         "exportedAt": "<timestamp>",
