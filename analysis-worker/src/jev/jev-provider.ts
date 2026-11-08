@@ -42,7 +42,8 @@ export class TypeSafeJevProvider implements JevProvider {
             const entry: ProviderAttempt = { attempt, startedAt: new Date().toISOString(), finishedAt: '', requestedModel: model,
                 returnedModel: null, usage: emptyUsage() };
             try {
-                const raw: unknown = await this.client.systemOne(payload,
+                // The payload's question union mirrors the SDK's wire shapes; the SDK's tuple-typed score criteria need the cast.
+                const raw: unknown = await this.client.systemOne(payload as unknown as Parameters<TypeSafeClient['systemOne']>[0],
                     { signal: request.signal, timeout: this.timeoutMs, retry: { maxRetries: 0 } });
                 entry.rawResponse = raw;
                 if (record(raw)) {

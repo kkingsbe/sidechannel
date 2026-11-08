@@ -22,6 +22,21 @@ export interface AnalysisManifest {
     staticContext: { version: string; hash: string }; normalizerVersion: string; serializationVersion: string;
     questionTemplateVersion: string; providerAdapterVersion: string; sdkVersion: string;
     diagnostics: Diagnostic[]; availability: EvidenceAvailability; creator: string; parentAnalysisId?: string;
+    /** v2 request shaping (spec sections 5 and 6). Absent on v1 jobs. */
+    schemaVersion?: 1 | 2; aliasMapVersion?: string; backgroundVersion?: string;
+}
+
+/** A typed Jev answer. `noul` keeps `probability`; `choice` and `score` carry their distributions (spec section 10). */
+export type AnalysisAnswer =
+    | { type: 'noul'; probability: number }
+    | { type: 'choice'; choice: string; probabilities: Record<string, number>; confidence: number; optionOrder: string[] }
+    | { type: 'score'; score: number; probabilities: Record<string, number>; confidence: number };
+
+/** Repeat-variance summary from the probe (spec section 6). */
+export interface AnalysisReliability {
+    perCode: Record<string, { sd: number; maxSpread: number; n: number }>;
+    overall: { meanSd: number; maxSd: number; probedWindows: number; repeats: number };
+    completedAt: string;
 }
 
 export interface JobCounters { preparedWindows: number; submittedWindows: number; finishedWindows: number; failedWindows: number; skippedWindows: number; returnedAnswers: number; expectedAnswers: number; }
@@ -32,6 +47,7 @@ export interface AnalysisJob {
     id: string; runId: string; idempotencyKey: string; launchHash: string; manifest: AnalysisManifest;
     status: JobStatus; createdAt: string; updatedAt: string; ready: boolean; cancelRequested: boolean;
     counters: JobCounters; usage?: JobUsage; lease?: { owner: string; fence: number; expiresAt: string }; fence: number; error?: string;
+    reliability?: AnalysisReliability;
 }
 
 export interface WindowRecord extends AnalysisWindow {
@@ -40,10 +56,15 @@ export interface WindowRecord extends AnalysisWindow {
     diagnostics: string[]; batches: string[][];
 }
 
-export interface AnalysisResult { id: string; jobId: string; windowId: string; codeId: string; probability: number; attemptId: string; createdAt: string; }
+/**
+ * One scored code for one window. `probability` is populated for `noul` answers and null otherwise;
+ * `answer` carries the typed response. `actorId` is set for actor-scoped codes. Probe results are
+ * flagged and never replace the primary result for the same window and code.
+ */
+export interface AnalysisResult { id: string; jobId: string; windowId: string; codeId: string; actorId?: string; probability: number | null; answer?: AnalysisAnswer; probe?: boolean; attemptId: string; createdAt: string; }
 
 export interface AnalysisAttempt {
-    id: string; jobId: string; windowId: string; codeIds: string[]; requestRef: string; startedAt: string;
+    id: string; jobId: string; windowId: string; codeIds: string[]; requestRef: string; startedAt: string; probe?: boolean;
     finishedAt?: string; status: 'running' | 'succeeded' | 'failed'; responseRef?: string; error?: string;
     requestedModel: string; returnedModel?: string | null; usage?: ProviderUsage;
 }
