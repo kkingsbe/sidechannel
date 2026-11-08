@@ -53,6 +53,8 @@
   --reasoning-bg: #f7f5fd;
   --reasoning-border: #e3def7;
   --find-match: #fde9a8;
+  /* identity tints for the five roles of a run (hashed by name in pages/runs/role-color.ts) */
+  --role-1: #a86f0c; --role-2: #7a3fb8; --role-3: #1e7b4f; --role-4: #2456b8; --role-5: #c4242a;
   --font: "IBM Plex Sans", Inter, system-ui, "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Consolas, "Liberation Mono", monospace;
   --radius-sheet: 16px;
@@ -99,6 +101,7 @@
   --reasoning-bg: #1b1830;
   --reasoning-border: #2f2a55;
   --find-match: #5a4a12;
+  --role-1: #d9a24a; --role-2: #b48ae6; --role-3: #3fc07a; --role-4: #6f9cf0; --role-5: #e5566f;
 }
 
 * { box-sizing: border-box; }
@@ -138,6 +141,7 @@ table, .num, .kpi-value, td, th { font-variant-numeric: tabular-nums; }
 .small { font-size: 12px; line-height: 16px; }
 .nowrap { white-space: nowrap; }
 .right { text-align: right; }
+.trunc { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The old tracked-caps label, kept as a plain sentence-case line so pages that still use it stay readable. */
 .eyebrow { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; letter-spacing: 0; font-weight: 400; text-transform: none; }
 

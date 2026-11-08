@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   Badge,
@@ -7,17 +7,15 @@ import {
   CardHeading,
   Empty,
   ErrorState,
-  Field,
-  Input,
   JsonView,
   Loading,
   Notice,
   Pager,
-  Select,
 } from "../../components/ui";
 import { ArtifactView } from "../../components/artifact-view";
 import { ReadableValue } from "../../components/readable-value";
 import { BoardDeliveries } from "../../components/run-evidence/board-deliveries";
+import { EvidenceTab } from "../../components/run-evidence/evidence-tab";
 import { MemoryPanel as MemoryEvidencePanel } from "../../components/run-evidence/memory-panel";
 import { ActivityStrip, ReportSections } from "../../components/run-evidence/report-sections";
 import { DiffView } from "../../components/run-evidence/line-diff";
@@ -29,6 +27,9 @@ import type { ArtifactVersion } from "../../lib/types";
 import type { BoardPage, ReportPage } from "../../lib/contracts";
 import { pretty, when } from "../../lib/utils";
 import { RunEventsView, StreamBadge } from "./RunEventsView";
+import { LiveOverview } from "./RunLive";
+import { ContextChart, RecordedRail, TurnsRail, useRailEvents } from "./RunRail";
+import { Downstream } from "../../components/run-evidence/downstream";
 import { useRunLive } from "./run-live-context";
 import { BoardDelivery } from "./board-delivery";
 import { evidenceKey } from "./evidence-key";
@@ -37,59 +38,141 @@ import { useScenarios } from "../../lib/descriptors";
 import { useRunProgress } from "./use-run-progress";
 import { useRunRecordOnly } from "./use-run-record";
 
-/** Timeline and model-trace views: the live, turn-aligned event window from the detail shell. */
+/** The one sentence that says what is worth knowing about this run's timeline, from recorded data only. */
+function timelineFinding(live: ReturnType<typeof useRunLive>, peak: number | undefined): ReactNode {
+  const turns = live.turns;
+  if (!turns?.length) return "Proposed requests, admitted actions and results stay distinct.";
+  const failed = turns.filter((turn) => turn.failures > 0);
+  const events = turns.reduce((sum, turn) => sum + turn.eventCount, 0);
+  if (failed.length) {
+    const first = failed[0]!;
+    return (
+      <>
+        <strong>
+          {failed.length} {failed.length === 1 ? "turn recorded a failure" : "turns recorded failures"}
+        </strong>
+        , the first by {first.agentId} at round {first.round ?? "—"} · turn {first.turn}.
+      </>
+    );
+  }
+  const idle = live.roles.filter((role) => !turns.some((turn) => turn.agentId === role));
+  if (!live.active && idle.length) {
+    return (
+      <>
+        <strong>{idle.join(", ")} never took a turn</strong>, so nothing from {idle.length === 1 ? "it" : "them"} is on the board.
+      </>
+    );
+  }
+  return (
+    <>
+      <strong>
+        {turns.length} turns · {events} events
+      </strong>
+      {peak ? ` · peak context ${peak.toLocaleString()} tokens` : ""}. Proposed requests, admitted actions and results stay distinct.
+    </>
+  );
+}
+
+/** Timeline and model-call views: the live, turn-aligned event window from the detail shell. */
 export function EventsPanel({ kind }: { kind: "timeline" | "traces" }) {
   const live = useRunLive();
+  const rail = useRailEvents(live.run.id, live.active);
+  const peak = rail.points.reduce((best, point) => Math.max(best, point.context), 0);
+  const filters = (
+    <div className="run-filters">
+      <label className="cf">
+        <span>Actor</span>
+        <select aria-label="Actor" value={live.filters.actor} onChange={(e) => live.setFilter("actor", e.target.value)}>
+          <option value="">All {live.roles.length} roles</option>
+          {live.roles.map((role) => (
+            <option key={role}>{role}</option>
+          ))}
+        </select>
+      </label>
+      <label className="cf">
+        <span>Phase</span>
+        <select aria-label="Phase" value={live.filters.phase} onChange={(e) => live.setFilter("phase", e.target.value)}>
+          <option value="">All</option>
+          <option value="action">Action</option>
+          <option value="report">Report</option>
+        </select>
+      </label>
+      <label className="cf">
+        <span>Event type</span>
+        <input aria-label="Event type" value={live.filters.type} onChange={(e) => live.setFilter("type", e.target.value)} placeholder="Any" />
+      </label>
+      <span className="cf">
+        <span>Sequence</span>
+        <input aria-label="Sequence from" type="number" min="1" value={live.filters.from} onChange={(e) => live.setFilter("from", e.target.value)} placeholder="first" />
+        <i aria-hidden="true">–</i>
+        <input aria-label="Sequence through" type="number" min="1" value={live.filters.to} onChange={(e) => live.setFilter("to", e.target.value)} placeholder="last" />
+      </span>
+    </div>
+  );
+  const body = (
+    <RunEventsView
+      tab={kind}
+      runEvents={live.runEvents}
+      follow={live.follow}
+      turns={live.turns}
+      start={live.start}
+      provider={live.provider}
+      focusCall={live.focusCall}
+      onInspect={live.onInspect}
+      onOpenTraces={live.onOpenTraces}
+      onJump={live.onJump}
+      filters={filters}
+    />
+  );
+  if (kind === "traces") {
+    return (
+      <Card>
+        <CardHeading
+          title="Model calls"
+          count={live.turns ? live.turns.reduce((sum, turn) => sum + turn.modelCalls, 0) : undefined}
+          description="What each call reasoned, said and proposed, in the turns loaded below."
+          actions={<StreamBadge status={live.runEvents.status} />}
+          ruled
+        />
+        {body}
+      </Card>
+    );
+  }
   return (
-    <Card>
-      <CardHeading
-        title={kind === "timeline" ? "Execution timeline" : "Model invocations & trace references"}
-        description={
-          kind === "timeline"
-            ? "Proposed requests, admitted actions, side effects, and results remain distinct."
-            : "One card per model call in the loaded turns: what it reasoned, what it said, and what it proposed."
-        }
-        actions={<StreamBadge status={live.runEvents.status} />}
-      />
-      <div className="filter-bar">
-        <Field label="Actor">
-          <Select value={live.filters.actor} onChange={(e) => live.setFilter("actor", e.target.value)}>
-            <option value="">All actors</option>
-            {live.roles.map((role) => (
-              <option key={role}>{role}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Phase">
-          <Select value={live.filters.phase} onChange={(e) => live.setFilter("phase", e.target.value)}>
-            <option value="">All phases</option>
-            <option value="action">Action</option>
-            <option value="report">Report</option>
-          </Select>
-        </Field>
-        <Field label="Event type">
-          <Input value={live.filters.type} onChange={(e) => live.setFilter("type", e.target.value)} placeholder="Exact type" />
-        </Field>
-        <Field label="Sequence from">
-          <Input type="number" min="1" value={live.filters.from} onChange={(e) => live.setFilter("from", e.target.value)} />
-        </Field>
-        <Field label="Sequence through">
-          <Input type="number" min="1" value={live.filters.to} onChange={(e) => live.setFilter("to", e.target.value)} />
-        </Field>
+    <>
+      {live.active && <LiveOverview />}
+      <div className="g12">
+        <Card className="c8">
+          <CardHeading
+            title="Execution timeline"
+            description={timelineFinding(live, peak)}
+            actions={<StreamBadge status={live.runEvents.status} />}
+            ruled
+          />
+          {body}
+          <div className="card-foot">
+            <span>
+              Execution state is the last recorded worker state. Fetch timestamps indicate dashboard freshness, not worker
+              health or proof of progress. Run record updated {when(live.run.updatedAt)}.
+            </span>
+          </div>
+        </Card>
+        <div className="c4 stack">
+          <Card>
+            <CardHeading
+              title="Context per model call"
+              actions={peak ? <span className="small muted">peak {peak.toLocaleString()} tokens</span> : undefined}
+            />
+            <div className="card-body run-chart-body">
+              <ContextChart points={rail.points} allowance={live.run.config.tokenBudget?.maxInputTokens} />
+            </div>
+          </Card>
+          <TurnsRail turns={live.turnList} onJump={live.onJump} config={live.run.config} />
+          <RecordedRail run={live.run} memoryUpdates={rail.memoryUpdates} partial={rail.partial} />
+          <Downstream runId={live.run.id} status={live.run.status} compact />
+        </div>
       </div>
-      <RunEventsView
-        tab={kind}
-        runEvents={live.runEvents}
-        follow={live.follow}
-        turns={live.turns}
-        start={live.start}
-        provider={live.provider}
-        focusCall={live.focusCall}
-        onInspect={live.onInspect}
-        onOpenTraces={live.onOpenTraces}
-        onJump={live.onJump}
-      />
-    </Card>
+    </>
   );
 }
 
@@ -298,16 +381,16 @@ export function EvidencePanel({ kind }: { kind: "board" | "artifacts" | "memory"
 }
 
 export function BoardPanel() {
-  return <EvidencePanel kind="board" />;
+  return <EvidenceTab kind="board" />;
 }
 export function ArtifactsPanel() {
-  return <EvidencePanel kind="artifacts" />;
+  return <EvidenceTab kind="artifacts" />;
 }
 export function MemoryPanel() {
-  return <EvidencePanel kind="memory" />;
+  return <EvidenceTab kind="memory" />;
 }
 export function ReportsPanel() {
-  return <EvidencePanel kind="reports" />;
+  return <EvidenceTab kind="reports" />;
 }
 
 export function ConfigurationPanel() {
@@ -317,11 +400,19 @@ export function ConfigurationPanel() {
   if (!run.data) return <ErrorState error={run.error} retry={run.refresh} />;
   const data = run.data;
   return (
-    <div className="editor-layout">
-      <Card>
-        <CardHeading title="Frozen run configuration" description="Editing a draft never changes this execution." />
-        <div className="card-body">
-          <dl className="definition-list">
+    <div className="g12">
+      <Card className="c8">
+        <CardHeading
+          title="Frozen run configuration"
+          description={
+            <>
+              <strong>{data.config.scenario.version}</strong> on {data.config.model.provider} / {data.config.model.id}; editing a draft never changes this execution.
+            </>
+          }
+          ruled
+        />
+        <div className="card-body run-config-body">
+          <dl className="kv">
             <dt>Scenario</dt>
             <dd>
               {data.config.scenario.version} · {data.config.scenario.datasetId}
@@ -346,11 +437,11 @@ export function ConfigurationPanel() {
           <JsonView value={data.config} title="Complete immutable configuration (developer view)" />
         </div>
       </Card>
-      <Card>
+      <Card className="c4">
         <CardHeading title="Usage & provenance" />
         <div className="card-body">
           <JsonView value={data.usage} title="Recorded provider usage" />
-          <p className="helper">
+          <p className="small muted run-config-note">
             Recorded usage may be partial. Missing provider reasoning does not establish that the agent had no reasoning
             or intent.
           </p>
@@ -363,26 +454,4 @@ export function ConfigurationPanel() {
 export function ResultsPanel() {
   const id = useRunId();
   return <HealthcareResults runId={id!} />;
-}
-
-/** Freshness/post-completion footer shared by the detail shell. */
-export function RunFreshness({ updatedAt, id, completed }: { updatedAt: string; id: string; completed: boolean }) {
-  return (
-    <>
-      <p className="helper">
-        Execution state is the last recorded worker state. Fetch timestamps indicate dashboard freshness, not worker
-        health or proof of progress. Run record updated {when(updatedAt)}.
-      </p>
-      {completed && (
-        <div className="actions" style={{ marginTop: 22 }}>
-          <Button asChild>
-            <Link to={"/analysis?run=" + id}>New Jev analysis</Link>
-          </Button>
-          <Button asChild variant="secondary">
-            <Link to={"/oversight?run=" + id}>Configure oversight</Link>
-          </Button>
-        </div>
-      )}
-    </>
-  );
 }

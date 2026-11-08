@@ -88,7 +88,7 @@ it("defaults oversight to evaluations and keeps setup explicit with visible prer
     },
   );
   expect(
-    await screen.findByRole("tab", { name: "Evaluation jobs" }),
+    await screen.findByRole("tab", { name: "Evaluations" }),
   ).toHaveProperty("ariaSelected", "true");
   expect(
     screen.queryByRole("button", { name: "Preview four views" }),

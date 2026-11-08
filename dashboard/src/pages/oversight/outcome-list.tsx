@@ -18,14 +18,16 @@ export function OutcomeList({
     <Card>
       <CardHeading
         title="Run-level outcomes"
+        count={outcomes.filter((o) => !o.archived).length}
         actions={
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
             aria-label="Add outcome definition"
             onClick={onAdd}
           >
-            <Plus size={16} />
+            <Plus size={14} />
+            New outcome
           </Button>
         }
       />
@@ -37,7 +39,7 @@ export function OutcomeList({
         >
           <div>
             <strong>{item.name}</strong>
-            <small>{item.archived ? "Archived" : "Active definition"}</small>
+            <small>{item.archived ? "Archived" : item.definition.trim() || "No definition yet"}</small>
           </div>
         </button>
       ))}

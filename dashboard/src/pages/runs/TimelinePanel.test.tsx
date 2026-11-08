@@ -61,7 +61,7 @@ describe('TimelinePanel readable mode', () => {
     expect(screen.queryByText('tool requested')).toBeNull();
     expect(screen.queryByText('tool admitted')).toBeNull();
     expect(screen.getByText('tool result')).toBeTruthy();
-    expect(screen.getByText(/#3–6 · R1 \/ T1 · action/)).toBeTruthy();
+    expect(screen.getByText('#3–6')).toBeTruthy();
   });
 
   it('renders turn group headers with a summary', () => {

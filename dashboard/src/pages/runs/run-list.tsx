@@ -6,16 +6,14 @@ import {
   Card,
   Empty,
   ErrorState,
-  Field,
-  Input,
   Loading,
   PageHeader,
   Pager,
-  Select,
+  Stamp,
 } from "../../components/ui";
 import { RUN_STATUSES } from "@sidechannel/contracts/browser";
-import { LaunchedExperiments } from "../../components/pairs/LaunchedExperiments";
 import { PairTable } from "../../components/pairs/PairTable";
+import { comparability, groupByPair } from "../../components/pairs/group";
 import { RunTable } from "../../components/run-table";
 import { useClients } from "../../lib/clients/context";
 import { useResource } from "../../lib/clients/query";
@@ -68,19 +66,46 @@ export function RunList() {
   };
   const returnSearch =
     "?returnTo=" + encodeURIComponent("/runs" + (params.size ? "?" + params.toString() : ""));
+  const groups = groupByPair(items);
+  const total = runs.data?.total ?? items.length;
+  const verdicts = groups.map((group) => comparability(group.runs));
+  const yes = verdicts.filter((v) => v.state === "yes").length;
+  const pending = verdicts.filter((v, i) => v.state === "pending" && groups[i]).length;
+  const failedBoth = groups.filter((g) => g.runs.length > 1 && g.runs.every((r) => r.status === "failed")).length;
+  const partial = verdicts.length - yes - pending - failedBoth;
+  const clauses = [
+    `${yes} comparable end to end`,
+    partial > 0 && `${partial} stopped before both conditions completed`,
+    failedBoth > 0 && `${failedBoth} failed in both conditions`,
+    pending > 0 && `${pending} still running`,
+  ].filter(Boolean);
+  const pairCount = groups.filter((g) => g.pairId).length;
+  const finding = runs.data ? (
+    <>
+      <strong>
+        {pairCount} matched {pairCount === 1 ? "pair" : "pairs"}, {total} {total === 1 ? "run" : "runs"}.
+      </strong>{" "}
+      {items.length ? clauses.join("; ") + (total > items.length ? " on this page." : ".") : "Nothing matches the current filters."}
+    </>
+  ) : (
+    "Loading run records."
+  );
+  const rangeLabel = items.length ? `${offset + 1}–${offset + items.length} of ${total}` : "";
+  const showPager = offset > 0 || runs.data?.nextOffset != null;
   return (
     <>
       <PageHeader
-        eyebrow="RUN RECORDS"
-        title="Experiment runs"
-        description="Follow execution, inspect evidence, and navigate matched conditions."
+        title="Runs"
+        description={finding}
         actions={
-          <Button asChild>
-            <Link to="/experiments/new">New experiment</Link>
-          </Button>
+          <>
+            <Stamp at={runs.updatedAt} stale={!!runs.error} />
+            <Button asChild>
+              <Link to="/experiments/new">New experiment</Link>
+            </Button>
+          </>
         }
       />
-      <LaunchedExperiments />
       <Card>
         <Button
           variant="secondary"
@@ -95,13 +120,13 @@ export function RunList() {
         </Button>
         <div
           id="run-filters"
-          className={"filter-bar filter-bar-collapsible" + (filtersOpen ? " filters-open" : "")}
+          className={"filter-bar rl-filters filter-bar-collapsible" + (filtersOpen ? " filters-open" : "")}
         >
-          <Filter size={16} className="muted" aria-hidden="true" />
           <div className="filter-fields">
-            <Field label="Execution state">
-              <Select value={params.get("status") || ""} onChange={(e) => filter("status", e.target.value)}>
-                <option value="">All states</option>
+            <label className="cf">
+              <span>State</span>
+              <select aria-label="Execution state" value={params.get("status") || ""} onChange={(e) => filter("status", e.target.value)}>
+                <option value="">All</option>
                 {runListGroups.map((group) => (
                   <option key={group.label} value={group.statuses.join(",")}>
                     {group.label}
@@ -110,42 +135,40 @@ export function RunList() {
                 {RUN_STATUSES.map((status) => (
                   <option key={status}>{status}</option>
                 ))}
-              </Select>
-            </Field>
-            <Field label="Model">
-              <Input value={params.get("model") || ""} placeholder="Any model" onChange={(e) => filter("model", e.target.value)} />
-            </Field>
-            <Field label="Condition">
-              <Select value={params.get("condition") || ""} onChange={(e) => filter("condition", e.target.value)}>
-                <option value="">Both conditions</option>
+              </select>
+            </label>
+            <label className="cf">
+              <span>Condition</span>
+              <select aria-label="Condition" value={params.get("condition") || ""} onChange={(e) => filter("condition", e.target.value)}>
+                <option value="">Both</option>
                 <option>reviewed</option>
                 <option>excluded</option>
-              </Select>
-            </Field>
-            <Field label="Scenario">
-              <Input value={params.get("scenario") || ""} placeholder="Any scenario" onChange={(e) => filter("scenario", e.target.value)} />
-            </Field>
-            <Field label="Designation">
-              <Select value={params.get("designation") || ""} onChange={(e) => filter("designation", e.target.value)}>
-                <option value="">All designations</option>
+              </select>
+            </label>
+            <label className="cf">
+              <span>Model</span>
+              <input aria-label="Model" value={params.get("model") || ""} placeholder="Any" onChange={(e) => filter("model", e.target.value)} />
+            </label>
+            <label className="cf">
+              <span>Scenario</span>
+              <input aria-label="Scenario" value={params.get("scenario") || ""} placeholder="Any" onChange={(e) => filter("scenario", e.target.value)} />
+            </label>
+            <label className="cf">
+              <span>Designation</span>
+              <select aria-label="Designation" value={params.get("designation") || ""} onChange={(e) => filter("designation", e.target.value)}>
+                <option value="">All</option>
                 <option>fixture</option>
                 <option>development</option>
                 <option>pilot</option>
                 <option>study</option>
-              </Select>
-            </Field>
+              </select>
+            </label>
           </div>
-          <div className="view-toggle" role="group" aria-label="List view">
+          <div className="seg" role="group" aria-label="List view">
             {(["pairs", "runs"] as const).map((option) => (
-              <Button
-                key={option}
-                variant={view === option ? "secondary" : "ghost"}
-                size="sm"
-                aria-pressed={view === option}
-                onClick={() => setView(option)}
-              >
+              <button key={option} type="button" aria-pressed={view === option} onClick={() => setView(option)}>
                 {option === "pairs" ? "Pairs" : "Runs"}
-              </Button>
+              </button>
             ))}
           </div>
           <Button variant="ghost" size="icon" aria-label="Refresh run list" onClick={runs.refresh}>
@@ -157,7 +180,7 @@ export function RunList() {
           <Loading />
         ) : items.length ? (
           view === "pairs" ? (
-            <PairTable runs={items} detailSearch={returnSearch} />
+            <PairTable runs={items} detailSearch={returnSearch} showComparable />
           ) : (
             <RunTable runs={items} detailSearch={returnSearch} />
           )
@@ -167,16 +190,23 @@ export function RunList() {
             description="Adjust filters or launch an experiment from a saved draft."
           />
         )}
-        <Pager
-          page={Math.floor(offset / 25)}
-          hasMore={runs.data?.nextOffset != null}
-          onChange={(page) =>
-            setParams((prev) => {
-              prev.set("offset", String(page * 25));
-              return prev;
-            })
-          }
-        />
+        {rangeLabel && !runs.loading && (
+          <div className="card-foot">
+            <span>Showing runs {rangeLabel}</span>
+          </div>
+        )}
+        {showPager && (
+          <Pager
+            page={Math.floor(offset / 25)}
+            hasMore={runs.data?.nextOffset != null}
+            onChange={(page) =>
+              setParams((prev) => {
+                prev.set("offset", String(page * 25));
+                return prev;
+              })
+            }
+          />
+        )}
       </Card>
     </>
   );

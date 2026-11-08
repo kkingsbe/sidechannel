@@ -34,7 +34,8 @@ export function useAnalysisJob(id: string | undefined) {
   return {
     job: job.data as AnalysisJob | undefined,
     sourceRun: sourceRun.data as Run | undefined,
-    loading: job.loading,
+    // The header names the source run, so the page waits for it once the job is known.
+    loading: job.loading || (!!job.data && sourceRun.loading && !sourceRun.data && !sourceRun.error),
     error: job.error,
     refresh: job.refresh,
     active,

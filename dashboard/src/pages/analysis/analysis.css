@@ -1,0 +1,112 @@
+/* Analysis screens: page-local styles on top of the shared tokens and classes. */
+
+/* ---------- shared bits ---------- */
+.an-plain { border: 0; background: none; padding: 0; color: inherit; cursor: pointer; text-align: left; }
+.an-plain:hover { text-decoration: underline; text-underline-offset: 3px; }
+.an-linkbtn { border: 0; background: none; padding: 0; color: var(--blue); cursor: pointer; font-size: inherit; }
+.an-linkbtn:hover { text-decoration: underline; text-underline-offset: 3px; }
+.an-identity { font-size: 14px; line-height: 38px; margin: 0; }
+.an-body { padding-top: 16px; }
+.an-body .empty { margin: 16px 0 0; }
+.an-card .empty { margin-top: 4px; }
+.an-ids { margin-top: 4px; font-size: 12px; color: var(--muted); }
+.an-ids summary { cursor: pointer; }
+.an-ids p { margin: 6px 0; overflow-wrap: anywhere; }
+.an-disclosure > summary { cursor: pointer; padding: 10px var(--card-pad); font-size: 13px; font-weight: 500; border-top: 1px solid var(--rule); }
+
+/* ---------- object header and summary ---------- */
+.an-headtext { min-width: 0; flex: 1; }
+.an-headtext .meta .mono { font-size: 12px; }
+.an-summary { margin-bottom: 20px; align-items: start; }
+.an-summary .finding { margin-top: 0; max-width: none; }
+.an-strip-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+
+/* ---------- controls in card headings ---------- */
+.an-threshold { width: 64px; height: 32px; min-height: 32px; text-align: right; padding: 0 8px; }
+.an-menu { position: relative; }
+.an-menu > summary { display: inline-flex; align-items: center; list-style: none; cursor: pointer; height: 26px; }
+.an-menu > summary::-webkit-details-marker { display: none; }
+.an-menu > summary > span { padding: 0 9px; color: var(--muted); border-right: 1px solid var(--border); line-height: 26px; }
+.an-menu > summary > b { padding: 0 9px; font-weight: 500; }
+.an-menu[open] { border-color: var(--blue); }
+.an-menu-list { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 190px; padding: 10px 12px; display: grid; gap: 6px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-card); box-shadow: 0 6px 20px #0001; }
+label.cf { cursor: pointer; }
+.an-card .card-heading .actions { justify-content: flex-end; }
+.an-card { overflow: visible; }
+.an-card > .card-heading:first-child { border-radius: var(--radius-card) var(--radius-card) 0 0; }
+.an-card > .card-foot:last-child { border-radius: 0 0 var(--radius-card) var(--radius-card); }
+
+/* ---------- heatmap ---------- */
+.an-body.card-body { padding-top: 14px; }
+.an-heat-wrap { min-width: 0; }
+.an-heat { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 2px; margin: 0 -2px; width: calc(100% + 4px); }
+.an-heat th, .an-heat td { padding: 0; border: 0; height: 24px; background: none; }
+.an-heat tbody tr:hover { background: none; }
+.an-heat thead th { height: 18px; font-size: 11px; font-weight: 400; color: var(--faint); text-align: center; position: relative; overflow: visible; white-space: nowrap; }
+.an-heat thead th span { position: absolute; top: 0; left: 50%; transform: translateX(-50%); line-height: 18px; }
+.an-heat tbody th { text-align: left; font-size: 13px; font-weight: 500; color: var(--foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
+.an-heat th:first-child, .an-heat td:first-child { padding-left: 0; }
+.an-cell { display: block; width: 100%; height: 24px; border: 0; border-radius: 2px; padding: 0; font: 400 11px/24px var(--font); font-variant-numeric: tabular-nums; text-align: center; color: var(--foreground); background: var(--accent); overflow: hidden; }
+.an-cell:hover { outline: 1px solid var(--foreground); outline-offset: 0; }
+.an-cell.hi { box-shadow: inset 0 0 0 1.5px var(--foreground); }
+.an-cell.skip { background: repeating-linear-gradient(135deg, var(--control) 0 2px, transparent 2px 5px); cursor: default; }
+.an-heat.compact .an-cell { font-size: 0; }
+.an-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin-top: 12px; }
+.an-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.an-legend i { display: inline-block; height: 10px; border-radius: 2px; }
+.an-legend .ramp { width: 60px; background: linear-gradient(90deg, rgba(36,86,184,.08), rgb(36,86,184)); }
+.an-legend .out { width: 14px; box-shadow: inset 0 0 0 1.5px var(--foreground); }
+.an-legend .hatch { width: 14px; background: repeating-linear-gradient(135deg, var(--control) 0 2px, transparent 2px 5px); }
+
+/* ---------- probability timeline ---------- */
+.an-plot { width: 100%; min-width: 0; }
+.an-plot svg { display: block; color: var(--blue); overflow: visible; }
+.an-gap { fill: var(--active); opacity: .7; }
+.an-hit { fill: transparent; stroke: none; cursor: pointer; }
+.an-hit:hover, .an-hit:focus { fill: var(--blue); opacity: .35; outline: none; }
+.an-rank { width: 100%; border: 0; border-top: 1px solid var(--rule); background: none; text-align: left; font-size: 13px; min-height: 40px; grid-template-columns: max-content minmax(0, 1fr) 44px; cursor: pointer; }
+.an-rank:first-child { border-top: 0; }
+.an-rank:hover { background: var(--subtle); }
+.an-strong { font-weight: 500; }
+
+/* ---------- score table ---------- */
+.an-scores { max-height: 640px; overflow: auto; }
+.an-scores table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.an-scores th { position: sticky; top: 0; z-index: 1; background: var(--card); border-bottom: 1px solid var(--border); text-align: left; }
+.an-scores th.n { text-align: right; }
+.an-scores td { height: 44px; padding-top: 0; padding-bottom: 0; vertical-align: middle; }
+.an-scores td small { margin-top: 0; }
+.an-scores td.n { font-variant-numeric: tabular-nums; }
+.an-scores .an-gaprow { text-align: center; font-size: 13px; background: repeating-linear-gradient(135deg, transparent 0 6px, var(--subtle) 6px 8px); }
+.an-val { display: inline-block; min-width: 40px; padding: 1px 6px; border-radius: 4px; }
+.an-val.hi { box-shadow: inset 0 0 0 1.5px var(--foreground); font-weight: 500; }
+
+/* ---------- setup ---------- */
+.an-well { padding: 20px; gap: 16px; }
+.an-well-head h2 { font-size: 16px; }
+.an-well-head p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.an-phases { gap: 24px; }
+.an-steps { height: 14px; }
+.an-caption { margin-top: 8px; }
+.an-launch { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin-top: 16px; }
+.an-launch .why ul { margin: 0; padding: 0; list-style: none; }
+.an-preflight { margin-top: 16px; padding: 12px; background: var(--subtle); border-radius: var(--radius-control); font-size: 13px; }
+.an-preflight p { margin: 4px 0 0; }
+
+@media (max-width: 950px) {
+  .an-menu-list { left: 0; right: auto; }
+  .three { grid-template-columns: 1fr; }
+  .an-card .card-heading { flex-wrap: wrap; }
+  .an-summary .c4, .an-summary .c8 { grid-column: 1 / -1; }
+}
+.g12.an-equal { align-items: stretch; }
+.an-rank > span:first-child { white-space: nowrap; }
+@media (max-width: 700px) {
+  .objhead:has(.an-headtext) { flex-wrap: wrap; align-items: flex-start; }
+  .objhead:has(.an-headtext) .glyph { display: none; }
+  .an-headtext { flex-basis: 100%; }
+  .an-headtext .titleline { flex-wrap: wrap; }
+  .an-headtext .titleline h1 { white-space: normal; flex-basis: 100%; }
+  .an-headtext .meta > span:nth-child(even) { display: none; }
+  .objhead:has(.an-headtext) > .actions { margin-left: 0; }
+}

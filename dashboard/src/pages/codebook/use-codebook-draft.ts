@@ -98,9 +98,9 @@ export function useCodebookDraft() {
         JSON.stringify({ codes, name, baseRevision }),
       );
   }, [codes, name, dirty, bookId, formBookId, baseRevision]);
-  const edit = (patch: Partial<BehaviorCode>) => {
+  const edit = (patch: Partial<BehaviorCode>, id = selected) => {
     setCodes(
-      codes.map((code) => (code.id === selected ? { ...code, ...patch } : code)),
+      codes.map((code) => (code.id === id ? { ...code, ...patch } : code)),
     );
     setDirty(true);
   };
@@ -256,6 +256,10 @@ export function useCodebookDraft() {
     setName,
     author,
     setAuthor,
+    changeAuthor: (value: string) => {
+      setAuthor(value);
+      localStorage.setItem(REVIEWER_STORAGE_KEY, value);
+    },
     codes,
     selected,
     select: setSelected,

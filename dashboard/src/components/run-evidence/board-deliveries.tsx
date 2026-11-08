@@ -1,6 +1,8 @@
+import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import type { HarnessEvent } from "../../lib/types";
-import { eventLink, plural, shortRoundTurn } from "./evidence-model";
+import { eventLink, roleColor, rt } from "./evidence-model";
+import "./run-evidence.css";
 
 /** Delivery events (board reads) that included the given post. */
 export function deliveriesOf(postId: string, deliveries?: HarnessEvent[]) {
@@ -13,7 +15,7 @@ export function deliveriesOf(postId: string, deliveries?: HarnessEvent[]) {
   });
 }
 
-/** Compact per-role "first read" summary for a post, excluding the author. */
+/** "First read by" chips for one post: each other role with the turn of its first read and "×n" for re-reads. */
 export function BoardDeliveries({
   postId,
   authorId,
@@ -40,40 +42,32 @@ export function BoardDeliveries({
     if (event.agentId && !readers.includes(event.agentId))
       readers.push(event.agentId);
   return (
-    <div className="delivery-summary">
-      <span className="helper">First read by role (author excluded):</span>
-      <ul>
-        {readers.map((role) => {
-          const reads = matches.filter((event) => event.agentId === role);
-          const first = reads[0];
-          return (
-            <li key={role}>
-              <strong>{role}</strong>{" "}
-              {first ? (
-                <>
-                  <Link to={eventLink(first)}>
-                    first read {shortRoundTurn(first)} (event #{first.sequence})
-                  </Link>
-                  {reads.length > 1 && (
-                    <details className="inline-details">
-                      <summary>
-                        {plural(reads.length - 1, "repeat read")}
-                      </summary>
-                      {reads.slice(1).map((event) => (
-                        <Link key={event.id} to={eventLink(event)}>
-                          {shortRoundTurn(event)} · event #{event.sequence}
-                        </Link>
-                      ))}
-                    </details>
-                  )}
-                </>
-              ) : (
-                <span className="helper">not read</span>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+    <>
+      <span>First read by</span>
+      {readers.map((role) => {
+        const reads = matches.filter((event) => event.agentId === role);
+        const first = reads[0];
+        return (
+          <span
+            key={role}
+            className="who-chip"
+            style={{ "--c": roleColor(role) } as CSSProperties}
+          >
+            {first ? (
+              <Link to={eventLink(first)} title={`First read at event #${first.sequence}`}>
+                {role}
+              </Link>
+            ) : (
+              role
+            )}
+            <span className="muted">
+              {first
+                ? `${rt(first)}${reads.length > 1 ? ` · ×${reads.length - 1}` : ""}`
+                : "not read"}
+            </span>
+          </span>
+        );
+      })}
+    </>
   );
 }

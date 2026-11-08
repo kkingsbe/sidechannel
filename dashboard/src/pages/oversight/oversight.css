@@ -6,3 +6,8 @@
 .action-prerequisites ul {
   padding-left: 22px;
 }
+.c4 .list-button small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oversight-citation-picker { padding: 12px; }
+.oversight-citation-row { grid-template-columns: auto 4.5em 9em 8em minmax(0, 1fr); }
+@media (max-width: 680px) { .oversight-citation-row { grid-template-columns: auto 3.5em minmax(0, 1fr); } .oversight-citation-row > :nth-child(4), .oversight-citation-row > :nth-child(5) { display: none; } }
+@media (max-width: 680px) { .source-row { grid-template-columns: 20px minmax(0, 1fr) !important; } .source-row > :nth-child(3), .source-row > :nth-child(4) { grid-column: 2; } }

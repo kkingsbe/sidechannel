@@ -21,3 +21,7 @@
   .responsive-rows td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; color: var(--muted); }
   .responsive-rows td.n { text-align: left; }
 }
+.pair-name { width: 38%; }
+.pair-cmp-cell { white-space: nowrap; }
+.pair-cmp-cell small { white-space: normal; }
+.pair-failure { grid-column: 2 / -1; color: var(--muted); }

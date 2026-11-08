@@ -38,7 +38,7 @@ it("renders five-role progress, frozen rankings, failure diagnostics and researc
   expect(await screen.findByRole("table", { name: "Healthcare ranked cases" })).toBeTruthy();
   expect(screen.getByText("outside_analytics")).toBeTruthy();
   expect(screen.getByText(/Input token allowance exceeded/)).toBeTruthy();
-  expect(screen.getByText("Frozen final")).toBeTruthy();
+  expect(screen.getByText(/frozen at version/i)).toBeTruthy();
   await userEvent.click(screen.getByRole("tab", { name: "Researcher results" }));
   expect(await screen.findByText("Evaluator truth unavailable")).toBeTruthy();
 });

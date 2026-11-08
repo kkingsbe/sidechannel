@@ -1,0 +1,102 @@
+/* Run evidence tabs: board, artifacts, private memory, reports. Page-local; the shared tokens come from styles.css. */
+.ev-chip { white-space: nowrap; }
+.ev-chip-strong { font-weight: 500; }
+.ev-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.ev-head .finding { margin-top: 0; flex: 1 1 360px; }
+.ev-note { font-size: 13px; color: var(--muted); }
+.ev-link-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--foreground); font-weight: 500; cursor: pointer; }
+.ev-link-btn:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* board posts */
+.ev-post-body { display: grid; gap: 12px; }
+.ev-lead { font-size: 14px; line-height: 20px; font-weight: 500; overflow-wrap: anywhere; }
+.ev-prose { font-size: 13px; line-height: 20px; color: var(--muted); overflow-wrap: anywhere; }
+.ev-cases { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0 16px; font-size: 13px; }
+.ev-cases > div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--rule); padding: 4px 0; min-width: 0; }
+.ev-cases .mono { font-size: 12px; }
+.ev-cases b { font-weight: 500; font-variant-numeric: tabular-nums; }
+.ev-kv { grid-template-columns: minmax(96px, 150px) minmax(0, 1fr); gap: 6px 16px; line-height: 20px; }
+.ev-kv dd ul, .ev-prose ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+.ev-clamp { position: relative; max-height: 260px; overflow: hidden; }
+.ev-clamp::after { content: ""; position: absolute; inset: auto 0 0 0; height: 56px; background: linear-gradient(to bottom, transparent, var(--card)); pointer-events: none; }
+.ev-reads { flex-wrap: wrap; gap: 6px 20px; justify-content: flex-start; align-items: center; }
+.ev-reads .who-chip { white-space: nowrap; }
+.ev-reads .muted { font-weight: 400; }
+.ev-more { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; padding: 10px var(--card-pad); }
+
+/* rail */
+.ev-matrix { display: grid; gap: 4px; padding: 0 var(--card-pad); font-size: 12px; }
+.ev-matrix-row { display: grid; grid-template-columns: 54px repeat(var(--cols), minmax(0, 1fr)); gap: 4px; align-items: center; min-height: 28px; border-top: 1px solid var(--rule); }
+.ev-matrix-row:first-child { border-top: 0; }
+.ev-matrix-row .who-chip::before { margin-left: 0; }
+.ev-matrix abbr { text-decoration: none; }
+.ev-matrix .n, .ev-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ev-bars { width: 100%; height: auto; display: block; }
+
+/* artifacts */
+.ev-grid-table th.ev-ver { vertical-align: bottom; padding-bottom: 8px; height: auto; }
+.ev-grid-table th.ev-ver span { display: block; font-size: 11px; line-height: 14px; color: var(--faint); }
+.ev-grid-table th.ev-final { color: var(--foreground); }
+.ev-sub { display: block; font-size: 12px; line-height: 16px; color: var(--muted); margin-top: 2px; max-width: 46ch; overflow-wrap: anywhere; }
+.ev-cell { display: inline-block; padding: 2px 6px; border-radius: 3px; font-variant-numeric: tabular-nums; }
+.ev-cell-changed { font-weight: 500; box-shadow: inset 0 0 0 1.5px var(--foreground); }
+.ev-final-col { font-weight: 500; }
+.ev-versions .trow { grid-template-columns: 24px minmax(0, 1fr) auto; align-items: start; }
+.ev-pill { display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 4px; background: var(--active); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.ev-pill-final { background: var(--foreground); color: var(--card); }
+.ev-lane { grid-template-columns: 76px minmax(0, 1fr); align-items: start; }
+
+/* memory */
+.ev-role-list a.trow { grid-template-columns: minmax(0, 1fr) auto; min-height: 48px; }
+.ev-role-list a.trow[aria-current="true"] { background: var(--active); }
+.ev-memory-kv { grid-template-columns: minmax(96px, 150px) minmax(0, 1fr); gap: 12px 20px; font-size: 14px; line-height: 20px; }
+.ev-memory-kv ol, .ev-memory-kv ul, .ev-report-sec ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.ev-exact { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 20px; margin: 0; font-family: var(--mono); }
+.ev-change { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; align-items: start; font-size: 13px; line-height: 20px; }
+.ev-change-text { overflow-wrap: anywhere; white-space: pre-wrap; }
+.ev-change-removed { color: var(--danger); }
+.ev-change-added { color: var(--success); }
+.ev-change-kept { color: var(--muted); }
+.ev-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 4px; font-size: 12px; font-weight: 500; background: var(--active); color: #353736; }
+.ev-tag-removed { background: var(--danger-bg); color: var(--danger); }
+.ev-tag-added { background: var(--success-bg); color: var(--success); }
+.ev-diff { display: grid; gap: 10px; }
+.ev-diff-full { font-size: 13px; line-height: 20px; border: 1px solid var(--border); border-radius: 6px; overflow-x: auto; }
+.ev-diff-full > div { display: flex; gap: 8px; padding: 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ev-diff-full .ev-d-added { background: var(--success-bg); color: var(--success); }
+.ev-diff-full .ev-d-removed { background: var(--danger-bg); color: var(--danger); }
+.ev-update-list { display: grid; gap: 0; }
+.ev-update-list > details { border-top: 1px solid var(--rule); padding: 10px var(--card-pad); }
+.ev-update-list > details:first-child { border-top: 0; }
+.ev-update-list summary { cursor: pointer; font-size: 13px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+/* reports */
+.ev-report-body { display: grid; gap: 20px; }
+.ev-report-sec h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.ev-report-sec h3 .muted { font-weight: 400; }
+.ev-report-sec ol { gap: 8px; line-height: 20px; }
+.ev-report-sec p { line-height: 20px; margin: 0 0 8px; overflow-wrap: anywhere; }
+.ev-report-sec b { font-weight: 500; }
+.ev-claims { grid-template-columns: minmax(0, 1fr) 76px 76px; min-height: 40px; font-size: 13px; }
+.ev-claims-head { min-height: 32px; font-size: 12px; color: var(--muted); }
+.ev-claims .num { text-align: right; font-variant-numeric: tabular-nums; }
+.ev-claims .rec { font-weight: 500; }
+.ev-claims .off { color: var(--danger-fg); }
+.ev-kpi { text-align: left; background: none; border: 0; font: inherit; color: inherit; cursor: pointer; width: 100%; }
+.ev-kpi[aria-current="true"] { background: var(--active); }
+.ev-kpi-v { margin-top: 6px; }
+.ev-invalid { display: grid; gap: 3px; }
+
+@media (max-width: 949px) {
+  .ev-cases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ev-kv, .ev-memory-kv, .ev-change { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .ev-memory-kv dd, .ev-kv dd { margin-bottom: 8px; }
+  .ev-claims { grid-template-columns: minmax(0, 1fr) 64px 64px; }
+}
+.card-foot.ev-reads > span:last-child:not(:first-child) { margin-left: 0; }
+.ev-role-btn { width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--rule); font: inherit; color: inherit; cursor: pointer; }
+.ev-role-btn:first-child { border-top: 0; }
+.ev-role-btn:hover { background: var(--subtle); }
+.ev-grid-table th, .ev-grid-table td { white-space: nowrap; }
+.ev-grid-table td:nth-child(2) { white-space: normal; min-width: 200px; }
+.ev-grid-table th.ev-ver span { display: block; }

@@ -24,10 +24,10 @@ it("merges live progress into the frozen record and keeps the seven evidence tab
     route: "/runs/run-1?view=timeline",
     clients: fakeClients({ runs: { get: async () => run, progress: async () => progress } }),
   });
-  expect(await screen.findByText(/Round/)).toBeTruthy();
+  expect(await screen.findByText(/Round 4 of/)).toBeTruthy();
   const tabs = screen.getAllByRole("tab").map((tab) => tab.textContent?.slice(0, 8));
   expect(tabs).toContain("Timeline");
-  expect(tabs).toContain("Board & ");
+  expect(tabs).toContain("Board");
   expect(screen.getByRole("tab", { name: "Timeline" }).getAttribute("aria-selected")).toBe("true");
 });
 
@@ -128,7 +128,7 @@ it("opens main's model-call detail in the drawer for a model event", async () =>
   const dialog = await screen.findByRole("dialog");
   expect(await screen.findByText(/1 of 1 in the loaded turns/)).toBeTruthy();
   expect(dialog.textContent).toContain("Exact recorded answer");
-  const open = screen.getByRole("button", { name: "Open in Model & traces" });
+  const open = screen.getByRole("button", { name: "Open in Model calls" });
   await userEvent.click(open);
   expect(await screen.findByRole("article", { name: /Model call #\d+/ })).toBeTruthy();
 });

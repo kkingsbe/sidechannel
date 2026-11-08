@@ -35,8 +35,10 @@ export function JobsTab(): ReactElement {
   return (
     <Card>
       <CardHeading
-        title="Monitor evaluation jobs"
-        description="Each comparison has its own lifecycle, separate from experiment and analysis jobs."
+        title="Evaluations"
+        count={jobs.loading || jobs.error ? undefined : jobs.data.length + (jobs.hasMore ? "+" : "")}
+        description="Each evaluation sends the same frozen questions to one monitor model under four evidence views."
+        ruled
       />
       {jobs.loading ? (
         <Loading />
@@ -45,61 +47,37 @@ export function JobsTab(): ReactElement {
       ) : jobs.data.length ? (
         <Table
           label="Monitor comparison jobs"
-          headers={[
-            "Evaluation",
-            "Frozen monitor model",
-            "Sources / definitions",
-            "State",
-            "Created",
-            "",
-          ]}
+          headers={["Evaluation", "Source runs", "Status", "Views ready", "Updated"]}
         >
-          {jobs.data.map((job) => (
-            <tr key={job.id}>
-              <td>
-                <Link
-                  className="table-title"
-                  to={"/oversight/" + job.id + returnSearch}
-                >
-                  {evaluationName(job)}
-                </Link>
-                <small>{when(job.createdAt)}</small>
-                <details>
-                  <summary>Evaluation identifier</summary>
-                  <span className="mono">{job.id}</span>
-                </details>
-              </td>
-              <td>
-                {job.settings.model.provider}/{job.settings.model.id}
-              </td>
-              <td>
-                {job.runIds.length} runs · revision {job.definition.revision}
-              </td>
-              <td>
-                <Badge tone={monitorStatusMeta[job.status].tone}>{monitorStatusMeta[job.status].label}</Badge>
-              </td>
-              <td>{when(job.createdAt)}</td>
-              <td>
-                <Button asChild variant="ghost" size="sm">
-                  <Link to={"/oversight/" + job.id + returnSearch}>
-                    Inspect
+          {jobs.data.map((job) => {
+            const ready = (job.results ?? []).filter((r) => r.status === "completed").length;
+            return (
+              <tr key={job.id}>
+                <td>
+                  <Link className="table-title" to={"/oversight/" + job.id + returnSearch}>
+                    {evaluationName(job)}
                   </Link>
-                </Button>
-              </td>
-            </tr>
-          ))}
+                  <small>
+                    <span>{job.settings.model.provider}/{job.settings.model.id}</span> · <span className="mono">{job.id}</span>
+                  </small>
+                </td>
+                <td>{job.runIds.length}</td>
+                <td>
+                  <Badge tone={monitorStatusMeta[job.status].tone}>{monitorStatusMeta[job.status].label}</Badge>
+                </td>
+                <td className="n">{ready}/{job.runIds.length * 4}</td>
+                <td className="nowrap">{when(job.updatedAt ?? job.createdAt)}</td>
+              </tr>
+            );
+          })}
         </Table>
       ) : (
         <Empty
           title="No oversight comparisons yet"
-          description="Preview evidence and explicitly launch the first independent monitor comparison."
+          description="Open Configure & preview, choose completed runs and a monitor model, then launch the first evaluation."
         />
       )}
-      <Pager
-        page={jobs.page}
-        hasMore={jobs.hasMore}
-        onChange={jobs.onChange}
-      />
+      {(jobs.page > 0 || jobs.hasMore || jobs.data.length > 0) && <Pager page={jobs.page} hasMore={jobs.hasMore} onChange={jobs.onChange} />}
     </Card>
   );
 }

@@ -18,7 +18,7 @@ export function ReviewHistoryRow({
   note: ReactNode;
 }) {
   return (
-    <div style={{ padding: "13px 0", borderBottom: "1px solid var(--border)" }}>
+    <div style={{ padding: "13px 0", borderTop: "1px solid var(--rule)" }}>
       <div className="actions">
         <strong>{reviewer}</strong>
         <Badge tone={reviewDecisionMeta[decision].tone}>{reviewDecisionMeta[decision].label}</Badge>

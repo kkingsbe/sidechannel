@@ -21,7 +21,8 @@ export function OutcomeEditor({
     <Card>
       <CardHeading
         title={outcome.name}
-        description={"Stable ID · " + outcome.id}
+        ruled
+        description={<>Stable ID <span className="mono">{outcome.id}</span></>}
         actions={
           <Button
             variant="ghost"
@@ -33,8 +34,8 @@ export function OutcomeEditor({
           </Button>
         }
       />
-      <div className="card-body form-grid">
-        <Field required label="Display name" className="full">
+      <div className="card-body" style={{ paddingTop: 16, display: "grid", gap: 16 }}>
+        <Field required label="Display name">
           <Input
             value={outcome.name}
             onChange={(e) => onEdit({ name: e.target.value })}
@@ -54,7 +55,7 @@ export function OutcomeEditor({
           <Field
             key={key}
             required={key === "definition"}
-            className="full"
+           
             label={
               {
                 definition: "Definition",
@@ -68,7 +69,8 @@ export function OutcomeEditor({
             }
           >
             <Textarea
-              rows={7}
+              rows={3}
+              style={{ minHeight: 72 }}
               value={outcome[key]}
               onChange={(e) => onEdit({ [key]: e.target.value })}
             />

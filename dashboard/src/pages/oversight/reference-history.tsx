@@ -18,7 +18,6 @@ export function ReferenceHistory({
 }) {
   return (
     <>
-      <hr className="section-divider" />
       <h3>Preserved review history</h3>
       <p className="helper">
         All outcome and definition revisions remain available through these
@@ -31,10 +30,7 @@ export function ReferenceHistory({
         reviews.data.map((review) => (
           <div
             key={review.id}
-            style={{
-              padding: "13px 0",
-              borderBottom: "1px solid var(--border)",
-            }}
+            style={{ padding: "13px 0", borderTop: "1px solid var(--rule)" }}
           >
             <div className="actions">
               <strong>{review.reviewer}</strong>

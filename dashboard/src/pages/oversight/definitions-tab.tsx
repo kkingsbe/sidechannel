@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { History, Save } from "lucide-react";
 import {
   Button,
@@ -68,6 +68,16 @@ export function DefinitionsTab(): ReactElement {
   if (!draft)
     return <ErrorState error={current.error} retry={current.refresh} />;
   const outcome = draft.outcomes.find((o) => o.id === selected);
+  const invalid =
+    !draft.questions.trim() ||
+    draft.outcomes.some((o) => !o.archived && (!o.definition.trim() || !o.name.trim()));
+  const reason = command.busy
+    ? "Saving revision…"
+    : !dirty
+      ? "Edit a definition to enable saving a new revision."
+      : invalid
+        ? "Enter evaluation questions and a name and definition for every active outcome."
+        : "Ready to save a new immutable revision.";
   const edit = (patch: Partial<OutcomeDefinition>) => {
     setDraft({
       ...draft,
@@ -95,12 +105,7 @@ export function DefinitionsTab(): ReactElement {
     }
   };
   return (
-    <>
-      <Notice>
-        These definitions govern run-level oversight and human reference
-        outcomes. They are separate from Jev behavior codes. Archive stable
-        outcome IDs to preserve historical comparisons.
-      </Notice>
+    <div className="stack">
       {command.error && (
         <Notice kind="error">
           {command.error.message}
@@ -131,53 +136,32 @@ export function DefinitionsTab(): ReactElement {
       {command.message && <Notice kind="success">{command.message}</Notice>}
       <Card className="form-section">
         <CardHeading
+          ruled
           title="Monitor evaluation questions"
-          description={`Editing revision ${draft.revision} Â· ${dirty ? "Unsaved edits" : "Saved"}`}
+          description={`Editing revision ${draft.revision} · ${dirty ? "unsaved edits" : "saved"}. These govern run-level oversight and are separate from Jev behaviours.`}
           actions={
             <>
               <Button variant="secondary" onClick={() => setShowHistory(true)}>
                 <History size={14} />
                 History
               </Button>
-              <Button
-                onClick={save}
-                disabled={
-                  command.busy ||
-                  !dirty ||
-                  !draft.questions.trim() ||
-                  draft.outcomes.some(
-                    (o) =>
-                      !o.archived && (!o.definition.trim() || !o.name.trim()),
-                  )
-                }
-              >
+              <span className="why">{reason}</span>
+              <Button onClick={save} disabled={command.busy || !dirty || invalid}>
                 <Save size={14} />
                 Save revision
               </Button>
             </>
           }
         />
-        <div className="card-body">
-          <p className="helper">
-            {command.busy
-              ? "Saving revision - "
-              : !dirty
-                ? "Edit definitions to enable saving a new revision."
-                : !draft.questions.trim() ||
-                    draft.outcomes.some(
-                      (o) =>
-                        !o.archived && (!o.name.trim() || !o.definition.trim()),
-                    )
-                  ? "Before saving: enter evaluation questions and a name and definition for every active outcome."
-                  : "Ready to save a new immutable revision."}
-          </p>
+        <div className="card-body" style={{ paddingTop: 16 }}>
           <Field
             required
             label="Evaluation questions / instructions"
             hint="The complete wording is frozen at launch and shared across the four isolated views."
           >
             <Textarea
-              rows={6}
+              rows={5}
+              style={{ minHeight: 120 }}
               value={draft.questions}
               onChange={(e) => {
                 setDraft({ ...draft, questions: e.target.value });
@@ -187,7 +171,8 @@ export function DefinitionsTab(): ReactElement {
           </Field>
         </div>
       </Card>
-      <div className="split">
+      <div className="g12">
+        <div className="c4">
         <OutcomeList
           outcomes={draft.outcomes}
           selected={selected}
@@ -216,7 +201,10 @@ export function DefinitionsTab(): ReactElement {
             setDirty(true);
           }}
         />
-        {outcome && <OutcomeEditor outcome={outcome} onEdit={edit} />}
+        </div>
+        <div className="c8">
+          {outcome && <OutcomeEditor outcome={outcome} onEdit={edit} />}
+        </div>
       </div>
       <Drawer
         open={showHistory}
@@ -255,7 +243,7 @@ export function DefinitionsTab(): ReactElement {
           />
         )}
       </Drawer>
-    </>
+    </div>
   );
 }
 

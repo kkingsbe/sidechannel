@@ -8,7 +8,7 @@
  * gets `data-active="true"` / class `mc-mark-active`.
  */
 import * as React from 'react';
-import { AlertTriangle, Brain, Check, ChevronDown, ChevronUp, Copy, EyeOff, Info, Lock, ListTree, AlignLeft } from 'lucide-react';
+import { AlertTriangle, Brain, Check, ChevronDown, ChevronUp, Copy, EyeOff, Info, Lock, AlignLeft } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ReadableValue, isProse, parseMaybeJson, summarizeValue } from './readable-value';
 import {
@@ -125,7 +125,7 @@ export function ReasoningBlock(props: ReasoningBlockProps) {
       <div className="mc-reasoning-head">
         <span className="mc-reasoning-label">
           <Brain size={14} aria-hidden="true" />
-          REASONING
+          Reasoning
           <span className="mc-reasoning-meta">
             · {isSummary ? 'provider summary' : 'provider-reported'}
             {tokenCount !== undefined ? ` · ${formatTokens(tokenCount)} tokens` : ''}
@@ -232,7 +232,7 @@ export function OutputText({ text, highlight, activeMatch, hasToolCalls, classNa
     <section className={cn('mc-output', className)} aria-label="Model output text">
       <div className="mc-output-label">
         <AlignLeft size={14} aria-hidden="true" />
-        OUTPUT TEXT
+        Output
       </div>
       {empty ? (
         <p className="mc-output-empty">{hasToolCalls ? 'No text output. This call only proposed tool calls.' : 'No text output.'}</p>
@@ -304,11 +304,12 @@ export function ToolCallList({ calls, variant = 'compact', onSelectEvent, highli
         <li key={call.id || i} className="mc-tool" data-status={call.status}>
           {compact ? (
             <>
-              <code className="mc-chip" title={safeJson(call.arguments)}>
-                <ListTree size={12} aria-hidden="true" />
-                <Highlight text={proseArgument(call.arguments) ? call.name : `${call.name}(${argsPreview(call.arguments)})`} query={highlight} />
-              </code>
-              <StatusPill call={call} onSelectEvent={onSelectEvent} />
+              <span className="mc-tool-head">
+                <code className="mc-chip" title={safeJson(call.arguments)}>
+                  <Highlight text={proseArgument(call.arguments) ? call.name : `${call.name}(${argsPreview(call.arguments)})`} query={highlight} />
+                </code>
+                <StatusPill call={call} onSelectEvent={onSelectEvent} />
+              </span>
               {call.reason && (call.status === 'unexecuted' || call.status === 'failed') && (
                 <span className="mc-tool-reason">{call.reason}</span>
               )}
@@ -356,16 +357,30 @@ export function ModelCallMeta({ call, className }: { call: Pick<ModelCall, 'toke
   return <p className={cn('mc-meta', className)}>{parts.join(' · ')}</p>;
 }
 
-/** Danger callout for a call that never got a response because the turn or run then failed. */
-export function ModelCallFailure({ call, className }: { call: Pick<ModelCall, 'failure'>; className?: string }) {
+/** The first sentence of a raw diagnostic, capped, so a provider's error body never fills a row. */
+export function oneSentence(reason: string, max = 140): string {
+  const flat = reason.replace(/\s+/g, ' ').trim();
+  const stop = flat.search(/[.!?](\s|$)/);
+  const sentence = stop > 0 ? flat.slice(0, stop + 1) : flat;
+  return sentence.length > max ? `${sentence.slice(0, max - 1).trimEnd()}…` : sentence;
+}
+
+/** One line for a call that never got a response because the turn or run then failed; the raw text is one click away. */
+export function ModelCallFailure({ call, className, onFullDiagnostic }: { call: Pick<ModelCall, 'failure'>; className?: string; onFullDiagnostic?: () => void }) {
   if (!call.failure) return null;
   const { reason, elapsedMs } = call.failure;
   return (
     <div className={cn('mc-failure', className)} role="alert">
       <AlertTriangle size={14} aria-hidden="true" />
       <span>
-        <strong>Model call failed.</strong> {reason}
-        {elapsedMs !== undefined ? ` · no response after ${(elapsedMs / 1000).toFixed(1)} s` : ''}
+        <strong>Model call failed:</strong> {oneSentence(reason)}
+        {elapsedMs !== undefined ? ` No response after ${(elapsedMs / 1000).toFixed(1)} s.` : ''}
+        {onFullDiagnostic && (
+          <>
+            {' '}
+            <button type="button" className="mc-link-btn" onClick={onFullDiagnostic}>Full diagnostic</button>
+          </>
+        )}
       </span>
     </div>
   );

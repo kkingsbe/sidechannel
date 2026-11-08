@@ -1,17 +1,55 @@
 import { useEffect, useState, type ReactElement } from "react";
-import { Drawer, Notice } from "../../components/ui";
+import { Link } from "react-router-dom";
+import { Badge, Card, CardHeading, Drawer, Notice } from "../../components/ui";
+import { useClients } from "../../lib/clients/context";
+import { useResource } from "../../lib/clients/query";
+import { agreementMeta } from "../../lib/status";
+import type { RunOutcomeAgreement } from "../../lib/types";
+import { short } from "../../lib/utils";
 import { MonitorConfigCard } from "./monitor-config-card";
 import { MonitorLaunchCard } from "./monitor-launch-card";
-import { ProjectionGrid } from "./projection-grid";
 import { ProjectionInspector } from "./projection-inspector";
 import { ProjectionPreview } from "./projection-preview";
 import { useMonitorSetup } from "./use-monitor-setup";
 import { viewNames } from "./views";
 
+/** The five outcomes for the first selected run with their finalization state, linking to the references tab. */
+function ReferenceOutcomes({ runId, outcomes, revision }: { runId: string; outcomes: { id: string; name: string }[]; revision: number }) {
+  const clients = useClients();
+  const agreements = useResource<RunOutcomeAgreement[]>(
+    `oversight:setup-agreements:${runId}`,
+    async () => (await clients.reviews.outcomes(runId)) as RunOutcomeAgreement[],
+  );
+  return (
+    <Card>
+      <CardHeading
+        title={`Reference outcomes for ${short(runId)}`}
+        actions={<Link className="link" to={`/oversight?view=references&run=${encodeURIComponent(runId)}`}>Adjudicate</Link>}
+      />
+      <div>
+        {outcomes.map((outcome) => {
+          const agreement = agreements.data?.find((a) => a.outcomeId === outcome.id);
+          return (
+            <div className="trow" key={outcome.id} style={{ gridTemplateColumns: "minmax(0, 1fr) auto" }}>
+              <span>{outcome.name}</span>
+              {agreement ? (
+                <Badge tone={agreementMeta[agreement.state].tone}>{agreementMeta[agreement.state].label}</Badge>
+              ) : (
+                <span className="small muted">unreviewed</span>
+              )}
+            </div>
+          );
+        })}
+        {!outcomes.length && <p className="helper" style={{ padding: "0 var(--card-pad) 12px" }}>No outcomes in revision {revision}.</p>}
+      </div>
+      <div className="card-foot">Two distinct reviewers must agree on the same evidence and definition revision.</div>
+    </Card>
+  );
+}
+
 /**
- * Configure & preview: composes the setup hook with the configuration card, the four
- * evidence-view cards, the frozen preview and the explicit launch aside. No other tab
- * fetches these resources.
+ * Configure & preview: source runs and the monitor on the left, and on a sticky rail the preview
+ * summary with the evidence ladder and the reference outcomes of the first selected run.
  */
 export function MonitorSetupTab(): ReactElement {
   const setup = useMonitorSetup();
@@ -19,34 +57,23 @@ export function MonitorSetupTab(): ReactElement {
   const [acknowledged, setAcknowledged] = useState(false);
   useEffect(() => setAcknowledged(false), [preview?.id]);
   const previewProjections = preview?.runs.flatMap((run) => run.projections) ?? [];
-  const unavailableViews = previewProjections.filter(
-    (item) => item.status !== "ready",
-  ).length;
-  const totalEstimatedTokens = previewProjections.reduce(
-    (sum, item) => sum + item.estimatedInputTokens,
-    0,
-  );
+  const unavailableViews = previewProjections.filter((item) => item.status !== "ready").length;
+  const totalEstimatedTokens = previewProjections.reduce((sum, item) => sum + item.estimatedInputTokens, 0);
+  const definition = setup.history.items.find((item) => item.revision === setup.definitionRevision);
+  const activeOutcomes = definition?.outcomes.filter((o) => !o.archived) ?? [];
   return (
     <>
       {command.error && <Notice kind="error">{command.error.message}</Notice>}
-      <Notice>
-        Oversight runs only when explicitly launched. Each view receives one
-        isolated call with the same frozen model and questions. No Jev
-        classifications, human labels, other monitor results, or cross-view
-        synthesis are included.
-      </Notice>
-      <div className="editor-layout">
-        <div>
+      <div className="g12">
+        <div className="c8 stack">
           <MonitorConfigCard setup={setup} />
-          <ProjectionGrid />
-          {preview && (
-            <ProjectionPreview preview={preview} onInspect={setProjection} />
-          )}
+          {preview && <ProjectionPreview preview={preview} onInspect={setProjection} />}
         </div>
-        <aside className="sticky stack">
+        <aside className="c4 sticky stack" style={{ gap: 16 }}>
           <MonitorLaunchCard
             selectedCount={setup.selected.length}
             definitionRevision={setup.definitionRevision}
+            outcomeCount={definition ? activeOutcomes.length : undefined}
             modelId={setup.settings.model.id}
             prerequisites={setup.prerequisites}
             busy={command.busy}
@@ -59,6 +86,9 @@ export function MonitorSetupTab(): ReactElement {
             onPreview={setup.doPreview}
             onLaunch={setup.launch}
           />
+          {setup.selected[0] && definition && (
+            <ReferenceOutcomes runId={setup.selected[0]} outcomes={activeOutcomes} revision={definition.revision} />
+          )}
         </aside>
       </div>
       <Drawer

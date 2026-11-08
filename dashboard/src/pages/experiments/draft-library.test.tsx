@@ -35,6 +35,6 @@ it("renders the empty state without a fetch stub", async () => {
     clients: fakeClients({ experiments: { drafts: async () => [] } }),
   });
   expect(
-    await screen.findByText("No shared drafts yet. Create an experiment to begin."),
+    await screen.findByText("No saved drafts"),
   ).toBeTruthy();
 });

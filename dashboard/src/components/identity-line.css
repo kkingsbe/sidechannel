@@ -1,0 +1,6 @@
+/* Remembered claimed identity as a line of text. */
+.identity-line { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 13px; color: var(--muted); }
+.identity-line b { color: var(--foreground); font-weight: 500; }
+.identity-input { width: 180px; height: 28px; min-height: 28px; font-size: 13px; }
+.link-button { all: unset; cursor: pointer; font-weight: 500; color: var(--foreground); text-decoration: underline; text-underline-offset: 3px; }
+.link-button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }

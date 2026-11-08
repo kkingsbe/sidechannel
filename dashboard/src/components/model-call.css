@@ -345,3 +345,38 @@
 .mc-failure strong {
   font-weight: 600;
 }
+
+/* ---- redesign: neutral chrome, tool chips as one box, failures as one pale-red line ---- */
+.mc-reasoning { background: var(--subtle); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 10px 12px; }
+.mc-reasoning-label { color: var(--muted); font-size: 12px; font-weight: 500; letter-spacing: 0; }
+.mc-reasoning-meta { color: var(--faint); }
+.mc-reasoning-text { color: var(--foreground); font-size: 13px; line-height: 20px; }
+.mc-reasoning-note { color: var(--faint); }
+.mc-icon-btn, .mc-text-btn, .mc-link-btn { color: var(--foreground); font-weight: 500; }
+.mc-icon-btn:hover, .mc-text-btn:hover { background: var(--active); }
+.mc-link-btn { text-decoration: underline; text-underline-offset: 3px; }
+.mc-notice { border-radius: var(--radius-control); font-size: 13px; padding: 8px 12px; }
+.mc-notice-hidden { background: transparent; border: 0; color: var(--muted); padding: 0; }
+.mc-notice-hidden > svg { color: var(--muted); }
+.mc-notice .mc-link-btn { color: var(--foreground); }
+.mc-notice-scripted { background: var(--subtle); color: var(--muted); }
+.mc-output-label { color: var(--muted); font-size: 12px; font-weight: 500; letter-spacing: 0; }
+.mc-output-text { font-size: 13px; line-height: 20px; }
+.mc-mark-active { outline-color: var(--blue); }
+.mc-tools-compact { gap: 6px; }
+.mc-tools-compact .mc-tool { gap: 8px; }
+.mc-tool-head { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 1px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); min-width: 0; }
+.mc-tool-head .mc-chip { padding: 0; background: transparent; border-radius: 0; font-family: var(--mono); font-size: 12px; }
+.mc-tool-head .mc-pill { padding: 0; background: transparent; border-radius: 0; font-size: 12px; font-weight: 400; color: var(--muted); }
+.mc-tool-head .mc-pill-ok { color: var(--success-fg); }
+.mc-tool-head .mc-pill-warn { color: var(--warning); }
+.mc-tool-head .mc-pill-bad { color: var(--danger-fg); }
+.mc-tool-head .mc-pill-btn:hover { text-decoration: underline; filter: none; }
+.mc-tools-detailed .mc-tool { border-radius: var(--radius-control); }
+.mc-tool-name { font-family: var(--mono); font-weight: 500; font-size: 12px; }
+.mc-meta { font-size: 12px; color: var(--muted); }
+.mc-tool-prose { color: var(--muted); }
+.mc-failure { background: var(--danger-bg); color: var(--danger); border-radius: var(--radius-control); padding: 6px 10px; font-size: 13px; line-height: 20px; align-items: baseline; }
+.mc-failure > svg { color: var(--danger-fg); align-self: flex-start; margin-top: 3px; }
+.mc-failure strong { font-weight: 500; }
+.mc-failure .mc-link-btn { color: var(--danger); }

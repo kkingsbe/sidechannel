@@ -74,13 +74,13 @@ it('navigates to neighbouring calls and disables at the ends', async () => {
   expect((screen.getByRole('button', { name: 'Next model call' }) as HTMLButtonElement).disabled).toBe(true);
 });
 
-it('navigates to linked events and offers Open in Model & traces', async () => {
+it('navigates to linked events and offers Open in Model calls', async () => {
   const onOpenTraces = vi.fn();
   const { onNavigate, twoRequest } = setup('two', { onOpenTraces });
   const user = userEvent.setup();
   await user.click(screen.getByRole('button', { name: `Request #${twoRequest.sequence}` }));
   expect(onNavigate).toHaveBeenLastCalledWith(twoRequest.id, twoRequest.sequence);
-  await user.click(screen.getByRole('button', { name: 'Open in Model & traces' }));
+  await user.click(screen.getByRole('button', { name: 'Open in Model calls' }));
   expect(onOpenTraces).toHaveBeenCalledWith('two');
 });
 

@@ -1,7 +1,7 @@
 import * as React from 'react';
 import type { HarnessEvent } from '@sidechannel/contracts/browser';
 import { ChevronDown, ChevronRight, ChevronUp, Search, X } from 'lucide-react';
-import { Badge } from '../../components/ui';
+import { roleStyle } from './role-color';
 import { cn } from '../../lib/utils';
 import { ModelCallFailure, ModelCallMeta, OutputText, ReasoningBlock, ToolCallList, proseArgument } from '../../components/model-call';
 import {
@@ -171,7 +171,7 @@ function CallCard({ call, query, matches, focused, quietHidden, onInspect, regis
       </header>
       {call.failure ? (
         <>
-          <div className="tr-strip"><ModelCallFailure call={call} /></div>
+          <div className="tr-strip"><ModelCallFailure call={call} onFullDiagnostic={() => onInspect(call.failure!.event.id, call.failure!.event.sequence)} /></div>
           {call.toolCalls.length > 0 && <div className="tr-body"><div className="tr-col">{tools}</div></div>}
         </>
       ) : textState ? (
@@ -301,13 +301,12 @@ export function TracesPanel({ events, provider, onInspect, focusInvocationId, pa
         <span className="tr-chip"><strong>{allCalls.length}</strong> {allCalls.length === 1 ? 'call' : 'calls'} in the loaded turns</span>
         <span className="tr-chip tr-chip-reasoning">Reasoning returned on <strong>{returnedCount} of {allCalls.length}</strong> in the loaded turns</span>
         {knownTokens.length > 0 && <span className="tr-chip"><strong>{formatTokens(reasoningTokens)}</strong> reasoning tokens in the loaded turns</span>}
+        {hiddenCount > 0 && (
+          <span className="tr-note-hidden" role="note">
+            Provider hid reasoning on {hiddenCount === allCalls.length ? `all ${allCalls.length}` : `${hiddenCount} of ${allCalls.length}`} call{allCalls.length === 1 ? '' : 's'} in the loaded turns; token counts are on each call.
+          </span>
+        )}
       </div>
-      {hiddenCount > 0 && (
-        <p className="tr-note-hidden" role="note">
-          Provider hid reasoning on {hiddenCount === allCalls.length ? `all ${allCalls.length}` : `${hiddenCount} of ${allCalls.length}`} call{allCalls.length === 1 ? '' : 's'} in the loaded turns.
-          Reasoning token counts are shown on each call.
-        </p>
-      )}
 
       <div className="tr-toolbar" role="search">
         <div className="tr-find">
@@ -350,7 +349,7 @@ export function TracesPanel({ events, provider, onInspect, focusInvocationId, pa
           <section key={`${group.key}-${group.calls[0].invocationId}`} aria-label={group.label} className="tr-root">
             <div className="tr-group">
               <h3>{group.label}</h3>
-              {group.agentId && <Badge>{group.agentId}</Badge>}
+              {group.agentId && <span className="who-chip" style={roleStyle(group.agentId)}>{group.agentId}</span>}
               {continued && <span className="tr-muted">Continued from previous page</span>}
               {continues && <span className="tr-muted">Continues on next page</span>}
               <span className="tr-rule" aria-hidden="true" />

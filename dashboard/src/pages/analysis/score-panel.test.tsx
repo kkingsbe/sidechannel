@@ -40,5 +40,6 @@ it("shows the same estimate caveat above the probability, heatmap and table view
 
 it("keeps missing scores as gaps, never zeros", async () => {
   renderPanel("table", [{ ...windows[0], results: [] } as never]);
-  expect(await screen.findByText("— missing")).toBeTruthy();
+  expect(await screen.findByText("skipped")).toBeTruthy();
+  expect(screen.queryByText("0%")).toBeNull();
 });

@@ -48,3 +48,39 @@ export function conditionCells(runs: Run[]): (Run | undefined)[] {
 export function experimentKey(run: Run): string {
   return run.sourceDraft?.groupId || run.config?.label || run.id;
 }
+
+/** One sentence for a failure reason; the raw text stays available through a title. */
+export function failureSentence(reason: string, max = 110): string {
+  const line = reason.trim().split(/\r?\n/)[0] ?? "";
+  const first = line.match(/^.{20,}?[.!?](\s|$)/)?.[0].trim() ?? line;
+  return first.length > max ? first.slice(0, max - 1).trimEnd() + "…" : first;
+}
+
+const position = (run: Run) => `R${run.round ?? 0} · T${run.turn ?? 0}`;
+const COMPLETE = "completed";
+
+export interface Comparability {
+  state: "yes" | "no" | "pending";
+  reason: string;
+}
+
+/** Comparable end to end: both conditions recorded and both completed. */
+export function comparability(runs: Run[]): Comparability {
+  const [first, second] = conditionCells(runs);
+  const cells = [first, second];
+  if (!first || !second) {
+    const only = first ?? second;
+    return { state: "no", reason: only ? "only " + (only.config?.condition?.id ?? "one") + " recorded" : "no runs recorded" };
+  }
+  if (cells.every((run) => run!.status === COMPLETE)) {
+    const same = position(first) === position(second);
+    return { state: "yes", reason: same ? "both ran to " + position(first) : "both completed" };
+  }
+  const active = cells.find((run) => ["queued", "running", "reporting", "stopping"].includes(run!.status));
+  if (active) return { state: "pending", reason: (active.config?.condition?.id ?? "a run") + " still " + active.status };
+  const odd = cells.find((run) => run!.status !== COMPLETE)!;
+  return {
+    state: "no",
+    reason: `${odd.config?.condition?.id ?? "run"} ${odd.status} at ${position(odd)}`,
+  };
+}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Badge, Button, Card, CardHeading, ErrorState, Field, Input, Loading, Notice, Pager, Select, Table } from "../../components/ui";
+import { Badge, Button, Card, CardHeading, Empty, ErrorState, Field, Input, Loading, Pager, Select, Table } from "../../components/ui";
 import { useApi, useMutation, usePage } from "../../lib/api";
 import { useClients } from "../../lib/clients/context";
 import { useClaimedReviewer } from "../../components/claimed-reviewer";
@@ -88,96 +88,93 @@ export function ReviewWorkspace({
   useEffect(() => {
     onQueue?.(JSON.parse(queueIds) as string[]);
   }, [queueIds, onQueue]);
+  const [changingIdentity, setChangingIdentity] = useState(false);
   return (
     <>
-      <Notice>
-        Window and event annotations are provisional research notes. Run-level
-        reference outcomes require agreement by two distinct claimed reviewers
-        and are recorded separately in Oversight.
-      </Notice>
-      <div className="editor-layout">
-        <Card>
-          <details open={!batchId}>
-            <summary className="analysis-disclosure">
-              Create a new review selection
-            </summary>
-            <CardHeading
-              title="Durable review selection"
-              description="Flagged candidates and random samples share one queue without duplicate tasks."
-            />
-            <div className="card-body form-grid">
-              <Field
-                label="Reviewer identity"
-                hint="Self-entered and unverified in this open workspace."
-              >
-                <Input
-                  value={reviewer}
-                  onChange={(e) => identifyReviewer(e.target.value)}
-                />
-              </Field>
-              <Field label="Initial review mode">
-                <Select
-                  value={mode}
-                  onChange={(e) => {
-                    const value = e.target.value as "blind" | "assisted";
-                    setMode(value);
-                    setParams((prev) => {
-                      prev.set("blind", String(value === "blind"));
-                      return prev;
-                    });
-                  }}
-                >
-                  <option value="assisted">
-                    Assisted · predictions visible
-                  </option>
-                  <option value="blind">
-                    Blind · hide predictions until judgment
-                  </option>
-                </Select>
-              </Field>
-              <Field label="Flag threshold">
-                <Input
-                  type="number"
-                  min="0"
-                  max="1"
-                  step=".05"
-                  value={threshold}
-                  onChange={(e) => setThreshold(e.target.valueAsNumber)}
-                />
-              </Field>
-              <Field label="Random windows">
-                <Input
-                  type="number"
-                  min="0"
-                  max="1000"
-                  value={randomCount}
-                  onChange={(e) => setRandomCount(e.target.valueAsNumber)}
-                />
-              </Field>
-              <Field label="Random sampling seed">
-                <Input value={seed} onChange={(e) => setSeed(e.target.value)} />
-              </Field>
-              <div className="actions">
-                <Button
-                  onClick={create}
-                  disabled={mutation.busy || !reviewer.trim()}
-                >
-                  Create selection batch
-                </Button>
+      <div className="g12 an-equal">
+        <Card className="c8 an-card">
+          <CardHeading
+            ruled
+            title="Durable review selection"
+            description="Flagged candidates and random samples share one queue without duplicate tasks."
+          />
+          <details open={!batchId} className="an-disclosure">
+            <summary>Create a new review selection</summary>
+            <div className="card-body an-body">
+              <div className="well">
+                <div className="two">
+                  <Field label="Initial review mode">
+                    <Select
+                      value={mode}
+                      onChange={(e) => {
+                        const value = e.target.value as "blind" | "assisted";
+                        setMode(value);
+                        setParams((prev) => {
+                          prev.set("blind", String(value === "blind"));
+                          return prev;
+                        });
+                      }}
+                    >
+                      <option value="assisted">Assisted · predictions visible</option>
+                      <option value="blind">Blind · hide predictions until judgment</option>
+                    </Select>
+                  </Field>
+                  {reviewer.trim() && !changingIdentity ? (
+                    <div className="field">
+                      <div>
+                        <label>Reviewer identity</label>
+                      </div>
+                      <p className="an-identity">
+                        Saving as <strong>{reviewer}</strong> ·{" "}
+                        <button type="button" className="an-linkbtn" onClick={() => setChangingIdentity(true)}>
+                          change
+                        </button>
+                      </p>
+                    </div>
+                  ) : (
+                    <Field
+                      label="Reviewer identity"
+                      hint="Self-entered and unverified in this open workspace."
+                    >
+                      <Input value={reviewer} onChange={(e) => identifyReviewer(e.target.value)} />
+                    </Field>
+                  )}
+                </div>
+                <div className="three">
+                  <Field label="Flag threshold">
+                    <Input
+                      type="number"
+                      min="0"
+                      max="1"
+                      step=".05"
+                      value={threshold}
+                      onChange={(e) => setThreshold(e.target.valueAsNumber)}
+                    />
+                  </Field>
+                  <Field label="Random windows">
+                    <Input
+                      type="number"
+                      min="0"
+                      max="1000"
+                      value={randomCount}
+                      onChange={(e) => setRandomCount(e.target.valueAsNumber)}
+                    />
+                  </Field>
+                  <Field label="Random sampling seed">
+                    <Input value={seed} onChange={(e) => setSeed(e.target.value)} />
+                  </Field>
+                </div>
+                <div className="actions">
+                  <Button onClick={create} disabled={mutation.busy || !reviewer.trim()}>
+                    Create selection batch
+                  </Button>
+                  {!reviewer.trim() && (
+                    <span className="why">Enter a reviewer identity to create a selection batch.</span>
+                  )}
+                </div>
+                {mutation.error && <ErrorState error={mutation.error} />}
               </div>
-              <p className="helper full">
-                Refresh retrieves the same stored batch. Selection reasons,
-                settings, population hash, seed, and eligible count are
-                preserved for export. Random windows within a run are correlated
-                observations.
-              </p>
             </div>
-            {mutation.error && <ErrorState error={mutation.error} />}
-            {!reviewer.trim() && (
-              <p className="card-body helper">
-                Enter a reviewer identity to create a selection batch.
-              </p>
-            )}
           </details>
           {batchId && (
             <>
@@ -245,9 +242,21 @@ export function ReviewWorkspace({
               )}
             </>
           )}
+          <div className="card-foot">
+            <span>
+              Window and event annotations are provisional research notes. Run-level reference outcomes need
+              agreement by two distinct claimed reviewers and are recorded in Oversight.
+            </span>
+          </div>
         </Card>
-        <Card>
-          <CardHeading title="Saved selection batches" />
+        <Card className="c4 an-card">
+          <CardHeading title="Saved selection batches" count={batches.data.length || undefined} />
+          {!batches.data.length && !batches.loading && (
+            <Empty
+              title="No selection batches yet"
+              description="Create one on the left to queue flagged and randomly sampled windows for review."
+            />
+          )}
           {batches.data.map((item) => (
             <button
               key={item.id}
@@ -270,7 +279,9 @@ export function ReviewWorkspace({
               </div>
             </button>
           ))}
-          <Pager page={batches.page} hasMore={batches.hasMore} onChange={batches.onChange} />
+          {(batches.page > 0 || batches.hasMore) && (
+            <Pager page={batches.page} hasMore={batches.hasMore} onChange={batches.onChange} />
+          )}
         </Card>
       </div>
     </>

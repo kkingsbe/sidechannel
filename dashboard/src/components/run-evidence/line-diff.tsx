@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import "./run-evidence.css";
 
 export type DiffLine = { kind: "same" | "added" | "removed"; text: string };
 
@@ -45,34 +46,78 @@ export function diffLines(before: string, after: string): DiffLine[] {
   return result;
 }
 
+/** Few long lines (a one-paragraph note) diff better by sentence; many short lines stay as they are. */
+export function unitize(text: string): string {
+  const lines = text.split("\n");
+  if (lines.length >= 8) return text;
+  return lines
+    .flatMap((line) => line.split(/(?<=[.;!?]) +(?=[A-Z(])/))
+    .join("\n");
+}
+
+const TAGS = { added: "added", removed: "removed", same: "kept" } as const;
+
+/**
+ * Only the changed lines, each with a removed/added pill and pale red/green text. The unchanged lines
+ * collapse into one "kept" row; `full` shows the complete diff instead.
+ */
 export function DiffView({
   before,
   after,
   label = "Changes",
+  full = false,
 }: {
   before: string;
   after: string;
   label?: string;
+  full?: boolean;
 }) {
-  const lines = useMemo(() => diffLines(before, after), [before, after]);
+  const lines = useMemo(
+    () => diffLines(unitize(before), unitize(after)),
+    [before, after],
+  );
   if (!lines.some((line) => line.kind !== "same"))
     return <p className="helper">No differences.</p>;
+  if (full)
+    return (
+      <div className="ev-diff-full" role="group" aria-label={label}>
+        {lines.map((line, index) => (
+          <div key={index} className={"ev-d-" + line.kind}>
+            <span aria-hidden="true" style={{ width: "1ch", flex: "none" }}>
+              {line.kind === "added" ? "+" : line.kind === "removed" ? "−" : " "}
+            </span>
+            <span>
+              {line.kind !== "same" && (
+                <span className="sr-only">{line.kind === "added" ? "Added: " : "Removed: "}</span>
+              )}
+              {line.text || " "}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  const changed = lines.filter((line) => line.kind !== "same");
+  const kept = lines.length - changed.length;
   return (
-    <div className="line-diff" role="group" aria-label={label}>
-      {lines.map((line, index) => (
-        <div key={index} className={"line-diff-" + line.kind}>
-          <span className="line-diff-mark" aria-hidden="true">
-            {line.kind === "added" ? "+" : line.kind === "removed" ? "−" : " "}
+    <div className="ev-diff" role="group" aria-label={label}>
+      {changed.map((line, index) => (
+        <div key={index} className="ev-change">
+          <span className={"ev-tag ev-tag-" + line.kind} style={{ justifySelf: "start" }}>
+            {TAGS[line.kind]}
           </span>
-          <span className="line-diff-text">
-            {line.kind === "added" && <span className="sr-only">Added: </span>}
-            {line.kind === "removed" && (
-              <span className="sr-only">Removed: </span>
-            )}
-            {line.text || " "}
-          </span>
+          <span className={"ev-change-text ev-change-" + line.kind}>{line.text}</span>
         </div>
       ))}
+      {kept > 0 && (
+        <div className="ev-change">
+          <span className="ev-tag" style={{ justifySelf: "start" }}>
+            kept
+          </span>
+          <span className="ev-change-text ev-change-kept">
+            {kept} unchanged {kept === 1 ? "line" : "lines"}.
+          </span>
+        </div>
+      )}
     </div>
   );
 }

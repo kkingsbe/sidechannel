@@ -3,9 +3,8 @@ import { useSearchParams } from "react-router-dom";
 import {
   Card,
   CardHeading,
+  Empty,
   ErrorState,
-  Field,
-  Notice,
   Pager,
   Select,
 } from "../../components/ui";
@@ -40,44 +39,47 @@ export function ReferencesTab(): ReactElement {
     { pageSize: 25 },
   );
   return (
-    <>
-      <Notice>
-        Human references are independent from Jev. Two distinct claimed
-        reviewers must agree on the same evidence and definition revision. An
-        agreed uncertain label remains a final uncertainty.
-      </Notice>
+    <div className="stack">
       <Card>
-        <CardHeading title="Select a terminal source run" />
-        <div className="card-body">
-          <Field label="Run for outcome adjudication">
-            <Select
-              value={referenceRunId}
-              onChange={(e) => setReferenceRunId(e.target.value)}
-            >
-              <option value="">Select a run</option>
-              {referenceRunId &&
-                !referenceRuns.data.some((run) => run.id === referenceRunId) && (
-                  <option value={referenceRunId}>
-                    {short(referenceRunId)} (selected source)
+        <CardHeading
+          title="Human reference outcomes"
+          description="Independent of Jev. Two distinct claimed reviewers must agree on the same evidence and definition revision; an agreed uncertain label stays a final uncertainty."
+          actions={
+            <span className="cf">
+              <span style={{ whiteSpace: "nowrap" }}>Source run</span>
+              <Select
+                aria-label="Run for outcome adjudication"
+                style={{ border: 0, height: 26, minHeight: 26, width: "auto", maxWidth: 320 }}
+                value={referenceRunId}
+                onChange={(e) => setReferenceRunId(e.target.value)}
+              >
+                <option value="">Select a run</option>
+                {referenceRunId &&
+                  !referenceRuns.data.some((run) => run.id === referenceRunId) && (
+                    <option value={referenceRunId}>
+                      {short(referenceRunId)} (selected source)
+                    </option>
+                  )}
+                {referenceRuns.data.map((run) => (
+                  <option key={run.id} value={run.id}>
+                    {run.config.label} · {run.config.condition.id} · {short(run.id)}
                   </option>
-                )}
-              {referenceRuns.data.map((run) => (
-                <option key={run.id} value={run.id}>
-                  {run.config.label} · {run.config.condition.id} ·{" "}
-                  {short(run.id)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          {referenceRuns.error && (
+                ))}
+              </Select>
+            </span>
+          }
+        />
+        {referenceRuns.error && (
+          <div className="card-body">
             <ErrorState error={referenceRuns.error} retry={referenceRuns.refresh} />
-          )}
-          <Pager
-            page={referenceRuns.page}
-            hasMore={referenceRuns.hasMore}
-            onChange={referenceRuns.onChange}
-          />
-        </div>
+          </div>
+        )}
+        {(referenceRuns.page > 0 || referenceRuns.hasMore) && (
+          <Pager page={referenceRuns.page} hasMore={referenceRuns.hasMore} onChange={referenceRuns.onChange} />
+        )}
+        {!referenceRunId && (
+          <Empty title="Choose a source run" description="Pick a completed, failed or cancelled run to adjudicate its five run-level outcomes." />
+        )}
       </Card>
       {referenceRunId && (
         <RunReferenceEditor
@@ -86,6 +88,6 @@ export function ReferencesTab(): ReactElement {
           initialDefinitionRevisionId={params.get("definition") || undefined}
         />
       )}
-    </>
+    </div>
   );
 }
