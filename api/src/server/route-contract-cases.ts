@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import type { AddressInfo } from 'node:net';
 import { InMemoryRepository } from '@sidechannel/persistence/harness/repository';
 import { InMemoryHealthcareCatalog } from '@sidechannel/persistence/healthcare/catalog';
+import { InMemoryPlaybookCatalog } from '@sidechannel/persistence/playbook/catalog';
 import { defaultFixtureConfiguration } from '@sidechannel/domain/harness/config';
 import { createQueuedRun } from '@sidechannel/domain/harness/initialization';
 import type { HarnessEvent } from '@sidechannel/contracts/harness/contracts';
@@ -61,7 +62,18 @@ const contractExtensions: ResearchRouteHandler = async request => {
     return null;
 };
 
-async function createApp(options: ResearcherServerOptions) {
+const playbookReport = { ownActions: 'Read role data.', observations: 'No observations.', limitations: 'Scripted.' };
+const playbookTurn = { steps: [{ calls: [{ name: 'read_role_data' }, { name: 'end_turn' }] }] };
+/** Deterministic playbook body and the configuration that selects it by id+version only. */
+const playbookDocument = (over: Record<string, unknown> = {}) => ({
+    format_version: 'sidechannel-playbook-v1', playbook_id: 'contract-play', playbook_version: '1', display_name: 'Route contract playbook',
+    scenario_version: 'fixture-v1',
+    roles: { alpha: { turns: [playbookTurn], report: playbookReport }, beta: { turns: [playbookTurn], report: playbookReport } },
+    ...over,
+});
+const playbookConfig = () => ({ ...defaultFixtureConfiguration(), model: { provider: 'playbook', id: 'contract-play', settings: { playbookVersion: '1' } } });
+
+async function createApp(options: ResearcherServerOptions, playbookCatalog: InMemoryPlaybookCatalog | null = new InMemoryPlaybookCatalog()) {
     const repository = new InMemoryRepository();
     const directory = await mkdtemp(join(tmpdir(), 'route-contract-'));
     await writeFile(join(directory, 'index.html'), '<!doctype html><title>Research workspace</title><main id="root"></main>');
@@ -69,7 +81,7 @@ async function createApp(options: ResearcherServerOptions) {
     await writeFile(join(directory, 'assets', 'main.js'), 'document.title="Research workspace"');
     const catalog = new InMemoryHealthcareCatalog();
     await catalog.register(await loadHealthcarePackage(healthcareFixture));
-    const server = createResearcherServer(repository, { dashboardDirectory: directory, healthcareCatalog: catalog, extensionHandlers: [contractExtensions], ...options });
+    const server = createResearcherServer(repository, { dashboardDirectory: directory, healthcareCatalog: catalog, ...(playbookCatalog ? { playbookCatalog } : {}), extensionHandlers: [contractExtensions], ...options });
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
     const address = server.address() as AddressInfo;
@@ -102,6 +114,19 @@ async function recordResearchMode(): Promise<RouteRecord[]> {
         records.push(await app.get('config/schema', '/config/schema'));
         records.push(await app.post('config/validate invalid', '/config/validate', { config: { roles: [null] } }));
         records.push(await app.post('config/validate fixture', '/config/validate', { config }));
+        records.push(await app.get('playbooks empty', '/playbooks'));
+        records.push(await app.post('playbooks register', '/playbooks', playbookDocument()));
+        records.push(await app.get('playbooks list', '/playbooks'));
+        records.push(await app.post('playbooks register repeat', '/playbooks', playbookDocument()));
+        records.push(await app.post('playbooks register conflict', '/playbooks', playbookDocument({ display_name: 'Changed display name' })));
+        const { format_version: omitted, ...malformedPlaybook } = playbookDocument();
+        records.push(await app.post('playbooks register malformed', '/playbooks', malformedPlaybook));
+        records.push(await app.get('playbooks read', '/playbooks/contract-play?version=1'));
+        records.push(await app.get('playbooks read missing version', '/playbooks/contract-play'));
+        records.push(await app.get('playbooks read unknown', '/playbooks/missing?version=1'));
+        records.push(await app.post('config/validate playbook', '/config/validate', { config: playbookConfig() }));
+        const forged = playbookConfig(); Object.assign(forged.model.settings, { playbook: { bogus: true }, playbookHash: 'f'.repeat(64) });
+        records.push(await app.post('config/validate playbook forged', '/config/validate', { config: forged }));
         records.push(await app.get('datasets', '/datasets'));
         records.push(await app.get('drafts empty', '/drafts'));
         records.push(await app.post('drafts create invalid', '/drafts', { id: 'draft-1', config: { label: 'unfinished' }, name: 'Pilot', notes: 'Keep my edits' }));
@@ -156,8 +181,14 @@ async function recordResearchMode(): Promise<RouteRecord[]> {
 }
 
 async function recordDemoMode(): Promise<RouteRecord[]> {
-    const app = await createApp({ demoMode: true });
-    try { return [await app.get('workspace demo', '/workspace')]; } finally { await app.close(); }
+    // No playbook catalog is injected here, so the missing-catalog failure path is characterized too.
+    const app = await createApp({ demoMode: true }, null);
+    try {
+        return [
+            await app.get('workspace demo', '/workspace'),
+            await app.post('config/validate playbook catalog unavailable', '/config/validate', { config: playbookConfig() }),
+        ];
+    } finally { await app.close(); }
 }
 
 export async function recordRouteContract(): Promise<RouteContractSnapshot> {

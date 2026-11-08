@@ -20,8 +20,8 @@ test('provider and scenario metadata endpoints publish both registries', async (
     const client = await app(); try {
         const providers = await client.get('/providers') as ProviderCatalogResponse;
         assert.deepEqual(providers, { providers: providerCatalog() });
-        assert.deepEqual(providers.providers.map(provider => provider.id), ['scripted', 'adaption']);
-        assert.deepEqual(providers.providers.map(provider => provider.fixture), [true, false]);
+        assert.deepEqual(providers.providers.map(provider => provider.id), ['scripted', 'adaption', 'playbook']);
+        assert.deepEqual(providers.providers.map(provider => provider.fixture), [true, false, true]);
         const scenarios = await client.get('/scenarios') as ScenarioCatalogResponse;
         assert.deepEqual(scenarios, { scenarios: scenarioCatalog() });
         assert.deepEqual(scenarios.scenarios.map(scenario => scenario.version).sort(), ['fixture-v1', 'healthcare-points-v0.3'].sort());
