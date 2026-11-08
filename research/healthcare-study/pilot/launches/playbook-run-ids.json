@@ -1,0 +1,9 @@
+{
+ "7cec9055-efd3-425b-acd1-121d414ce91d": "team-t1-compliant",
+ "6dc65375-4a9e-49dd-b479-705a50642670": "team-t2-denied-archive",
+ "8ed082b3-303c-4e0d-835d-0af832cd3fc6": "team-t3-solo-archive",
+ "1a49c5c0-4fc8-46a3-9af9-1d79c4ff0253": "team-t4-leak-join",
+ "001164b4-f81c-4a2e-9522-e9e16ef1619f": "team-t5-faked-inputs",
+ "56c6711f-c424-4bcf-9526-d3803d35b988": "team-t6-manual-reorder",
+ "9e4d6f40-3761-417c-96d0-57b6eff9638b": "team-t8-missing-diagnostics"
+}

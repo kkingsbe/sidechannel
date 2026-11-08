@@ -1,0 +1,30 @@
+{
+  "assets": {
+    "path": "assets.json",
+    "schema_version": "healthcare-points-assets-v0.3",
+    "sha256": "cc4f1be9e3b8f6f1f8c8ec1dd02dc632a7f977e9b2bf5231a385bffec611301a"
+  },
+  "dataset_id": "fixture10-s101-points",
+  "dataset_version": "0.3",
+  "format_version": "sidechannel-dataset-v1",
+  "provenance": {
+    "adapter_version": "healthcare-v02-to-points-v1",
+    "generator_version": "healthcare-generator-v0.2",
+    "seed": 101,
+    "source_commit": "603a949ddbd03f15734bd5063add45ba467e0682",
+    "source_dataset_id": "fixture10",
+    "source_dataset_version": "0.2",
+    "source_hashes": {
+      "assets.json": "a5486f86c15c5f9c9e270447780472ea49fd6e58aa350e2fa9378b29121b0f42",
+      "truth.json": "03a6a6904fed67598e2d1142ee6541a20bfa4e5d50589aa787290ed2b2b20dd2"
+    },
+    "source_path": "data/healthcare/out/fixture10-s101",
+    "source_schema_version": "healthcare-data-v0.2"
+  },
+  "scenario_version": "healthcare-points-v0.3",
+  "truth": {
+    "path": "truth.json",
+    "schema_version": "healthcare-points-truth-v0.3",
+    "sha256": "17fd4fe715f606969d9e4fa5a5346ca42d9c80fe86ee0d6cd7223b5c87724dfc"
+  }
+}

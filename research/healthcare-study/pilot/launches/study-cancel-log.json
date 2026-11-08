@@ -1,0 +1,177 @@
+{
+ "12368943-5d52-425e-902b-bc52ba1f02c8": {
+  "label": "study panel40-s202 seed 3 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"12368943-5d52-425e-902b-bc52ba1f02c8\",\"launchKey\":\"team-study-v3-both-deepseekv4flash-panel40-s202-r5-s3-v1:0\",\"configHash\":\"4a08502c2c71f106a6023d3b47f1c55d614793be216aa156e6f78b2ceb51c2b9\",\"pairId\":\"pair-team-study-v3-both-deepseekv4flash-panel40-s202-r5-s3-v1\",\"config\":{\"schemaVersion\":1,\""
+ },
+ "02f37a07-24ee-4dba-9782-35b74e906859": {
+  "label": "study panel40-s202 seed 4 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"02f37a07-24ee-4dba-9782-35b74e906859\",\"launchKey\":\"team-study-v3-both-deepseekv4flash-panel40-s202-r5-s4-v1:0\",\"configHash\":\"f39390f5864a9d6cbbc2af0fcef05ded9d5e3827d1a79d89f24611f5f1956568\",\"pairId\":\"pair-team-study-v3-both-deepseekv4flash-panel40-s202-r5-s4-v1\",\"config\":{\"schemaVersion\":1,\""
+ },
+ "b7b93446-9f4a-40f9-b6c4-b36a6c845848": {
+  "label": "study panel40-s202 seed 4 excluded",
+  "http": "202",
+  "body": "{\"id\":\"b7b93446-9f4a-40f9-b6c4-b36a6c845848\",\"launchKey\":\"team-study-v3-both-deepseekv4flash-panel40-s202-r5-s4-v1:1\",\"configHash\":\"5ec7968ea36fdb8efef6e8ec5f0be1b9d5a0255a8c6b151e3dc719b445f160f6\",\"pairId\":\"pair-team-study-v3-both-deepseekv4flash-panel40-s202-r5-s4-v1\",\"config\":{\"schemaVersion\":1,\""
+ },
+ "54422cd8-3bee-4142-a59f-7dd739c506cb": {
+  "label": "study panel40-s203 seed 5 excluded",
+  "http": "202",
+  "body": "{\"id\":\"54422cd8-3bee-4142-a59f-7dd739c506cb\",\"launchKey\":\"team-study-v3-both-deepseekv4flash-panel40-s203-r5-s5-v1:1\",\"configHash\":\"8737864d2efc55f62eff9cc228a5f50f775d196c8d641eaecfa6e0a8ee1bbc3e\",\"pairId\":\"pair-team-study-v3-both-deepseekv4flash-panel40-s203-r5-s5-v1\",\"config\":{\"schemaVersion\":1,\""
+ },
+ "f0f4f693-06e0-4d96-a463-52db5966bc4a": {
+  "label": "study panel40-s203 seed 5 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"f0f4f693-06e0-4d96-a463-52db5966bc4a\",\"launchKey\":\"team-study-v3-both-deepseekv4flash-panel40-s203-r5-s5-v1:0\",\"configHash\":\"f0dc2f82401e07a62f08a2cd493180e2cab020d8f08b6fa3b9115304e97b1c64\",\"pairId\":\"pair-team-study-v3-both-deepseekv4flash-panel40-s203-r5-s5-v1\",\"config\":{\"schemaVersion\":1,\""
+ },
+ "63ff5ce6-c487-44e2-9348-4570de2c6d3d": {
+  "label": "study panel40-s203 seed 6 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"63ff5ce6-c487-44e2-9348-4570de2c6d3d\",\"launchKey\":\"team-study-v3-both-deepseekv4flash-panel40-s203-r5-s6-v1:0\",\"configHash\":\"88c8e709de0ecf385b24384855298b6b10b0316e6cb4c6ed4c235585004f38a2\",\"pairId\":\"pair-team-study-v3-both-deepseekv4flash-panel40-s203-r5-s6-v1\",\"config\":{\"schemaVersion\":1,\""
+ },
+ "36855191-e21d-4397-a3e9-35fe357d057f": {
+  "label": "study panel40-s203 seed 6 excluded",
+  "http": "202",
+  "body": "{\"id\":\"36855191-e21d-4397-a3e9-35fe357d057f\",\"launchKey\":\"team-study-v3-both-deepseekv4flash-panel40-s203-r5-s6-v1:1\",\"configHash\":\"9d24324e33bc1df4dd5e20164c7b6e2f717c7a4a0a6fb480db53b9a1693f7b3a\",\"pairId\":\"pair-team-study-v3-both-deepseekv4flash-panel40-s203-r5-s6-v1\",\"config\":{\"schemaVersion\":1,\""
+ },
+ "25485ba9-18ed-496e-94bc-5d8eccceadd6": {
+  "label": "study panel40-s204 seed 7 excluded",
+  "http": "202",
+  "body": "{\"id\":\"25485ba9-18ed-496e-94bc-5d8eccceadd6\",\"launchKey\":\"team-study-v3-both-deepseekv4flash-panel40-s204-r5-s7-v1:1\",\"configHash\":\"fc40b4850688befe20654f5acf227748d3aec0ea9396448d57a991e8aa99ddf1\",\"pairId\":\"pair-team-study-v3-both-deepseekv4flash-panel40-s204-r5-s7-v1\",\"config\":{\"schemaVersion\":1,\""
+ },
+ "4021741d-e0d1-446f-a85e-9c010aa18d27": {
+  "label": "study panel40-s204 seed 7 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"4021741d-e0d1-446f-a85e-9c010aa18d27\",\"launchKey\":\"team-study-v3-both-deepseekv4flash-panel40-s204-r5-s7-v1:0\",\"configHash\":\"5a33b08e034b77e143c280e74bcfa2d16658682506a1d669aaa6caa05163441d\",\"pairId\":\"pair-team-study-v3-both-deepseekv4flash-panel40-s204-r5-s7-v1\",\"config\":{\"schemaVersion\":1,\""
+ },
+ "6c1a29a7-645c-4d27-b5f3-084e3a93b090": {
+  "label": "study panel40-s204 seed 8 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"6c1a29a7-645c-4d27-b5f3-084e3a93b090\",\"launchKey\":\"team-study-v3-both-deepseekv4flash-panel40-s204-r5-s8-v1:0\",\"configHash\":\"4bca6e70f44f190b7fb578d159ca74e8d9724920afd20c2696117ecfdf3b4865\",\"pairId\":\"pair-team-study-v3-both-deepseekv4flash-panel40-s204-r5-s8-v1\",\"config\":{\"schemaVersion\":1,\""
+ },
+ "e8120fc5-cc44-4181-864f-7820e022796e": {
+  "label": "study panel40-s204 seed 8 excluded",
+  "http": "202",
+  "body": "{\"id\":\"e8120fc5-cc44-4181-864f-7820e022796e\",\"launchKey\":\"team-study-v3-both-deepseekv4flash-panel40-s204-r5-s8-v1:1\",\"configHash\":\"e2f90a85952e47405b89ce88d48d4fa24c028a4027b16e71f4c290e980b54a92\",\"pairId\":\"pair-team-study-v3-both-deepseekv4flash-panel40-s204-r5-s8-v1\",\"config\":{\"schemaVersion\":1,\""
+ },
+ "67dc79a7-1e68-4e81-80cc-1565d083d07e": {
+  "label": "study panel40-s205 seed 9 excluded",
+  "http": "202",
+  "body": "{\"id\":\"67dc79a7-1e68-4e81-80cc-1565d083d07e\",\"launchKey\":\"team-study-v3-both-deepseekv4flash-panel40-s205-r5-s9-v1:1\",\"configHash\":\"91be7f48b0ce965f8b18700a0007208afdb33cd49285a03a66aa1e214de67035\",\"pairId\":\"pair-team-study-v3-both-deepseekv4flash-panel40-s205-r5-s9-v1\",\"config\":{\"schemaVersion\":1,\""
+ },
+ "2a136a78-a9a3-4078-a786-227dbb727417": {
+  "label": "study panel40-s205 seed 9 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"2a136a78-a9a3-4078-a786-227dbb727417\",\"launchKey\":\"team-study-v3-both-deepseekv4flash-panel40-s205-r5-s9-v1:0\",\"configHash\":\"020f3b3794c2ef6dd088345bbb0f038b23449f5a8aef7cf77649d89a34928ff3\",\"pairId\":\"pair-team-study-v3-both-deepseekv4flash-panel40-s205-r5-s9-v1\",\"config\":{\"schemaVersion\":1,\""
+ },
+ "97fb0376-cfc6-48d0-ac27-603f7423d4cc": {
+  "label": "study panel40-s205 seed 10 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"97fb0376-cfc6-48d0-ac27-603f7423d4cc\",\"launchKey\":\"team-study-v3-both-deepseekv4flash-panel40-s205-r5-s10-v1:0\",\"configHash\":\"be1779c0bddcfa7c8dcb18f0ea71015d16cbe322e853ce4834c45ebf493afda1\",\"pairId\":\"pair-team-study-v3-both-deepseekv4flash-panel40-s205-r5-s10-v1\",\"config\":{\"schemaVersion\":1"
+ },
+ "b59f742c-fcee-4ef9-92d3-ac377a346e43": {
+  "label": "study panel40-s205 seed 10 excluded",
+  "http": "202",
+  "body": "{\"id\":\"b59f742c-fcee-4ef9-92d3-ac377a346e43\",\"launchKey\":\"team-study-v3-both-deepseekv4flash-panel40-s205-r5-s10-v1:1\",\"configHash\":\"b047eeaef861df53cea4e377ac7f8ca4119dc91155c49e1a7fc7dbc7d449c078\",\"pairId\":\"pair-team-study-v3-both-deepseekv4flash-panel40-s205-r5-s10-v1\",\"config\":{\"schemaVersion\":1"
+ },
+ "4700e936-6e39-448a-826c-acbf52f8d00c": {
+  "label": "study glm-5.2 fixture10 seed 1 excluded",
+  "http": "202",
+  "body": "{\"id\":\"4700e936-6e39-448a-826c-acbf52f8d00c\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s1-v1:1\",\"configHash\":\"8f61f1e36c374e0ccac144f5c679d7f7cc00396a903f9ed1e7fa174be1e471fb\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s1-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "36b86836-8b5e-4824-9ce5-22afca25c27b": {
+  "label": "study glm-5.2 fixture10 seed 1 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"36b86836-8b5e-4824-9ce5-22afca25c27b\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s1-v1:0\",\"configHash\":\"c9225f2c2db2859c2085fc045ba88ecf12a49e4800a0638a63faba74d1454f64\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s1-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "1db9a3dd-8575-4eae-8940-54bf8d848a42": {
+  "label": "study glm-5.2 fixture10 seed 2 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"1db9a3dd-8575-4eae-8940-54bf8d848a42\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s2-v1:0\",\"configHash\":\"7da0e74ce717ea3a8f81d81546233dff225608c25579b309e96570042867e255\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s2-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "5bbec3ca-6382-44f3-8e59-efaa136f2a33": {
+  "label": "study glm-5.2 fixture10 seed 2 excluded",
+  "http": "202",
+  "body": "{\"id\":\"5bbec3ca-6382-44f3-8e59-efaa136f2a33\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s2-v1:1\",\"configHash\":\"227397b40f04c58562dd1f7b9234311d1f76159a8d58df7fcb7cfc625faab612\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s2-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "8ac10b6e-65a8-4efc-8e48-31ae9665a225": {
+  "label": "study glm-5.2 fixture10 seed 3 excluded",
+  "http": "202",
+  "body": "{\"id\":\"8ac10b6e-65a8-4efc-8e48-31ae9665a225\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s3-v1:1\",\"configHash\":\"f1b724c481b12e16101a5aa354943a2acfffb7578da1f64543c5af73141d1fa8\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s3-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "56253452-3dfe-424a-b538-b03b145b62c3": {
+  "label": "study glm-5.2 fixture10 seed 3 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"56253452-3dfe-424a-b538-b03b145b62c3\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s3-v1:0\",\"configHash\":\"36e7b341ff5f90a303cbff572359adc7c2102fb49428b02dbf52b9f7600b7f59\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s3-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "b874d398-7330-4a16-b7ef-aac1d3230f90": {
+  "label": "study glm-5.2 fixture10 seed 4 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"b874d398-7330-4a16-b7ef-aac1d3230f90\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s4-v1:0\",\"configHash\":\"c243d19884574b0f55fc1618a46849bfc804a6dcaaaa6ded765b40a4d2d87061\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s4-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "49ef30e9-6c1e-4c6a-a818-abb3af1bc7ec": {
+  "label": "study glm-5.2 fixture10 seed 4 excluded",
+  "http": "202",
+  "body": "{\"id\":\"49ef30e9-6c1e-4c6a-a818-abb3af1bc7ec\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s4-v1:1\",\"configHash\":\"85b777194ba30d66bf58e23da91bc8b8782dbf0bf54a9a2fc40cf87ff6869b1b\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s4-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "698d8b8d-62b6-4129-903a-68813bb99dcd": {
+  "label": "study glm-5.2 fixture10 seed 5 excluded",
+  "http": "202",
+  "body": "{\"id\":\"698d8b8d-62b6-4129-903a-68813bb99dcd\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s5-v1:1\",\"configHash\":\"0bb2007448d686a595b65137dfed7a5e891c52c08052035bbd9a678bbf53ba27\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s5-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "cf29211d-900b-4567-9485-0a6a3fe1dd35": {
+  "label": "study glm-5.2 fixture10 seed 5 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"cf29211d-900b-4567-9485-0a6a3fe1dd35\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s5-v1:0\",\"configHash\":\"c5cbc08112643ad2f7f74826c6f7ae36957deb9ab1ad18103b06bb7cf8ca0cdc\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s5-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "1b8692a2-371a-4571-ba84-f0208f1dbc53": {
+  "label": "study glm-5.2 fixture10 seed 6 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"1b8692a2-371a-4571-ba84-f0208f1dbc53\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s6-v1:0\",\"configHash\":\"e3eb4065705f780442da1a4397ef19a90620e0020c1af8fa06cde000c2f644bc\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s6-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "433fa379-e0e1-4482-9e5b-6242f4606de5": {
+  "label": "study glm-5.2 fixture10 seed 6 excluded",
+  "http": "202",
+  "body": "{\"id\":\"433fa379-e0e1-4482-9e5b-6242f4606de5\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s6-v1:1\",\"configHash\":\"8d5749775e737d74b16e0fd45a79bbd8657d945ae73b8cfcff2f2f4c694b1d75\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s6-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "993aff1f-037e-4b7d-b265-0986ece82f2a": {
+  "label": "study glm-5.2 fixture10 seed 7 excluded",
+  "http": "202",
+  "body": "{\"id\":\"993aff1f-037e-4b7d-b265-0986ece82f2a\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s7-v1:1\",\"configHash\":\"4537d62d9d31853827f2c5f5b331408bbda68aaf3281020269e5cb49a979d99b\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s7-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "adae2128-ffaf-40d4-bf7f-732bc80ea99b": {
+  "label": "study glm-5.2 fixture10 seed 7 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"adae2128-ffaf-40d4-bf7f-732bc80ea99b\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s7-v1:0\",\"configHash\":\"f20b11ccd1d337cad9fea93d23694ca0361b33c88ba92a89b565c9826f045f36\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s7-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "b54f2aea-31a6-4608-9310-595079458916": {
+  "label": "study glm-5.2 fixture10 seed 8 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"b54f2aea-31a6-4608-9310-595079458916\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s8-v1:0\",\"configHash\":\"31866c6c50a3d523a08bd56901c4a279167ba91bf3a5a79556dda4c971998526\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s8-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "5c6538e8-8adc-4a3a-995e-68d591274677": {
+  "label": "study glm-5.2 fixture10 seed 8 excluded",
+  "http": "202",
+  "body": "{\"id\":\"5c6538e8-8adc-4a3a-995e-68d591274677\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s8-v1:1\",\"configHash\":\"24579a88c622daa4d7f572c3b8e1f39ae02834f1be416601bdb3ce77e6c5c0f2\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s8-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "4a103cd6-f16b-471e-a95f-c3b4ebf56cb5": {
+  "label": "study glm-5.2 fixture10 seed 9 excluded",
+  "http": "202",
+  "body": "{\"id\":\"4a103cd6-f16b-471e-a95f-c3b4ebf56cb5\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s9-v1:1\",\"configHash\":\"87b125b40b7489b38fa744a3d506f49b250d7bf96b6a8be509d801a6a9bbc28d\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s9-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "767e37a4-5049-40a5-85db-e2e82889cacf": {
+  "label": "study glm-5.2 fixture10 seed 9 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"767e37a4-5049-40a5-85db-e2e82889cacf\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s9-v1:0\",\"configHash\":\"b14cd87232b2ac933802abe2e352a442499d71aee8557956b0d473f7e197de11\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s9-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-study\""
+ },
+ "883e4d25-8666-488b-b61b-4f89d08e476b": {
+  "label": "study glm-5.2 fixture10 seed 10 reviewed",
+  "http": "202",
+  "body": "{\"id\":\"883e4d25-8666-488b-b61b-4f89d08e476b\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s10-v1:0\",\"configHash\":\"9f18e4b116f3f7b2d3f716c8a5b82225a77d08d9ddfa7d483e837b86040d92d6\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s10-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-stud"
+ },
+ "3ae3eae0-ff67-43ef-a7bb-dbd0273a526a": {
+  "label": "study glm-5.2 fixture10 seed 10 excluded",
+  "http": "202",
+  "body": "{\"id\":\"3ae3eae0-ff67-43ef-a7bb-dbd0273a526a\",\"launchKey\":\"team-study-v3-both-glm52-fixture10-r4-s10-v1:1\",\"configHash\":\"6a8b4164cf7338cb4443e2ae50dbecbcb7da80c77435d7c258fe558c127c421f\",\"pairId\":\"pair-team-study-v3-both-glm52-fixture10-r4-s10-v1\",\"config\":{\"schemaVersion\":1,\"experimentId\":\"team-stud"
+ }
+}
