@@ -21,16 +21,27 @@ export function proposalTools(definitions: ModelInput['tools']) {
         })]));
 }
 
-function modelMessages(messages: Message[]): any[] {
-    return messages.map(message => {
+/**
+ * With `assistantTextItemIds`, replayed assistant text gets a deterministic, position-based
+ * OpenAI item ID so the Responses request carries `id` on that message item. Only used with
+ * `store: false`, where the AI SDK sends the full message rather than an item reference.
+ */
+export function modelMessages(messages: Message[], options: { assistantTextItemIds?: boolean } = {}): any[] {
+    return messages.map((message, index) => {
         if (message.role === 'tool')
             return { role: 'tool', content: [{ type: 'tool-result', toolCallId: message.toolCallId,
                         toolName: message.toolName, output: { type: 'text', value: message.content } }] };
-        if (message.role === 'assistant' && message.toolCalls?.length)
-            return { role: 'assistant', content: [
-                    ...(message.content ? [{ type: 'text', text: message.content }] : []),
-                    ...message.toolCalls.map(call => ({ type: 'tool-call', toolCallId: call.id, toolName: call.name, input: call.arguments })),
-                ] };
+        if (message.role === 'assistant') {
+            const text = message.content ? [{ type: 'text', text: message.content,
+                    ...(options.assistantTextItemIds ? { providerOptions: { openai: { itemId: `msg_sidechannel_${index}` } } } : {}) }] : [];
+            if (message.toolCalls?.length)
+                return { role: 'assistant', content: [
+                        ...text,
+                        ...message.toolCalls.map(call => ({ type: 'tool-call', toolCallId: call.id, toolName: call.name, input: call.arguments })),
+                    ] };
+            if (options.assistantTextItemIds)
+                return { role: 'assistant', content: text };
+        }
         return { role: message.role, content: message.content };
     });
 }
@@ -46,7 +57,8 @@ export class MastraModelAdapter implements ModelAdapter {
         const resolved = this.modelOverride ? { model: this.modelOverride, providerOptions } : resolveInferenceProvider(input.model);
         const agent = this.trace.register(new Agent({ id: `experiment-${JSON.stringify([input.runId, input.agentId])}`, name: input.agentId,
             instructions: '', model: resolved.model, tools, maxRetries: 0 }), tools);
-        const result = await agent.generate(modelMessages(input.messages), {
+        const messages = modelMessages(input.messages, { assistantTextItemIds: 'assistantTextItemIds' in resolved && resolved.assistantTextItemIds });
+        const result = await agent.generate(messages, {
             maxSteps: 1, runId: input.invocationId,
             abortSignal: input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(input.timeoutMs)]) : AbortSignal.timeout(input.timeoutMs),
             modelSettings: settings as any, providerOptions: resolved.providerOptions as any,
