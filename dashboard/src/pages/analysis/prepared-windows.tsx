@@ -1,6 +1,7 @@
 import { Badge, Button, Card, CardHeading, Notice, Table } from "../../components/ui";
 import { evidenceCategories as categories } from "../../lib/analysis-types";
 import type { AnalysisSetupState } from "./analysis-setup";
+import { categoryLabels, groupDiagnostics } from "./analysis-view";
 
 export function PreparedWindows({ state }: { state: AnalysisSetupState }) {
   const { preview, setPreviewWindow } = state;
@@ -34,13 +35,14 @@ export function PreparedWindows({ state }: { state: AnalysisSetupState }) {
                 <div className="actions" style={{ margin: "16px 0" }}>
                   {categories.map((c) => (
                     <Badge key={c}>
-                      {c}: {preview.manifest.availability[c] ?? "unavailable"}
+                      {categoryLabels[c]}: {preview.manifest.availability[c] ?? "unavailable"}
                     </Badge>
                   ))}
                 </div>
-                {preview.manifest.diagnostics.map((d) => (
-                  <Notice kind="warning" key={d}>
-                    {d}
+                {groupDiagnostics(preview.manifest.diagnostics).map((d) => (
+                  <Notice kind="warning" key={d.text}>
+                    {d.text}
+                    {d.count > 1 ? ` (${d.count} steps)` : ""}
                   </Notice>
                 ))}
               </div>
