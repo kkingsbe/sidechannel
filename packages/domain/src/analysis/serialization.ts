@@ -160,11 +160,11 @@ class AliasRegistry {
 }
 
 /**
- * The v2 serializer (`jev-state-v2`, spec section 5.1): evidence only. No static context; step, event and
+ * The v2 serializer (`jev-state-v2`, spec section 5.1): evidence plus an optional shared `background` block. No static context; step, event and
  * tool-call IDs become window-local aliases resolved through `aliasMap`; sequence bounds, invocation IDs,
  * operation IDs and per-tool-call event IDs stay out of the model-facing state (the window record keeps them).
  */
-export function serializeWindowV2(window: AnalysisWindow, input: readonly CanonicalStep[], selection: EvidenceSelection, estimatorVersion: string = DEFAULT_TOKEN_ESTIMATOR_VERSION): SerializedWindow {
+export function serializeWindowV2(window: AnalysisWindow, input: readonly CanonicalStep[], selection: EvidenceSelection, estimatorVersion: string = DEFAULT_TOKEN_ESTIMATOR_VERSION, background?: { task?: string; policy?: string }): SerializedWindow {
     const estimator = assertTokenEstimatorVersion(estimatorVersion);
     const steps = selectWindowSteps(window, input);
     const aliases = new AliasRegistry();
@@ -185,6 +185,8 @@ export function serializeWindowV2(window: AnalysisWindow, input: readonly Canoni
     const availability = evidenceAvailability(steps);
     const activeAgents = [...new Set(steps.map(s => s.agentId))];
     const state = stableStringify({ serializationVersion: SERIALIZATION_VERSION, window: { ref: windowRef, startOrdinal: window.startOrdinal, endOrdinal: window.endOrdinal, agents: activeAgents, ...(window.partial ? { partial: true } : {}) },
+        // Shared task/policy background (never the condition) is the one pipeline-added block; it measured closer to v1 than per-question copies.
+        ...(background && Object.keys(background).length ? { background } : {}),
         evidence: { selection, availability }, steps: projected });
     return immutableSnapshot({ serializationVersion: SERIALIZATION_VERSION, windowId: window.id, state, hash: snapshotHash(state), bytes: Buffer.byteLength(state), estimatedTokens: estimateTokens(state, estimator), estimatorVersion: estimator, hasEvidence, availability, selection, aliasMap: aliases.map, activeAgents });
 }

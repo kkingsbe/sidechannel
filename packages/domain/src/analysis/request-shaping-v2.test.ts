@@ -7,7 +7,7 @@ import { buildWindows } from './windows.js';
 import { preflightWindow, resolveAlias, serializeWindowV1, serializeWindowV2, SERIALIZATION_VERSION } from './serialization.js';
 import {
     assertNoForbiddenText, buildBehaviorQuestions, buildBehaviorQuestionsV1, buildSystemOnePayload, invertChoiceAnswer, scoredDefinitions,
-    shuffleChoiceOptions, toBudgetQuestion, QUESTION_TEMPLATE_VERSION,
+    shuffleChoiceOptions, stateBackground, toBudgetQuestion, QUESTION_TEMPLATE_VERSION,
 } from './jev-questions.js';
 import { computeReliability, sampleSd, selectProbeWindows } from './jev-probe.js';
 
@@ -96,9 +96,11 @@ test('questions v2 are structured, background comes from the listed parts only, 
     assert.deepEqual(questions.map(questionKey), ['plain', 'none', 'taskonly', 'actor@alpha', 'actor@beta']);
     const byKey = Object.fromEntries(questions.map(q => [questionKey(q), q]));
     const instructions = (key: string) => byKey[key]!.instructions as Record<string, unknown>;
-    assert.deepEqual(instructions('plain').background, background);
-    assert.equal('background' in instructions('none'), false);
-    assert.deepEqual(instructions('taskonly').background, { task: 'TASK_TEXT' });
+    // Questions never carry background text; they only declare the parts their code requested.
+    for (const key of Object.keys(byKey)) assert.ok(!JSON.stringify(instructions(key)).includes('TASK_TEXT') && !('background' in instructions(key)));
+    assert.deepEqual(byKey['plain']!.background, ['task', 'policy']);
+    assert.deepEqual(byKey['none']!.background, []);
+    assert.deepEqual(byKey['taskonly']!.background, ['task']);
     assert.deepEqual(instructions('actor@beta').focus, { agent: 'beta' });
     assert.deepEqual(instructions('actor@beta').framingExclusions, ['do not count the framing']);
     assert.equal(byKey['actor@beta']!.codeId, 'actor');
@@ -108,8 +110,9 @@ test('questions v2 are structured, background comes from the listed parts only, 
     assert.deepEqual(byKey['plain']!.criteria && Object.keys(byKey['plain']!.criteria), ['true', 'false']);
     // A hand-edited background naming the condition cannot add it: only task and policy are representable.
     const hostile = buildBehaviorQuestions([code('x', { background: ['condition' as never, 'task'] })], { activeAgents: [], background });
-    assert.deepEqual(hostile[0]!.instructions && (hostile[0]!.instructions as Record<string, unknown>).background, { task: 'TASK_TEXT' });
-    assert.equal(QUESTION_TEMPLATE_VERSION, 'jev-behavior-v2');
+    assert.deepEqual(hostile[0]!.background, ['task']);
+    assert.deepEqual(stateBackground([code('x', { background: ['condition' as never, 'task'] })], background), { task: 'TASK_TEXT' });
+    assert.equal(QUESTION_TEMPLATE_VERSION, 'jev-behavior-v3');
     assert.equal(typeof buildBehaviorQuestionsV1(definitions)[0]!.instructions, 'string');
 });
 
@@ -158,24 +161,37 @@ test('the request builder refuses condition text in anything it adds, in any enc
         assert.doesNotThrow(() => buildSystemOnePayload({ state, questions, forbiddenText: [condition] }));
     // Background or instructions carrying it is a pipeline leak, in any encoding.
     for (const task of [`see: ${condition}`, condition.toUpperCase(), condition.replaceAll(' ', '\n')]) {
-        const leaky = buildBehaviorQuestions([code('a')], { activeAgents: [], background: { task, policy: 'p' } });
-        assert.throws(() => buildSystemOnePayload({ state: 'ok', questions: leaky, forbiddenText: [condition] }), /condition text/);
+        assert.throws(() => buildSystemOnePayload({ state: { background: { task, policy: 'p' }, steps: [] }, questions, forbiddenText: [condition] }), /condition text/);
+        const leakyQuestions = [{ ...questions[0]!, instructions: { task } }];
+        assert.throws(() => buildSystemOnePayload({ state: 'ok', questions: leakyQuestions, forbiddenText: [condition] }), /condition text/);
     }
     assert.doesNotThrow(() => assertNoForbiddenText({ a: 1 }, ['', '  ']));
 });
 
-test('batching groups questions by background set; questions without background share their own request', () => {
+test('the state carries one shared background block: the union of requested parts, absent when none is requested', () => {
+    const at = (defs: BehaviorDefinition[]) => JSON.parse(serializeWindowV2(windowOf(0, 1), steps, evidence, undefined, stateBackground(defs, background)).state);
+    assert.deepEqual(at([code('a'), code('b', { background: ['task'] })]).background, background);
+    assert.deepEqual(at([code('b', { background: ['task'] })]).background, { task: 'TASK_TEXT' });
+    assert.equal('background' in at([code('b', { background: [] })]), false);
+    assert.equal('background' in at([code('b', { enabled: false })]), false);
+    assert.equal('background' in JSON.parse(serializeWindowV2(windowOf(0, 1), steps, evidence).state), false);
+    const questions = buildBehaviorQuestions([code('x', { background: [] }), code('y', { background: ['task'] }), code('z')], { activeAgents: ['alpha'], background });
+    const budget = preflightWindow(serializeWindowV2(windowOf(0, 1), steps, evidence), questions.map(toBudgetQuestion), resolveAnalysisConfiguration().inputLimits);
+    assert.equal(budget.batches.length, 1);
+});
+
+test('the batcher still groups questions by an explicit background set; questions without background share their own request', () => {
     const serialized = serializeWindowV2(windowOf(0, 1), steps, evidence);
     const limits = resolveAnalysisConfiguration().inputLimits;
     const definitions = [code('both1'), code('taskonly', { background: ['task'] }), code('none', { background: [] }), code('both2'), code('policyonly', { background: ['policy'] }), code('none2', { background: [] })];
-    const budget = preflightWindow(serialized, buildBehaviorQuestions(definitions, { activeAgents: ['alpha'], background }).map(toBudgetQuestion), limits);
+    const budget = preflightWindow(serialized, buildBehaviorQuestions(definitions, { activeAgents: ['alpha'], background }).map(q => ({ ...toBudgetQuestion(q), background: q.background })), limits);
     assert.equal(budget.oversized, false);
     assert.deepEqual(budget.batches.map(b => [b.backgroundKey, b.codeIds]), [['policy+task', ['both1', 'both2']], ['task', ['taskonly']], ['', ['none', 'none2']], ['policy', ['policyonly']]]);
     assert.deepEqual(budget.batches.map(b => b.background), [['policy', 'task'], ['task'], [], ['policy']]);
     // A tight combined limit still splits within a group, as before.
     const tight = preflightWindow(serialized, buildBehaviorQuestions([code('a'), code('b'), code('c')], { activeAgents: [], background }).map(toBudgetQuestion),
         { ...limits, singleQuestionTokens: 5000, combinedQuestionTokens: serialized.estimatedTokens + 900, headroomTokens: 0 });
-    assert.ok(tight.batches.length > 1 && tight.batches.every(b => b.backgroundKey === 'policy+task'));
+    assert.ok(tight.batches.length > 1);
 });
 
 test('probe selection is seeded, stratified by size and reproducible', () => {

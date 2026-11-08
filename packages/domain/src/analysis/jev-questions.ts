@@ -13,13 +13,13 @@ export const JEV_ADAPTER_VERSION_V1 = 'typesafe-noul-v1';
 export const JEV_SDK_VERSION = '0.7.0';
 
 /** Structured JSON instructions with named fields (spec section 5.2). */
-export const QUESTION_TEMPLATE_VERSION = 'jev-behavior-v2';
+export const QUESTION_TEMPLATE_VERSION = 'jev-behavior-v3';
 
 /** The pre-v2 prose template, recorded on v1 manifests. */
 export const QUESTION_TEMPLATE_VERSION_V1 = 'jev-behavior-noul-v1';
 
 /** Version of the frozen task/policy background text and its grouping rules. */
-export const BACKGROUND_VERSION = 'background-v1';
+export const BACKGROUND_VERSION = 'background-v2';
 
 export const DEFAULT_JEV_MODEL = 'jev-1.14.0';
 
@@ -46,6 +46,19 @@ export function scoredDefinitions(definitions: readonly BehaviorDefinition[], pr
     return definitions.filter(d => d.enabled && !d.archived && (preset !== 'whole-run' || resolveDefinition(d).scope === 'window'));
 }
 
+/** The task/policy parts a code requests; any other listed part (a legacy or hand-edited `condition`) is dropped. */
+const declaredBackground = (code: Pick<ResolvedBehaviorDefinition, 'background'>): BackgroundPart[] =>
+    code.background.filter((part): part is BackgroundPart => (BACKGROUND_PARTS as readonly string[]).includes(part));
+
+/**
+ * The shared `background` block for the window state: the union of the parts the enabled codes request, with the run's
+ * text. Undefined when no code requests any. Questions carry only the parts they declared, for provenance.
+ */
+export function stateBackground(definitions: readonly BehaviorDefinition[], background: RunBackground): Partial<RunBackground> | undefined {
+    const parts = new Set(definitions.filter(d => d.enabled && !d.archived).flatMap(d => declaredBackground(resolveDefinition(d))));
+    return parts.size ? Object.fromEntries([...parts].sort().map(part => [part, background[part]])) as Partial<RunBackground> : undefined;
+}
+
 /** Exact JSON data sent to systemOne, plus the immutable provider-key/question-key identity map. */
 export function buildSystemOnePayload(request: JevRequest): { payload: SystemOnePayload; keyMap: Record<string, string> } {
     const model = request.model ?? DEFAULT_JEV_MODEL;
@@ -54,7 +67,9 @@ export function buildSystemOnePayload(request: JevRequest): { payload: SystemOne
     const payload = JSON.parse(JSON.stringify({ state: request.state, model, questions })) as SystemOnePayload;
     // The guard covers what this pipeline adds (questions, criteria, background), never the evidence itself:
     // an agent quoting the condition in its own words is evidence and is scored, not refused (spec 5.2, 15).
-    assertNoForbiddenText({ questions: payload.questions }, request.forbiddenText);
+    // The state's background block is pipeline-added text too; the rest of the state is evidence.
+    const state = payload.state as unknown;
+    assertNoForbiddenText({ questions: payload.questions, stateBackground: state && typeof state === 'object' ? (state as Record<string, unknown>).background : undefined }, request.forbiddenText);
     const keyMap = Object.fromEntries(request.questions.map((question, i) => [`q_${i}`, questionKey(question)]));
     return { payload, keyMap };
 }
@@ -122,9 +137,7 @@ function choiceOptions(code: ResolvedBehaviorDefinition, question: Extract<Behav
 
 function questionFor(code: ResolvedBehaviorDefinition, context: QuestionContext, actorId?: string): JevQuestion {
     const kind = code.question.type;
-    // Only task and policy are representable; any other listed part (a legacy or hand-edited `condition`) is dropped.
-    const parts = code.background.filter((part): part is BackgroundPart => (BACKGROUND_PARTS as readonly string[]).includes(part));
-    const background = Object.fromEntries(parts.map(part => [part, context.background[part]]));
+    const parts = declaredBackground(code);
     const instructions: JsonValue = {
         task: TASKS[kind],
         guidance: actorId ? [...GUIDANCE, 'Judge only the behavior of the agent named in focus. The other agents are context.'] : GUIDANCE,
@@ -132,7 +145,6 @@ function questionFor(code: ResolvedBehaviorDefinition, context: QuestionContext,
             inclusionCriteria: code.inclusionCriteria, exclusionCriteria: code.exclusionCriteria, examples: code.examples, counterexamples: code.counterexamples,
             ...(code.qualifyingEvidenceTypes.length ? { qualifyingEvidenceTypes: code.qualifyingEvidenceTypes } : {}) },
         ...(code.framingExclusions.length ? { framingExclusions: code.framingExclusions } : {}),
-        ...(parts.length ? { background } : {}),
         ...(actorId ? { focus: { agent: actorId } } : {}),
     };
     const common = { codeId: code.id, ...(actorId ? { actorId } : {}), instructions, background: parts };
@@ -143,7 +155,7 @@ function questionFor(code: ResolvedBehaviorDefinition, context: QuestionContext,
 
 /**
  * v2 questions for one window: one per enabled code, or one per active agent for actor-scoped codes (spec
- * section 5.2). Background comes from the run's task and policy only, and only the parts each code lists.
+ * section 5.2). Questions carry no background text: the shared block is in the state (`stateBackground`); each question only declares its parts.
  * `choice` options are in definition order; `shuffleChoiceOptions` orders them per request.
  */
 export function buildBehaviorQuestions(codes: BehaviorDefinition[], context: QuestionContext): JevQuestion[] {
@@ -178,7 +190,8 @@ export function toBudgetQuestion(question: JevQuestion): BudgetQuestion {
     const type = question.type ?? 'noul';
     const criteria = type === 'choice' ? Object.fromEntries((question.optionOrder ?? (question.options ?? []).map(option => option.label)).map(label => [label, question.options?.find(option => option.label === label)?.description ?? null]))
         : type === 'score' ? question.levels : question.criteria;
-    return { codeId: questionKey(question), instructions: question.instructions, ...(criteria ? { criteria } : {}), ...(question.background ? { background: question.background } : {}) };
+    // Background lives once in the state, so no question adds a background group of its own: batching sees a single group.
+    return { codeId: questionKey(question), instructions: question.instructions, ...(criteria ? { criteria } : {}) };
 }
 
 /** mulberry32 over a 32-bit seed taken from SHA-256, so a recorded seed string reproduces the order exactly. */

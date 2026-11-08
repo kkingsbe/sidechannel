@@ -66,6 +66,12 @@ async function requestArtifacts(repository: AnalysisRepository, jobId: string): 
     return texts;
 }
 
+async function requestStates(repository: AnalysisRepository, jobId: string): Promise<{ background?: unknown }[]> {
+    const states: { background?: unknown }[] = [];
+    for (const attempt of (await repository.listAttempts(jobId, { probe: 'include' })).items) states.push(JSON.parse(((await repository.readArtifact(attempt.requestRef)) as { state: string }).state));
+    return states;
+}
+
 for (const preset of ['dense', 'windowed', 'whole-run', 'custom'] as const) {
     test(`the condition sentinel is absent from every request artifact and provider request under the ${preset} preset`, async () => {
         const f = await fixture({ preset, ...(preset === 'custom' ? { window: { size: 2, stride: 2 } } : {}), probe: { windows: 2, repeats: 2, seed: 's' } });
@@ -77,13 +83,23 @@ for (const preset of ['dense', 'windowed', 'whole-run', 'custom'] as const) {
         assert.ok(artifacts.length > 0 && seen.length > 0);
         for (const text of artifacts) assert.ok(!text.includes(SENTINEL) && !text.includes('routine operator review'), 'request artifact leaks the condition');
         for (const request of seen) assert.ok(!JSON.stringify({ state: request.state, questions: request.questions }).includes(SENTINEL));
-        // Task and policy do reach the questions that list them; the condition has no representation.
-        assert.ok(artifacts.some(text => text.includes(f.run.config.scenario.task)));
+        // Task and policy reach the model once, as the state's shared background block; the condition has no representation there or anywhere.
+        const states = await requestStates(f.repository, job.id);
+        assert.ok(states.length > 0 && states.every(state => JSON.stringify(state.background) === JSON.stringify({ policy: f.run.config.scenario.policy, task: f.run.config.scenario.task })));
+        assert.ok(artifacts.every(text => !text.includes(f.run.config.scenario.task) || text.includes('"background"')));
         assert.ok(!(JSON.stringify(f.preview)).includes(SENTINEL));
         // The window inputs hold the evidence only, never the static context.
         for await (const w of [...(await f.repository.listWindows(job.id)).items]) assert.ok(!JSON.stringify(await f.repository.readArtifact(w.inputRef)).includes(SENTINEL));
     });
 }
+
+test('no state background is sent when no code requests any', async () => {
+    const f = await fixture({ preset: 'dense', probe: null }, 2, [code('plain', { background: [] })]);
+    assert.deepEqual(f.preview.background.groups, []);
+    await new AnalysisWorker(f.repository, { provider: scriptedProvider() }).runOnce();
+    const states = await requestStates(f.repository, f.job.id);
+    assert.ok(states.length > 0 && states.every(state => !('background' in state)));
+});
 
 test('whole-run scores window-scoped codes only, as one long-context window', async () => {
     const f = await fixture({ preset: 'whole-run' });
@@ -101,16 +117,18 @@ test('preview returns background groups per batch, the seeded probe selection, a
     const preview = f.preview as Awaited<ReturnType<AnalysisService['preview']>>;
     assert.equal(preview.schemaVersion, 2);
     assert.equal(preview.background.conditionExcluded, true);
-    assert.deepEqual(preview.background.groups.map(g => [g.key, g.codeIds.length]).sort(), [['', 1], ['policy+task', 5], ['task', 1]]);
-    assert.equal(preview.background.groups.find(g => g.key === 'task')!.text.task, f.run.config.scenario.task);
+    assert.deepEqual(preview.background.groups.map(g => [g.key, g.codeIds.length]), [['policy+task', 6]]);
+    assert.equal(preview.background.groups[0]!.text.task, f.run.config.scenario.task);
+    assert.deepEqual(preview.background.groups[0]!.requested.find(r => r.codeId === 'taskonly')!.parts, ['task']);
+    assert.ok(!preview.background.groups[0]!.codeIds.includes('bare'));
     assert.equal(preview.probe!.windowIds.length, 2);
     const batchGroups = preview.windows[0]!.budget.budget.batches.map(b => b.backgroundKey);
-    assert.deepEqual([...batchGroups].sort(), ['', 'policy+task', 'task']);
+    assert.deepEqual(batchGroups, ['']);
     assert.equal(f.job.manifest.schemaVersion, 2);
     assert.equal(f.job.manifest.aliasMapVersion, 'alias-v1');
-    assert.equal(f.job.manifest.backgroundVersion, 'background-v1');
+    assert.equal(f.job.manifest.backgroundVersion, 'background-v2');
     assert.equal(f.job.manifest.serializationVersion, 'jev-state-v2');
-    assert.equal(f.job.manifest.questionTemplateVersion, 'jev-behavior-v2');
+    assert.equal(f.job.manifest.questionTemplateVersion, 'jev-behavior-v3');
     assert.equal(f.job.manifest.settings.preset, 'dense');
     assert.deepEqual(f.job.manifest.probeWindowIds, preview.probe!.windowIds);
     const again = await f.service.preview(f.run.id, { codebookId: f.codebook.id, settings: { preset: 'dense', probe: { windows: 2, repeats: 3, seed: 'sel' } } });

@@ -6,7 +6,7 @@
  * Reads an analysis export (`GET /api/jev/analyses/:id/export`, docs/jev-analysis.md step 9), rebuilds each sampled window
  * with the v1 shaping (v1 serialization with the static context in the state, prose questions) and the v2 shaping (evidence-only
  * state, structured questions with per-question background), scores both against the same codebook, and prints the per-code
- * mean shift. Acceptance: `visibility` within 0.05 of the v1 no-condition baseline from the research brief, and no behavioral code
+ * mean shift (`--ablate` adds the two intermediate shapings). Acceptance: `visibility` within 0.05 of the v1 no-condition baseline from the research brief, and no behavioral code
  * shifted by more than 0.05 in either direction. Uses TYPESAFE_API_KEY or TYPESAFE_AI_API_KEY from the environment.
  */
 import { createHash } from 'node:crypto';
@@ -14,7 +14,7 @@ import { readFile } from 'node:fs/promises';
 import type { CanonicalStep, SerializedWindow } from '@sidechannel/contracts/analysis/evidence-contracts';
 import { questionKey, type JevQuestion, type JevRequest, type SystemOnePayload } from '@sidechannel/contracts/analysis/jev-provider';
 import type { AnalysisJob, WindowRecord } from '@sidechannel/contracts/analysis/jev-repository';
-import { buildBehaviorQuestions, buildBehaviorQuestionsV1, buildSystemOnePayload, scoredDefinitions, toBudgetQuestion, DEFAULT_JEV_MODEL } from '@sidechannel/domain/analysis/jev-questions';
+import { buildBehaviorQuestions, buildBehaviorQuestionsV1, buildSystemOnePayload, scoredDefinitions, stateBackground, toBudgetQuestion, DEFAULT_JEV_MODEL } from '@sidechannel/domain/analysis/jev-questions';
 import { preflightWindow, serializeWindowV1, serializeWindowV2 } from '@sidechannel/domain/analysis/serialization';
 
 const args = process.argv.slice(2);
@@ -76,30 +76,23 @@ async function score(serialized: SerializedWindow, questions: JevQuestion[], for
 
 const v1 = new Map<string, number[]>(), v2 = new Map<string, number[]>(), push = (map: Map<string, number[]>, key: string, value: number) => map.set(key, [...(map.get(key) ?? []), value]);
 // Ablation shapings: v2 state with v1 prose questions (isolates the serialization), and v1 state minus the condition with v2 questions (isolates the questions).
-const v2StateV1Q = new Map<string, number[]>(), v1NoCondV2Q = new Map<string, number[]>(), stateBgNoQBg = new Map<string, number[]>();
+const v2StateV1Q = new Map<string, number[]>(), v1NoCondV2Q = new Map<string, number[]>();
 const noConditionContext = JSON.stringify({ task: context.task, policy: context.policy });
-/** Variant E: v2 evidence state carrying a shared `background` block (task and policy, never the condition), v2 questions without any background. */
-const withStateBackground = (serialized: SerializedWindow): SerializedWindow => {
-    const state = JSON.stringify({ ...JSON.parse(serialized.state), background: { task: context.task, policy: context.policy } });
-    return { ...serialized, state, bytes: Buffer.byteLength(state), estimatedTokens: Math.ceil(Buffer.byteLength(state) * 0.6) };
-};
-const noBackgroundDefinitions = definitions.map(definition => ({ ...definition, background: [] as [] }));
 for (const record of sample) {
     const steps = record.stepIds.map(id => byId.get(id)!);
     const window = { id: record.id, index: record.index, startOrdinal: record.startOrdinal, endOrdinal: record.endOrdinal, stepIds: record.stepIds, eventIds: record.eventIds, partial: record.partial, incomplete: record.incomplete };
     const old = serializeWindowV1(window, steps, settings.evidence, source.staticContext.text, settings.inputLimits.estimatorVersion);
-    const next = serializeWindowV2(window, steps, settings.evidence, settings.inputLimits.estimatorVersion);
+    // Production shaping: evidence state with one shared task/policy background block (never the condition); questions carry no background text.
+    const next = serializeWindowV2(window, steps, settings.evidence, settings.inputLimits.estimatorVersion, stateBackground(definitions, background));
     const v2Questions = buildBehaviorQuestions(definitions, { activeAgents: next.activeAgents ?? [], background });
     const [a, b] = await Promise.all([score(old, buildBehaviorQuestionsV1(definitions)), score(next, v2Questions, [context.condition])]);
     for (const [key, value] of a) push(v1, key.split('@')[0]!, value);
     for (const [key, value] of b) push(v2, key.split('@')[0]!, value);
     if (ablate) {
         const oldNoCondition = serializeWindowV1(window, steps, settings.evidence, noConditionContext, settings.inputLimits.estimatorVersion);
-        const plainQuestions = buildBehaviorQuestions(noBackgroundDefinitions, { activeAgents: next.activeAgents ?? [], background });
-        const [c, d, e] = await Promise.all([score(next, buildBehaviorQuestionsV1(definitions)), score(oldNoCondition, v2Questions, [context.condition]), score(withStateBackground(next), plainQuestions, [context.condition])]);
+        const [c, d] = await Promise.all([score(next, buildBehaviorQuestionsV1(definitions)), score(oldNoCondition, v2Questions, [context.condition])]);
         for (const [key, value] of c) push(v2StateV1Q, key.split('@')[0]!, value);
         for (const [key, value] of d) push(v1NoCondV2Q, key.split('@')[0]!, value);
-        for (const [key, value] of e) push(stateBgNoQBg, key.split('@')[0]!, value);
     }
     process.stderr.write(`scored ${record.id}\n`);
 }
@@ -107,8 +100,8 @@ for (const record of sample) {
 const mean = (values: number[] | undefined): number | undefined => values?.length ? values.reduce((total, value) => total + value, 0) / values.length : undefined;
 const rows = definitions.map(definition => {
     const before = mean(v1.get(definition.id)), after = mean(v2.get(definition.id));
-    return { code: definition.id, v1: before?.toFixed(3) ?? '-', v2: after?.toFixed(3) ?? '-', shift: before !== undefined && after !== undefined ? +(after - before).toFixed(3) : null,
-        ...(ablate ? { v2stateV1q: mean(v2StateV1Q.get(definition.id))?.toFixed(3) ?? '-', v1nocondV2q: mean(v1NoCondV2Q.get(definition.id))?.toFixed(3) ?? '-', stateBgNoQBg: mean(stateBgNoQBg.get(definition.id))?.toFixed(3) ?? '-' } : {}) };
+    return { code: definition.id, 'v1 (condition in state, prose questions)': before?.toFixed(3) ?? '-', 'v2 (evidence + shared background, structured questions)': after?.toFixed(3) ?? '-', shift: before !== undefined && after !== undefined ? +(after - before).toFixed(3) : null,
+        ...(ablate ? { 'v2 state + v1 prose questions': mean(v2StateV1Q.get(definition.id))?.toFixed(3) ?? '-', 'v1 state minus condition + v2 questions': mean(v1NoCondV2Q.get(definition.id))?.toFixed(3) ?? '-' } : {}) };
 });
 console.table(rows);
 const visibility = rows.find(row => row.code === 'visibility');
