@@ -1,7 +1,7 @@
 import Overview from './pages/Overview';
 import { Suspense, lazy, useEffect, useRef, useState } from 'react';
-import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
-import { Activity, BookOpen, FlaskConical, LayoutDashboard, Microscope, Monitor, PanelLeftClose, Radio, ShieldCheck, SunMoon } from 'lucide-react';
+import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Activity, BookOpen, CircleHelp, FlaskConical, LayoutDashboard, Microscope, PanelLeftClose, Search, ShieldCheck, SunMoon } from 'lucide-react';
 import { Button, Empty, Loading } from './components/ui';
 import { useApi } from './lib/api';
 import { useClients } from './lib/clients/context';
@@ -15,6 +15,23 @@ const Codebook = lazy(() => import('./pages/Codebook'));
 const Analysis = lazy(() => import('./pages/Analysis'));
 const Oversight = lazy(() => import('./pages/Oversight'));
 const links = [{ to: '/', label: 'Overview', icon: LayoutDashboard }, { to: '/experiments', label: 'Experiments', icon: FlaskConical }, { to: '/runs', label: 'Runs', icon: Activity }, { to: '/codebook', label: 'Codebook', icon: BookOpen }, { to: '/analysis', label: 'Analysis', icon: Microscope, hint: 'Jev: automated window-by-window behavior screening' }, { to: '/oversight', label: 'Oversight', icon: ShieldCheck }];
+
+/** The product mark: the matched pair as two lanes, reviewed blue over excluded amber. */
+function BrandMark() {
+  return <svg className="brand-symbol" viewBox="0 0 22 22" aria-hidden="true"><rect x="2" y="4" width="18" height="5" rx="2.5" fill="#2456b8" /><rect x="7" y="13" width="13" height="5" rx="2.5" fill="#a86f0c" /></svg>;
+}
+
+/** Jump to a run, pair or analysis by its recorded identifier. */
+function JumpBox() {
+  const navigate = useNavigate();
+  const [value, setValue] = useState('');
+  return <form className="search" role="search" onSubmit={event => { event.preventDefault(); const id = value.trim(); if (!id) return; navigate(id.startsWith('pair-') ? `/runs/pairs/${encodeURIComponent(id)}` : id.startsWith('analysis-') ? `/analysis/${encodeURIComponent(id)}` : id.startsWith('evaluation-') ? `/oversight/${encodeURIComponent(id)}` : `/runs/${encodeURIComponent(id)}`); setValue(''); }}>
+    <Search size={14} aria-hidden="true" />
+    <input aria-label="Open a run, pair or analysis by identifier" placeholder="Open a run, pair or analysis by ID" value={value} onChange={event => setValue(event.target.value)} />
+    <kbd aria-hidden="true">↵</kbd>
+  </form>;
+}
+
 export function App() {
  const clients = useClients();
  const [mobile, setMobile] = useState(() => matchMedia('(max-width: 680px)').matches); const navWasOpen = useRef(false);
@@ -28,5 +45,25 @@ export function App() {
  useEffect(() => { if (!navOpen) return; const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setNavOpen(false); }; document.addEventListener('keydown', close); return () => document.removeEventListener('keydown', close); }, [navOpen]);
  const workspace = useApi<{ mode: 'demo' | 'research' }>(clients.workspace.paths.mode());
  const collection = links.find(l => l.to !== '/' && location.pathname.startsWith(l.to));
- return <WorkspaceTitleContext.Provider value={setPageTitle}><div className="app-shell"><a href="#main" className="skip-link">Skip to workspace</a><aside id="workspace-navigation" inert={mobile && !navOpen} className={cn('sidebar', navOpen && 'sidebar-open')}><Button className="mobile-nav" variant="ghost" aria-label="Close navigation" onClick={() => setNavOpen(false)}>Close navigation</Button><NavLink to="/" onClick={() => setNavOpen(false)} className="brand"><span className="brand-symbol"><Radio size={22} aria-hidden="true" /></span><span>sidechannel<small>RESEARCH WORKSPACE</small></span></NavLink><span className="sidebar-label">WORKSPACE</span><nav aria-label="Main navigation">{links.map(({ to, label, icon: Icon, hint }) => <NavLink title={hint} key={to} onClick={() => setNavOpen(false)} to={to} end={to === '/'} className={() => cn('nav-link', (to === '/' ? location.pathname === '/' : location.pathname === to || location.pathname.startsWith(to + '/')) && 'active')}><Icon size={18} aria-hidden="true" />{label}</NavLink>)}</nav><div className="sidebar-bottom"><div className="sidebar-note"><ShieldCheck size={18} aria-hidden="true" /><div><strong>Evidence and conditions</strong><p>Recorded evidence stays separate from agent conditions.</p></div></div><label className="theme-select"><SunMoon size={17} aria-hidden="true" /><span className="sr-only">Color theme</span><select value={theme} onChange={e => setTheme(e.target.value)}><option value="system">System appearance</option><option value="light">Light appearance</option><option value="dark">Dark appearance</option></select></label><div className="workspace-version"><span className="status-dot" /> Open team workspace <span>v1</span></div></div></aside><div className="main-shell"><div className="topbar"><nav className="breadcrumbs" aria-label="Breadcrumb"><Button size="icon" variant="ghost" className="mobile-nav" id="navigation-toggle" aria-controls="workspace-navigation" aria-label="Toggle navigation" aria-expanded={navOpen} onClick={() => setNavOpen(!navOpen)}><PanelLeftClose size={19} /></Button><NavLink to="/">Workspace</NavLink><span className="slash" aria-hidden="true">/</span>{collection ? <NavLink to={collection.to}>{collection.label}</NavLink> : <strong aria-current="page">Overview</strong>}{collection && pageTitle && <><span className="slash" aria-hidden="true">/</span><strong aria-current="page">{pageTitle}</strong></>}</nav><span className="topbar-note"><Monitor size={14} aria-hidden="true" />Research evidence · independent jobs</span></div><main id="main" tabIndex={-1}>{workspace.data?.mode === 'demo' && <div className="demo-banner" role="note"><strong>Demo workspace</strong> · Records and jobs are simulated; no model calls are made. In-memory data resets on restart.</div>}<Suspense fallback={<Loading />}><Routes><Route path="/" element={<Overview />} /><Route path="/experiments/*" element={<Experiments />} /><Route path="/runs/*" element={<Runs />} /><Route path="/codebook/*" element={<Codebook />} /><Route path="/analysis/*" element={<Analysis />} /><Route path="/oversight/*" element={<Oversight />} /><Route path="*" element={<Empty title="Workspace not found"><Button asChild><NavLink to="/">Return to overview</NavLink></Button></Empty>} /></Routes></Suspense></main><footer className="workspace-footer">Sidechannel research console <span>Runs are the experimental unit. Window scores are exploratory estimates.</span></footer></div></div></WorkspaceTitleContext.Provider>;
+ return <WorkspaceTitleContext.Provider value={setPageTitle}><div className="app-shell"><a href="#main" className="skip-link">Skip to workspace</a>
+  <aside id="workspace-navigation" inert={mobile && !navOpen} className={cn('sidebar', navOpen && 'sidebar-open')}>
+    <Button className="mobile-nav" variant="ghost" aria-label="Close navigation" onClick={() => setNavOpen(false)}>Close navigation</Button>
+    <NavLink to="/" onClick={() => setNavOpen(false)} className="brand" aria-label="Sidechannel home"><BrandMark /><span>sidechannel<small>Research workspace</small></span></NavLink>
+    <nav aria-label="Main navigation">{links.map(({ to, label, icon: Icon, hint }) => <NavLink title={hint} key={to} onClick={() => setNavOpen(false)} to={to} end={to === '/'} className={() => cn('nav-link', (to === '/' ? location.pathname === '/' : location.pathname === to || location.pathname.startsWith(to + '/')) && 'active')}><Icon size={16} aria-hidden="true" />{label}</NavLink>)}</nav>
+    <div className="sidebar-bottom">
+      <a className="nav-link" href="https://github.com/kkingsbe/sidechannel#readme" target="_blank" rel="noreferrer"><CircleHelp size={16} aria-hidden="true" />Workflow guide</a>
+      <label className="theme-select"><SunMoon size={16} aria-hidden="true" /><span className="sr-only">Color theme</span><select value={theme} onChange={e => setTheme(e.target.value)}><option value="system">System appearance</option><option value="light">Light appearance</option><option value="dark">Dark appearance</option></select></label>
+      <div className="workspace-version"><span className="avatar" aria-hidden="true">W</span><span><span className="status-dot" /> Open team workspace</span><span>v1</span></div>
+    </div>
+  </aside>
+  <div className="topbar">
+    <nav className="breadcrumbs" aria-label="Breadcrumb"><Button size="icon" variant="ghost" className="mobile-nav" id="navigation-toggle" aria-controls="workspace-navigation" aria-label="Toggle navigation" aria-expanded={navOpen} onClick={() => setNavOpen(!navOpen)}><PanelLeftClose size={19} /></Button><NavLink to="/">Workspace</NavLink><span className="slash" aria-hidden="true">/</span>{collection ? <NavLink to={collection.to}>{collection.label}</NavLink> : <strong aria-current="page">Overview</strong>}{collection && pageTitle && <><span className="slash" aria-hidden="true">/</span><strong aria-current="page">{pageTitle}</strong></>}</nav>
+    <JumpBox />
+    <span className="topbar-note">Research evidence · independent jobs</span>
+  </div>
+  <div className="main-shell">
+    <main id="main" tabIndex={-1}>{workspace.data?.mode === 'demo' && <div className="demo-banner" role="note"><strong>Demo workspace</strong> · Records and jobs are simulated; no model calls are made. In-memory data resets on restart.</div>}<Suspense fallback={<Loading />}><Routes><Route path="/" element={<Overview />} /><Route path="/experiments/*" element={<Experiments />} /><Route path="/runs/*" element={<Runs />} /><Route path="/codebook/*" element={<Codebook />} /><Route path="/analysis/*" element={<Analysis />} /><Route path="/oversight/*" element={<Oversight />} /><Route path="*" element={<Empty title="Workspace not found"><Button asChild><NavLink to="/">Return to overview</NavLink></Button></Empty>} /></Routes></Suspense></main>
+    <footer className="workspace-footer">Sidechannel research console <span>Runs are the experimental unit. Window scores are exploratory estimates.</span></footer>
+  </div>
+ </div></WorkspaceTitleContext.Provider>;
 }
