@@ -35,7 +35,9 @@ export class ProgressLedger {
         progress.returnedAnswers += answers - prior.answers;
         progress.submittedWindows += Number(submitted) - Number(prior.submitted);
         progress.finishedWindows += Number(latest.status === 'completed') - Number(window.status === 'completed');
-        progress.failedWindows += Number(latest.status === 'failed' || latest.status === 'oversized') - Number(window.status === 'failed');
+        progress.failedWindows += Number(latest.status === 'failed') - Number(window.status === 'failed');
+        // Oversized windows are deliberately unscored and never retried, so they count as skipped rather than failed.
+        progress.skippedWindows += Number(latest.status === 'oversized') - Number(window.status === 'oversized');
         // Per-window deltas keep progress linear. Full history/usage reconciliation runs once at finalization.
         await this.repository.updateCounters(lease, { ...progress });
     }
@@ -44,10 +46,10 @@ export class ProgressLedger {
         const counters = emptyCounters(), submitted = new Set<string>();
         for await (const window of pages(page => this.repository.listWindows(jobId, page))) {
             counters.preparedWindows++;
-            if (window.status !== 'skipped') counters.expectedAnswers += codeCount;
+            if (window.status !== 'skipped' && window.status !== 'oversized') counters.expectedAnswers += codeCount;
             if (window.status === 'completed') counters.finishedWindows++;
-            if (window.status === 'failed' || window.status === 'oversized') counters.failedWindows++;
-            if (window.status === 'skipped') counters.skippedWindows++;
+            if (window.status === 'failed') counters.failedWindows++;
+            if (window.status === 'skipped' || window.status === 'oversized') counters.skippedWindows++;
         }
         for await (const attempt of pages(page => this.repository.listAttempts(jobId, page))) submitted.add(attempt.windowId);
         counters.submittedWindows = submitted.size;
@@ -55,9 +57,19 @@ export class ProgressLedger {
         return counters;
     }
 
-    status(counters: JobCounters, cancelled: boolean): JobStatus {
-        return cancelled ? 'cancelled'
-            : counters.returnedAnswers === counters.expectedAnswers && counters.failedWindows === 0 ? 'completed'
-                : counters.returnedAnswers ? 'partial' : 'failed';
+    private async hasOversizedWindow(jobId: string): Promise<boolean> {
+        for await (const window of pages(page => this.repository.listWindows(jobId, page))) if (window.status === 'oversized') return true;
+        return false;
+    }
+
+    /**
+     * Oversized windows count as skipped, but a job that scored nothing because every window was
+     * oversized still failed. Everything else keeps the historical terminal-status derivation.
+     */
+    async finalStatus(jobId: string, counters: JobCounters, cancelled: boolean): Promise<JobStatus> {
+        if (cancelled) return 'cancelled';
+        if (counters.returnedAnswers === 0 && counters.finishedWindows === 0 && await this.hasOversizedWindow(jobId)) return 'failed';
+        return counters.returnedAnswers === counters.expectedAnswers && counters.failedWindows === 0 ? 'completed'
+            : counters.returnedAnswers ? 'partial' : 'failed';
     }
 }

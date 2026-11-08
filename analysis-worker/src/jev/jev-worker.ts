@@ -63,7 +63,7 @@ export class AnalysisWorker {
             await Promise.all(pending);
             if (keeper.leaseLost || signal?.aborted) return true; // Leave the lease recoverable after shutdown or loss.
             const counters = await this.progress.counters(job.id, allIds.length);
-            await this.usage.finish(lease, this.progress.status(counters, keeper.cancelling), counters);
+            await this.usage.finish(lease, await this.progress.finalStatus(job.id, counters, keeper.cancelling), counters);
         } catch (error) {
             keeper.abortAll();
             await Promise.allSettled(pending);

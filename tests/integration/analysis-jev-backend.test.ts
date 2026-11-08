@@ -110,9 +110,16 @@ test('repository failure drains sibling responses before finalizing partial work
 test('oversized input stays intact and no-evidence input is skipped without false zero scores', async () => {
     const oversized = await fixture(3, { inputLimits: { singleQuestionTokens: 20, combinedQuestionTokens: 30, headroomTokens: 1 } }); let calls = 0;
     const provider: JevProvider = { classify: async r => { calls++; return response(r); } };
-    await new AnalysisWorker(oversized.repository, { provider }).runOnce(); assert.equal(calls, 0); assert.equal((await oversized.repository.getJob(oversized.job.id))!.status, 'failed');
+    await new AnalysisWorker(oversized.repository, { provider }).runOnce(); assert.equal(calls, 0);
+    const oversizedJob = (await oversized.repository.getJob(oversized.job.id))!;
+    assert.equal(oversizedJob.status, 'failed');
+    // Oversized windows are unscored and never retried: they count as skipped, not failed or expected.
+    assert.deepEqual(oversizedJob.counters, { preparedWindows: 1, submittedWindows: 0, finishedWindows: 0, failedWindows: 0, skippedWindows: 1, returnedAnswers: 0, expectedAnswers: 0 });
     const w = (await oversized.repository.listWindows(oversized.job.id)).items[0]!; assert.equal(w.status, 'oversized'); assert.ok((await oversized.service.getWindow(oversized.job.id, w.id)).input.state.includes('Current output 2'));
-    const empty = await fixture(1, { evidence: { assistantText: false } }); await new AnalysisWorker(empty.repository, { provider }).runOnce(); assert.equal(calls, 0); assert.equal((await empty.repository.listResults(empty.job.id)).items.length, 0); assert.equal((await empty.repository.getJob(empty.job.id))!.status, 'completed');
+    const empty = await fixture(1, { evidence: { assistantText: false } }); await new AnalysisWorker(empty.repository, { provider }).runOnce(); assert.equal(calls, 0); assert.equal((await empty.repository.listResults(empty.job.id)).items.length, 0);
+    const emptyJob = (await empty.repository.getJob(empty.job.id))!;
+    assert.equal(emptyJob.status, 'completed');
+    assert.deepEqual(emptyJob.counters, { preparedWindows: 1, submittedWindows: 0, finishedWindows: 0, failedWindows: 0, skippedWindows: 1, returnedAnswers: 0, expectedAnswers: 0 });
 });
 
 test('lease fences reject stale writes and cancelled abandoned work is recoverable', async () => {
