@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Activity, ArrowUpRight, BookOpen, FlaskConical, ShieldCheck } from 'lucide-react';
 import { Badge, Button, Card, CardHeading, Empty, ErrorState, Loading, PageHeader, Table } from '../components/ui';
@@ -7,6 +8,8 @@ import type { Run, Draft } from '../lib/types';
 import { jobStatusMetaFor, overviewCards } from '../lib/status';
 import { short, when } from '../lib/utils';
 import { RunTable } from '../components/run-table';
+import { PairTable } from '../components/pairs/PairTable';
+import './Overview.css';
 
 interface OverviewData {
   observedAt: string; counts: Record<string, number>; activity: Run[]; recent: Run[]; attention: Run[];
@@ -27,31 +30,41 @@ function ResearchJobs({ title, path, destination }: { title: string; path: strin
     {jobs.data?.nextCursor && <div className="card-foot">Showing the latest page. Open the collection for more jobs.</div>}
   </Card>;
 }
+const steps = [
+  { n: '01', title: 'Configure a matched pair', text: 'Choose the task, agents, and model; review both conditions.', to: '/experiments/new' },
+  { n: '02', title: 'Watch the runs', text: 'Inspect execution, board delivery, artifacts, and private memory.', to: '/runs' },
+  { n: '03', title: 'Define behaviour codes', text: 'Write the codebook that analysis windows are scored against.', to: '/codebook' },
+  { n: '04', title: 'Screen and review in Analysis', text: 'Open analysis results or continue a saved review batch.', to: '/analysis' },
+  { n: '05', title: 'Compare oversight views', text: 'Evaluate what routine operator review would and would not have seen.', to: '/oversight' },
+];
+const gettingStartedKey = 'sidechannel-overview-getting-started';
+function GettingStarted({ first }: { first: boolean }) {
+  const [open, setOpen] = useState(() => { try { const saved = localStorage.getItem(gettingStartedKey); return saved === null ? first : saved === 'open'; } catch { return first; } });
+  return <details className="card onboarding" open={open} onToggle={event => { const next = event.currentTarget.open; setOpen(next); try { localStorage.setItem(gettingStartedKey, next ? 'open' : 'closed'); } catch { /* Convenience only. */ } }}><summary>Getting started with the research workflow</summary><ol className="workflow-list">{steps.map(item => <li key={item.n}><NavLink to={item.to}><span>{item.n}</span><div><strong>{item.title}</strong><p>{item.text}</p></div><ArrowUpRight size={15} aria-hidden="true" /></NavLink></li>)}</ol></details>;
+}
 export default function Overview() {
   const clients = useClients();
-  const overview = useApi<OverviewData>(clients.workspace.paths.overview(), { interval: 5000 }), runs = useApi<{ items: Run[] }>(clients.runs.paths.list({ summary: true, limit: 8 }), { interval: 5000 });
+  const overview = useApi<OverviewData>(clients.workspace.paths.overview(), { interval: 5000 }), runs = useApi<{ items: Run[] }>(clients.runs.paths.list({ summary: true, limit: 16 }), { interval: 5000 });
   const drafts = useApi<Draft[]>(clients.workspace.paths.drafts());
   const counts = overview.data?.counts, data = runs.data?.items ?? [];
   const count = (...states: string[]) => counts ? states.reduce((sum, state) => sum + (counts[state] ?? 0), 0) : null;
   const cards = overviewCards.map((card, index) => ({ ...card, value: count(...card.statuses), query: card.statuses.join(','), icon: [Activity, FlaskConical, BookOpen, ShieldCheck][index]! }));
-  return <><PageHeader eyebrow="THE RESEARCH DESK" title="Workspace overview" description="Resume research, inspect evidence, and follow independent jobs." actions={<Button asChild><NavLink to="/experiments/new"><FlaskConical size={16} aria-hidden="true" />New experiment</NavLink></Button>} />
+  const noCompletedRuns = count('completed') === 0;
+  return <><PageHeader title="Workspace overview" description="Resume research, inspect evidence, and follow independent jobs." actions={<Button asChild><NavLink to="/experiments/new"><FlaskConical size={16} aria-hidden="true" />New experiment</NavLink></Button>} />
+    {noCompletedRuns && <GettingStarted first />}
     <div className="stat-grid compact-stats">{cards.map(({ label, value, detail, query, icon: Icon }) => <NavLink className="card stat-card" to={`/runs?status=${encodeURIComponent(query)}`} key={label}><div>{label}<Icon size={18} aria-hidden="true" /></div><strong>{value ?? '—'}</strong><p>{detail}{overview.error && ' · stale'}</p></NavLink>)}</div>
     {overview.error && <ErrorState error={overview.error} retry={overview.refresh} />}
     {!!drafts.data?.length && <div className="resume-strip"><strong>{drafts.data.length} saved experiment {drafts.data.length === 1 ? 'draft' : 'drafts'}</strong><NavLink className="text-link" to="/experiments">Resume a draft <ArrowUpRight size={14} /></NavLink></div>}
     <div className="stack overview-operational">
       {!!overview.data?.attention.length && <Card><CardHeading title="Requires attention" description="Failed or interrupted runs remain available with recorded evidence." /><RunTable runs={overview.data.attention} /></Card>}
       {!!overview.data?.activity.length && <Card><CardHeading title="In progress & queued" /><RunTable runs={overview.data.activity} /></Card>}
-      <Card><CardHeading title="Recent runs" actions={<Button variant="ghost" size="sm" asChild><NavLink to="/runs">View all runs <ArrowUpRight size={15} /></NavLink></Button>} />
-        {runs.loading ? <Loading /> : runs.error && !runs.data ? <ErrorState error={runs.error} retry={runs.refresh} /> : data.length ? <RunTable runs={data} /> : <Empty title="Your first experiment starts here" description="Create a draft, validate its configuration, and launch a matched pair."><Button asChild><NavLink to="/experiments/new">Create experiment</NavLink></Button></Empty>}
+      <Card><CardHeading title="Recent pairs" actions={<Button variant="ghost" size="sm" asChild><NavLink to="/runs">View all pairs <ArrowUpRight size={15} /></NavLink></Button>} />
+        {runs.loading ? <Loading /> : runs.error && !runs.data ? <ErrorState error={runs.error} retry={runs.refresh} /> : data.length ? <PairTable runs={data} label="Recent matched pairs" /> : <Empty title="Your first experiment starts here" description="Create a draft, validate its configuration, and launch a matched pair."><Button asChild><NavLink to="/experiments/new">Create experiment</NavLink></Button></Empty>}
         <div className="card-foot">{runs.error ? `Updates unavailable · last refreshed ${runs.updatedAt ? new Date(runs.updatedAt).toLocaleTimeString() : 'unknown'}` : runs.updatedAt ? `Evidence refreshed at ${new Date(runs.updatedAt).toLocaleTimeString()}` : 'Connecting to researcher API'}{runs.error && <Button size="sm" variant="secondary" onClick={runs.refresh}>Retry</Button>}</div>
       </Card>
       <div className="form-grid"><ResearchJobs title="Analyses" path={clients.analyses.paths.list({ limit: 6 })} destination="/analysis" /><ResearchJobs title="Monitor evaluations" path={clients.monitor.paths.evaluations({ limit: 6 })} destination="/oversight" /></div>
       <Card><CardHeading title="Services & freshness" /><div className="card-body service-summary"><div><strong>Researcher API</strong><p>{overview.error ? 'Updates unavailable' : overview.data ? 'Connected' : 'Connecting'}{overview.updatedAt && ` · last success ${new Date(overview.updatedAt).toLocaleTimeString()}`}</p></div><div><strong>Experiment worker</strong>{overview.error && <p>Stale reading - last observed {overview.updatedAt ? new Date(overview.updatedAt).toLocaleTimeString() : 'unknown'}. Retry the API update to check availability.</p>}<p>{overview.data?.worker.available === true ? 'Available' : overview.data?.worker.available === false ? 'Unavailable' : 'Availability unknown'} · capacity {overview.data?.worker.capacity ?? 'unknown'}</p><p>{overview.data?.worker.note ?? 'API connectivity does not establish worker availability.'}</p></div></div></Card>
-      <details className="card onboarding"><summary>Getting started with the research workflow</summary><div className="workflow-list">{[
-        { n: '01', title: 'Configure a matched pair', text: 'Choose the task, agents, and model; review both conditions.', to: '/experiments/new' },
-        { n: '02', title: 'Follow source evidence', text: 'Inspect execution, board delivery, artifacts, and private memory.', to: '/runs' },
-        { n: '03', title: 'Screen and review', text: 'Open analysis results or continue a saved review batch.', to: '/analysis' },
-      ].map(item => <NavLink to={item.to} key={item.n}><span>{item.n}</span><div><strong>{item.title}</strong><p>{item.text}</p></div><ArrowUpRight size={15} aria-hidden="true" /></NavLink>)}</div></details>
+      {!noCompletedRuns && <GettingStarted first={false} />}
     </div>
   </>;
 }
