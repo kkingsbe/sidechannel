@@ -15,7 +15,7 @@ export class ProgressLedger {
 
     /** A crash can leave an attempt open; record recovery rather than treating it as a negative answer. */
     async recover(lease: Lease, jobId: string): Promise<void> {
-        for await (const attempt of pages(page => this.repository.listAttempts(jobId, page)))
+        for await (const attempt of pages(page => this.repository.listAttempts(jobId, { ...page, probe: 'include' })))
             if (attempt.status === 'running')
                 await this.repository.finishAttempt(lease, { ...attempt, status: 'failed', finishedAt: new Date().toISOString(),
                     error: 'Previous worker lease expired before this attempt was committed; provider completion and cost may be unknown' }, []);
@@ -46,7 +46,8 @@ export class ProgressLedger {
         const counters = emptyCounters(), submitted = new Set<string>();
         for await (const window of pages(page => this.repository.listWindows(jobId, page))) {
             counters.preparedWindows++;
-            if (window.status !== 'skipped' && window.status !== 'oversized') counters.expectedAnswers += codeCount;
+            // Actor-scoped codes make the question count per window; the prepared batches list exactly the questions it will be asked.
+            if (window.status !== 'skipped' && window.status !== 'oversized') counters.expectedAnswers += window.batches?.flat().length || codeCount;
             if (window.status === 'completed') counters.finishedWindows++;
             if (window.status === 'failed') counters.failedWindows++;
             if (window.status === 'skipped' || window.status === 'oversized') counters.skippedWindows++;

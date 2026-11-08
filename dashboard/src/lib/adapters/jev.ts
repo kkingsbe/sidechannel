@@ -1,6 +1,6 @@
 /** Explicit boundary between canonical Jev records and the dashboard's view models. */
 import type {
-    AnalysisConfiguration, Codebook as JevCodebook, CodebookRevision as JevRevision, EvidenceCategory as JevCategory, SerializedWindow,
+    AnalysisConfiguration, Codebook as JevCodebook, CodebookRevision as JevRevision, CodebookWarning, EvidenceCategory as JevCategory, SerializedWindow,
 } from '@sidechannel/contracts/browser';
 import type { AnalysisJob as JevJob, AnalysisResult as JevResult, Page, WindowRecord } from '@sidechannel/contracts/browser';
 import type { Review as JevReview, ReviewBatch as JevBatch } from '@sidechannel/contracts/browser';
@@ -41,6 +41,11 @@ const categoryGroups: Record<EvidenceCategory, JevCategory[]> = { assistant: ['a
 
 export function toRevision(raw: JevRevision): CodebookRevision {
     return { id: raw.id, revision: raw.revision, createdAt: raw.createdAt, codebookId: raw.codebookId, codes: raw.definitions, author: raw.createdBy };
+}
+
+/** A saved codebook + revision, carrying the save's non-blocking validation warnings through to the studio. */
+function pair(raw: { codebook: JevCodebook; revision: JevRevision; warnings?: CodebookWarning[] }) {
+    return { codebook: toCodebook(raw.codebook, raw.revision), revision: toRevision(raw.revision), warnings: raw.warnings ?? [] };
 }
 
 /** The server has no codebook-level `archived` flag; the view model must not invent one. */
@@ -89,13 +94,15 @@ export function toCanonicalSettings(view: AnalysisSettings): Partial<AnalysisCon
         inputLimits: { ...(base?.inputLimits ?? NEW_ANALYSIS_INPUT_LIMITS), headroomTokens: view.headroom },
         timeoutMs: view.timeoutMs, maxAttempts: view.maxAttempts,
         ...(base ? { concurrency: base.concurrency, retryBaseMs: base.retryBaseMs, longContext: base.longContext } : {}),
-    };
+        ...v2Settings(view),
+    } as Partial<AnalysisConfiguration>;
 }
 
 export function toJob(raw: JevJob): AnalysisJob {
     return {
         id: raw.id, createdAt: raw.createdAt, runId: raw.runId, status: raw.status,
         cancelRequested: raw.cancelRequested, updatedAt: raw.updatedAt,
+        ...(raw.reliability ? { reliability: raw.reliability } : {}),
         ...(raw.error !== undefined ? { error: raw.error } : {}),
         counters: { prepared: raw.counters.preparedWindows, submitted: raw.counters.submittedWindows, finished: raw.counters.finishedWindows, failed: raw.counters.failedWindows, skipped: raw.counters.skippedWindows, answers: raw.counters.returnedAnswers },
         manifest: {
@@ -146,12 +153,13 @@ export function toBatch(raw: JevBatch): ReviewBatch {
         id: raw.id, createdAt: raw.createdAt, analysisId: raw.analysisId, mode: raw.mode,
         ...(raw.threshold !== undefined ? { threshold: raw.threshold } : {}),
         populationCount: raw.populationSize, selectionCount: raw.selectedCount, codebookRevisionId: raw.definitionRevision,
+        ...(raw.strategy ? { strategy: raw.strategy } : {}), ...(raw.shortfalls ? { shortfalls: raw.shortfalls } : {}),
     };
 }
 
 function availability(raw: Partial<Record<JevCategory, boolean>>) { return Object.fromEntries(Object.entries(categoryGroups).map(([category, fields]) => [category, fields.some(field => raw[field]) ? 1 : 0])) as Record<EvidenceCategory, number>; }
 
-const ROUTE = /^\/(codebooks(\/[^/]+(\/revisions(\/[^/]+)?)?)?|analyses(\/[^/]+(\/windows(\/[^/]+)?|\/reviews(\/[^/]+)?|\/review-batches(\/[^/]+)?|\/(cancel|retry))?)?|runs\/[^/]+\/analyses(\/preview)?)$/;
+const ROUTE = /^\/(codebooks(\/[^/]+(\/revisions(\/[^/]+)?|\/seed-v2)?)?|analyses(\/[^/]+(\/windows(\/[^/]+)?|\/reviews(\/[^/]+)?|\/review-batches(\/[^/]+)?|\/(cancel|retry))?)?|runs\/[^/]+\/analyses(\/preview)?)$/;
 
 /** Pure: dashboard path → canonical Jev path. `undefined` means "not a Jev route". */
 export function translate(path: string, init?: RequestInit): { path: string; init?: RequestInit } | undefined {
@@ -180,21 +188,24 @@ export async function decodeJev<T>(path: string, init: RequestInit | undefined, 
     const body: Record<string, any> = init?.body ? JSON.parse(String(init.body)) as Record<string, any> : {};
     let value: unknown;
     if (p === '/codebooks' && method === 'GET') { const page = payload as Page<JevCodebook>; value = { ...page, items: page.items.map(raw => toCodebook(raw)) }; }
-    else if (p === '/codebooks' && method === 'POST') { const raw = payload as { codebook: JevCodebook; revision: JevRevision }; value = { codebook: toCodebook(raw.codebook, raw.revision), revision: toRevision(raw.revision) }; }
+    else if (p === '/codebooks' && method === 'POST') { value = pair(payload as { codebook: JevCodebook; revision: JevRevision; warnings?: CodebookWarning[] }); }
     else if (/^\/codebooks\/[^/]+\/revisions$/.test(p) && method === 'GET') { const page = payload as Page<JevRevision>; value = { ...page, items: page.items.map(toRevision) }; }
     else if (/^\/codebooks\/[^/]+\/revisions\/[^/]+$/.test(p) && method === 'GET') { value = toRevision(payload as JevRevision); }
+    else if (p === '/codebooks/seed-v2' && method === 'GET') { value = payload; }
+    else if (/^\/codebooks\/[^/]+\/seed-v2$/.test(p) && method === 'POST') { value = pair(payload as { codebook: JevCodebook; revision: JevRevision; warnings?: CodebookWarning[] }); }
     else if (/^\/codebooks\/[^/]+$/.test(p) && method === 'GET') {
         const raw = payload as JevCodebook;
         const current = await read(`/jev${p}/revisions/${encodeURIComponent(raw.currentRevisionId)}`) as JevRevision;
         value = { codebook: toCodebook(raw, current), revision: toRevision(current) };
     }
-    else if (/^\/codebooks\/[^/]+$/.test(p) && method === 'PATCH') { const raw = payload as { codebook: JevCodebook; revision: JevRevision }; value = { codebook: toCodebook(raw.codebook, raw.revision), revision: toRevision(raw.revision) }; }
+    else if (/^\/codebooks\/[^/]+$/.test(p) && method === 'PATCH') { value = pair(payload as { codebook: JevCodebook; revision: JevRevision; warnings?: CodebookWarning[] }); }
     else if (p === '/analyses' && method === 'GET') { const page = payload as Page<JevJob>; value = { ...page, items: page.items.map(raw => { session.rememberJob(raw); return toJob(raw); }) }; }
     else if (/^\/runs\/[^/]+\/analyses$/.test(p) && method === 'GET') { const page = payload as Page<JevJob>; value = { ...page, items: page.items.map(raw => { session.rememberJob(raw); return toJob(raw); }) }; }
     else if (/^\/runs\/[^/]+\/analyses\/preview$/.test(p) && method === 'POST') {
         const raw = payload as any;
         session.rememberPreview(raw.previewHash, { runId: p.split('/')[2]!, body });
-        value = { previewToken: raw.previewHash, manifest: { schemaVersion: 1, runId: raw.runId, ...(raw.selectedStepCount !== undefined ? { selectedStepCount: raw.selectedStepCount } : {}), windowCount: raw.windowCount, scoredCodeCount: raw.scoredCodeCount, partialWindowCount: raw.partialWindows, availability: availability(raw.evidenceAvailability), diagnostics: raw.diagnostics.map((d: any) => d.message) }, windows: raw.windows.map((w: any) => { const budget = w.budget.budget; return { id: w.id, index: w.index, startStep: w.startOrdinal, endStep: w.endOrdinal, partial: w.partial, incomplete: w.incomplete, empty: !w.hasEvidence, budget: { bytes: w.bytes, estimatedTokens: w.estimatedTokens, estimatorVersion: budget.estimatorVersion, perQuestionLimit: budget.effectiveLimits.singleQuestionTokens, perRequestLimit: budget.effectiveLimits.combinedQuestionTokens, headroom: budget.effectiveLimits.headroomTokens, oversized: w.budget.oversized, reason: budget.reason || w.budget.diagnostics.join('; ') || undefined, batches: w.budget.batches.map((batch: any[]) => batch.map(q => q.codeId)) } }; }) };
+        value = { previewToken: raw.previewHash, manifest: { schemaVersion: 1, runId: raw.runId, ...(raw.selectedStepCount !== undefined ? { selectedStepCount: raw.selectedStepCount } : {}), windowCount: raw.windowCount, scoredCodeCount: raw.scoredCodeCount, partialWindowCount: raw.partialWindows, availability: availability(raw.evidenceAvailability), diagnostics: raw.diagnostics.map((d: any) => d.message) }, windows: raw.windows.map((w: any) => { const budget = w.budget.budget; return { id: w.id, index: w.index, startStep: w.startOrdinal, endStep: w.endOrdinal, partial: w.partial, incomplete: w.incomplete, empty: !w.hasEvidence, budget: { bytes: w.bytes, estimatedTokens: w.estimatedTokens, estimatorVersion: budget.estimatorVersion, perQuestionLimit: budget.effectiveLimits.singleQuestionTokens, perRequestLimit: budget.effectiveLimits.combinedQuestionTokens, headroom: budget.effectiveLimits.headroomTokens, oversized: w.budget.oversized, reason: budget.reason || w.budget.diagnostics.join('; ') || undefined, batches: w.budget.batches.map((batch: any[]) => batch.map(q => q.codeId)) } }; }),
+            ...(raw.background ? { v2: { preset: raw.preset, longContext: raw.longContext, suggestedWindowSize: raw.suggestedWindowSize, groups: raw.background.groups, conditionExcluded: raw.background.conditionExcluded, conditionQuotedWindows: raw.background.conditionQuotedWindows, probe: raw.probe } } : {}) };
     }
     else if (/^\/runs\/[^/]+\/analyses$/.test(p) && method === 'POST') { session.rememberJob(payload as JevJob); value = toJob(payload as JevJob); }
     else if (/^\/analyses\/[^/]+$/.test(p) && method === 'GET') { session.rememberJob(payload as JevJob); value = toJob(payload as JevJob); }
@@ -241,3 +252,18 @@ export function createJevRequester(base: Requester, session: JevSession = create
 
 /** Shared canonical request-body conversion for the analyses client and the preview form. */
 export const canonical = toCanonicalSettings;
+
+/** Documented long-context ceiling for both question limits (mirrors the domain's resolver). */
+const LONG_CONTEXT_TOKENS = 262_000;
+
+/** The v2 setup choices (preset, probe, long context) as canonical settings; nothing is sent for a v1-style draft. */
+function v2Settings(view: AnalysisSettings): Record<string, unknown> {
+    return {
+        ...(view.preset ? { preset: view.preset } : {}),
+        ...(view.probe !== undefined ? { probe: view.probe } : {}),
+        ...(view.longContext !== undefined ? {
+            longContext: view.longContext,
+            ...(view.longContext ? { inputLimits: { ...(view.frozen?.inputLimits ?? NEW_ANALYSIS_INPUT_LIMITS), headroomTokens: view.headroom, singleQuestionTokens: LONG_CONTEXT_TOKENS, combinedQuestionTokens: LONG_CONTEXT_TOKENS } } : {}),
+        } : {}),
+    };
+}

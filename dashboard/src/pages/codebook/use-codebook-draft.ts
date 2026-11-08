@@ -3,6 +3,7 @@ import { REVIEWER_STORAGE_KEY } from "../../components/claimed-reviewer";
 import { useCommand } from "../../components/use-command";
 import { useClients } from "../../lib/clients/context";
 import { useResource, useResourcePage } from "../../lib/clients/query";
+import type { CodebookWarning } from "@sidechannel/contracts/browser";
 import type {
   BehaviorCode,
   Codebook,
@@ -98,7 +99,12 @@ export function useCodebookDraft() {
         JSON.stringify({ codes, name, baseRevision }),
       );
   }, [codes, name, dirty, bookId, formBookId, baseRevision]);
+  const [savedWarnings, setSavedWarnings] = useState<CodebookWarning[]>([]);
+  const [seedOpen, setSeedOpen] = useState(false);
+  const [seedProposal, setSeedProposal] = useState<BehaviorCode[]>();
+  const [seedError, setSeedError] = useState<Error>();
   const edit = (patch: Partial<BehaviorCode>, id = selected) => {
+    setSavedWarnings([]);
     setCodes(
       codes.map((code) => (code.id === id ? { ...code, ...patch } : code)),
     );
@@ -172,6 +178,7 @@ export function useCodebookDraft() {
       "New immutable codebook revision saved. Existing analyses keep their frozen definitions.",
     );
     if (result) {
+      setSavedWarnings(result.warnings ?? []);
       setDirty(false);
       localStorage.removeItem("sidechannel-codebook-" + bookId);
       void current.refresh();
@@ -221,6 +228,33 @@ export function useCodebookDraft() {
     );
     if (result) {
       setDirty(false);
+      void current.refresh();
+      void booksPage.refresh();
+    }
+  };
+  const openSeed = async () => {
+    setSeedOpen(true);
+    setSeedError(undefined);
+    try {
+      setSeedProposal((await clients.codebooks.seedV2()).definitions);
+    } catch (error) {
+      setSeedError(error instanceof Error ? error : new Error(String(error)));
+    }
+  };
+  const closeSeed = () => {
+    setSeedOpen(false);
+    setSeedProposal(undefined);
+  };
+  /** Appends the v2 seed as a new revision on top of the saved one; unsaved edits must be saved or discarded first. */
+  const applySeed = async () => {
+    if (!current.data || formBookId !== bookId || !baseRevisionId || dirty || !author.trim()) return;
+    const result = await command.run(
+      () => clients.codebooks.applySeedV2(bookId, { expectedRevisionId: baseRevisionId, author: author.trim() }),
+      "v2 seed revision saved. Existing analyses keep their frozen definitions.",
+    );
+    if (result) {
+      setSavedWarnings(result.warnings ?? []);
+      closeSeed();
       void current.refresh();
       void booksPage.refresh();
     }
@@ -276,6 +310,8 @@ export function useCodebookDraft() {
     loading: current.loading,
     error: current.error,
     command,
+    savedWarnings,
+    seed: { open: seedOpen, proposal: seedProposal, error: seedError, show: openSeed, close: closeSeed, apply: applySeed },
     create,
     save,
     loadLatest: () => {

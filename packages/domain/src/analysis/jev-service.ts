@@ -2,12 +2,15 @@ import { randomUUID } from 'node:crypto';
 import type { HarnessEvent } from '@sidechannel/contracts/harness/contracts';
 import { isTerminalRun } from '@sidechannel/contracts/harness/contracts';
 import type { Repository } from '@sidechannel/contracts/harness/server';
-import type { BehaviorDefinition, CodebookRevision, SerializedWindow } from '@sidechannel/contracts/analysis/evidence-contracts';
-import { createSeedCodebook, resolveAnalysisConfiguration, snapshotHash, staticContextForRun, validateBehaviorDefinitions } from './configuration.js';
+import type { AnalysisConfiguration, BehaviorDefinition, CodebookRevision, SerializedWindow } from '@sidechannel/contracts/analysis/evidence-contracts';
+import { resolveAnalysisConfiguration, snapshotHash, staticContextForRun, WINDOWED_SUGGESTION_MAX } from './configuration.js';
+import { createSeedCodebook, resolveDefinition, seedDefinitionsV2, SEED_V2_NOTE, validateCodebook } from './codebook.js';
 import { normalizeTrace } from './normalization.js';
 import { buildWindows, selectSteps } from './windows.js';
-import { serializeWindow, preflightQuestions, SERIALIZATION_VERSION } from './serialization.js';
-import { buildBehaviorQuestions, JEV_ADAPTER_VERSION, JEV_SDK_VERSION, QUESTION_TEMPLATE_VERSION } from './jev-questions.js';
+import { serializeWindowV2, preflightWindow, toLegacyPreflight, backgroundKey, ALIAS_MAP_VERSION, SERIALIZATION_VERSION } from './serialization.js';
+import { assertNoForbiddenText, buildBehaviorQuestions, scoredDefinitions, toBudgetQuestion, BACKGROUND_VERSION, stateBackground, JEV_ADAPTER_VERSION, JEV_SDK_VERSION, QUESTION_TEMPLATE_VERSION, type RunBackground } from './jev-questions.js';
+import { selectProbeWindows } from './jev-probe.js';
+import { questionKey } from '@sidechannel/contracts/analysis/jev-provider';
 import { AnalysisConflict, AnalysisNotFound, AnalysisPayloadTooLarge, AnalysisValidation, type AnalysisJob, type AnalysisRepository, type WindowRecord } from '@sidechannel/contracts/analysis/jev-repository';
 import { emptyCounters } from './jev-repository.js';
 import { iteratePages, type PageFetcher } from '../pagination.js';
@@ -23,11 +26,11 @@ export function pages<T>(fetch: PageFetcher<T>): AsyncGenerator<T> { return iter
 export class AnalysisService {
     /** Composed analysis port: this service is the codebook + job lifecycle entry point. */
     constructor(readonly repository: AnalysisRepository, private readonly source: Pick<Repository, 'getRun' | 'listEvents'>) {}
-    async seedCodebook() { const existing = await this.repository.getCodebook('tentative-default'); if (existing) return existing; const { codebook, revision } = createSeedCodebook(); codebook.id = 'tentative-default'; codebook.currentRevisionId = revision.id = 'tentative-default-v1'; revision.codebookId = codebook.id; try { await this.repository.saveCodebook(codebook, revision); } catch (e) { if (!(e instanceof AnalysisConflict)) throw e; } return (await this.repository.getCodebook(codebook.id))!; }
+    async seedCodebook() { const existing = await this.repository.getCodebook('tentative-default'); if (existing) return existing; const { codebook, revision } = createSeedCodebook(); codebook.id = 'tentative-default'; codebook.currentRevisionId = revision.id = 'tentative-default-v1'; revision.codebookId = codebook.id; revision.definitions = revision.definitions.map(resolveDefinition); revision.schemaVersion = 2; try { await this.repository.saveCodebook(codebook, revision); } catch (e) { if (!(e instanceof AnalysisConflict)) throw e; } return (await this.repository.getCodebook(codebook.id))!; }
     async createCodebook(input: { name: string; creator: string; definitions: BehaviorDefinition[] }) {
-        const name = text(input.name, 'Name'), createdBy = text(input.creator, 'Creator'), definitions = validate(() => validateBehaviorDefinitions(input.definitions)), now = new Date().toISOString(), id = randomUUID(), revisionId = randomUUID();
-        const codebook = { id, name, currentRevisionId: revisionId, createdAt: now, updatedAt: now }, revision: CodebookRevision = { id: revisionId, codebookId: id, revision: 1, definitions, createdAt: now, createdBy };
-        await this.repository.saveCodebook(codebook, revision); return { codebook, revision };
+        const name = text(input.name, 'Name'), createdBy = text(input.creator, 'Creator'), checked = validate(() => validateCodebook(input.definitions)), definitions = checked.definitions.map(resolveDefinition), now = new Date().toISOString(), id = randomUUID(), revisionId = randomUUID();
+        const codebook = { id, name, currentRevisionId: revisionId, createdAt: now, updatedAt: now }, revision: CodebookRevision = { id: revisionId, codebookId: id, revision: 1, definitions, createdAt: now, createdBy, schemaVersion: 2 };
+        await this.repository.saveCodebook(codebook, revision); return { codebook, revision, warnings: checked.warnings };
     }
     async archiveCodebook(id: string, input: { expectedRevisionId: string; actor: string }) {
         const expected = text(input.expectedRevisionId, 'Expected revision'), actor = text(input.actor, 'Actor'), book = await this.repository.getCodebook(id); if (!book) throw new AnalysisNotFound('Codebook not found');
@@ -43,11 +46,48 @@ export class AnalysisService {
         const book = await this.repository.getCodebook(id); if (!book) throw new AnalysisNotFound('Codebook not found');
         if (book.archivedAt) throw new AnalysisConflict('Codebook is archived; restore it before editing');
         const expected = text(input.expectedRevisionId, 'Expected revision'); if (book.currentRevisionId !== expected) throw new AnalysisConflict('Codebook revision changed');
-        const prior = (await this.repository.getRevision(id, expected))!, now = new Date().toISOString(), revisionId = randomUUID(), definitions = validate(() => validateBehaviorDefinitions(input.definitions));
+        const prior = (await this.repository.getRevision(id, expected))!, now = new Date().toISOString(), revisionId = randomUUID(), checked = validate(() => validateCodebook(input.definitions)), definitions = checked.definitions.map(resolveDefinition);
         if (prior.definitions.some(d => !definitions.some(next => next.id === d.id))) throw new AnalysisValidation('Archive existing codes instead of removing their identities');
-        const revision: CodebookRevision = { id: revisionId, codebookId: id, revision: prior.revision + 1, definitions, createdAt: now, createdBy: text(input.creator, 'Creator'), ...(input.note ? { note: text(input.note, 'Note', 2000) } : {}) };
+        const revision: CodebookRevision = { id: revisionId, codebookId: id, revision: prior.revision + 1, definitions, createdAt: now, createdBy: text(input.creator, 'Creator'), schemaVersion: 2, ...(input.note ? { note: text(input.note, 'Note', 2000) } : {}) };
         const next = { ...book, name: input.name === undefined ? book.name : text(input.name, 'Name'), currentRevisionId: revisionId, updatedAt: now };
-        await this.repository.saveCodebook(next, revision, expected); return { codebook: next, revision };
+        await this.repository.saveCodebook(next, revision, expected); return { codebook: next, revision, warnings: checked.warnings };
+    }
+    /**
+     * Appends a revision carrying the v2 seed (spec 4.2) to one codebook, guarded by `expectedRevisionId`. Seed codes replace same-ID codes
+     * in seed order; codes in the current revision that the seed does not define are kept unchanged after them. No other codebook is touched.
+     */
+    async seedRevisionV2(codebookId: string, expectedRevisionId: string, creator: string) {
+        const book = await this.repository.getCodebook(codebookId); if (!book) throw new AnalysisNotFound('Codebook not found');
+        const expected = text(expectedRevisionId, 'Expected revision'), prior = book.currentRevisionId === expected ? await this.repository.getRevision(codebookId, expected) : undefined;
+        if (!prior) throw new AnalysisConflict('Codebook revision changed');
+        const seed = seedDefinitionsV2(), seeded = new Set(seed.map(d => d.id));
+        return this.reviseCodebook(codebookId, { expectedRevisionId: expected, creator, definitions: [...seed, ...prior.definitions.filter(d => !seeded.has(d.id))], note: SEED_V2_NOTE });
+    }
+    /** Serializes (v2) and preflights every window with the question set its active agents imply. Pure; shared by preview, launch and the windowed-size suggestion. */
+    private shapeWindows(selected: Parameters<typeof buildWindows>[0], settings: AnalysisConfiguration, definitions: BehaviorDefinition[], background: RunBackground, conditionText: string) {
+        return buildWindows(selected, settings.window).map(window => {
+            const serialized = serializeWindowV2(window, selected, settings.evidence, settings.inputLimits.estimatorVersion, stateBackground(definitions, background));
+            const questions = buildBehaviorQuestions(definitions, { activeAgents: serialized.activeAgents ?? [], background });
+            const budgetQuestions = questions.map(toBudgetQuestion), budget = toLegacyPreflight(preflightWindow(serialized, budgetQuestions, settings.inputLimits), budgetQuestions);
+            let conditionQuoted = false;
+            // An agent that quotes the condition verbatim puts it in the evidence. That window is still scored (the guard only
+            // covers what the pipeline adds), but the preview flags it so the researcher can read its visibility score with care.
+            try { assertNoForbiddenText({ state: serialized.state }, [conditionText]); } catch { conditionQuoted = true; }
+            return { window, serialized, budget, questions, conditionQuoted };
+        });
+    }
+    /** The single shared state block (exact text, never the condition) and which codes requested which parts of it. */
+    private backgroundGroups(definitions: BehaviorDefinition[], background: RunBackground) {
+        const text = stateBackground(definitions, background); if (!text) return [];
+        const parts = Object.keys(text) as ('task' | 'policy')[];
+        const requested = definitions.map(resolveDefinition).filter(d => d.background.length).map(d => ({ codeId: d.id, parts: d.background.filter((p): p is 'task' | 'policy' => p === 'task' || p === 'policy') }));
+        return [{ key: backgroundKey(parts), parts, codeIds: requested.map(r => r.codeId), requested, text }];
+    }
+    /** Largest window size up to 8 whose windows are all within budget (spec section 7); undefined when none fits. */
+    private suggestWindowedSize(selected: Parameters<typeof buildWindows>[0], settings: AnalysisConfiguration, definitions: BehaviorDefinition[], background: RunBackground, conditionText: string): number | undefined {
+        for (let size = WINDOWED_SUGGESTION_MAX; size >= 1; size--)
+            if (!this.shapeWindows(selected, { ...settings, window: { size, stride: Math.max(1, Math.ceil(size / 2)) } }, definitions, background, conditionText).some(w => w.budget.oversized)) return size;
+        return undefined;
     }
     private async prepare(runId: string, input: PreviewInput) {
         const run = await this.source.getRun(runId); if (!run) throw new AnalysisNotFound('Source run not found');
@@ -59,12 +99,23 @@ export class AnalysisService {
         while (true) { const chunk = await this.source.listEvents(runId, after, 500); if (!chunk.length) break;
             if (chunk.some((e, i) => e.sequence <= (i ? chunk[i - 1]!.sequence : after))) throw new AnalysisConflict('Source evidence page is not strictly ordered');
             bytes += Buffer.byteLength(JSON.stringify(chunk)); if (bytes > 128 * 1024 * 1024) throw new AnalysisValidation('Source exceeds the 128 MiB preparation limit; export and narrow the source before analysis'); events.push(...chunk); after = chunk.at(-1)!.sequence; }
-        const trace = normalizeTrace(run, events), selected = selectSteps(trace.steps, settings.selection), context = staticContextForRun(run), definitions = revision.definitions.filter(d => d.enabled && !d.archived);
-        if (!definitions.length) throw new AnalysisValidation('Enable at least one code before analysis'); const questions = buildBehaviorQuestions(definitions);
-        const windows = buildWindows(selected, settings.window).map(window => { const serialized = serializeWindow(window, selected, settings.evidence, context.text, settings.inputLimits.estimatorVersion), budget = preflightQuestions(serialized.state, questions, settings.inputLimits); return { window, serialized, budget }; });
-        const previewHash = snapshotHash({ source: trace.source, codebook: revision, settings, context, windows: windows.map(w => ({ window: w.window, hash: w.serialized.hash, budget: w.budget })) });
-        const summary = { previewHash, runId, codebookId: book.id, codebookRevisionId: revision.id, settings, source: { ...trace.source, eventIds: undefined }, windowCount: windows.length, scoredCodeCount: definitions.length, expectedAnswers: windows.filter(w => w.serialized.hasEvidence).length * definitions.length, partialWindows: windows.filter(w => w.window.partial).length, evidenceAvailability: trace.availability, diagnostics: trace.diagnostics, incompleteRun: run.status !== 'completed', windows: windows.map(w => ({ ...w.window, eventIds: undefined, stepIds: undefined, bytes: w.serialized.bytes, estimatedTokens: w.serialized.estimatedTokens, hasEvidence: w.serialized.hasEvidence, budget: w.budget })) };
-        return { run, trace, events, revision, settings, windows, context, previewHash, summary };
+        const trace = normalizeTrace(run, events), selected = selectSteps(trace.steps, settings.selection), context = staticContextForRun(run);
+        const definitions = scoredDefinitions(revision.definitions, settings.preset);
+        if (!definitions.length) throw new AnalysisValidation('Enable at least one code before analysis');
+        // The classifier's only context: task and policy. The condition is carried separately, solely so the request builder can assert it never leaves.
+        const background: RunBackground = { task: run.config.scenario.task, policy: run.config.scenario.policy }, conditionText = run.config.condition.text;
+        const windows = this.shapeWindows(selected, settings, definitions, background, conditionText);
+        const backgroundGroups = this.backgroundGroups(definitions, background);
+        const probeCandidates = windows.filter(w => w.serialized.hasEvidence && !w.budget.oversized).map(w => ({ id: w.window.id, estimatedTokens: w.serialized.estimatedTokens }));
+        const probeWindowIds = settings.probe ? selectProbeWindows(probeCandidates, settings.probe) : [];
+        const previewHash = snapshotHash({ source: trace.source, codebook: revision, settings, context, background: backgroundGroups, probeWindowIds, windows: windows.map(w => ({ window: w.window, hash: w.serialized.hash, budget: w.budget, questions: w.questions.map(questionKey) })) });
+        const conditionQuotedWindows = windows.filter(w => w.conditionQuoted).map(w => w.window.id);
+        const summary = { previewHash, runId, codebookId: book.id, codebookRevisionId: revision.id, settings, source: { ...trace.source, eventIds: undefined }, windowCount: windows.length, scoredCodeCount: definitions.length, expectedAnswers: windows.filter(w => w.serialized.hasEvidence).reduce((total, w) => total + w.questions.length, 0), partialWindows: windows.filter(w => w.window.partial).length, evidenceAvailability: trace.availability, diagnostics: trace.diagnostics, incompleteRun: run.status !== 'completed',
+            schemaVersion: 2 as const, preset: settings.preset ?? 'custom', longContext: settings.longContext, background: { version: BACKGROUND_VERSION, aliasMapVersion: ALIAS_MAP_VERSION, groups: backgroundGroups, conditionExcluded: true as const, conditionQuotedWindows },
+            probe: settings.probe ? { ...settings.probe, windowIds: probeWindowIds } : null,
+            ...(settings.preset === 'windowed' ? { suggestedWindowSize: this.suggestWindowedSize(selected, settings, definitions, background, conditionText) } : {}),
+            windows: windows.map(w => ({ ...w.window, eventIds: undefined, stepIds: undefined, bytes: w.serialized.bytes, estimatedTokens: w.serialized.estimatedTokens, hasEvidence: w.serialized.hasEvidence, activeAgents: w.serialized.activeAgents, budget: w.budget })) };
+        return { run, trace, events, revision, settings, windows, context, background, conditionText, backgroundGroups, probeWindowIds, previewHash, summary };
     }
     async preview(runId: string, input: PreviewInput) { return (await this.prepare(runId, input)).summary; }
     async previewWindow(runId: string, windowId: string, input: PreviewInput & { previewHash: string }) {
@@ -82,13 +133,16 @@ export class AnalysisService {
         if (old) { if (old.launchHash !== launchHash) throw new AnalysisConflict('Idempotency key already used with different configuration'); if (old.ready) return old; }
         const p = await this.prepare(runId, input); if (p.previewHash !== previewHash) throw new AnalysisConflict('Source or codebook changed since preview; preview again before launch');
         if (input.parentAnalysisId) { const parent = await this.repository.getJob(input.parentAnalysisId); if (!parent || parent.runId !== runId) throw new AnalysisValidation('Parent analysis must belong to this source run'); }
-        const now = new Date().toISOString(), sourceArtifact = id + ':source'; const { eventIds, ...source } = p.trace.source;
+        const now = new Date().toISOString(), sourceArtifact = id + ':source', contextArtifact = id + ':context'; const { eventIds, ...source } = p.trace.source;
         const job: AnalysisJob = { id, runId, idempotencyKey: key, launchHash, createdAt: now, updatedAt: now, ready: true, cancelRequested: false, status: 'queued', fence: 0, counters: { ...emptyCounters(), preparedWindows: p.windows.length, expectedAnswers: p.summary.expectedAnswers },
-            manifest: { version: 1, source, sourceArtifact, settings: p.settings, codebook: p.revision, settingsHash: snapshotHash({ settings: p.settings, codebook: p.revision }), staticContext: { version: p.context.version, hash: p.context.hash }, normalizerVersion: p.trace.version, serializationVersion: SERIALIZATION_VERSION, questionTemplateVersion: QUESTION_TEMPLATE_VERSION, providerAdapterVersion: JEV_ADAPTER_VERSION, sdkVersion: JEV_SDK_VERSION, diagnostics: p.trace.diagnostics, availability: p.trace.availability, creator, ...(input.parentAnalysisId ? { parentAnalysisId: input.parentAnalysisId } : {}) } };
+            manifest: { version: 1, source, sourceArtifact, settings: p.settings, codebook: p.revision, settingsHash: snapshotHash({ settings: p.settings, codebook: p.revision }), staticContext: { version: p.context.version, hash: p.context.hash }, normalizerVersion: p.trace.version, serializationVersion: SERIALIZATION_VERSION, questionTemplateVersion: QUESTION_TEMPLATE_VERSION, providerAdapterVersion: JEV_ADAPTER_VERSION, sdkVersion: JEV_SDK_VERSION, diagnostics: p.trace.diagnostics, availability: p.trace.availability, creator, ...(input.parentAnalysisId ? { parentAnalysisId: input.parentAnalysisId } : {}),
+                schemaVersion: 2, aliasMapVersion: ALIAS_MAP_VERSION, backgroundVersion: BACKGROUND_VERSION, contextArtifact, ...(p.settings.probe ? { probeWindowIds: p.probeWindowIds } : {}) } };
         // Publish the queue record only after all immutable inputs exist. A crashed API can leave
         // orphan artifacts, but never a visible, unclaimable preparing job. Candidate IDs isolate
         // competing configurations while the unique launch key atomically selects one manifest.
         await this.repository.putArtifact(sourceArtifact, { source: p.trace.source, steps: p.trace.steps, contextEventIds: p.trace.contextEventIds, events: p.events, staticContext: p.context });
+        // The worker rebuilds each window's questions from this: the frozen background, and the one text the request builder must never send.
+        await this.repository.putArtifact(contextArtifact, { version: BACKGROUND_VERSION, background: p.background, conditionText: p.conditionText });
         for (const w of p.windows) { const inputRef = id + ':input:' + w.window.id; await this.repository.putArtifact(inputRef, { ...w.serialized, preflight: w.budget });
             const record: WindowRecord = { ...w.window, jobId: id, ordinal: w.window.index, inputRef, inputHash: w.serialized.hash, inputBytes: w.serialized.bytes, estimatedTokens: w.serialized.estimatedTokens, status: !w.serialized.hasEvidence ? 'skipped' : w.budget.oversized ? 'oversized' : 'pending', diagnostics: w.budget.diagnostics, batches: w.budget.batches.map(b => b.map(q => q.codeId)) }; await this.repository.putWindow(record); }
         return (await this.repository.reserveJob(job)).job;
@@ -101,8 +155,12 @@ export class AnalysisService {
         const job = await this.getJob(id); yield { type: 'manifest', data: { exportVersion: 1, scope: 'analysis, immutable source and provider requests; review extensions follow when configured', job } };
         const artifacts = async function* (repository: AnalysisRepository, ref: string) { for await (const chunk of repository.artifactChunks(ref)) yield { type: 'artifact_chunk', data: { id: ref, ...chunk } }; };
         yield* artifacts(this.repository, job.manifest.sourceArtifact);
-        for await (const w of pages(p => this.repository.listWindows(id, p))) { yield { type: 'window', data: w }; yield* artifacts(this.repository, w.inputRef); }
+        for await (const w of pages(p => this.repository.listWindows(id, p))) { yield { type: 'window', data: w }; yield* artifacts(this.repository, w.inputRef);
+            // v2 windows resolve their aliases through the map stored with the serialized input (spec section 10).
+            if (job.manifest.schemaVersion === 2) yield { type: 'alias_map', data: { windowId: w.id, aliasMap: (await this.repository.readArtifact<SerializedWindow>(w.inputRef)).aliasMap ?? {} } }; }
         for await (const r of pages(p => this.repository.listResults(id, p))) yield { type: 'result', data: r };
-        for await (const a of pages(p => this.repository.listAttempts(id, p))) { yield { type: 'attempt', data: a }; yield* artifacts(this.repository, a.requestRef); if (a.responseRef) yield* artifacts(this.repository, a.responseRef); }
+        for await (const r of pages(p => this.repository.listResults(id, { ...p, probe: 'only' }))) yield { type: 'result', data: r };
+        if (job.reliability) yield { type: 'reliability', data: job.reliability };
+        for await (const a of pages(p => this.repository.listAttempts(id, { ...p, probe: 'include' }))) { yield { type: a.probe ? 'probe_attempt' : 'attempt', data: a }; yield* artifacts(this.repository, a.requestRef); if (a.responseRef) yield* artifacts(this.repository, a.responseRef); }
     }
 }

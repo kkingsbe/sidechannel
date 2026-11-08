@@ -51,9 +51,25 @@
     }
   },
   "exports": {
+    "./analysis/aggregation": {
+      "types": "./dist/analysis/aggregation.d.ts",
+      "import": "./dist/analysis/aggregation.js"
+    },
+    "./analysis/aggregation-service": {
+      "types": "./dist/analysis/aggregation-service.d.ts",
+      "import": "./dist/analysis/aggregation-service.js"
+    },
+    "./analysis/codebook": {
+      "types": "./dist/analysis/codebook.d.ts",
+      "import": "./dist/analysis/codebook.js"
+    },
     "./analysis/configuration": {
       "types": "./dist/analysis/configuration.d.ts",
       "import": "./dist/analysis/configuration.js"
+    },
+    "./analysis/jev-probe": {
+      "types": "./dist/analysis/jev-probe.d.ts",
+      "import": "./dist/analysis/jev-probe.js"
     },
     "./analysis/jev-questions": {
       "types": "./dist/analysis/jev-questions.d.ts",
@@ -86,6 +102,10 @@
     "./analysis/store": {
       "types": "./dist/analysis/store.d.ts",
       "import": "./dist/analysis/store.js"
+    },
+    "./analysis/validation": {
+      "types": "./dist/analysis/validation.d.ts",
+      "import": "./dist/analysis/validation.js"
     },
     "./analysis/windows": {
       "types": "./dist/analysis/windows.d.ts",

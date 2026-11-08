@@ -5,6 +5,7 @@ import type { ViewRegistry } from "../../lib/contracts";
 import { CompareAnalyses } from "./compare-analyses";
 import { ProvenanceView } from "./provenance-view";
 import { ReviewWorkspace } from "./review-workspace";
+import { RunSummaryPanel } from "./run-summary-panel";
 import { ScorePanel } from "./score-panel";
 import { useAnalysisJob } from "./use-analysis-job";
 
@@ -12,6 +13,7 @@ export const ANALYSIS_TABS = [
   "heatmap",
   "probability",
   "table",
+  "summary",
   "review",
   "compare",
   "provenance",
@@ -46,6 +48,9 @@ function HeatmapView() {
 function TableView() {
   return <ScorePanel kind="table" id={useRouteId()} />;
 }
+function SummaryView() {
+  return <RunSummaryPanel id={useRouteId()} />;
+}
 function ReviewView() {
   const id = useRouteId();
   const job = useAnalysisJob(id);
@@ -72,6 +77,7 @@ export const ANALYSIS_VIEWS: ViewRegistry<AnalysisTab> = {
   heatmap: { title: "Heatmap", Component: HeatmapView },
   probability: { title: "Probability timeline", Component: ProbabilityView },
   table: { title: "Score table", Component: TableView },
+  summary: { title: "Run summary", Component: SummaryView },
   review: { title: "Human review", Component: ReviewView },
   compare: { title: "Compare", Component: CompareAnalyses },
   provenance: { title: "Provenance", Component: ProvenanceView },
