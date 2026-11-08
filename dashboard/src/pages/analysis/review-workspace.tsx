@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Badge, Button, Card, CardHeading, Empty, ErrorState, Field, Input, Loading, Pager, Select, Table } from "../../components/ui";
+import { Badge, Button, Card, CardHeading, Empty, ErrorState, Field, Input, Loading, Notice, Pager, Select, Table } from "../../components/ui";
 import { useApi, useMutation, usePage } from "../../lib/api";
 import { useClients } from "../../lib/clients/context";
 import { useClaimedReviewer } from "../../components/claimed-reviewer";
 import type { AnalysisJob, Page, ReviewBatch, ReviewSelection } from "../../lib/analysis-types";
 import { when } from "../../lib/utils";
+import { ValidationStatusBadge } from "../../components/validation-status-badge";
 import { ReviewQueueRow } from "./review-queue-row";
+import { batchFormProblem, batchRequest, DEFAULT_BINS, describeStrategy, type StrategyChoice } from "./batch-request";
+import { useCodeValidation } from "./use-code-validation";
 
 export function ReviewWorkspace({
   job,
@@ -28,6 +31,13 @@ export function ReviewWorkspace({
   const [threshold, setThreshold] = useState(0.7);
   const [randomCount, setRandomCount] = useState(10);
   const [seed, setSeed] = useState("pilot-42");
+  const [strategy, setStrategy] = useState<StrategyChoice>("flagged-plus-random");
+  const [bins, setBins] = useState(DEFAULT_BINS);
+  const [perBin, setPerBin] = useState(10);
+  const [minGap, setMinGap] = useState(0.5);
+  const validation = useCodeValidation(job);
+  const form = { mode, threshold, randomSize: randomCount, seed, strategy, bins, perBin, minGap };
+  const formProblem = batchFormProblem(form);
   const [queueFilter, setQueueFilter] = useState("all");
   const [batchCursor, setBatchCursor] = useState<string | null>(null);
   const clients = useClients();
@@ -65,13 +75,7 @@ export function ReviewWorkspace({
     : mode === "blind";
   const create = async () => {
     const result = await mutation.run(() =>
-      clients.analyses.createBatch(job.id, {
-        mode,
-        threshold,
-        randomCount,
-        seed,
-        creator: reviewer,
-      }),
+      clients.analyses.createBatch(job.id, { ...batchRequest(form), creator: reviewer }),
     );
     if (result) {
       setParams((prev) => {
@@ -98,6 +102,19 @@ export function ReviewWorkspace({
             title="Durable review selection"
             description="Flagged candidates and random samples share one queue without duplicate tasks."
           />
+          <div className="actions" aria-label="Code validation status">
+            {job.manifest.codebook.codes
+              .filter((code) => code.enabled && !code.archived)
+              .map((code) => {
+                const status = validation.byCode.get(code.id);
+                return (
+                  <span key={code.id} className="code-chip">
+                    <strong>{code.code}</strong>{" "}
+                    {status ? <ValidationStatusBadge validation={status} /> : <Badge>{validation.loading ? "Checking" : "No validation data"}</Badge>}
+                  </span>
+                );
+              })}
+          </div>
           <details open={!batchId} className="an-disclosure">
             <summary>Create a new review selection</summary>
             <div className="card-body an-body">
@@ -140,32 +157,77 @@ export function ReviewWorkspace({
                     </Field>
                   )}
                 </div>
-                <div className="three">
-                  <Field label="Flag threshold">
-                    <Input
-                      type="number"
-                      min="0"
-                      max="1"
-                      step=".05"
-                      value={threshold}
-                      onChange={(e) => setThreshold(e.target.valueAsNumber)}
-                    />
+                <div className="two">
+                  <Field
+                    label="Selection strategy"
+                    hint="Stratified draws labels across the score range; disagreement re-queues windows where a label and the score differ."
+                  >
+                    <Select value={strategy} onChange={(e) => setStrategy(e.target.value as StrategyChoice)}>
+                      <option value="flagged-plus-random">Flagged + random</option>
+                      <option value="stratified">Stratified by predicted probability</option>
+                      <option value="disagreement">Disagreement between label and score</option>
+                    </Select>
                   </Field>
-                  <Field label="Random windows">
-                    <Input
-                      type="number"
-                      min="0"
-                      max="1000"
-                      value={randomCount}
-                      onChange={(e) => setRandomCount(e.target.valueAsNumber)}
-                    />
-                  </Field>
-                  <Field label="Random sampling seed">
+                  <Field label="Sampling seed">
                     <Input value={seed} onChange={(e) => setSeed(e.target.value)} />
                   </Field>
                 </div>
+                {strategy === "flagged-plus-random" && (
+                  <div className="two">
+                    <Field label="Flag threshold">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="1"
+                        step=".05"
+                        value={threshold}
+                        onChange={(e) => setThreshold(e.target.valueAsNumber)}
+                      />
+                    </Field>
+                    <Field label="Random windows">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="1000"
+                        value={randomCount}
+                        onChange={(e) => setRandomCount(e.target.valueAsNumber)}
+                      />
+                    </Field>
+                  </div>
+                )}
+                {strategy === "stratified" && (
+                  <div className="two">
+                    <Field label="Bin edges" hint="Comma-separated, increasing, from 0 to 1.">
+                      <Input value={bins} onChange={(e) => setBins(e.target.value)} />
+                    </Field>
+                    <Field label="Windows per bin" hint="Per code. Short bins are reported after creation.">
+                      <Input
+                        type="number"
+                        min="1"
+                        max="1000"
+                        value={perBin}
+                        onChange={(e) => setPerBin(e.target.valueAsNumber)}
+                      />
+                    </Field>
+                  </div>
+                )}
+                {strategy === "disagreement" && (
+                  <div className="two">
+                    <Field label="Minimum gap" hint="Label (present 1, absent 0) against the latest score.">
+                      <Input
+                        type="number"
+                        min="0.05"
+                        max="1"
+                        step=".05"
+                        value={minGap}
+                        onChange={(e) => setMinGap(e.target.valueAsNumber)}
+                      />
+                    </Field>
+                  </div>
+                )}
+                {formProblem && <p className="why">{formProblem}</p>}
                 <div className="actions">
-                  <Button onClick={create} disabled={mutation.busy || !reviewer.trim()}>
+                  <Button onClick={create} disabled={mutation.busy || !reviewer.trim() || formProblem !== null}>
                     Create selection batch
                   </Button>
                   {!reviewer.trim() && (
@@ -199,7 +261,15 @@ export function ReviewWorkspace({
                     {batch.data.batch.selectionCount} selected
                   </Badge>
                 )}
+                {batch.data?.batch.strategy && batch.data.batch.strategy.kind !== "flagged-plus-random" && (
+                  <Badge tone="info">{describeStrategy(batch.data.batch.strategy)}</Badge>
+                )}
               </div>
+              {batch.data?.batch.shortfalls?.length ? (
+                <Notice kind="warning">
+                  Short bins: {batch.data.batch.shortfalls.map((s) => `${s.codeId} bin ${s.bin + 1} drew ${s.drawn} of ${s.requested}`).join("; ")}.
+                </Notice>
+              ) : null}
               {batch.loading ? (
                 <Loading />
               ) : batch.error ? (

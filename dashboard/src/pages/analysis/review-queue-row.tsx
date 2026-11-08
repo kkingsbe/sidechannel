@@ -2,6 +2,8 @@ import { Button } from "../../components/ui";
 import { useApi } from "../../lib/api";
 import { useClients } from "../../lib/clients/context";
 import type { AnalysisJob, HumanReview, Page, ReviewSelection, WindowDetail } from "../../lib/analysis-types";
+import { reasonLabel } from "./batch-request";
+import { reviewerLabel, summarizeReviewers } from "./reviewer-summary";
 
 export function ReviewQueueRow({
   job,
@@ -27,6 +29,10 @@ export function ReviewQueueRow({
       ? clients.analyses.paths.reviews(job.id, { windowId: selection.windowId, reviewer, latest: "true", limit: 30 })
       : null,
   );
+  const everyone = useApi<Page<HumanReview>>(
+    clients.analyses.paths.reviews(job.id, { windowId: selection.windowId, scope: "window", latest: "true", limit: 100 }),
+  );
+  const summary = summarizeReviewers(everyone.data?.items ?? [], selection.windowId);
   const own =
     reviews.data?.items.filter(
       (r) =>
@@ -60,11 +66,17 @@ export function ReviewQueueRow({
                   ? "Revised"
                   : "Saved"
                 : "Unreviewed"}
+        {everyone.data && (
+          <small className="reviewer-count" data-second-reviewer={summary.second}>
+            {reviewerLabel(summary)}
+            {summary.split && (!blind || own.length > 0) ? " · reviewers disagree" : ""}
+          </small>
+        )}
       </td>
       <td>
         {blind
           ? "Hidden in blind mode"
-          : selection.reasons?.join(" + ") || "Unavailable"}
+          : selection.reasons?.map(reasonLabel).join(" + ") || "Unavailable"}
       </td>
       <td>
         <Button

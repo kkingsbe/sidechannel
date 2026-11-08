@@ -146,6 +146,7 @@ export function toBatch(raw: JevBatch): ReviewBatch {
         id: raw.id, createdAt: raw.createdAt, analysisId: raw.analysisId, mode: raw.mode,
         ...(raw.threshold !== undefined ? { threshold: raw.threshold } : {}),
         populationCount: raw.populationSize, selectionCount: raw.selectedCount, codebookRevisionId: raw.definitionRevision,
+        ...(raw.strategy ? { strategy: raw.strategy } : {}), ...(raw.shortfalls ? { shortfalls: raw.shortfalls } : {}),
     };
 }
 
