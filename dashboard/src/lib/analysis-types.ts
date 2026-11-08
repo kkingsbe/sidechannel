@@ -1,5 +1,5 @@
 import type { HarnessEvent, RunStatus } from '@sidechannel/contracts/browser';
-import type { AnalysisConfiguration } from '@sidechannel/contracts/browser';
+import type { AnalysisConfiguration, BackgroundPart, BehaviorKind, BehaviorQuestion, BehaviorScope } from '@sidechannel/contracts/browser';
 
 export type EvidenceCategory = 'assistant' | 'tools' | 'board' | 'artifacts' | 'memory' | 'reasoning' | 'reports';
 export const evidenceCategories: EvidenceCategory[] = ['assistant', 'tools', 'board', 'artifacts', 'memory', 'reasoning', 'reports'];
@@ -7,7 +7,7 @@ export type Decision = 'present' | 'absent' | 'uncertain';
 /** Every persisted research record starts with a server identity and creation time. */
 export interface Identified { id: string; createdAt: string }
 export interface Page<T> { items: T[]; nextCursor: string | null }
-export interface BehaviorCode { id: string; code: string; name: string; definition: string; inclusionCriteria: string[]; exclusionCriteria: string[]; examples: string[]; counterexamples: string[]; qualifyingEvidenceTypes: string[]; enabled: boolean; archived: boolean; color: string }
+export interface BehaviorCode { id: string; code: string; name: string; definition: string; inclusionCriteria: string[]; exclusionCriteria: string[]; examples: string[]; counterexamples: string[]; qualifyingEvidenceTypes: string[]; enabled: boolean; archived: boolean; color: string; kind?: BehaviorKind; scope?: BehaviorScope; question?: BehaviorQuestion; background?: BackgroundPart[]; decisionProcedure?: string; framingExclusions?: string[] }
 export interface CodebookRevision extends Identified { revision: number; codebookId: string; name?: string; codes: BehaviorCode[]; author: string; parentRevisionId?: string | null }
 export interface Codebook extends Identified { revision?: number; name: string; currentRevisionId: string; archivedAt?: string; archivedBy?: string }
 /** Server-frozen settings captured for a duplicate so a re-submit is byte-identical. */

@@ -1,4 +1,5 @@
 import type { BehaviorCode } from "../../lib/analysis-types";
+import { questionError } from "./codebook-v2";
 
 export interface CodebookDraft {
   name: string;
@@ -20,7 +21,7 @@ export interface CodebookValidation {
 
 const DUPLICATE_CODE = "This display code is already used.";
 const INVALID_SUMMARY =
-  "Complete the name, display code and definition for every active behavior; display codes must be unique.";
+  "Complete the name, display code and definition for every active behavior; display codes must be unique and question settings valid.";
 
 /** The single owner of the three validity questions (name, active fields, unique display codes). */
 export function validateCodebook(
@@ -36,7 +37,7 @@ export function validateCodebook(
     !draft.name.trim() ||
     active.some(
       (code) =>
-        !code.definition.trim() || !code.code.trim() || !code.name.trim(),
+        !code.definition.trim() || !code.code.trim() || !code.name.trim() || !!questionError(code),
     ) ||
     duplicateNames;
   const status = !state.dirty

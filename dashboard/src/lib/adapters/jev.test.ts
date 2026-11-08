@@ -18,6 +18,8 @@ describe('jev adapter', () => {
         expect(translate('/codebooks?limit=30')).toEqual({ path: '/jev/codebooks?limit=30', init: undefined });
         expect(translate('/analyses/a1/windows?withResults=true')).toEqual({ path: '/jev/analyses/a1/windows?withResults=true', init: undefined });
         expect(translate('/runs/r1/analyses/preview')).toEqual({ path: '/jev/runs/r1/analyses/preview', init: undefined });
+        expect(translate('/codebooks/seed-v2')).toEqual({ path: '/jev/codebooks/seed-v2', init: undefined });
+        expect(translate('/codebooks/b1/seed-v2')).toEqual({ path: '/jev/codebooks/b1/seed-v2', init: undefined });
         expect(translate('/runs/r1')).toBeUndefined();
         expect(translate('/monitor-evaluations')).toBeUndefined();
         expect(translate('/drafts')).toBeUndefined();

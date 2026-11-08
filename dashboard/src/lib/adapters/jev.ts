@@ -1,6 +1,6 @@
 /** Explicit boundary between canonical Jev records and the dashboard's view models. */
 import type {
-    AnalysisConfiguration, Codebook as JevCodebook, CodebookRevision as JevRevision, EvidenceCategory as JevCategory, SerializedWindow,
+    AnalysisConfiguration, Codebook as JevCodebook, CodebookRevision as JevRevision, CodebookWarning, EvidenceCategory as JevCategory, SerializedWindow,
 } from '@sidechannel/contracts/browser';
 import type { AnalysisJob as JevJob, AnalysisResult as JevResult, Page, WindowRecord } from '@sidechannel/contracts/browser';
 import type { Review as JevReview, ReviewBatch as JevBatch } from '@sidechannel/contracts/browser';
@@ -41,6 +41,11 @@ const categoryGroups: Record<EvidenceCategory, JevCategory[]> = { assistant: ['a
 
 export function toRevision(raw: JevRevision): CodebookRevision {
     return { id: raw.id, revision: raw.revision, createdAt: raw.createdAt, codebookId: raw.codebookId, codes: raw.definitions, author: raw.createdBy };
+}
+
+/** A saved codebook + revision, carrying the save's non-blocking validation warnings through to the studio. */
+function pair(raw: { codebook: JevCodebook; revision: JevRevision; warnings?: CodebookWarning[] }) {
+    return { codebook: toCodebook(raw.codebook, raw.revision), revision: toRevision(raw.revision), warnings: raw.warnings ?? [] };
 }
 
 /** The server has no codebook-level `archived` flag; the view model must not invent one. */
@@ -151,7 +156,7 @@ export function toBatch(raw: JevBatch): ReviewBatch {
 
 function availability(raw: Partial<Record<JevCategory, boolean>>) { return Object.fromEntries(Object.entries(categoryGroups).map(([category, fields]) => [category, fields.some(field => raw[field]) ? 1 : 0])) as Record<EvidenceCategory, number>; }
 
-const ROUTE = /^\/(codebooks(\/[^/]+(\/revisions(\/[^/]+)?)?)?|analyses(\/[^/]+(\/windows(\/[^/]+)?|\/reviews(\/[^/]+)?|\/review-batches(\/[^/]+)?|\/(cancel|retry))?)?|runs\/[^/]+\/analyses(\/preview)?)$/;
+const ROUTE = /^\/(codebooks(\/[^/]+(\/revisions(\/[^/]+)?|\/seed-v2)?)?|analyses(\/[^/]+(\/windows(\/[^/]+)?|\/reviews(\/[^/]+)?|\/review-batches(\/[^/]+)?|\/(cancel|retry))?)?|runs\/[^/]+\/analyses(\/preview)?)$/;
 
 /** Pure: dashboard path → canonical Jev path. `undefined` means "not a Jev route". */
 export function translate(path: string, init?: RequestInit): { path: string; init?: RequestInit } | undefined {
@@ -180,15 +185,17 @@ export async function decodeJev<T>(path: string, init: RequestInit | undefined, 
     const body: Record<string, any> = init?.body ? JSON.parse(String(init.body)) as Record<string, any> : {};
     let value: unknown;
     if (p === '/codebooks' && method === 'GET') { const page = payload as Page<JevCodebook>; value = { ...page, items: page.items.map(raw => toCodebook(raw)) }; }
-    else if (p === '/codebooks' && method === 'POST') { const raw = payload as { codebook: JevCodebook; revision: JevRevision }; value = { codebook: toCodebook(raw.codebook, raw.revision), revision: toRevision(raw.revision) }; }
+    else if (p === '/codebooks' && method === 'POST') { value = pair(payload as { codebook: JevCodebook; revision: JevRevision; warnings?: CodebookWarning[] }); }
     else if (/^\/codebooks\/[^/]+\/revisions$/.test(p) && method === 'GET') { const page = payload as Page<JevRevision>; value = { ...page, items: page.items.map(toRevision) }; }
     else if (/^\/codebooks\/[^/]+\/revisions\/[^/]+$/.test(p) && method === 'GET') { value = toRevision(payload as JevRevision); }
+    else if (p === '/codebooks/seed-v2' && method === 'GET') { value = payload; }
+    else if (/^\/codebooks\/[^/]+\/seed-v2$/.test(p) && method === 'POST') { value = pair(payload as { codebook: JevCodebook; revision: JevRevision; warnings?: CodebookWarning[] }); }
     else if (/^\/codebooks\/[^/]+$/.test(p) && method === 'GET') {
         const raw = payload as JevCodebook;
         const current = await read(`/jev${p}/revisions/${encodeURIComponent(raw.currentRevisionId)}`) as JevRevision;
         value = { codebook: toCodebook(raw, current), revision: toRevision(current) };
     }
-    else if (/^\/codebooks\/[^/]+$/.test(p) && method === 'PATCH') { const raw = payload as { codebook: JevCodebook; revision: JevRevision }; value = { codebook: toCodebook(raw.codebook, raw.revision), revision: toRevision(raw.revision) }; }
+    else if (/^\/codebooks\/[^/]+$/.test(p) && method === 'PATCH') { value = pair(payload as { codebook: JevCodebook; revision: JevRevision; warnings?: CodebookWarning[] }); }
     else if (p === '/analyses' && method === 'GET') { const page = payload as Page<JevJob>; value = { ...page, items: page.items.map(raw => { session.rememberJob(raw); return toJob(raw); }) }; }
     else if (/^\/runs\/[^/]+\/analyses$/.test(p) && method === 'GET') { const page = payload as Page<JevJob>; value = { ...page, items: page.items.map(raw => { session.rememberJob(raw); return toJob(raw); }) }; }
     else if (/^\/runs\/[^/]+\/analyses\/preview$/.test(p) && method === 'POST') {

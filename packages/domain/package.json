@@ -51,6 +51,10 @@
     }
   },
   "exports": {
+    "./analysis/codebook": {
+      "types": "./dist/analysis/codebook.d.ts",
+      "import": "./dist/analysis/codebook.js"
+    },
     "./analysis/configuration": {
       "types": "./dist/analysis/configuration.d.ts",
       "import": "./dist/analysis/configuration.js"
