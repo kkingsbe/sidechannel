@@ -6,7 +6,7 @@ This brief collects what we now know about pushing the Jev trace analysis furthe
 
 ## 1. What we measured
 
-All measurements use the team-pilot run `98fa50ad` (qwen3.8-27b, reviewed condition, 54 steps) unless stated. Scripts live in the `jev-estimator` worktree root (`compare.py`, `margin.py`, `profile.py`, `exp_visibility.py`, `exp_noise.py`).
+All measurements use the team-pilot run `98fa50ad` (qwen3.8-27b, reviewed condition, 54 steps) unless stated. Scripts live in `research/scripts/jev-2026-11-08/` (`compare.py`, `margin.py`, `profile.py`, `exp_visibility.py`, `exp_noise.py`, plus the small listing helpers). They read production exports saved locally and the TypeSafe key from the repository's `.env`; they are records of the measurements, not maintained tooling. The repeatable live check is `tests/integration/jev-leak-smoke.ts`.
 
 ### 1.1 Token estimator (fixed today)
 
@@ -62,7 +62,9 @@ The live leak A/B in `tests/integration/jev-leak-smoke.ts` was run with `--ablat
 | v1 state without condition, v2 questions (background in both) | 0.43 | 0.26 | 0.08 | 0.22 |
 | v2 state with shared `background` block, questions without background | 0.31 | 0.33 | 0.07 | 0.20 |
 
-Three conclusions. First, the visibility leak is closed by removing the condition, however the rest is arranged: every variant without it lands at 0.27 to 0.31. Second, per-question background does not do the job that shared background does for `join`, and putting it in both places is worse. The shared block is the production shaping. Third, two residual shifts survive every variant: the v2 state raises `accept` by about 0.10 and the v2 question format raises `challenge` by about 0.06. These are differences between two classifiers of unknown accuracy, not errors, and the labelled set in phase 4 is what decides them. Both codes were already the least stable in the noise probe.
+A fourth probe, run after the shared block was implemented, found that its position in the state matters: with `background` as the first key of the state (canonical key order) `visibility` read 0.43 on the same 12 windows; as the last key, after the evidence, it read 0.31. No other code moved by more than 0.02 between the two orders. The serializer therefore appends the block last.
+
+Three conclusions. First, the visibility leak is closed by removing the condition, however the rest is arranged: every variant without it lands at 0.27 to 0.31 once the background is not the first thing the model reads. Second, per-question background does not do the job that shared background does for `join`, and putting it in both places is worse. The shared block is the production shaping. Third, two residual shifts survive every variant: the v2 state raises `accept` by about 0.10 and the v2 question format raises `challenge` by about 0.06. These are differences between two classifiers of unknown accuracy, not errors, and the labelled set in phase 4 is what decides them. Both codes were already the least stable in the noise probe.
 
 ## 2. What the TypeSafe docs say that matters
 

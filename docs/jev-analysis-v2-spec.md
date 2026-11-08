@@ -126,7 +126,7 @@ Serialization version becomes `jev-state-v2`. The shared state contains only evi
 
 Differences from v1:
 
-- No `staticContext` field. The condition is never sent. Task and policy stay in the shared state, as a top-level `background: { task, policy }` block holding the union of the parts the enabled codes request (5.2 explains why this is not per question).
+- No `staticContext` field. The condition is never sent. Task and policy stay in the shared state, as a top-level `background: { task, policy }` block holding the union of the parts the enabled codes request (5.2 explains why this is not per question). The block is emitted as the last key of the state, after the evidence: on the same 12 production windows, placing it first read `visibility` at 0.43 against 0.31 last, with no other code moving more than 0.02 (brief 1.5).
 - Identifiers are window-local aliases (`s14`, `e3`, `c1`) rather than UUIDs and run-scoped IDs. The serialized window stores an `aliasMap` from alias to real ID so review, evidence links and exports resolve exactly. This reclaims roughly 30% of window bytes.
 - Step metadata that only served reconstruction (`sequenceStart`, `sequenceEnd`, `invocationId`, `eventIds` per tool call) is dropped from the model-facing state and kept in the window record.
 

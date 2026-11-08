@@ -184,10 +184,13 @@ export function serializeWindowV2(window: AnalysisWindow, input: readonly Canoni
     const { projected, hasEvidence } = projectSteps(steps, selection, shape);
     const availability = evidenceAvailability(steps);
     const activeAgents = [...new Set(steps.map(s => s.agentId))];
-    const state = stableStringify({ serializationVersion: SERIALIZATION_VERSION, window: { ref: windowRef, startOrdinal: window.startOrdinal, endOrdinal: window.endOrdinal, agents: activeAgents, ...(window.partial ? { partial: true } : {}) },
-        // Shared task/policy background (never the condition) is the one pipeline-added block; it measured closer to v1 than per-question copies.
-        ...(background && Object.keys(background).length ? { background } : {}),
+    const evidenceState = stableStringify({ serializationVersion: SERIALIZATION_VERSION, window: { ref: windowRef, startOrdinal: window.startOrdinal, endOrdinal: window.endOrdinal, agents: activeAgents, ...(window.partial ? { partial: true } : {}) },
         evidence: { selection, availability }, steps: projected });
+    // Shared task/policy background (never the condition) is the one pipeline-added block; it measured closer to v1 than
+    // per-question copies. It is appended as the LAST key on purpose: with canonical key order it came first, and on the
+    // same 12 production windows the visibility code read 0.43 there against 0.31 here, with no other code moving more
+    // than 0.02 (research brief 1.5). The rest of the state keeps canonical ordering, so hashes stay deterministic.
+    const state = background && Object.keys(background).length ? `${evidenceState.slice(0, -1)},"background":${stableStringify(background)}}` : evidenceState;
     return immutableSnapshot({ serializationVersion: SERIALIZATION_VERSION, windowId: window.id, state, hash: snapshotHash(state), bytes: Buffer.byteLength(state), estimatedTokens: estimateTokens(state, estimator), estimatorVersion: estimator, hasEvidence, availability, selection, aliasMap: aliases.map, activeAgents });
 }
 
