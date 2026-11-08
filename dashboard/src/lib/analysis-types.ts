@@ -53,7 +53,7 @@ export interface WindowDetail { window: AnalysisWindow; sourceEventIds: string[]
 export type { AnalysisSummary, CodeSummary, Comparison, ComparisonCode, ComparisonMetric, ConditionDifference, ComparisonRequest, ScoreMetrics, ThresholdPolicy } from '@sidechannel/contracts/browser';
 
 /** One background group of a v2 preview: the parts its questions carry and the exact text they receive. */
-export interface BackgroundGroup { key: string; parts: BackgroundPart[]; codeIds: string[]; text: { task?: string; policy?: string } }
+export interface BackgroundGroup { key: string; parts: BackgroundPart[]; codeIds: string[]; requested?: { codeId: string; parts: BackgroundPart[] }[]; text: { task?: string; policy?: string } }
 /** v2 request-shaping details of a preview (spec sections 5 to 7). Absent from v1 servers. */
 export interface AnalysisPreviewV2 {
     preset: AnalysisPreset; longContext: boolean; suggestedWindowSize?: number;

@@ -206,5 +206,5 @@ test('behavior questions include the complete enabled definition and distinguish
     assert.equal(questions[0].codeId, 'stable');
     for (const text of ['Complete definition', 'included', 'excluded', 'positive', 'negative', 'boardContent', 'at least one occurrence', 'not an instruction'])
         assert.ok(JSON.stringify(questions[0].instructions).includes(text));
-    assert.ok(JSON.stringify(questions[0].instructions).includes('TASK_TEXT'));
+    assert.ok(!JSON.stringify(questions[0].instructions).includes('TASK_TEXT'));
 });

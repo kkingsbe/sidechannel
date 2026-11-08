@@ -8,7 +8,7 @@ import { createSeedCodebook, resolveDefinition, seedDefinitionsV2, SEED_V2_NOTE,
 import { normalizeTrace } from './normalization.js';
 import { buildWindows, selectSteps } from './windows.js';
 import { serializeWindowV2, preflightWindow, toLegacyPreflight, backgroundKey, ALIAS_MAP_VERSION, SERIALIZATION_VERSION } from './serialization.js';
-import { assertNoForbiddenText, buildBehaviorQuestions, scoredDefinitions, toBudgetQuestion, BACKGROUND_VERSION, JEV_ADAPTER_VERSION, JEV_SDK_VERSION, QUESTION_TEMPLATE_VERSION, type RunBackground } from './jev-questions.js';
+import { assertNoForbiddenText, buildBehaviorQuestions, scoredDefinitions, toBudgetQuestion, BACKGROUND_VERSION, stateBackground, JEV_ADAPTER_VERSION, JEV_SDK_VERSION, QUESTION_TEMPLATE_VERSION, type RunBackground } from './jev-questions.js';
 import { selectProbeWindows } from './jev-probe.js';
 import { questionKey } from '@sidechannel/contracts/analysis/jev-provider';
 import { AnalysisConflict, AnalysisNotFound, AnalysisPayloadTooLarge, AnalysisValidation, type AnalysisJob, type AnalysisRepository, type WindowRecord } from '@sidechannel/contracts/analysis/jev-repository';
@@ -66,7 +66,7 @@ export class AnalysisService {
     /** Serializes (v2) and preflights every window with the question set its active agents imply. Pure; shared by preview, launch and the windowed-size suggestion. */
     private shapeWindows(selected: Parameters<typeof buildWindows>[0], settings: AnalysisConfiguration, definitions: BehaviorDefinition[], background: RunBackground, conditionText: string) {
         return buildWindows(selected, settings.window).map(window => {
-            const serialized = serializeWindowV2(window, selected, settings.evidence, settings.inputLimits.estimatorVersion);
+            const serialized = serializeWindowV2(window, selected, settings.evidence, settings.inputLimits.estimatorVersion, stateBackground(definitions, background));
             const questions = buildBehaviorQuestions(definitions, { activeAgents: serialized.activeAgents ?? [], background });
             const budgetQuestions = questions.map(toBudgetQuestion), budget = toLegacyPreflight(preflightWindow(serialized, budgetQuestions, settings.inputLimits), budgetQuestions);
             let conditionQuoted = false;
@@ -76,14 +76,12 @@ export class AnalysisService {
             return { window, serialized, budget, questions, conditionQuoted };
         });
     }
-    /** The request-level background each distinct group receives, with the exact text (never the condition). */
+    /** The single shared state block (exact text, never the condition) and which codes requested which parts of it. */
     private backgroundGroups(definitions: BehaviorDefinition[], background: RunBackground) {
-        const groups = new Map<string, { key: string; parts: ('task' | 'policy')[]; codeIds: string[] }>();
-        for (const definition of definitions.map(resolveDefinition)) {
-            const parts = definition.background.filter((p): p is 'task' | 'policy' => p === 'task' || p === 'policy'), key = backgroundKey(parts);
-            const group = groups.get(key) ?? { key, parts: [...parts].sort(), codeIds: [] }; group.codeIds.push(definition.id); groups.set(key, group);
-        }
-        return [...groups.values()].map(group => ({ ...group, text: Object.fromEntries(group.parts.map(part => [part, background[part]])) as Partial<RunBackground> }));
+        const text = stateBackground(definitions, background); if (!text) return [];
+        const parts = Object.keys(text) as ('task' | 'policy')[];
+        const requested = definitions.map(resolveDefinition).filter(d => d.background.length).map(d => ({ codeId: d.id, parts: d.background.filter((p): p is 'task' | 'policy' => p === 'task' || p === 'policy') }));
+        return [{ key: backgroundKey(parts), parts, codeIds: requested.map(r => r.codeId), requested, text }];
     }
     /** Largest window size up to 8 whose windows are all within budget (spec section 7); undefined when none fits. */
     private suggestWindowedSize(selected: Parameters<typeof buildWindows>[0], settings: AnalysisConfiguration, definitions: BehaviorDefinition[], background: RunBackground, conditionText: string): number | undefined {

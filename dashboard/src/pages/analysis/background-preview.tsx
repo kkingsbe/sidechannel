@@ -28,6 +28,10 @@ export function BackgroundPreview({ state }: { state: AnalysisSetupState }) {
               <span className="muted"> · {group.codeIds.length} code(s): {group.codeIds.join(", ")}</span>
             </h3>
             {group.parts.length === 0 && <p className="small muted">These questions are sent in their own request, without task or policy text.</p>}
+            <p className="small muted">Sent once, in the shared state, not in each question.</p>
+            {group.requested?.map((r) => (
+              <p key={r.codeId} className="small muted">{r.codeId} requests {r.parts.join(" + ") || "nothing"}</p>
+            ))}
             {group.parts.map((part) => (
               <details key={part}>
                 <summary>{part}</summary>
