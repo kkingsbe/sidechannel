@@ -18,11 +18,13 @@ export function createAnalysisRouteHandler(service: AnalysisService) {
         const path = url.pathname, method = req.method, repo = service.repository;
         if (path === '/api/analyses' && method === 'GET') return { status: 200, body: await repo.listAllJobs(page(url)) };
         if (path === '/api/codebooks') {
-            if (method === 'GET') return { status: 200, body: await repo.listCodebooks(page(url)) };
+            if (method === 'GET') { const archived = url.searchParams.get('archived') ?? 'exclude'; if (archived !== 'exclude' && archived !== 'include' && archived !== 'only') throw new AnalysisValidation('archived must be exclude, include or only'); return { status: 200, body: await repo.listCodebooks(page(url), { archived }) }; }
             if (method === 'POST') { const b = await body(req); return { status: 201, body: await service.createCodebook(b as unknown as { name: string; creator: string; definitions: BehaviorDefinition[] }) }; }
         }
         const revisions = path.match(/^\/api\/codebooks\/([^/]+)\/revisions$/);
         if (revisions && method === 'GET') { const id = decode(revisions[1]!); if (!await repo.getCodebook(id)) throw new AnalysisNotFound('Codebook not found'); return { status: 200, body: await repo.listRevisions(id, page(url)) }; }
+        const archival = path.match(/^\/api\/codebooks\/([^/]+)\/(archive|restore)$/);
+        if (archival && method === 'POST') { const id = decode(archival[1]!), b = await body(req) as { expectedRevisionId: string; actor: string }; return { status: 200, body: archival[2] === 'archive' ? await service.archiveCodebook(id, b) : await service.restoreCodebook(id, b) }; }
         const codebook = path.match(/^\/api\/codebooks\/([^/]+)(?:\/revisions\/([^/]+))?$/);
         if (codebook) { const id = decode(codebook[1]!); if (method === 'GET') { const b = codebook[2] ? await repo.getRevision(id, decode(codebook[2])) : await repo.getCodebook(id); if (!b) throw new AnalysisNotFound('Codebook or revision not found'); return { status: 200, body: b }; } if (method === 'PATCH' && !codebook[2]) return { status: 200, body: await service.reviseCodebook(id, await body(req) as unknown as Parameters<AnalysisService['reviseCodebook']>[1]) }; }
         const preview = path.match(/^\/api\/runs\/([^/]+)\/analyses\/preview\/windows\/([^/]+)$/);

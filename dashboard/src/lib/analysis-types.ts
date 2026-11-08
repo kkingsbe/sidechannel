@@ -8,7 +8,7 @@ export interface ResearchRecord { id: string; revision: number; createdAt: strin
 export interface Page<T> { items: T[]; nextCursor: string | null }
 export interface BehaviorCode { id: string; code: string; name: string; definition: string; inclusionCriteria: string[]; exclusionCriteria: string[]; examples: string[]; counterexamples: string[]; qualifyingEvidenceTypes: string[]; enabled: boolean; archived: boolean; color: string }
 export interface CodebookRevision extends ResearchRecord { codebookId: string; name?: string; codes: BehaviorCode[]; author: string; parentRevisionId?: string | null }
-export interface Codebook extends Omit<ResearchRecord, 'revision'> { revision?: number; name: string; currentRevisionId: string; archived: boolean }
+export interface Codebook extends Omit<ResearchRecord, 'revision'> { revision?: number; name: string; currentRevisionId: string; archived: boolean; archivedAt?: string; archivedBy?: string }
 export interface AnalysisSettings { codebookId: string; codebookRevisionId: string; model: string; windowSize: number; stride: number; phases: ('action' | 'report')[]; startStep?: number; endStep?: number; evidence: EvidenceCategory[]; headroom: number; timeoutMs: number; maxAttempts: number; creator: string; parentAnalysisId?: string; resolvedSettings?: AnalysisConfiguration }
 export interface CanonicalContribution { category: EvidenceCategory; eventId: string; kind: string; value: unknown }
 export interface CanonicalStep { id: string; ordinal: number; invocationId: string; phase: 'action' | 'report'; agentId: string; round?: number; turn?: number; eventIds: string[]; sequenceStart: number; sequenceEnd: number; closed: boolean; diagnostics: string[]; contributions: CanonicalContribution[] }

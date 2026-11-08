@@ -199,4 +199,26 @@ it('adapts the global analysis collection and preserves pagination', async () =>
  expect(response?.value.nextCursor).toBe('next-page');
  expect(response?.value.items[0].manifest.settings.windowSize).toBe(f.settings.window.size);
  expect(response?.value.items[0].runId).toBe(f.runId);
-});
+ });
+ it('maps archive state, passes the archived filter, and sends archive/restore requests with the actor', async () => {
+  const f = fixture();
+  const active = { id: 'a', name: 'Active', currentRevisionId: 'r1', createdAt: f.revision.createdAt, updatedAt: f.revision.createdAt };
+  const archived = { ...active, id: 'b', name: 'Old', archivedAt: '2026-11-08T00:00:00Z', archivedBy: 'Lead' };
+  const server = stub((path, options) => {
+   if (path.startsWith('/jev/codebooks?')) return { items: [active, archived], nextCursor: 'c2' };
+   if (path === '/jev/codebooks/b/restore') return { codebook: active };
+   return { codebook: archived };
+  });
+  const list = await jevTransport<Page<any>>('/codebooks?limit=30&archived=include', undefined, server.fetch);
+  expect(server.calls[0].path).toBe('/jev/codebooks?limit=30&archived=include');
+  expect(list?.value.items.map((book: any) => book.archived)).toEqual([false, true]);
+  expect(list?.value.items[1]).toMatchObject({ archivedAt: '2026-11-08T00:00:00Z', archivedBy: 'Lead' });
+  expect(list?.value.nextCursor).toBe('c2');
+  const archive = await jevTransport<{ codebook: any }>('/codebooks/a/archive', post({ expectedRevisionId: 'r1', author: 'Lead' }), server.fetch);
+  expect(server.calls.at(-1)).toMatchObject({ path: '/jev/codebooks/a/archive', body: { expectedRevisionId: 'r1', actor: 'Lead' } });
+  expect(archive?.value.codebook.archived).toBe(true);
+  const restore = await jevTransport<{ codebook: any }>('/codebooks/b/restore', post({ expectedRevisionId: 'r1', author: 'Lead' }), server.fetch);
+  expect(server.calls.at(-1)).toMatchObject({ path: '/jev/codebooks/b/restore', body: { expectedRevisionId: 'r1', actor: 'Lead' } });
+  expect(restore?.value.codebook.archived).toBe(false);
+  await expect(jevTransport('/codebooks/a/archive', post({ author: 'Lead' }), server.fetch)).rejects.toThrow('revision ID is required');
+ });

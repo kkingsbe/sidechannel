@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { MongoClient, type Db, type Document, type ClientSession } from 'mongodb';
 import type { Codebook, CodebookRevision } from '@sidechannel/contracts/analysis/evidence-contracts';
-import { type JobStatus, type JobCounters, type JobUsage, type AnalysisJob, type WindowRecord, type AnalysisResult, type AnalysisAttempt, type PageOptions, type Page, AnalysisConflict, AnalysisNotFound, AnalysisValidation, type Lease, type AnalysisRepository } from '@sidechannel/contracts/analysis/jev-repository';
+import { type JobStatus, type JobCounters, type JobUsage, type AnalysisJob, type WindowRecord, type AnalysisResult, type AnalysisAttempt, type PageOptions, type CodebookFilter, type Page, AnalysisConflict, AnalysisNotFound, AnalysisValidation, type Lease, type AnalysisRepository } from '@sidechannel/contracts/analysis/jev-repository';
 
 const copy = <T>(v: T): T => structuredClone(v);
 
@@ -21,13 +21,19 @@ export class InMemoryAnalysisRepository implements AnalysisRepository {
     private books = new Map<string, Codebook>(); private revisions = new Map<string, CodebookRevision>();
     private jobs = new Map<string, AnalysisJob>(); private windows = new Map<string, WindowRecord>();
     private results = new Map<string, AnalysisResult>(); private attempts = new Map<string, AnalysisAttempt>(); private artifacts = new Map<string, string>();
-    async listCodebooks(p?: PageOptions) { return pageOf([...this.books.values()], p); }
+    async listCodebooks(p?: PageOptions, f?: CodebookFilter) { const mode = f?.archived ?? 'exclude'; return pageOf([...this.books.values()].filter(b => mode === 'include' || (mode === 'only') === Boolean(b.archivedAt)), p); }
+    async setCodebookArchived(id: string, expectedRevisionId: string, archive: { archivedAt: string; archivedBy: string } | null) {
+        const current = this.books.get(id); if (!current) throw new AnalysisNotFound('Codebook not found');
+        if (current.currentRevisionId !== expectedRevisionId || Boolean(current.archivedAt) === Boolean(archive)) throw new AnalysisConflict('Codebook revision changed');
+        const { archivedAt: _a, archivedBy: _b, ...rest } = current, next: Codebook = { ...rest, ...(archive ? { archivedAt: archive.archivedAt, archivedBy: archive.archivedBy } : {}), updatedAt: new Date().toISOString() };
+        this.books.set(id, next); return copy(next);
+    }
     async getCodebook(id: string) { return copy(this.books.get(id) ?? null); }
     async getRevision(id: string, revisionId: string) { const r = this.revisions.get(revisionId); return copy(r?.codebookId === id ? r : null); }
     async listRevisions(codebookId: string, p?: PageOptions) { return pageOf([...this.revisions.values()].filter(r => r.codebookId === codebookId), p); }
     async saveCodebook(book: Codebook, revision: CodebookRevision, expectedRevision?: string) {
         bounded(revision); const current = this.books.get(book.id);
-        if ((current?.currentRevisionId) !== expectedRevision) throw new AnalysisConflict('Codebook revision changed');
+        if ((current?.currentRevisionId) !== expectedRevision || (expectedRevision && current?.archivedAt)) throw new AnalysisConflict('Codebook revision changed');
         if (this.revisions.has(revision.id)) throw new AnalysisConflict('Revision already exists');
         this.revisions.set(revision.id, copy(revision)); this.books.set(book.id, copy(book));
     }
@@ -82,14 +88,21 @@ export class MongoAnalysisRepository implements AnalysisRepository {
         ]);
     }
     private async page<T>(collection: string, filter: Document, p: PageOptions = {}): Promise<Page<T>> { const n = size(p); const rows = await this.db.collection(collection).find({ ...filter, ...(p.after ? { id: { $gt: p.after } } : {}) }).sort({ id: 1 }).limit(n + 1).toArray(); return { items: rows.slice(0, n).map(r => clean<T>(r)!), nextCursor: rows.length > n ? rows[n - 1]!.id as string : null }; }
-    async listCodebooks(p?: PageOptions) { return this.page<Codebook>('codebooks', {}, p); }
+    async listCodebooks(p?: PageOptions, f?: CodebookFilter) { const mode = f?.archived ?? 'exclude'; return this.page<Codebook>('codebooks', mode === 'include' ? {} : { archivedAt: { $exists: mode === 'only' } }, p); }
+    async setCodebookArchived(id: string, expectedRevisionId: string, archive: { archivedAt: string; archivedBy: string } | null) {
+        const updatedAt = new Date().toISOString(), update = archive ? { $set: { archivedAt: archive.archivedAt, archivedBy: archive.archivedBy, updatedAt } } : { $set: { updatedAt }, $unset: { archivedAt: '', archivedBy: '' } };
+        const r = await this.db.collection('codebooks').findOneAndUpdate({ id, currentRevisionId: expectedRevisionId, archivedAt: { $exists: archive === null } }, update, { returnDocument: 'after' });
+        if (r) return clean<Codebook>(r)!;
+        if (!await this.db.collection('codebooks').findOne({ id }, { projection: { id: 1 } })) throw new AnalysisNotFound('Codebook not found');
+        throw new AnalysisConflict('Codebook revision changed');
+    }
     async getCodebook(id: string) { return clean<Codebook>(await this.db.collection('codebooks').findOne({ id })); }
     async getRevision(codebookId: string, id: string) { return clean<CodebookRevision>(await this.db.collection('codebook_revisions').findOne({ id, codebookId })); }
     async listRevisions(codebookId: string, p?: PageOptions) { return this.page<CodebookRevision>('codebook_revisions', { codebookId }, p); }
     async saveCodebook(book: Codebook, revision: CodebookRevision, expectedRevision?: string) {
         bounded(revision); const session = this.client.startSession();
         try { await session.withTransaction(async () => {
-            if (expectedRevision) { const r = await this.db.collection('codebooks').replaceOne({ id: book.id, currentRevisionId: expectedRevision }, copy(book), { session }); if (!r.matchedCount) throw new AnalysisConflict('Codebook revision changed'); }
+            if (expectedRevision) { const r = await this.db.collection('codebooks').replaceOne({ id: book.id, currentRevisionId: expectedRevision, archivedAt: { $exists: false } }, copy(book), { session }); if (!r.matchedCount) throw new AnalysisConflict('Codebook revision changed'); }
             else await this.db.collection('codebooks').insertOne(copy(book), { session });
             await this.db.collection('codebook_revisions').insertOne(copy(revision), { session });
         }); } catch (e) { if ((e as { code?: number }).code === 11000) throw new AnalysisConflict('Codebook revision changed'); throw e; } finally { await session.endSession(); }

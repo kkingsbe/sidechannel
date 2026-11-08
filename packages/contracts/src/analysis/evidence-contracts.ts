@@ -38,7 +38,7 @@ export interface BehaviorDefinition { id: string; code: string; name: string; de
 
 export interface CodebookRevision { id: string; codebookId: string; revision: number; createdAt: string; createdBy: string; definitions: BehaviorDefinition[]; note?: string; }
 
-export interface Codebook { id: string; name: string; currentRevisionId: string; createdAt: string; updatedAt: string; }
+export interface Codebook { id: string; name: string; currentRevisionId: string; createdAt: string; updatedAt: string; archivedAt?: string; archivedBy?: string; }
 
 export interface SerializedWindow { serializationVersion: string; windowId: string; state: string; hash: string; bytes: number; estimatedTokens: number; estimatorVersion: string; hasEvidence: boolean; availability: EvidenceAvailability; selection: EvidenceSelection; }
 

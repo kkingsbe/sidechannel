@@ -350,8 +350,16 @@ function AnalysisSetup() {
     setSettings((previous) => ({ ...previous, ...patch }));
     setPreview(undefined);
   };
+  const codebookArchived = Boolean(
+    settings.codebookId &&
+      (revision.data?.codebook.id === settings.codebookId
+        ? revision.data.codebook.archived
+        : books.data?.items.find((b) => b.id === settings.codebookId)?.archived),
+  );
+  const archivedMessage =
+    "This codebook is archived. Restore it on the Codebook page to start a new analysis.";
   const launch = async () => {
-    if (!preview) return;
+    if (!preview || codebookArchived) return;
     const result = await mutation.run(() =>
       post<AnalysisJob>("/runs/" + runId + "/analyses", {
         ...settings,
@@ -361,6 +369,7 @@ function AnalysisSetup() {
     if (result) navigate("/analysis/" + result.id);
   };
   const doPreview = async () => {
+    if (codebookArchived) return;
     const generation = settingsGeneration.current;
     const result = await mutation.run(() =>
       post<AnalysisPreview>("/runs/" + runId + "/analyses/preview", settings),
@@ -377,6 +386,7 @@ function AnalysisSetup() {
       !["completed", "failed", "cancelled"].includes(source.data.status) &&
       "Wait for the source run to finish before previewing.",
     !settings.codebookRevisionId && "Select a codebook revision.",
+    codebookArchived && archivedMessage,
     !settings.creator.trim() && "Enter a researcher / creator identity.",
     (!Number.isFinite(settings.windowSize) || settings.windowSize < 1) &&
       "Enter a positive window size.",
@@ -475,6 +485,7 @@ function AnalysisSetup() {
                       ) && (
                         <option value={settings.codebookId}>
                           {revision.data?.codebook.name || "Selected codebook"}
+                          {codebookArchived ? " · archived" : ""}
                         </option>
                       )}
                     {books.data?.items.map((book) => (
@@ -483,6 +494,12 @@ function AnalysisSetup() {
                       </option>
                     ))}
                   </Select>
+                  {codebookArchived && (
+                    <p className="helper" role="alert">
+                      {archivedMessage}{" "}
+                      <Link to="/codebook">Open the Codebook page</Link>
+                    </p>
+                  )}
                 </Field>
                 <OptionalPager {...books.pagination} />
               </div>
@@ -1017,7 +1034,7 @@ function AnalysisSetup() {
               {preview && (
                 <Button
                   onClick={launch}
-                  disabled={mutation.busy}
+                  disabled={mutation.busy || codebookArchived}
                   style={{ width: "100%", marginTop: 10 }}
                 >
                   <Play size={14} />

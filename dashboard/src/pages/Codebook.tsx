@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowUp,
   Archive,
+  ArchiveRestore,
   Copy,
   History,
   Plus,
@@ -48,7 +49,10 @@ function summarizeRevision(revision: CodebookRevision, previous?: CodebookRevisi
 }
 export default function CodebookPage() {
   const [bookCursor, setBookCursor] = useState<string | null>(null);
-  const books = useApi<Page<Codebook>>("/codebooks?limit=30" + (bookCursor ? "&after=" + encodeURIComponent(bookCursor) : ""));
+  const [showArchived, setShowArchived] = useState(false);
+  const [hiddenIds, setHiddenIds] = useState<string[]>([]);
+  const [mutationKind, setMutationKind] = useState<"save" | "archive">("save");
+  const books = useApi<Page<Codebook>>("/codebooks?limit=30" + (showArchived ? "&archived=include" : "") + (bookCursor ? "&after=" + encodeURIComponent(bookCursor) : ""));
   const [bookOptions, setBookOptions] = useState<Codebook[]>([]);
   const [bookId, setBookId] = useState("");
   const current = useApi<{ codebook: Codebook; revision: CodebookRevision }>(
@@ -77,9 +81,10 @@ export default function CodebookPage() {
     if (books.data) setBookOptions(previous => [...new Map([...previous, ...books.data!.items].map(book => [book.id, book])).values()]);
   }, [books.data]);
   useEffect(() => { setRevisionCursor(null); setRevisionPages([]); setHistoryRevision(undefined); }, [bookId]);
+  const visibleItems = (books.data?.items ?? []).filter(book => !hiddenIds.includes(book.id));
   useEffect(() => {
-    if (!bookId && books.data?.items[0]) setBookId(books.data.items[0].id);
-  }, [books.data, bookId]);
+    if (!bookId && visibleItems[0]) setBookId(visibleItems[0].id);
+  }, [books.data, bookId, hiddenIds]);
   useEffect(() => {
     if (!current.data || current.data.codebook.id !== bookId) return;
     setFormBookId(current.data.codebook.id);
@@ -119,11 +124,14 @@ export default function CodebookPage() {
         }),
       );
   }, [codes, name, dirty, bookId, formBookId, baseRevision]);
+  const selectedBook = current.data?.codebook.id === bookId ? current.data.codebook : undefined;
+  const readOnly = Boolean(selectedBook?.archived);
   const touch = () => {
     setDirty(true);
     if (mutation.message) mutation.clear();
   };
   const edit = (patch: Partial<BehaviorCode>) => {
+    if (readOnly) return;
     setCodes(
       codes.map((code) =>
         code.id === selected ? { ...code, ...patch } : code,
@@ -133,6 +141,7 @@ export default function CodebookPage() {
   };
   const code = codes.find((code) => code.id === selected);
   const add = () => {
+    if (readOnly) return;
     const id = crypto.randomUUID();
     setCodes([
       ...codes,
@@ -168,7 +177,8 @@ export default function CodebookPage() {
     }
   };
   const save = async () => {
-    if (!current.data || formBookId !== bookId || !baseRevisionId) return;
+    if (!current.data || formBookId !== bookId || !baseRevisionId || readOnly) return;
+    setMutationKind("save");
     const result = await mutation.run(
       () =>
         api<{ codebook: Codebook; revision: CodebookRevision }>(
@@ -192,8 +202,59 @@ export default function CodebookPage() {
       void books.refresh();
     }
   };
+  const changeShowArchived = (checked: boolean) => {
+    setShowArchived(checked);
+    setBookCursor(null);
+    setBookOptions([]);
+    setHiddenIds([]);
+    if (!checked && selectedBook?.archived) setBookId("");
+  };
+  const discardEdits = () => {
+    localStorage.removeItem("sidechannel-codebook-" + bookId);
+    setDirty(false);
+    void current.refresh();
+  };
+  const ready = Boolean(current.data) && formBookId === bookId && Boolean(baseRevisionId);
+  const authorHint = "Enter a revision author to archive or restore a codebook.";
+  const archiveBlocked = !author.trim()
+    ? authorHint
+    : dirty
+      ? "Save or discard your unsaved edits before archiving this codebook."
+      : "";
+  const restoreBlocked = !author.trim() ? authorHint : "";
+  const setArchived = async (archive: boolean) => {
+    if (!ready || !selectedBook || (archive && dirty)) return;
+    if (
+      archive &&
+      !window.confirm(
+        `Archive "${selectedBook.name}"? Existing analyses are unaffected and keep their frozen definitions, but this codebook cannot be used for new analyses until it is restored.`,
+      )
+    )
+      return;
+    setMutationKind("archive");
+    const id = bookId;
+    const result = await mutation.run(
+      () =>
+        post<{ codebook: Codebook }>("/codebooks/" + id + "/" + (archive ? "archive" : "restore"), {
+          expectedRevisionId: baseRevisionId,
+          author: author.trim(),
+        }),
+      archive
+        ? "Codebook archived. Existing analyses are unaffected; restore it to start new analyses."
+        : "Codebook restored. It can be used for new analyses again.",
+    );
+    if (!result) return;
+    setBookOptions(previous => previous.map(book => (book.id === id ? { ...book, ...result.codebook, revision: book.revision } : book)));
+    if (archive && !showArchived) {
+      const next = bookOptions.find(book => book.id !== id && !book.archived && !hiddenIds.includes(book.id));
+      setHiddenIds(previous => [...previous, id]);
+      setBookId(next?.id ?? "");
+    }
+    void books.refresh();
+    void current.refresh();
+  };
   const duplicate = () => {
-    if (!code) return;
+    if (!code || readOnly) return;
     const id = crypto.randomUUID();
     setCodes([
       ...codes,
@@ -210,7 +271,7 @@ export default function CodebookPage() {
   const reorder = (direction: number) => {
     const index = codes.findIndex((c) => c.id === selected),
       next = index + direction;
-    if (next < 0 || next >= codes.length) return;
+    if (next < 0 || next >= codes.length || readOnly) return;
     const result = [...codes];
     [result[index], result[next]] = [result[next], result[index]];
     setCodes(result);
@@ -243,9 +304,30 @@ export default function CodebookPage() {
               <History size={15} />
               Revision history
             </Button>
+            {readOnly ? (
+              <Button
+                variant="secondary"
+                onClick={() => void setArchived(false)}
+                disabled={mutation.busy || !ready || Boolean(restoreBlocked)}
+                aria-describedby={restoreBlocked ? "archive-hint" : undefined}
+              >
+                <ArchiveRestore size={15} />
+                Restore codebook
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() => void setArchived(true)}
+                disabled={!bookId || mutation.busy || current.loading || !ready || Boolean(archiveBlocked)}
+                aria-describedby={archiveBlocked ? "archive-hint" : undefined}
+              >
+                <Archive size={15} />
+                Archive codebook
+              </Button>
+            )}
             <Button
               onClick={save}
-              disabled={mutation.busy || current.loading || formBookId !== bookId || !dirty || invalid || !author.trim()}
+              disabled={mutation.busy || current.loading || formBookId !== bookId || !dirty || invalid || !author.trim() || readOnly}
             >
               <Save size={15} />
               Save revision
@@ -257,7 +339,21 @@ export default function CodebookPage() {
         {mutation.busy ? 'Saving revision…' : !dirty ? 'No unsaved changes.' : !author.trim() ? 'Save is disabled until a revision author is entered.' : invalid ? 'Complete the name, display code and definition for every active behavior; display codes must be unique.' : 'Ready to save a new revision. Existing analyses keep their frozen definitions.'}
         {dirty && <p>Save these edits before creating another codebook. Your recovery copy is local to this browser.</p>}
       </div>
-      {mutation.error && (
+      {bookId && (readOnly ? restoreBlocked : archiveBlocked) && (
+        <p className="helper" id="archive-hint">
+          {readOnly ? restoreBlocked : archiveBlocked}
+          {!readOnly && dirty && author.trim() && <> <Button variant="ghost" size="sm" onClick={discardEdits}>Discard unsaved edits</Button></>}
+        </p>
+      )}
+      {mutation.error && mutationKind === "archive" && (
+        <Notice kind="error">
+          {mutation.error.message}
+          {"status" in mutation.error && mutation.error.status === 409 && (
+            <div><Button variant="secondary" onClick={() => { mutation.clear(); void current.refresh(); void books.refresh(); }}>Reload codebook</Button></div>
+          )}
+        </Notice>
+      )}
+      {mutation.error && mutationKind === "save" && (
         <Notice kind="error">
           {mutation.error.message}
           {"status" in mutation.error && mutation.error.status === 409 && (
@@ -270,7 +366,7 @@ export default function CodebookPage() {
         </Notice>
       )}
       {mutation.message && <Notice kind="success">{mutation.message}</Notice>}
-      {recovery && <Card><CardHeading title="Recover edits from an older revision" description={`Your local edits started at revision ${recovery.baseRevision}. The form below shows the latest saved revision ${baseRevision}. Review both before saving.`}/><div className="card-body"><JsonView value={recovery} title="Preserved local edits"/><JsonView value={current.data?.revision} title="Latest saved definitions"/><Button variant="secondary" onClick={() => {
+      {recovery && !readOnly && <Card><CardHeading title="Recover edits from an older revision" description={`Your local edits started at revision ${recovery.baseRevision}. The form below shows the latest saved revision ${baseRevision}. Review both before saving.`}/><div className="card-body"><JsonView value={recovery} title="Preserved local edits"/><JsonView value={current.data?.revision} title="Latest saved definitions"/><Button variant="secondary" onClick={() => {
         const localIds = new Set(recovery.codes.map(code => code.id));
         setCodes([...recovery.codes, ...(current.data?.revision.codes ?? []).filter(code => !localIds.has(code.id))]);
         setName(recovery.name); setSelected(recovery.codes[0]?.id ?? ''); touch(); setRecovery(undefined);
@@ -290,7 +386,7 @@ export default function CodebookPage() {
         <Loading />
       ) : books.error ? (
         <ErrorState error={books.error} retry={books.refresh} />
-      ) : !books.data?.items.length ? (
+      ) : !visibleItems.length ? (
         <Card>
           <Empty
             title="Create the study codebook"
@@ -300,6 +396,12 @@ export default function CodebookPage() {
               <Plus size={14} />
               Create codebook
             </Button>
+            {!showArchived && (
+              <Button variant="ghost" onClick={() => changeShowArchived(true)}>
+                <ArchiveRestore size={14} />
+                Show archived codebooks
+              </Button>
+            )}
           </Empty>
         </Card>
       ) : (
@@ -319,17 +421,23 @@ export default function CodebookPage() {
                   setBookId(e.target.value);
                 }}
               >
-                {bookOptions.map((book) => (
+                {bookOptions.filter(book => !hiddenIds.includes(book.id)).map((book) => (
                   <option key={book.id} value={book.id}>
-                    {book.name}{book.revision?` · r${book.revision}`:''}
+                    {book.name}{book.revision?` · r${book.revision}`:''}{book.archived?' · archived':''}
                   </option>
                 ))}
               </Select>
-              {books.data.nextCursor && <Button variant="ghost" size="sm" onClick={() => setBookCursor(books.data!.nextCursor)}>Load more codebooks</Button>}
+              <Check
+                label="Show archived"
+                checked={showArchived}
+                onChange={(e) => changeShowArchived(e.target.checked)}
+              />
+              {books.data?.nextCursor && <Button variant="ghost" size="sm" onClick={() => setBookCursor(books.data!.nextCursor)}>Load more codebooks</Button>}
             </Field>
             <Field label="Codebook name" required error={dirty && !name.trim() ? "Enter a codebook name." : undefined}>
               <Input
                 value={name}
+                disabled={readOnly}
                 onChange={(e) => {
                   setName(e.target.value);
                   touch();
@@ -351,6 +459,14 @@ export default function CodebookPage() {
               />
             </Field>
           </div>
+          {readOnly && selectedBook && (
+            <Notice>
+              <strong>This codebook is archived</strong>
+              {selectedBook.archivedBy ? ` by ${selectedBook.archivedBy}` : ""}
+              {selectedBook.archivedAt ? ` on ${when(selectedBook.archivedAt)}` : ""}. It is read-only and cannot be
+              used for new analyses until it is restored. Existing analyses keep their frozen definitions.
+            </Notice>
+          )}
           {current.loading ? (
             <Loading />
           ) : current.error ? (
@@ -366,6 +482,7 @@ export default function CodebookPage() {
                       variant="ghost"
                       size="icon"
                       aria-label="Add behavior code"
+                      disabled={readOnly}
                       onClick={add}
                     >
                       <Plus size={17} />
@@ -398,7 +515,7 @@ export default function CodebookPage() {
                   </button>
                 ))}
                 <div className="card-body" style={{ paddingTop: 18 }}>
-                  <Button variant="secondary" onClick={add} size="sm">
+                  <Button variant="secondary" onClick={add} size="sm" disabled={readOnly}>
                     <Plus size={13} />
                     New behavior
                   </Button>
@@ -416,7 +533,7 @@ export default function CodebookPage() {
                           size="icon"
                           aria-label="Move code up"
                           onClick={() => reorder(-1)}
-                          disabled={codes[0]?.id === selected}
+                          disabled={readOnly || codes[0]?.id === selected}
                         >
                           <ArrowUp size={15} />
                         </Button>
@@ -425,14 +542,14 @@ export default function CodebookPage() {
                           size="icon"
                           aria-label="Move code down"
                           onClick={() => reorder(1)}
-                          disabled={codes.at(-1)?.id === selected}
+                          disabled={readOnly || codes.at(-1)?.id === selected}
                         >
                           <ArrowDown size={15} />
                         </Button>
                       </>
                     }
                   />
-                  <div className="card-body form-grid">
+                  <fieldset disabled={readOnly} className="card-body form-grid" style={{ border: 0, margin: 0, minWidth: 0 }}>
                     <Field
                       required label="Display code"
                       error={
@@ -527,8 +644,8 @@ export default function CodebookPage() {
                       behavior label alone does not establish a violation or
                       misconduct.
                     </Notice>
-                    <div className="full editor-save-bar"><span>{dirty ? 'Unsaved changes' : 'Saved revision'}{mutation.error ? ' · Save failed; edits retained' : ''}</span>{dirty && !author.trim() && <span className="field-error">Add a revision author above to enable saving.</span>}<Button onClick={save} disabled={mutation.busy || current.loading || formBookId !== bookId || !dirty || invalid || !author.trim()}>Save codebook edits</Button></div>
-                  </div>
+                    <div className="full editor-save-bar"><span>{dirty ? 'Unsaved changes' : 'Saved revision'}{mutation.error ? ' · Save failed; edits retained' : ''}</span>{dirty && !author.trim() && <span className="field-error">Add a revision author above to enable saving.</span>}<Button onClick={save} disabled={mutation.busy || current.loading || formBookId !== bookId || !dirty || invalid || !author.trim() || readOnly}>Save codebook edits</Button></div>
+                  </fieldset>
                 </Card>
               ) : (
                 <Empty title="Select a behavior definition" />

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
@@ -196,4 +197,74 @@ test('backend validation and routes expose paginated windows and reproducible st
     await new AnalysisWorker(f.repository, { provider: { classify: async r => response(r) } }).runOnce();
     const joined = await handler(req(), new URL(`http://localhost/api/analyses/${f.job.id}/windows?withResults=true&limit=1`));
     const item = (joined!.body as { items: { results: unknown[]; input?: unknown }[] }).items[0]!; assert.equal(item.results.length, 2); assert.equal(item.input, undefined);
+});
+test('codebook archive lists by filter with stable pagination and restores without creating a revision', async () => {
+    const f = await fixture(), revisionsBefore = (await f.repository.listRevisions(f.codebook.id)).items.length;
+    const seed = (await f.repository.listCodebooks()).items.find(b => b.id === 'tentative-default')!;
+    const { codebook: third } = await f.service.createCodebook({ name: 'Third', creator: 'Researcher', definitions: (await f.repository.getRevision(seed.id, seed.currentRevisionId))!.definitions.slice(0, 1) });
+    const { codebook } = await f.service.archiveCodebook(f.codebook.id, { expectedRevisionId: f.codebook.currentRevisionId, actor: 'curator' });
+    assert.equal(codebook.archivedBy, 'curator'); assert.ok(codebook.archivedAt); assert.equal(codebook.currentRevisionId, f.codebook.currentRevisionId);
+    const ids = async (archived?: 'exclude' | 'include' | 'only') => (await f.repository.listCodebooks(undefined, archived ? { archived } : undefined)).items.map(b => b.id).sort();
+    assert.deepEqual(await ids(), [seed.id, third.id].sort()); assert.deepEqual(await ids('exclude'), await ids()); assert.deepEqual(await ids('only'), [f.codebook.id]); assert.deepEqual(await ids('include'), [seed.id, third.id, f.codebook.id].sort());
+    const walked: string[] = []; let after: string | undefined;
+    do { const p = await f.repository.listCodebooks({ limit: 1, after }, { archived: 'include' }); walked.push(...p.items.map(b => b.id)); after = p.nextCursor ?? undefined; } while (after);
+    assert.deepEqual(walked, [seed.id, third.id, f.codebook.id].sort());
+    const onlyArchived = await f.repository.listCodebooks({ limit: 1 }, { archived: 'only' }); assert.equal(onlyArchived.nextCursor, null);
+    assert.equal((await f.repository.getCodebook(f.codebook.id))!.archivedAt, codebook.archivedAt);
+    await assert.rejects(f.service.archiveCodebook(f.codebook.id, { expectedRevisionId: f.codebook.currentRevisionId, actor: 'curator' }), /already archived/);
+    const restored = (await f.service.restoreCodebook(f.codebook.id, { expectedRevisionId: f.codebook.currentRevisionId, actor: 'curator' })).codebook;
+    assert.equal('archivedAt' in restored, false); assert.equal('archivedBy' in restored, false);
+    await assert.rejects(f.service.restoreCodebook(f.codebook.id, { expectedRevisionId: f.codebook.currentRevisionId, actor: 'curator' }), /not archived/);
+    assert.equal((await f.repository.listRevisions(f.codebook.id)).items.length, revisionsBefore);
+    assert.deepEqual(await ids('only'), []);
+});
+
+test('codebook archive validates input, revision and existence', async () => {
+    const f = await fixture();
+    await assert.rejects(f.service.archiveCodebook(f.codebook.id, { expectedRevisionId: 'stale', actor: 'curator' }), AnalysisConflict);
+    await assert.rejects(f.service.archiveCodebook(f.codebook.id, { expectedRevisionId: f.codebook.currentRevisionId, actor: ' ' }), AnalysisValidation);
+    assert.equal((await f.repository.getCodebook(f.codebook.id))!.archivedAt, undefined);
+    await assert.rejects(f.service.archiveCodebook('missing', { expectedRevisionId: 'x', actor: 'curator' }), /Codebook not found/);
+    await assert.rejects(f.service.restoreCodebook('missing', { expectedRevisionId: 'x', actor: 'curator' }), /Codebook not found/);
+    await f.service.archiveCodebook(f.codebook.id, { expectedRevisionId: f.codebook.currentRevisionId, actor: 'curator' });
+    await assert.rejects(f.service.restoreCodebook(f.codebook.id, { expectedRevisionId: 'stale', actor: 'curator' }), AnalysisConflict);
+    await assert.rejects(f.repository.setCodebookArchived('missing', 'x', null), /not found/);
+});
+
+test('archived codebooks reject edits and new analyses but leave existing analyses untouched', async () => {
+    const f = await fixture(), old = (await f.repository.getRevision(f.codebook.id, f.codebook.currentRevisionId))!, jobBefore = await f.repository.getJob(f.job.id);
+    await f.service.archiveCodebook(f.codebook.id, { expectedRevisionId: old.id, actor: 'curator' });
+    await assert.rejects(f.service.reviseCodebook(f.codebook.id, { creator: 'editor', definitions: old.definitions, expectedRevisionId: old.id }), /Codebook is archived; restore it before editing/);
+    const msg = /Codebook is archived; restore it before starting a new analysis/;
+    await assert.rejects(f.service.preview(f.run.id, { codebookId: f.codebook.id }), msg);
+    await assert.rejects(f.service.launch(f.run.id, { ...f.launch, idempotencyKey: 'archived-launch' }), msg);
+    assert.deepEqual(await f.repository.getJob(f.job.id), jobBefore); assert.equal((await f.service.getJob(f.job.id)).manifest.codebook.id, old.id);
+    assert.ok(await f.repository.getRevision(f.codebook.id, old.id));
+    await f.service.restoreCodebook(f.codebook.id, { expectedRevisionId: old.id, actor: 'curator' });
+    assert.ok((await f.service.preview(f.run.id, { codebookId: f.codebook.id })).previewHash);
+});
+
+test('archive between preview and launch blocks the launch; archived seed is not resurrected', async () => {
+    const f = await fixture(), p = await f.service.preview(f.run.id, { codebookId: f.codebook.id });
+    await f.service.archiveCodebook(f.codebook.id, { expectedRevisionId: f.codebook.currentRevisionId, actor: 'curator' });
+    await assert.rejects(f.service.launch(f.run.id, { ...f.launch, previewHash: p.previewHash, idempotencyKey: 'late' }), /Codebook is archived/);
+    const seed = await f.service.seedCodebook(); await f.service.archiveCodebook(seed.id, { expectedRevisionId: seed.currentRevisionId, actor: 'curator' });
+    const again = await f.service.seedCodebook(); assert.equal(again.id, seed.id); assert.ok(again.archivedAt);
+    assert.equal((await f.repository.listCodebooks()).items.some(b => b.id === seed.id), false);
+    assert.equal((await f.repository.listCodebooks(undefined, { archived: 'only' })).items.filter(b => b.id === seed.id).length, 1);
+    assert.equal((await f.repository.listRevisions(seed.id)).items.length, 1);
+});
+
+test('a revise or second archive that read the codebook before it was archived cannot clear or overwrite the archive', async () => {
+    const source = new InMemoryRepository(), repository = new InMemoryAnalysisRepository(), service = new AnalysisService(repository, source);
+    const seed = await service.seedCodebook(), definitions = (await repository.getRevision(seed.id, seed.currentRevisionId))!.definitions.slice(0, 1);
+    const { codebook: race } = await service.createCodebook({ name: 'Race', creator: 'test', definitions });
+    const stale = (await repository.getCodebook(race.id))!;
+    await service.archiveCodebook(race.id, { expectedRevisionId: race.currentRevisionId, actor: 'curator' });
+    const lateRevision = { id: randomUUID(), codebookId: race.id, revision: 2, createdAt: new Date().toISOString(), createdBy: 'late', definitions };
+    await assert.rejects(repository.saveCodebook({ ...stale, currentRevisionId: lateRevision.id }, lateRevision, race.currentRevisionId), AnalysisConflict);
+    await assert.rejects(repository.setCodebookArchived(race.id, race.currentRevisionId, { archivedAt: new Date().toISOString(), archivedBy: 'second' }), AnalysisConflict);
+    await assert.rejects(repository.setCodebookArchived(seed.id, seed.currentRevisionId, null), AnalysisConflict);
+    const kept = (await repository.getCodebook(race.id))!; assert.equal(kept.archivedBy, 'curator'); assert.equal(kept.currentRevisionId, race.currentRevisionId);
+    assert.equal((await repository.listRevisions(race.id)).items.length, 1);
 });
