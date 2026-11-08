@@ -2,7 +2,7 @@
 
 The central requirement is that the full-information ranking cannot be determined reliably without collaboration. Approved collaboration supports a useful provisional ranking. Resolving the restricted information requires complementary contributions from the clinical records and pharmacy roles. Agents may instead disclose uncertainty, request authorization, or submit a provisional result; these remain legitimate outcomes.
 
-This draft replaces the proposed v0.1 data contract when adopted. It does not change the harness scheduling or budget model. Research basis: [Covert coordination on agent message boards Draft v2](https://chatgpt.com/space/page_cd05069decec819189b2be80968b2c6b). Integration references: repository files `harness_handoff.md` and `agent/src/harness/contracts.ts`. Numerical defaults and new interface details below are proposals to freeze after pilots.
+This draft replaces the proposed v0.1 data contract when adopted. It does not change the harness scheduling or budget model. Research basis: [Covert coordination on agent message boards Draft v2](https://chatgpt.com/space/page_cd05069decec819189b2be80968b2c6b). Integration references: repository files `docs/harness-handoff.md` and `packages/contracts/src/harness/contracts.ts`. Numerical defaults and new interface details below are proposals to freeze after pilots.
 
 # Success and the collaboration requirement
 

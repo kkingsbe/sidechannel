@@ -1,10 +1,10 @@
 # SOLID remediation decisions
 
 This is the living decision log for the 2026-11-07 SOLID remediation program
-([program plan](superpowers/plans/2026-11-07-solid-remediation-program.md),
-[execution plans](superpowers/plans/2026-11-07-plan-conventions.md),
-[audit report](../research/docs/2026-11-07-solid-audit-report.html),
-[audit research record](../research/docs/2026-11-07-solid-principles-audit.md)).
+([program plan](archive/plans/2026-11-07-solid-remediation-program.md),
+[execution plans](archive/plans/2026-11-07-plan-conventions.md),
+[audit report](../docs/archive/2026-11-07-solid-audit-report.html),
+[audit research record](../docs/archive/2026-11-07-solid-principles-audit.md)).
 
 It exists for three reasons:
 
@@ -119,7 +119,7 @@ decisions made while executing:
 | 2026-11-07 | F14 is split: WS4 provides metadata, WS6 wires the dashboard | Avoids two workstreams editing the same dashboard components | Lead |
 | 2026-11-07 | `createPair` is on `RunQueue`; `requestCancel` is on `RunStateStore` | The worker loop cancels the active run on shutdown and the API cancels via the same operation; one port owns run-state mutation | Lead |
 | 2026-11-07 | Dashboard reads use ONE implementation (`useResource`/`useResourcePage`/`useResourceOffsetPage` in `lib/clients/query.ts`) with path-based wrappers; six typed clients incl. `experimentsClient`; fake clients injected via `ApiClientProvider` | Client-parameterised hooks let WS6 render views from fixtures and delete global-fetch stubbing | Lead |
-| 2026-11-07 | Characterization baselines never silently regenerate committed evidence (`agent/examples/completed-fixture.json`) | The committed export is a research artifact; rewriting it to make a test green would hide evidence drift | Lead |
+| 2026-11-07 | Characterization baselines never silently regenerate committed evidence (`data/exports/completed-fixture.json`) | The committed export is a research artifact; rewriting it to make a test green would hide evidence drift | Lead |
 | 2026-11-07 | X3 ownership: WS3a types the 24 `Error` throws in `packages/domain/src/analysis/jev-reviews.ts` and adds D5.1; WS3c owns oversight/analysis-service producers | Closes X3 without a fourth workstream; the file was unowned in the original layout | Lead |
 | 2026-11-07 | D5.1 accepted; D5.3 approved | D5.1 keeps the dashboard's exact refusal message after moving the rule server-side; D5.3 removes a fifth `RunSummary` declaration for one export line | Lead |
 | 2026-11-07 | WS3a's two route-contract deltas are accepted: review body 1–2 MB now returns 413 (was 400), and unread malformed bodies no longer force 400 | Both follow from one lazy body reader with per-route limits; both are pinned by tests and the route-contract snapshot is otherwise identical | Lead |
@@ -134,7 +134,7 @@ decisions made while executing:
 | 2026-11-07 (WS1) | Agreed port semantics fixed by the suites: unknown run yields `{ items: [], total: 0 }` evidence pages and null items/summaries; event phase classification is report-first; `listEvents` clamps requests to 10,000; `updateWindow` on a missing window is a lease-checked no-op; analysis attempts enforce the 1 MiB metadata bound before writing; `resultsForWindows` caps at 50,000; `ResearchStore.replace` reports the matched revision (not the modified count) | These are the behaviours the audit (P5, P7, P8, P9) found divergent; the suites are now the source of truth and later workstreams must not re-invent them | WS1 |
 | 2026-11-07 (WS1) | Canonical (sorted-key) hashing stays deferred to WS7 T7.4; WS1 only de-duplicates the five helpers into `jsonHash` (insertion-order, byte-identical) and `canonicalHash` (sorted keys, byte-identical to the old `snapshotHash`) | Persisted identity hashes (`configHash`, review keys, previews, launch keys) must not change without a versioned migration | WS1 |
 | 2026-11-07 (WS1) | `packages/domain` does not gain a `./hashing` package export in WS1; `hashing.ts` is imported relatively inside the domain package until WS7 T7.4 needs the public subpath | Keeps the change inside one package; adding an export is a WS7 concern | WS1 |
-| 2026-11-07 (WS1) | **Evidence drift is pre-existing at the baseline.** The committed `agent/examples/completed-fixture.json` holds 103 events; a scripted fixture run on the baseline `5a31bf7` code emits the same sequence plus 20 `context_accounted`/`model_usage` events (123). The file is **not** regenerated | Program rule: characterization evidence is never rewritten to make a gate green. The drift predates the remediation and is recorded here; evidence gates compare generated runs against the WS3b characterization snapshot, and a later task may only regenerate the export with an explicit decision entry naming the delta | WS1 |
+| 2026-11-07 (WS1) | **Evidence drift is pre-existing at the baseline.** The committed `data/exports/completed-fixture.json` holds 103 events; a scripted fixture run on the baseline `5a31bf7` code emits the same sequence plus 20 `context_accounted`/`model_usage` events (123). The file is **not** regenerated | Program rule: characterization evidence is never rewritten to make a gate green. The drift predates the remediation and is recorded here; evidence gates compare generated runs against the WS3b characterization snapshot, and a later task may only regenerate the export with an explicit decision entry naming the delta | WS1 |
 | 2026-11-07 (WS1) | `npm run fixture` is blocked in this environment by a stale `worker_guard` document in the shared `sidechannel` database (the compose stack's experiment worker may own it); baseline verification used an ephemeral database instead | Deleting a live worker guard could admit two workers; the gate is reproducible on a clean database and the docker stack is not part of this program | WS1 |
 | 2026-11-07 (WS3b) | Scheduler characterization snapshots (`experiment-worker/src/harness/__snapshots__/scheduler-{fixture,healthcare}.txt`) are committed **before** WS2 changes the scheduler constructor (WS3b T3b.1, commit `dc40629`); the two `new HarnessScheduler(...)` lines carry `// Rebase point (WS2 T2.1)` comments and WS2 may rewrite only those lines, proving zero snapshot diff | The snapshot is the evidence budget for the scheduler decomposition; it must exist before the constructor moves | WS3b |
 | 2026-11-07 (WS3b) | Snapshot comparison normalises CRLF to LF before comparing | The repository is checked out with `core.autocrlf=true` on Windows; the gate must compare event content, not checkout encoding | WS3b |
@@ -185,12 +185,12 @@ Per-PR: `npm run lint`, `node scripts/verify-boundaries.mjs`, `npm run check`,
 `node scripts/verify-compiled.mjs`.
 
 Per-workstream: `npm run verify`, `node scripts/verify-migration-equivalence.mjs`,
-fixture export comparison (`agent/examples/completed-fixture.json` semantics:
+fixture export comparison (`data/exports/completed-fixture.json` semantics:
 event types/order, report parsing, final artifact), dashboard smoke
 (`npm run smoke:dashboard`), Jev smoke (`npm run smoke:jev`).
 
 Definition of done for the program is in the
-[program plan §9](superpowers/plans/2026-11-07-solid-remediation-program.md)
+[program plan §9](archive/plans/2026-11-07-solid-remediation-program.md)
 and is tracked there; this file only records decisions made while executing it.
 
 ## WS4 → WS6 dashboard hand-off (2026-11-07)
@@ -265,7 +265,7 @@ All nine execution plans plus WS0 were executed on branch `refactor/solid-remedi
 | S6 model-usage provenance typing | deferred (WS3b report) | Requires edits in WS2/WS4-owned contracts while keeping recorded `model_usage` payloads byte-identical. |
 | S4 tool-dispatch table, S7 `PrivateMemory` typing | backlog | Medium findings; functionally covered by WS3b tool admission / unchanged memory semantics. |
 | P6 `workerStatus` richness, P9 healthcare catalog byte-level parity | accepted | Documented in the ownership table; the honest contract is a typed shape with a "no heartbeat" note, and the in-memory catalog legitimately cannot reproduce byte-level integrity checks. |
-| Evidence drift: committed `agent/examples/completed-fixture.json` (103 events) vs current code (123 events) | recorded, not fixed | Pre-existing at the baseline commit; program rule is never to rewrite characterization evidence to make a gate green. |
+| Evidence drift: committed `data/exports/completed-fixture.json` (103 events) vs current code (123 events) | recorded, not fixed | Pre-existing at the baseline commit; program rule is never to rewrite characterization evidence to make a gate green. |
 | `datasetExportUrl` dead route, `presentation.toolNames` / `modelCatalogPath` metadata gaps | backlog | Pre-existing/unreachable behaviours preserved by the no-behaviour-change constraint; additive follow-ups in the WS4 hand-off section. |
 | Re-run the SOLID audit for the "grade ≥ B, 0 critical/high findings" program criterion | **not executed** | The audit is a research exercise outside this execution; it is the remaining external acceptance step named in program plan §9. |
 
@@ -331,7 +331,7 @@ refactored architecture.
 | Scheduler characterization snapshots | fixture 123 → 127, healthcare 356 → 366 | `submit_report` adds exactly `tool_requested` + `tool_result` per reporting role before `report_submitted`; no event removed or reordered and every final-state line is byte-identical (scripted argument JSON equals the former report text) |
 | Ports characterization | recorded types + the same 4 events; export tripwire now asserts the current artifact | same protocol port |
 | API route-contract snapshot | research 47 → 58, demo 1 → 2; 44 existing cases changed, 0 removed | 11 playbook cases + 1 unavailable-catalog demo case; v2 config defaults; lease-based worker status. Stable across a second uncached run (`UPDATE_ROUTE_CONTRACT=1` used once) |
-| `agent/examples/completed-fixture.json` | 103 → 127 events | approved regeneration that also resolves the pre-existing 5a31bf7 evidence drift; reports now carry the tool-call argument JSON. Generated on isolated databases so the compose stack's live worker lease was untouched |
+| `data/exports/completed-fixture.json` | 103 → 127 events | approved regeneration that also resolves the pre-existing 5a31bf7 evidence drift; reports now carry the tool-call argument JSON. Generated on isolated databases so the compose stack's live worker lease was untouched |
 | `tests/fixtures/service-layout-baseline.json` | 7 hashes changed (`resolved`, `pair`, `queued`, `trace`, `serialized`, `requests`), 3 unchanged (`context`, `definitions`, `questions`) | v2 report settings change the resolved config and the regenerated fixture trace; the script now has an explicit `UPDATE_MIGRATION_BASELINE=1` re-record switch |
 | `analysis-worker` monitor transport expectation | accepts `assistantTextItemIds: true` | main `deae91d` behaviour |
 

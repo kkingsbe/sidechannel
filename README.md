@@ -80,7 +80,7 @@ The first milestone exercises two agents over three rounds using a simple fragme
 
 Mastra proposes tool calls; the application gateway admits, charges, validates, and executes them. Board calls and memory updates use the same allowance as scenario tools. Agents receive board messages only through explicit reads. Closing the dashboard does not stop the worker.
 
-The [harness handoff](harness_handoff.md) is the current implementation contract. It supersedes the draft's earlier proposals for separate communication budgets, board replies, and attachments. The current dashboard is a researcher interface; the proposed agent-visible task-progress display is a separate research choice.
+The [harness handoff](docs/harness-handoff.md) is the current implementation contract. It supersedes the draft's earlier proposals for separate communication budgets, board replies, and attachments. The current dashboard is a researcher interface; the proposed agent-visible task-progress display is a separate research choice.
 
 ## Quick start
 
@@ -125,7 +125,7 @@ fat-port sizes); `npm run architecture` prints the current census. Decisions,
 finding ownership and accepted rationales live in
 [docs/solid-remediation-decisions.md](docs/solid-remediation-decisions.md).
 
-Mongo integration checks require the local replica set started by Docker Compose. Unit/API tests use scripted inference. The [example export](agent/examples/completed-fixture.json) is a completed scripted development run, not evidence of spontaneous model coordination or concealment.
+Mongo integration checks require the local replica set started by Docker Compose. Unit/API tests use scripted inference. The [example export](data/exports/completed-fixture.json) is a completed scripted development run, not evidence of spontaneous model coordination or concealment.
 
 ## Repository map
 
@@ -137,20 +137,17 @@ Mongo integration checks require the local replica set started by Docker Compose
 | [packages/](packages/) | Browser/server contracts, deterministic domain logic and MongoDB persistence |
 | [compose.yaml](compose.yaml) | Root deployment entry point with separate service images |
 | [dashboard/](dashboard/) | React researcher workspace |
-| [agent/examples/completed-fixture.json](agent/examples/completed-fixture.json) | Exported scripted fixture evidence |
+| [data/exports/completed-fixture.json](data/exports/completed-fixture.json) | Exported scripted fixture evidence |
+| [docs/harness-handoff.md](docs/harness-handoff.md) | Current harness requirements and acceptance criteria |
+| [docs/harness-operations.md](docs/harness-operations.md) | Setup, credentials, Compose deployment and recovery |
+| [docs/dashboard-operations.md](docs/dashboard-operations.md) | Dashboard deployment and operation |
 | [docs/mastra-integration.md](docs/mastra-integration.md) | Tool execution boundary, private memory, and tracing decisions |
-| [agent/docs/decisions.md](agent/docs/decisions.md) | Implementation decisions |
-| [harness_handoff.md](harness_handoff.md) | Current harness requirements and acceptance criteria |
 | [docs/jev-analysis-spec.md](docs/jev-analysis-spec.md) | Proposed Jev trace-analysis workflow, windowing, codebook, jobs, and backend contracts |
 | [docs/dashboard-spec.md](docs/dashboard-spec.md) | Proposed full dashboard rewrite: experiments, evidence, analysis, review, and oversight |
-| [docs/service-layout-migration.md](docs/service-layout-migration.md) | Nx/npm monorepo migration requirements, boundaries and acceptance criteria |
 | [docs/healthcare-scenario-contract.md](docs/healthcare-scenario-contract.md) | Simplified distributed points-ranking task, collaboration requirements, and token-budget contract |
 | [docs/dataset-import-spec.md](docs/dataset-import-spec.md) | Versioned scenario packages, v0.2 conversion, truth separation, and import validation |
-| [docs/healthcare-dashboard-smoke-readiness.md](docs/healthcare-dashboard-smoke-readiness.md) | Remaining implementation and automated gates before the user runs the live healthcare dashboard smoke test |
-| [research/docs/2026-11-07-solid-audit-report.html](research/docs/2026-11-07-solid-audit-report.html) | SOLID audit report: all 45 findings with evidence and refactor direction |
-| [research/docs/2026-11-07-solid-principles-audit.md](research/docs/2026-11-07-solid-principles-audit.md) | Condensed SOLID audit research record |
-| [docs/superpowers/plans/2026-11-07-solid-remediation-program.md](docs/superpowers/plans/2026-11-07-solid-remediation-program.md) | SOLID remediation program: workstreams, sequencing, gates and definition of done |
 | [docs/solid-remediation-decisions.md](docs/solid-remediation-decisions.md) | Decision log: finding-to-workstream ownership, accepted deviations, measurement definitions |
+| [docs/archive/](docs/archive/) | Completed plans, verification snapshots, SOLID audit and early decisions, kept for provenance |
 
 ## Next steps and limits
 

@@ -1,6 +1,6 @@
 # Sidechannel experiment harness
 
-This implements the first milestone in `../harness_handoff.md`: configure and launch a synthetic experiment, execute fixed interleaved turns, inspect private memory and action evidence, and export the result. The healthcare points runtime, catalog and dashboard smoke path are documented in [Healthcare readiness results](healthcare-smoke-results.md), including bootstrap commands, scripted evidence and the remaining live walkthrough.
+This implements the first milestone in `harness-handoff.md`: configure and launch a synthetic experiment, execute fixed interleaved turns, inspect private memory and action evidence, and export the result. The healthcare points runtime, catalog and dashboard smoke path are documented in [Healthcare readiness results](archive/2026-11-07-healthcare-smoke-results.md), including bootstrap commands, scripted evidence and the remaining live walkthrough.
 
 ## Run locally
 
@@ -31,7 +31,7 @@ The initial shared deployment is open, as specified in `dashboard-spec.md`. Leav
 
 ## Adaption inference
 
-Set `ADAPTION_API_KEY` in the repository-root `.env` or `agent/.env`. Host commands load root `.env`, then the existing `agent/.env` compatibility file, then the owning service's `.env`; later files override earlier files, while existing process variables take precedence over every file. Workspace commands run with the service as their working directory. No file is copied or moved automatically. Both files are ignored by Git. Restart the worker after changing its environment.
+Set `ADAPTION_API_KEY` in the repository-root `.env`. Host commands load root `.env`, then the owning service's `.env`; later files override earlier files, while existing process variables take precedence over every file. Workspace commands run with the service as their working directory. No file is copied or moved automatically. `.env` files are ignored by Git. Restart the worker after changing its environment.
 
 In the dashboard set **Provider** to `adaption` and **Exact model** to `gemma-4-31b-it` (or another hosted model available to your key). In advanced configuration, a capped starting model configuration is:
 
@@ -53,7 +53,7 @@ Report prompts should tell the agent to call `submit_report`. Validation remains
 
 Root `compose.yaml` supplies MongoDB, the researcher API, and separate experiment and analysis/monitor workers. Optional `studio` and `tunnel` profiles enable Mastra Studio/API and Cloudflare. Each service has its own image and production dependency install. Images run compiled `dist/main.js` as the unprivileged `node` user, without Nx or tsx. The API image explicitly includes `/app/dashboard/dist`; workers contain no frontend assets. Shared compiled outputs include build provenance. Node, MongoDB and cloudflared images remain version/digest pinned; npm uses the single root workspace lockfile.
 
-From the repository root, copy `.env.compose.example` to `.env.compose` once. Existing `agent/.env.compose` remains usable with `--env-file agent/.env.compose`; if its token override is `./secrets/...`, change that override to `./agent/secrets/...` because Compose paths now resolve from root. Do not copy or print real values while migrating. Leave `RESEARCHER_TOKEN` blank for the initial open deployment. Set `OPENAI_API_KEY` or `ADAPTION_API_KEY` for inference and `TYPESAFE_API_KEY` for Jev; scripted experiments need no key. Keys are passed only to the relevant backend services; Adaption model discovery also requires the key on the API. The explicit `--env-file .env.compose` does not load the repository-root `.env`. Additional provider credentials can be supplied through a local Compose override; never put them in an image or saved configuration.
+From the repository root, copy `.env.compose.example` to `.env.compose` once. Do not copy or print real values while migrating. Leave `RESEARCHER_TOKEN` blank for the initial open deployment. Set `OPENAI_API_KEY` or `ADAPTION_API_KEY` for inference and `TYPESAFE_API_KEY` for Jev; scripted experiments need no key. Keys are passed only to the relevant backend services; Adaption model discovery also requires the key on the API. The explicit `--env-file .env.compose` does not load the repository-root `.env`. Additional provider credentials can be supplied through a local Compose override; never put them in an image or saved configuration.
 
 Stop any host dashboard or worker before replacing them with containers. An existing worker may own the database; starting another will fail rather than take over. Then run:
 
@@ -185,7 +185,7 @@ To regenerate the saved example, stop the worker first:
 npm run fixture --workspace=@sidechannel/experiment-worker
 ```
 
-`agent/examples/completed-fixture.json` is a complete **scripted development run**, with frozen configuration, ordered payloads, board messages, artifact versions and private reports. It is not evidence of model-generated social behavior and has no provider-generated spans. Adapter tests separately exercise actual Mastra orchestration, persistence and native traces.
+`data/exports/completed-fixture.json` is a complete **scripted development run**, with frozen configuration, ordered payloads, board messages, artifact versions and private reports. It is not evidence of model-generated social behavior and has no provider-generated spans. Adapter tests separately exercise actual Mastra orchestration, persistence and native traces.
 
 To include optional Mongo adapter tests:
 

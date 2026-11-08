@@ -117,8 +117,8 @@ No live result is asserted by creating this checklist. Overall success requires 
 
 ## Related documents
 
-- [Healthcare implementation requirements](healthcare-dashboard-smoke-readiness.md)
-- [Recorded scripted readiness results](healthcare-smoke-results.md)
+- [Healthcare implementation requirements](archive/2026-11-07-healthcare-dashboard-smoke-readiness.md)
+- [Recorded scripted readiness results](archive/2026-11-07-healthcare-smoke-results.md)
 - [Dashboard operations](dashboard-operations.md)
 - [Jev analysis specification](jev-analysis-spec.md)
 - [Harness operations](harness-operations.md)

@@ -1,20 +1,26 @@
-/.env
-
 # Workspace output, local configuration, and research data.
 **/node_modules/
 **/dist/
 **/.mastra/
 .nx/
 **/*.tsbuildinfo
+**/.npm-cache/
+**/__pycache__/
+
+# Local environment and secrets.
 **/.env
 **/.env.*
 !**/.env.example
 !**/.env.compose.example
 **/secrets/
+
+# Local databases and logs.
 **/*.log
 **/*.db
 **/*.db-*
 **/*.duckdb
 **/*.duckdb.wal
 
-*.tsbuildinfo
+# Claude Code session worktrees and design-skill scratch output.
+.claude/worktrees/
+.taste-skill/

@@ -36,8 +36,8 @@ try {
     await new AnalysisWorker(repository).runOnce();
     const final = await service.getJob(job.id), results = await repository.listResults(job.id), attempts = await repository.listAttempts(job.id);
     const exportRows = []; for await (const row of service.exportAnalysis(job.id)) exportRows.push(row);
-    const output = new URL(`../../agent/examples/jev-live-${new Date().toISOString().replaceAll(':', '-')}.json`, import.meta.url);
-    await mkdir(new URL('../../agent/examples/', import.meta.url), { recursive: true });
+    const output = new URL(`../../data/exports/jev-live-${new Date().toISOString().replaceAll(':', '-')}.json`, import.meta.url);
+    await mkdir(new URL('../../data/exports/', import.meta.url), { recursive: true });
     await writeFile(output, JSON.stringify({ schemaVersion: 1, source: 'scripted development fixture, not a research finding', job: final, results: results.items, attempts: attempts.items, export: exportRows }, null, 2));
     console.log(JSON.stringify({ status: final.status, sourceRunId: run.id, analysisId: job.id, answers: results.items.length, returnedModel: attempts.items[0]?.returnedModel, usage: final.usage, output: output.pathname }));
     if (final.status !== 'completed' || results.items.length !== 1) throw new Error(`Live Jev smoke did not complete: ${final.error ?? attempts.items[0]?.error ?? final.status}`);
