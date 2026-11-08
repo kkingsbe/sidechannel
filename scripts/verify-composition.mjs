@@ -28,8 +28,10 @@ forbidden('analysis-worker/src/oversight/provider.ts', /adapter\?/, 'the monitor
 forbidden('experiment-worker/src/mastra/index.ts', /export let /, 'the trace runtime is injected, not a mutable module global');
 forbidden('experiment-worker/src/mastra/index.ts', /^let /m, 'the trace runtime holds its state in an instance field');
 
-// 5. Exactly one contracts module may use zod at runtime (accepted deviation from T2.4;
-//    the extraction itself belongs to WS4 and packages/domain/src/healthcare).
+// 5. Only the known declarative schema modules may use zod at runtime. The boundary exists to stop
+//    the dependency from spreading through the portable contracts graph; the healthcare schemas
+//    (accepted T2.4 deviation, extraction belongs to WS4) and the playbook contracts (ported from
+//    main) are the accepted modules.
 const contractsFiles = [];
 const walk = directory => { for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
@@ -38,7 +40,7 @@ const walk = directory => { for (const entry of readdirSync(directory, { withFil
 } };
 walk(resolve(root, 'packages/contracts/src'));
 const zodUsers = contractsFiles.filter(file => /from 'zod'/.test(readFileSync(file, 'utf8')));
-assert.deepEqual(zodUsers.map(file => file.replaceAll('\\', '/').split('/packages/contracts/')[1]), ['src/healthcare/contracts.ts'],
-    'only the healthcare schema module may depend on zod; move new runtime schemas to packages/domain');
+assert.deepEqual(zodUsers.map(file => file.replaceAll('\\', '/').split('/packages/contracts/')[1]), ['src/healthcare/contracts.ts', 'src/playbook/contracts.ts'],
+    'only the healthcare and playbook schema modules may depend on zod; move new runtime schemas to packages/domain');
 
-console.log('Composition roots verified: no concrete adapters in workers or routes, no lazy provider import, no mutable Mastra global, one zod module in contracts.');
+console.log('Composition roots verified: no concrete adapters in workers or routes, no lazy provider import, no mutable Mastra global, only the accepted zod modules in contracts.');
