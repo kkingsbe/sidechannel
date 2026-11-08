@@ -276,3 +276,84 @@ All nine execution plans plus WS0 were executed on branch `refactor/solid-remedi
 - One commit per plan task (WS0 T0.1–T0.4 each have their own commit). Workstream anchors: WS0 `2661d9b`,`b9f7ee5`,`2c163cc`,`684032a`; WS1 `37085bd`…`8a1e0a3`; WS2 `8c78108`…`d886687`; WS3a `14a19c9`…`6b73807`; WS3b `dc40629`…`69f0653`; WS3c `058a180`,`7dbf591`,`cf18026`,`f0b127c`,`b781d28`,`13f424c`; WS4 `ef3a4c9`…`73ddcfb`; WS5 `ce3664c`…`18a560b`; WS6 `e9b02a4`…`d961ef0`; WS7 `46d2b2a`,`baa89a3`,`c228216`,`5a66e6e`,`f36c926`.
 - Execution-order deviations (all recorded above): T3a.4 before T3a.3; WS3c ran T3c.1/T3c.3 before T3c.2 to avoid the WS3a-frozen oversight route; WS7 backend (T7.2/T7.3) and dashboard (T7.1/T7.5) ran as two disjoint halves; WS6 was split across three executors by page, with cross-page shared files (`App.tsx`, `ui.tsx`, registry, test clients) reserved to one owner at a time.
 - One transient failure was observed during the first `npm run verify` of the close-out (dashboard vitest under load); two immediate uncached reruns passed (37/130) and the full `npm run verify` then passed. No source change was made for it.
+
+## Main integration (2026-11-07)
+
+While the remediation branch was being closed out, `main` advanced by seven commits
+(`5a31bf7` → `48a2170`) with behaviour the audit had not seen. The branch was integrated by
+**merging `main`** (never rebasing the 72-commit branch) and re-expressing each feature on the
+refactored architecture.
+
+**Merge mechanics**
+
+- Safety refs: tag `pre-main-merge-2026-11-07` and branch `backup/pre-main-merge` at `c31aeb6`;
+  merge commit `6dcb106`; integration prep `1432e9a` (package exports and browser DTO union).
+- 21 structural conflicts were resolved by keeping the refactored shape (capability ports, split
+  modules, decomposed dashboard, WS5 client layer), then main's behaviour was ported feature by
+  feature so each resolution is a reviewable commit. No blanket "take theirs" survives unported.
+- Main changes that auto-merged kept their behaviour: the scripted adapters/scripts already emit
+  `submit_report` calls, `gateway.ts` report-tool catalog and failure `details`,
+  `healthcare/artifact.ts` diagnostics, contracts `testing.ts` and the example config at
+  `reportSchemaVersion: "2"`, the playbook package exports, and the deployment/docs updates.
+
+**Feature ports**
+
+| Main feature | Main commit | Branch commits |
+| --- | --- | --- |
+| `submit_report` tool-call report protocol | `0d96464` | `433135c` (port), `4866c0a` (evidence) |
+| Expiring worker lease + abandoned-run interruption | `251ef9f` | `4fa22e3`, `e7459d4`, `bb1d6a1` |
+| Adaption inference fixes (assistant item ids) | `deae91d` | `41b81f4` |
+| Artifact diagnostics + 16,384 default output limit | `19648a2` | `d9f9cdf`, `6ced44c` |
+| Playbooks: registry, API, worker runtime, catalogs | `48a2170` | `0eae010`, `6ced44c`, `57f31de`, `726d8ad`, `4a18d9d`, `29d37d8` |
+| Model-call timeline / traces / call detail UI | `0bf0497` | `3cd2f8d`, `2d30ab2` |
+| Playbook picker + playbook client on the dashboard | `48a2170` | `55df81c`, `3268d63` |
+
+**Executed interface extensions** (binding document updated in `2026-11-07-plan-conventions.md`):
+
+- `WorkerGuard` is an expiring lease (`DEFAULT_WORKER_LEASE_MS`, `acquireWorker(owner, leaseMs?)`,
+  `heartbeatWorker`, `workerLease`); Mongo takeover is atomic on the database clock and the memory
+  adapter mirrors it. `WorkerStatus` reports `available: boolean` and
+  `status: 'active' | 'stale' | 'stopped' | 'registered' | 'unknown'` with optional `heartbeatAt`.
+- `ProviderProfile` gained the data-only adapter extension
+  `adapterKind: 'mastra' | 'scripted' | 'embedded-playbook'` and optional
+  `validateModel(config)`; `ResolvedTransport` carries `assistantTextItemIds` for Adaption.
+  The playbook provider is a registry entry (settings `playbookVersion`/`playbook`/`playbookHash`,
+  `fixture: true`, `usageSource: 'scripted'`), so the worker selects adapters from registry data
+  instead of provider-name branches, and `providerCatalog()`/`GET /providers` expose it.
+- The browser contract graph publishes `RUN_STATUSES`/terminal status helpers and
+  `PlaybookCatalogItem`; the dashboard gains a typed `playbooks` client
+  (`list`/`upload`/`get` + path builders) in `ApiClients`.
+
+**Evidence changes (all reviewed, none silent)**
+
+| Artifact | Before → after | Cause |
+| --- | --- | --- |
+| Scheduler characterization snapshots | fixture 123 → 127, healthcare 356 → 366 | `submit_report` adds exactly `tool_requested` + `tool_result` per reporting role before `report_submitted`; no event removed or reordered and every final-state line is byte-identical (scripted argument JSON equals the former report text) |
+| Ports characterization | recorded types + the same 4 events; export tripwire now asserts the current artifact | same protocol port |
+| API route-contract snapshot | research 47 → 58, demo 1 → 2; 44 existing cases changed, 0 removed | 11 playbook cases + 1 unavailable-catalog demo case; v2 config defaults; lease-based worker status. Stable across a second uncached run (`UPDATE_ROUTE_CONTRACT=1` used once) |
+| `agent/examples/completed-fixture.json` | 103 → 127 events | approved regeneration that also resolves the pre-existing 5a31bf7 evidence drift; reports now carry the tool-call argument JSON. Generated on isolated databases so the compose stack's live worker lease was untouched |
+| `tests/fixtures/service-layout-baseline.json` | 7 hashes changed (`resolved`, `pair`, `queued`, `trace`, `serialized`, `requests`), 3 unchanged (`context`, `definitions`, `questions`) | v2 report settings change the resolved config and the regenerated fixture trace; the script now has an explicit `UPDATE_MIGRATION_BASELINE=1` re-record switch |
+| `analysis-worker` monitor transport expectation | accepts `assistantTextItemIds: true` | main `deae91d` behaviour |
+
+**Census and budgets**
+
+`npm run architecture:check` passes with every budget. Two recorded adjustments:
+`providerNameBranchSites` 5 → 6 because main's model-call timeline adds one dashboard
+presentation branch (reasoning label over an already-resolved run, like the fixture badge and
+capacity copy — not provider policy); and the new route-contract case literal was replaced with
+`FIXTURE_SCENARIO_VERSION` so the scenario-literal census and provider-registry guard stay at
+single-source.
+
+**Wave-1 gates (clean tree, branch after `4866c0a` and the evidence commits)**
+
+`npm run verify` (lint + composition + check + test + build), dashboard **43 files / 192 tests**,
+experiment-worker **100 tests (98 pass, 2 Mongo skips, 0 fail)**, Mongo integration **30/30**,
+adapter contracts **98/98**, `verify-compiled`, `verify-migration-equivalence`,
+`architecture:check`, `smoke:jev`, `smoke:healthcare` — all pass. `smoke:dashboard` remains the
+documented environment limitation from the program close-out (long-lived browser probe does not
+finish in this environment).
+
+**Wave 2 (current):** main advanced again to `3efcb2e` (28 commits: the live turn-aligned event
+timeline with SSE and turn paging, the dashboard review fixes, codebook archive/restore, Jev
+ordering/chart fixes, and deployment updates). A second merge/port wave follows the same policy and
+is recorded here when it closes.

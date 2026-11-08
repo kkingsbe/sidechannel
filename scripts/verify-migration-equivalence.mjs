@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 
 const root = new URL('../', import.meta.url);
@@ -27,7 +27,16 @@ const result = Object.fromEntries(Object.entries({ resolved, pair: config.resolv
     requests: serialized.map(value => provider.buildSystemOnePayload({ state: value.state, questions }))
 }).map(([key, value]) => [key, configuration.snapshotHash(value)]));
 const baseline = new URL('tests/fixtures/service-layout-baseline.json', root);
-// These hashes were captured from the original modules before their extraction.
+// These hashes were captured from the original modules before their extraction and
+// re-recorded once on 2026-11-07 for the approved main integration (submit_report protocol
+// v2 changes the resolved config, queued/pair state, and the normalized trace of the
+// regenerated 127-event fixture). docs/solid-remediation-decisions.md records the delta;
+// re-recording again requires the same review, hence the explicit env switch.
+if (process.env.UPDATE_MIGRATION_BASELINE === '1') {
+    await writeFile(baseline, JSON.stringify(result, null, 2) + '\n');
+    console.log('Migration equivalence baseline re-recorded.');
+    process.exit(0);
+}
 assert.deepEqual(result, JSON.parse(await readFile(baseline, 'utf8')));
 console.log('Migration equivalence passed: configuration, pair, initial state, normalized trace, windows, definitions, and exact Jev payloads.');
 

@@ -15,20 +15,21 @@ import { ScriptedAdapter, fixtureScript } from './scripted-adapter.js';
  * is pinned here and compared verbatim after every refactor in WS2/WS3.
  *
  * EVIDENCE DRIFT (recorded in `docs/solid-remediation-decisions.md`, "WS2 — fixture
- * export evidence drift"): `agent/examples/completed-fixture.json` is a 103-event
+ * export evidence drift"): the export originally in the repository was a 103-event
  * export authored before `5a31bf7` added the accounting events (`context_accounted`,
- * `model_usage`). The current scheduler emits 123 events, so this suite pins the
- * current-code recording instead of the stale export and deliberately leaves the
- * committed research artifact untouched (regenerating evidence requires its own
- * approved refresh task). `committedTypes` is asserted separately so any future
- * change to that artifact is a visible, reviewed diff rather than silent drift.
+ * `model_usage`), while the current scheduler emitted 123.
  * EVIDENCE CHANGE (integration P1, port of main `0d96464` "Make the final report a submit_report
  * tool call"): the report phase now records `tool_requested` and `tool_result` for the accepted
  * `submit_report` call before `report_submitted`, so the fixture recording gains exactly those
- * four events (123 → 127). This is the authorized re-record for that behaviour change; the
- * committed 103-event `agent/examples/completed-fixture.json` remains untouched.
+ * four events (123 → 127), and the report `raw` field is the tool-call argument JSON.
+ * main integration wave 1 then regenerated the committed export to the current 127-event
+ * protocol (approved in the decision log §Main integration), so the artifact and the pinned
+ * recording now agree; a future regeneration is still a reviewed evidence change.
  */
-const committedExport = JSON.parse(readFileSync(new URL('../../../agent/examples/completed-fixture.json', import.meta.url), 'utf8')) as { events: { type: string }[] };
+const committedExport = JSON.parse(readFileSync(new URL('../../../agent/examples/completed-fixture.json', import.meta.url), 'utf8')) as {
+    events: { type: string }[];
+    run: { config: { reportSchemaVersion: string }; reports: { raw: string }[] };
+};
 
 /** Current-code recording (2026-11-07 tree, re-recorded by the approved integration-P1 submit_report port). */
 const recordedTypes = [
@@ -72,8 +73,13 @@ test('fixture run emits the recorded event-type sequence in memory', async () =>
     assert.deepEqual(actual, recordedTypes);
 });
 
-test('the committed fixture export is still the stale 103-event artifact', () => {
-    // Tripwire, not convenience: refreshing this evidence is a separate approved task.
-    assert.equal(committedExport.events.length, 103);
-    assert.notDeepEqual(committedExport.events.map(event => event.type), recordedTypes);
+test('the committed fixture export matches the current submit_report artifact', () => {
+    // Re-recorded on 2026-11-07 for the approved main integration (submit_report protocol);
+    // docs/solid-remediation-decisions.md §Main integration records the 103 -> 127 event delta.
+    // Regenerating this export again is a reviewed evidence change, never a test fix.
+    assert.equal(committedExport.events.length, 127);
+    assert.deepEqual(committedExport.events.map(event => event.type), recordedTypes);
+    assert.equal(committedExport.run.config.reportSchemaVersion, '2');
+    assert.equal(committedExport.run.reports.length, 2);
+    assert.match(committedExport.run.reports[0].raw, /^\{"ownActions":/);
 });
