@@ -97,6 +97,69 @@ export function harnessRepositoryContract(harness: RepositoryHarness): void {
         assert.equal((await repository.queryRuns({ designation: 'fixture', limit: 10, offset: 0 })).total, 2);
     });
 
+    test(`${harness.name}: archiving is terminal-only, hides runs from queries and keeps the launchKey`, async (t) => {
+        const { repository, dispose } = await harness.fixture();
+        t.after(dispose);
+        const active = await repository.createRun(queuedRun('archive-active'));
+        const done = await repository.createRun(queuedRun('archive-done'));
+        await repository.requestCancel(done.id);
+        assert.equal(await repository.setRunArchived(active.id, '2026-02-01T00:00:00.000Z'), 'not-terminal');
+        assert.equal(await repository.setRunArchived('missing', '2026-02-01T00:00:00.000Z'), 'not-found');
+        assert.equal((await repository.getRun(active.id))!.archivedAt, undefined);
+
+        assert.equal(await repository.setRunArchived(done.id, '2026-02-01T00:00:00.000Z'), 'ok');
+        assert.equal((await repository.getRun(done.id))!.archivedAt, '2026-02-01T00:00:00.000Z');
+        assert.equal((await repository.getRunSummary(done.id))!.archivedAt, '2026-02-01T00:00:00.000Z', 'retrievable by ID');
+        const ids = async (archived?: 'exclude' | 'include' | 'only') => (await repository.queryRuns({ ...(archived ? { archived } : {}), limit: 10, offset: 0 })).items.map(run => run.id).sort();
+        assert.deepEqual(await ids(), [active.id]);
+        assert.deepEqual(await ids('exclude'), [active.id]);
+        assert.deepEqual(await ids('only'), [done.id]);
+        assert.deepEqual(await ids('include'), [active.id, done.id].sort());
+        assert.equal((await repository.queryRuns({ status: 'cancelled', limit: 10, offset: 0 })).total, 0);
+        assert.equal((await repository.getRunByLaunchKey('archive-done'))!.id, done.id, 'archiving does not free the launchKey');
+        assert.equal((await repository.createRun(queuedRun('archive-done'))).id, done.id);
+
+        const stale = (await repository.getRun(done.id))!;
+        delete stale.archivedAt;
+        await repository.saveRun(stale);
+        assert.equal((await repository.getRun(done.id))!.archivedAt, '2026-02-01T00:00:00.000Z', 'saveRun never drops the archive');
+
+        assert.equal(await repository.setRunArchived(done.id, null), 'ok');
+        assert.equal((await repository.getRun(done.id))!.archivedAt, undefined);
+        assert.deepEqual(await ids(), [active.id, done.id].sort());
+        assert.equal(await repository.setRunArchived('missing', null), 'not-found');
+    });
+
+    test(`${harness.name}: deleting a terminal run removes its events, counters and launchKey and nothing else`, async (t) => {
+        const { repository, dispose } = await harness.fixture();
+        t.after(dispose);
+        const doomed = await repository.createRun(queuedRun('delete-doomed'));
+        const kept = await repository.createRun(queuedRun('delete-kept'));
+        const running = await repository.createRun(queuedRun('delete-running'));
+        await repository.claimRun(running.id, 'worker');
+        for (const run of [doomed, kept, running]) await repository.appendEvent({ runId: run.id, type: 'step', data: {} });
+        await repository.requestCancel(doomed.id);
+        await repository.requestCancel(kept.id);
+
+        assert.equal(await repository.deleteRun(running.id), 'not-terminal');
+        assert.equal(await repository.deleteRun('missing'), 'not-found');
+        assert.ok(await repository.getRun(running.id));
+        assert.equal((await repository.listEvents(running.id)).length, 1);
+
+        assert.equal(await repository.deleteRun(doomed.id), 'ok');
+        assert.equal(await repository.getRun(doomed.id), null);
+        assert.equal(await repository.getRunSummary(doomed.id), null);
+        assert.equal(await repository.getRunByLaunchKey('delete-doomed'), null);
+        assert.deepEqual(await repository.listEvents(doomed.id), []);
+        assert.equal((await repository.listEvents(kept.id)).length, 1);
+        assert.equal(await repository.deleteRun(doomed.id), 'not-found', 'a second delete finds nothing');
+
+        const again = await repository.createRun(queuedRun('delete-doomed'));
+        assert.notEqual(again.id, doomed.id, 'the launchKey can be launched again');
+        const event = await repository.appendEvent({ runId: again.id, type: 'step', data: {} });
+        assert.equal(event.sequence, 1, 'the sequence counter of the deleted run does not leak into the relaunch');
+    });
+
     test(`${harness.name}: the worker lease reports availability and is owner-scoped`, async (t) => {
         const { repository, dispose } = await harness.fixture();
         t.after(dispose);

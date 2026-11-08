@@ -82,6 +82,10 @@
       "types": "./dist/harness/repository.d.ts",
       "import": "./dist/harness/repository.js"
     },
+    "./harness/run-lifecycle": {
+      "types": "./dist/harness/run-lifecycle.d.ts",
+      "import": "./dist/harness/run-lifecycle.js"
+    },
     "./harness/server": {
       "types": "./dist/harness/server.d.ts",
       "import": "./dist/harness/server.js"

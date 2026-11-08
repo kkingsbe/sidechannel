@@ -1,0 +1,11 @@
+.confirm-dialog { position: fixed; z-index: 50; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(520px, 94vw); max-height: 88vh; overflow: auto; background: var(--card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 16px 48px #0004; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
+.confirm-dialog h2 { font-size: 18px; line-height: 24px; margin: 0; }
+.confirm-body { display: flex; flex-direction: column; gap: 10px; }
+.confirm-body p { margin: 0; }
+.confirm-runs { margin: 0; padding: 10px 12px 10px 28px; background: var(--danger-bg); border-radius: 8px; max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.selection-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--card); }
+.select-page { display: block; padding: 8px 20px; }
+.batch-failures { margin: 6px 0 0; padding-left: 18px; }
+.run-select { width: 36px; }
+.run-select input { width: 16px; height: 16px; }

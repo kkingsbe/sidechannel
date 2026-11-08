@@ -1,21 +1,32 @@
 import { NavLink } from "react-router-dom";
 import { Badge, ConditionPill, Table } from "./ui";
 import type { Run } from "../lib/types";
+import { isTerminalRun } from "@sidechannel/contracts/browser";
 import { runStatusMeta } from "../lib/status";
+import "./run-lifecycle.css";
 import { short, when } from "../lib/utils";
+
+/** Multi-select state owned by the page. Only terminal runs can be picked: the worker owns the rest. */
+export interface RunSelection {
+  selected: ReadonlySet<string>;
+  onToggle(id: string): void;
+}
 
 /** The run summary table shared by Overview and Runs; no page owns it. */
 export function RunTable({
   runs,
   detailSearch = "",
+  selection,
 }: {
   runs: Run[];
   detailSearch?: string;
+  selection?: RunSelection;
 }) {
   return (
     <Table
       label="Experiment runs"
       headers={[
+        ...(selection ? ["Select"] : []),
         "Run / scenario",
         "Condition",
         "Model",
@@ -26,6 +37,18 @@ export function RunTable({
     >
       {runs.map((run) => (
         <tr key={run.id}>
+          {selection && (
+            <td className="run-select">
+              <input
+                type="checkbox"
+                aria-label={"Select " + (run.config?.label || "run") + " " + short(run.id)}
+                checked={selection.selected.has(run.id)}
+                disabled={!isTerminalRun(run.status)}
+                title={isTerminalRun(run.status) ? undefined : "Active runs belong to the worker and cannot be archived or deleted"}
+                onChange={() => selection.onToggle(run.id)}
+              />
+            </td>
+          )}
           <td>
             <NavLink
               className="table-title"
@@ -48,6 +71,7 @@ export function RunTable({
             {run.config?.model?.provider === "scripted" && (
               <Badge>Scripted fixture</Badge>
             )}
+            {run.archivedAt && <Badge>Archived</Badge>}
           </td>
           <td>
             <ConditionPill condition={run.config?.condition?.id || "Unknown"} />

@@ -119,6 +119,10 @@
       "types": "./dist/harness/repository.d.ts",
       "import": "./dist/harness/repository.js"
     },
+    "./harness/run-lifecycle": {
+      "types": "./dist/harness/run-lifecycle.d.ts",
+      "import": "./dist/harness/run-lifecycle.js"
+    },
     "./harness/scenario-initialization": {
       "types": "./dist/harness/scenario-initialization.d.ts",
       "import": "./dist/harness/scenario-initialization.js"

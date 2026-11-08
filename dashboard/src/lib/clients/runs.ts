@@ -20,11 +20,17 @@ export interface Page<T> { items: T[]; nextCursor: string | null }
 
 export type EvidenceKind = 'board' | 'artifacts' | 'reports';
 export interface RunEventQuery { limit?: number; after?: string; actor?: string; phase?: string; type?: string; from?: string | number; to?: string | number }
-export interface RunListQuery { status?: string; model?: string; condition?: string; scenario?: string; designation?: string; summary?: boolean; limit?: number; offset?: number }
+export type ArchivedFilter = 'include' | 'only';
+
+/** What one run did in a bulk archive, unarchive or delete request. */
+export interface RunLifecycleResult { id: string; ok: boolean; status?: number; error?: string; dependents?: { analyses: string[]; monitorEvaluations: string[]; outcomeReviews: number; runReviews: number } }
+export interface RunLifecycleBatch { action: 'archive' | 'unarchive' | 'delete'; results: RunLifecycleResult[]; succeeded: number; failed: number }
+
+export interface RunListQuery { archived?: ArchivedFilter; status?: string; model?: string; condition?: string; scenario?: string; designation?: string; summary?: boolean; limit?: number; offset?: number }
 export interface EvidenceQuery { limit: number; offset: number }
 
 export const runPaths = {
-    list: (query: RunListQuery = {}) => withQuery('/runs', { summary: query.summary === undefined ? undefined : String(query.summary), status: query.status, model: query.model, condition: query.condition, scenario: query.scenario, designation: query.designation, limit: query.limit, offset: query.offset }),
+    list: (query: RunListQuery = {}) => withQuery('/runs', { archived: query.archived, summary: query.summary === undefined ? undefined : String(query.summary), status: query.status, model: query.model, condition: query.condition, scenario: query.scenario, designation: query.designation, limit: query.limit, offset: query.offset }),
     get: (id: string) => '/runs/' + encodeURIComponent(id),
     progress: (id: string) => '/runs/' + encodeURIComponent(id) + '/progress',
     events: (id: string, query: RunEventQuery = {}) => withQuery('/runs/' + encodeURIComponent(id) + '/events', { limit: query.limit, after: query.after, actor: query.actor, phase: query.phase, type: query.type, from: query.from, to: query.to }),
@@ -50,6 +56,12 @@ export interface RunsClient {
     board(id: string, query: EvidenceQuery): Promise<RecordPage<BoardMessage>>;
     exportUrl(id: string): string;
     cancel(id: string): Promise<Run>;
+    /** Hides a terminal run from default lists; the launchKey stays bound to it. */
+    archive(id: string): Promise<unknown>;
+    unarchive(id: string): Promise<unknown>;
+    /** Permanent. Resolves only for a confirmed request; the API refuses active runs and runs cited by analyses, reviews or evaluations. */
+    remove(id: string): Promise<unknown>;
+    bulk(action: RunLifecycleBatch['action'], ids: string[]): Promise<RunLifecycleBatch>;
     duplicate(id: string): Promise<Draft>;
     pair(id: string): Promise<unknown>;
     evaluation(id: string): Promise<unknown>;
@@ -85,6 +97,10 @@ export function createRunsClient(request: Requester): RunsClient {
         board: async (id, query) => await request<RecordPage<BoardMessage>>(runPaths.board(id, query)),
         exportUrl: id => '/api/runs/' + encodeURIComponent(id) + '/export',
         cancel: id => post(runPaths.get(id) + '/cancel', {}),
+        archive: id => post(runPaths.get(id) + '/archive', {}),
+        unarchive: id => post(runPaths.get(id) + '/unarchive', {}),
+        remove: id => request(runPaths.get(id), { method: 'DELETE', body: JSON.stringify({ confirm: true }) }),
+        bulk: (action, ids) => post('/runs/bulk', { action, ids, ...(action === 'delete' ? { confirm: true } : {}) }),
         duplicate: id => post(runPaths.get(id) + '/duplicate', {}),
         pair: id => request(runPaths.pair(id)),
         evaluation: id => request(runPaths.evaluation(id)),

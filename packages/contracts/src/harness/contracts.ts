@@ -210,6 +210,8 @@ export interface Run {
     remainingAllowance?: number;
     failureReason?: string;
     cancelRequested?: boolean;
+    /** Set while the run is archived: hidden from default lists and counts, still retrievable by ID. Never frees the launchKey. */
+    archivedAt?: string;
     board: BoardMessage[];
     artifacts: ArtifactVersion[];
     reports: {

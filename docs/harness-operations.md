@@ -77,6 +77,8 @@ docker compose --env-file .env.compose run --rm --no-deps experiment-worker node
 docker compose --env-file .env.compose up -d experiment-worker
 ```
 
+Dead runs left by a crash can be removed from the dashboard instead of the database: see "Archiving and deleting runs" in [dashboard-operations.md](dashboard-operations.md). The API exposes `POST /api/runs/:id/archive`, `POST /api/runs/:id/unarchive`, `DELETE /api/runs/:id` (body `{"confirm": true}`), `POST /api/runs/bulk` (`{action, ids, confirm}`, at most 100 ids) and `GET /api/runs?archived=include|only`. Delete is terminal-only, atomic for the harness collections (`runs`, `events`, `counters`, `operations`) and also purges `healthcare_evaluator_references`, `healthcare_evaluations` and the Mastra `mastra_threads`, `mastra_messages`, `mastra_resources` and `mastra_ai_spans` rows in `MASTRA_DB_NAME` (the API container already receives it). Runs cited by Jev analyses, reviews or monitor evaluations are refused with a 409 listing them. Monitor previews are not run-keyed cascade targets; ones that name a deleted run are left in place.
+
 Recovery interrupts abandoned runs and clears ownership; it does not resume them. Use `docker compose --env-file .env.compose down` to stop/remove containers while retaining evidence. Never add `--volumes` unless deliberately deleting all stored research data.
 
 ### Published images (GHCR)

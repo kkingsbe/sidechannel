@@ -201,6 +201,8 @@ export function RunDetail() {
         onDuplicate={record.duplicate}
         exportUrl={clients.runs.exportUrl(id!)}
         onCancel={record.cancel}
+        onArchive={record.archive}
+        onDelete={() => record.remove(returnTo)}
         live={record.active ? <LiveStamp updatedAt={runEvents.events.at(-1)?.timestamp ?? data.updatedAt} /> : undefined}
       />
       {notice}

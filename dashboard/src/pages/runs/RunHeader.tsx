@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { ChevronRight, Copy, Download } from "lucide-react";
 import { Badge, Button, ConditionPill } from "../../components/ui";
 import { CancelJobButton } from "../../components/cancel-job-button";
+import { RunDeleteDialog } from "../../components/run-lifecycle";
+import { isTerminalRun } from "@sidechannel/contracts/browser";
 import { runStatusMeta } from "../../lib/status";
 import { short, when } from "../../lib/utils";
 import type { Run } from "../../lib/types";
@@ -42,11 +44,15 @@ export interface RunHeaderProps {
   onDuplicate(): void;
   exportUrl: string;
   onCancel(): Promise<void> | void;
+  onArchive(archived: boolean): Promise<void> | void;
+  onDelete(): Promise<void> | void;
   live?: React.ReactNode;
 }
 
-export function RunHeader({ run, id, returnTo, scope, active, following, onFollowChange, busy, onDuplicate, exportUrl, onCancel, live }: RunHeaderProps) {
+export function RunHeader({ run, id, returnTo, scope, active, following, onFollowChange, busy, onDuplicate, exportUrl, onCancel, onArchive, onDelete, live }: RunHeaderProps) {
   const [copied, setCopied] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const terminal = isTerminalRun(run.status);
   const meta = runStatusMeta[run.status];
   const copy = async () => {
     try {
@@ -74,6 +80,7 @@ export function RunHeader({ run, id, returnTo, scope, active, following, onFollo
             {live_ && <span className="pulse" aria-hidden="true" />}
             {meta.label}
           </Badge>
+          {run.archivedAt && <Badge>Archived</Badge>}
         </div>
         <div className="meta">
           <span>
@@ -133,6 +140,16 @@ export function RunHeader({ run, id, returnTo, scope, active, following, onFollo
             Export
           </a>
         </Button>
+        {terminal && (
+          <Button variant="secondary" onClick={() => void onArchive(!run.archivedAt)} disabled={busy}>
+            {run.archivedAt ? "Unarchive" : "Archive"}
+          </Button>
+        )}
+        {terminal && (
+          <Button variant="destructive" onClick={() => setDeleting(true)} disabled={busy}>
+            Delete…
+          </Button>
+        )}
         <CancelJobButton
           active={active}
           cancelRequested={!!run.cancelRequested}
@@ -143,6 +160,7 @@ export function RunHeader({ run, id, returnTo, scope, active, following, onFollo
           onCancel={onCancel}
         />
       </div>
+      <RunDeleteDialog runs={deleting ? [run] : []} busy={busy} onCancel={() => setDeleting(false)} onConfirm={async () => { await onDelete(); setDeleting(false); }} />
     </header>
   );
 }

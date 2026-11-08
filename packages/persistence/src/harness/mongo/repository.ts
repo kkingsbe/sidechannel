@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { MongoClient, type Db, type Document } from 'mongodb';
 import { assertMatchedPair, assertSameLaunchConfiguration } from '@sidechannel/domain/harness/launch';
 import type { HarnessEvent, NewEvent, Run } from '@sidechannel/contracts/harness/contracts';
-import { ACTIVE_RUN_STATUSES, CANCEL_OVERRIDE_RUN_STATUSES } from '@sidechannel/contracts/harness/contracts';
+import { ACTIVE_RUN_STATUSES, CANCEL_OVERRIDE_RUN_STATUSES, TERMINAL_RUN_STATUSES } from '@sidechannel/contracts/harness/contracts';
 import type { ResearcherRepository, WorkerStatus } from '@sidechannel/contracts/server/contracts';
+import type { RunLifecycleResult } from '@sidechannel/contracts/harness/run-lifecycle';
 import { type Draft, type DraftMetadata, RepositoryConflict, type EventQuery, type RunQuery, EVIDENCE_KEY_COERCION, EVIDENCE_KEY_FIELD, type EvidenceKind, type EvidencePage, type TurnSummary } from '@sidechannel/contracts/harness/repository';
 import type { WorkerGuard, WorkerLeaseRecord } from '@sidechannel/contracts/harness/server';
 import { DEFAULT_WORKER_LEASE_MS } from '@sidechannel/contracts/harness/server';
@@ -70,7 +71,7 @@ export class MongoRepository implements ResearcherRepository, WorkerGuard {
         }
     }
     async saveRun(run: Run) {
-        const { config, configHash, id, launchKey, createdAt, pairId, pairingSeed, pairPosition, sourceDraft, ...mutable } = clone(run);
+        const { config, configHash, id, launchKey, createdAt, pairId, pairingSeed, pairPosition, sourceDraft, archivedAt, ...mutable } = clone(run);
         // Each mutation has a stable unique identity. Existing values are immutable.
         for (const [operationId, operation] of Object.entries(run.operations)) {
             await this.db.collection(COLLECTIONS.operations).updateOne({ runId: id, operationId }, { $setOnInsert: { runId: id, operationId, ...operation } }, { upsert: true });
@@ -109,6 +110,7 @@ export class MongoRepository implements ResearcherRepository, WorkerGuard {
     async getDraft(id: string) { return clean<Draft>(await this.db.collection(COLLECTIONS.drafts).findOne({ id })); }
     async queryRuns(query: RunQuery) {
         const filter: Document = {};
+        if (query.archived !== 'include') filter.archivedAt = { $exists: query.archived === 'only' };
         if (query.status) filter.status = { $in: query.status.split(',') };
         if (query.model) filter['config.model.id'] = query.model;
         if (query.condition) filter['config.condition.id'] = query.condition;
@@ -172,6 +174,27 @@ export class MongoRepository implements ResearcherRepository, WorkerGuard {
         return { owner: row.owner, ...(row.startedAt ? { startedAt: row.startedAt } : {}), ...(row.heartbeatAt instanceof Date ? { heartbeatAt: row.heartbeatAt.toISOString() } : {}), ageMs: row.ageMs ?? null, ...(typeof row.capacity === 'number' ? { capacity: row.capacity } : {}) };
     }
     async workerStatus(leaseMs = DEFAULT_WORKER_LEASE_MS): Promise<WorkerStatus> { return workerStatusOf(await this.workerLease(), leaseMs); }
+    async setRunArchived(id: string, archivedAt: string | null): Promise<RunLifecycleResult> {
+        const runs = this.db.collection(COLLECTIONS.runs);
+        const result = archivedAt === null ? await runs.updateOne({ id }, { $unset: { archivedAt: '' } }) : await runs.updateOne({ id, status: { $in: [...TERMINAL_RUN_STATUSES] } }, { $set: { archivedAt } });
+        if (result.matchedCount) return 'ok';
+        return await runs.countDocuments({ id }) ? 'not-terminal' : 'not-found';
+    }
+    /** One transaction: the run row is removed only while terminal, and its events, sequence counter and operations go with it. */
+    async deleteRun(id: string): Promise<RunLifecycleResult> {
+        const session = this.client.startSession();
+        let result: RunLifecycleResult = 'not-found';
+        try {
+            await session.withTransaction(async () => {
+                const removed = await this.db.collection(COLLECTIONS.runs).deleteOne({ id, status: { $in: [...TERMINAL_RUN_STATUSES] } }, { session });
+                if (!removed.deletedCount) { result = await this.db.collection(COLLECTIONS.runs).countDocuments({ id }, { session }) ? 'not-terminal' : 'not-found'; return; }
+                for (const name of [COLLECTIONS.events, COLLECTIONS.counters, COLLECTIONS.operations]) await this.db.collection(name).deleteMany({ runId: id }, { session });
+                result = 'ok';
+            });
+        }
+        finally { await session.endSession(); }
+        return result;
+    }
     async requestCancel(id: string) {
         await this.db.collection(COLLECTIONS.runs).updateOne({ id, status: { $in: [...ACTIVE_RUN_STATUSES] } }, [{ $set: { cancelRequested: true, status: { $cond: [{ $eq: ['$status', 'queued'] }, 'cancelled', 'stopping'] }, updatedAt: new Date().toISOString() } }]);
         return this.getRun(id);

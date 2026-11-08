@@ -3,7 +3,9 @@ import { fileURLToPath } from 'node:url';
 import type { ExperimentConfig } from '@sidechannel/contracts/harness/contracts';
 import type { HealthcareCatalog } from '@sidechannel/contracts/healthcare/repository';
 import type { PlaybookCatalog } from '@sidechannel/contracts/playbook/repository';
+import type { RunDependencyReader, RunRecordPurger } from '@sidechannel/contracts/harness/run-lifecycle';
 import type { ResearcherRepository, ResearchRouteHandler } from '@sidechannel/contracts/server/contracts';
+import { healthcareRunPurger, RunLifecycleService } from '@sidechannel/domain/harness/run-lifecycle';
 import { HealthcareService } from '../healthcare/service.js';
 import { PlaybookService } from '../playbook/service.js';
 import { adaptionModelRoute } from './adaption-models.js';
@@ -19,6 +21,7 @@ import { createOverviewRouter } from './routers/overview.js';
 import { createMetadataRouter } from './routers/metadata.js';
 import { createPairsRouter } from './routers/pairs.js';
 import { createPlaybookRouter } from './routers/playbook.js';
+import { createRunLifecycleRouter } from './routers/run-lifecycle.js';
 import { createRunsRouter } from './routers/runs.js';
 import { createWorkspaceRouter } from './routers/workspace.js';
 import { serveDashboard } from './static.js';
@@ -37,6 +40,10 @@ export interface ResearcherServerOptions {
     eventStream?: EventStreamTiming;
     healthcareCatalog?: HealthcareCatalog;
     playbookCatalog?: PlaybookCatalog;
+    /** Records that cite a run (analyses, reviews, monitor evaluations); any of them blocks deleting it. Omitted only by compositions that have none. */
+    runDependencies?: RunDependencyReader;
+    /** Run-keyed stores outside the harness collections (Mastra memory and traces). The healthcare catalog is purged automatically. */
+    runPurgers?: RunRecordPurger[];
 }
 
 export function createResearcherServer(repository: ResearcherRepository, options: ResearcherServerOptions = {}): Server {
@@ -44,10 +51,12 @@ export function createResearcherServer(repository: ResearcherRepository, options
     const playbooks = options.playbookCatalog ? new PlaybookService(options.playbookCatalog) : undefined;
     const configuration = createConfigurationPipeline({ buildMetadata: options.buildMetadata, healthcare, playbook: playbooks });
     const launch = createLaunchService({ repository, pipeline: configuration, healthcare });
+    const lifecycle = new RunLifecycleService({ runs: repository, dependencies: options.runDependencies, purgers: [...(options.healthcareCatalog ? [healthcareRunPurger(options.healthcareCatalog)] : []), ...(options.runPurgers ?? [])] });
     const routers: ResearchRouteHandler[] = [
         createWorkspaceRouter({ demoMode: options.demoMode }),
         createConfigRouter(configuration),
         createDraftsRouter({ repository, pipeline: configuration }),
+        createRunLifecycleRouter(lifecycle),
         createRunsRouter({ repository, pipeline: configuration, launch, healthcare }),
         createPairsRouter({ repository, pipeline: configuration, launch }),
         createOverviewRouter(repository),

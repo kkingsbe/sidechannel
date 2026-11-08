@@ -1,5 +1,6 @@
 import type { EventLog, RunQueue, RunStateStore, WorkerGuard } from '../harness/server.js';
 import type { HarnessEvent, Run } from '../harness/contracts.js';
+import type { RunLifecycleStore } from '../harness/run-lifecycle.js';
 import type { Draft, DraftMetadata, EventQuery, EvidenceKind, EvidencePage, RunQuery, RunSummary, TurnSummary } from '../harness/repository.js';
 
 /**
@@ -54,7 +55,7 @@ export interface WorkerSupervisor {
  * Composition of the researcher capability slices for the API composition root and contract suites.
  * Consumers that need one capability take that slice (or a `Pick` of it); nothing needs the whole port.
  */
-export interface ResearcherRepository extends RunStateStore, EventLog, RunQueue, WorkerGuard, RunQueries, DraftStore, EvidenceReader, WorkerSupervisor {
+export interface ResearcherRepository extends RunStateStore, EventLog, RunQueue, WorkerGuard, RunQueries, DraftStore, EvidenceReader, WorkerSupervisor, RunLifecycleStore {
 }
 
 export interface ResearchRouteRequest {
