@@ -44,7 +44,7 @@ export function ScorePanel({
   const codes = job.job.manifest.codebook.codes.filter((c) => c.enabled && !c.archived);
   const shown = codes.filter((c) => !state.visible || state.visible.includes(c.id));
   const current = sortWindows(state.windows);
-  const open = (window: AnalysisWindow) => state.open(window.id);
+  const open = (window: AnalysisWindow, code?: BehaviorCode) => state.open(window.id, code?.id);
   const waiting = state.loading ? (
     <Loading />
   ) : !current.length ? (

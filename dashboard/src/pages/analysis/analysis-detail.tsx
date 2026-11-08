@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Copy, Download, RefreshCw } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Download, RefreshCw } from "lucide-react";
 import {
   Badge,
   Button,
@@ -15,9 +15,11 @@ import { ViewPanel } from "../../components/view-registry";
 import { CancelJobButton } from "../../components/cancel-job-button";
 import { useClients } from "../../lib/clients/context";
 import { useResource } from "../../lib/clients/query";
-import type { ReviewBatch } from "../../lib/analysis-types";
-import { jobStatusMeta } from "../../lib/status";
+import type { HarnessEvent } from "@sidechannel/contracts/browser";
+import type { AnalysisWindow, ReviewBatch } from "../../lib/analysis-types";
+import { jobStatusMeta, windowStatusMeta } from "../../lib/status";
 import { short, when } from "../../lib/utils";
+import { plural, sortWindows } from "./analysis-view";
 import { WindowInspector } from "./window-inspector";
 import { useAnalysisJob } from "./use-analysis-job";
 import { ScoreFiltersProvider, useAnalysisWindows } from "./use-analysis-windows";
@@ -31,6 +33,27 @@ import {
   type AnalysisTab,
 } from "./views";
 import "./analysis.css";
+
+function WindowStatusBadge({ window }: { window: AnalysisWindow }) {
+  if (window.status === "completed" && window.incomplete) return <Badge tone="warning">incomplete</Badge>;
+  if (window.status === "completed" && window.partial) return <Badge tone="warning">partial</Badge>;
+  const meta = windowStatusMeta[window.status];
+  return <Badge tone={meta.tone}>{meta.label}</Badge>;
+}
+
+/** "Round 2, turns 6–7" from the window events, or nothing when the events carry no round data. */
+function roundTurns(events: HarnessEvent[] | undefined): string | undefined {
+  const rounds = (events ?? []).map((e) => e.round).filter((n): n is number => typeof n === "number");
+  if (!rounds.length) return undefined;
+  const turns = (events ?? []).map((e) => e.turn).filter((n): n is number => typeof n === "number");
+  const span = (values: number[]) => {
+    const lo = Math.min(...values);
+    const hi = Math.max(...values);
+    return lo === hi ? String(lo) : `${lo}–${hi}`;
+  };
+  const roundText = (Math.min(...rounds) === Math.max(...rounds) ? "Round " : "Rounds ") + span(rounds);
+  return turns.length ? `${roundText}, ${Math.min(...turns) === Math.max(...turns) ? "turn " : "turns "}${span(turns)}` : roundText;
+}
 
 /** The analysis detail: object header, finding and coverage strip, registry dispatch and the window drawer. */
 export function AnalysisDetail() {
@@ -69,6 +92,16 @@ function AnalysisDetailBody() {
   const finding = analysisFinding(windows.windows, codes, windows.threshold);
   const settings = data.manifest.settings;
   const source = job.sourceRun;
+  const inspected = windows.detail?.window;
+  const ordered = sortWindows(windows.windows);
+  const position = ordered.findIndex((w) => w.id === inspected?.id);
+  const previous = position > 0 ? ordered[position - 1] : undefined;
+  const following = position >= 0 ? ordered[position + 1] : undefined;
+  const goTo = (target: { id: string }) =>
+    setParams((prev) => {
+      prev.set("window", target.id);
+      return prev;
+    });
   return (
     <>
       <Link
@@ -196,17 +229,68 @@ function AnalysisDetailBody() {
         />
       </AnalysisQueueProvider>
       <Drawer
-        wide
+        size="inspector"
+        eyebrow={null}
         open={!!windowId}
         onOpenChange={(open) => {
           if (!open) windows.close();
         }}
         title={
-          windows.detail
-            ? `Window ${windows.detail.window.index + 1} · steps ${windows.detail.window.startStep}–${windows.detail.window.endStep}`
+          inspected
+            ? `Window ${inspected.index + 1} · ${
+                inspected.startStep === inspected.endStep
+                  ? `step ${inspected.startStep}`
+                  : `steps ${inspected.startStep}–${inspected.endStep}`
+              }`
             : "Analysis window"
         }
-        description="Exact normalized evidence and canonical source links."
+        titleAddon={inspected && <WindowStatusBadge window={inspected} />}
+        description={
+          inspected ? (
+            <span className="wi-meta">
+              <span>
+                Run{" "}
+                <Link className="link mono" to={"/runs/" + data.runId} title="Open source run">
+                  {short(data.runId)}
+                </Link>
+              </span>
+              {roundTurns(windows.detail?.events) && <span>{roundTurns(windows.detail?.events)}</span>}
+              <span>{plural(inspected.eventIds.length, "source event")}</span>
+              <span>Codebook revision {data.manifest.codebook.revision}, frozen</span>
+            </span>
+          ) : (
+            "Exact normalized evidence and canonical source links."
+          )
+        }
+        actions={
+          position >= 0 && (
+            <div className="wi-pager">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!previous}
+                aria-label={previous ? `Previous window, ${previous.index + 1}` : "Previous window"}
+                onClick={() => previous && goTo(previous)}
+              >
+                <ChevronLeft size={14} aria-hidden="true" />
+                {previous ? previous.index + 1 : null}
+              </Button>
+              <span className="wi-pos">
+                {position + 1} of {ordered.length}
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!following}
+                aria-label={following ? `Next window, ${following.index + 1}` : "Next window"}
+                onClick={() => following && goTo(following)}
+              >
+                {following ? following.index + 1 : null}
+                <ChevronRight size={14} aria-hidden="true" />
+              </Button>
+            </div>
+          )
+        }
       >
         {windows.detailLoading ? (
           <Loading />
@@ -231,6 +315,10 @@ function AnalysisDetailBody() {
                   : undefined
               }
               onReturn={windows.close}
+              windows={windows.windows}
+              threshold={windows.threshold}
+              initialCodeId={windows.codeId}
+              onCodeChange={windows.setCode}
               blind={
                 isReviewTab &&
                 (batchId

@@ -309,22 +309,33 @@ export function Drawer({
   onOpenChange,
   children,
   wide = false,
+  size,
   eyebrow = "Evidence inspector",
+  titleAddon,
+  actions,
 }: {
   title: string;
-  description?: string;
+  description?: React.ReactNode;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   children: React.ReactNode;
   wide?: boolean;
-  eyebrow?: string;
+  /** "inspector" is ~900px on desktop and full width on phones; "wide" is the legacy wide drawer. */
+  size?: "default" | "wide" | "inspector";
+  /** Pass null to render no eyebrow. */
+  eyebrow?: string | null;
+  /** Rendered next to the title, e.g. a status badge. */
+  titleAddon?: React.ReactNode;
+  /** Rendered in the heading row, left of the close button. */
+  actions?: React.ReactNode;
 }) {
   const opener = React.useRef<HTMLElement | null>(null);
+  const resolved = size ?? (wide ? "wide" : "default");
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="drawer-overlay" />
-        <Dialog.Content className={cn("drawer", wide && "drawer-wide")}
+        <Dialog.Content className={cn("drawer", resolved === "wide" && "drawer-wide", resolved === "inspector" && "drawer-inspector")}
           onOpenAutoFocus={() => { opener.current = document.activeElement as HTMLElement; }}
           onCloseAutoFocus={event => {
             event.preventDefault();
@@ -332,23 +343,31 @@ export function Drawer({
             else document.getElementById("main")?.focus();
           }}>
           <div className="drawer-heading">
-            <div>
-              <span className="eyebrow">{eyebrow}</span>
-              <Dialog.Title>{title}</Dialog.Title>
-              <Dialog.Description>
-                {description ??
-                  "Recorded evidence. Content is displayed as untrusted text."}
+            <div className="drawer-heading-text">
+              {eyebrow && <span className="eyebrow">{eyebrow}</span>}
+              {titleAddon ? (
+                <div className="drawer-title-row"><Dialog.Title>{title}</Dialog.Title>{titleAddon}</div>
+              ) : (
+                <Dialog.Title>{title}</Dialog.Title>
+              )}
+              <Dialog.Description asChild={typeof description === "object" && description !== null}>
+                {description === undefined || description === null
+                  ? "Recorded evidence. Content is displayed as untrusted text."
+                  : typeof description === "object" ? <div className="drawer-description">{description}</div> : description}
               </Dialog.Description>
             </div>
-            <Dialog.Close asChild>
-              <Button
-                aria-label="Close evidence inspector"
-                variant="ghost"
-                size="icon"
-              >
-                <X size={20} />
-              </Button>
-            </Dialog.Close>
+            <div className="drawer-heading-actions">
+              {actions}
+              <Dialog.Close asChild>
+                <Button
+                  aria-label="Close evidence inspector"
+                  variant="ghost"
+                  size="icon"
+                >
+                  <X size={20} />
+                </Button>
+              </Dialog.Close>
+            </div>
           </div>
           <div className="drawer-content">{children}</div>
         </Dialog.Content>

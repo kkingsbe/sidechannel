@@ -331,12 +331,15 @@ describe("blinded evidence inspection", () => {
         <WindowInspector detail={detail} job={job} blind />
       </MemoryRouter>,
     );
-    await screen.findByText(/Blind initial review/);
+    await screen.findByText(/Blind first pass/);
     expect(screen.queryByText(/95\.0%|Model suggested 95/)).toBeNull();
-    expect(screen.getByText("Source events (1)")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Source events" })).toBeTruthy();
+    await userEvent.setup().click(
+      document.getElementById("citation-canonical-event-1")!.querySelector("button[aria-expanded]")!,
+    );
     expect(
       screen
-        .getByRole("link", { name: "Exact source event" })
+        .getByRole("link", { name: "Open in run timeline" })
         .getAttribute("href"),
     ).toContain("evidence=canonical-event-1");
     expect(await screen.findByText("Recorded agent text")).toBeTruthy();
