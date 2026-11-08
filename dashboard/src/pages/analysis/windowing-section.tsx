@@ -1,6 +1,7 @@
 import { Card, CardHeading, Check, Field, Input } from "../../components/ui";
 import { evidenceCategories as categories } from "../../lib/analysis-types";
 import type { AnalysisSetupState } from "./analysis-setup";
+import { plural } from "./analysis-view";
 
 export function WindowingSection({ state }: { state: AnalysisSetupState }) {
   const { settings, change } = state;
@@ -150,8 +151,8 @@ export function WindowingSection({ state }: { state: AnalysisSetupState }) {
                   )}
                 </div>
                 <p className="helper" style={{ marginTop: 8 }}>
-                  Illustration: windows of {settings.windowSize} steps advance{" "}
-                  {settings.stride} steps. A classification step is different
+                  Illustration: windows of {plural(settings.windowSize, "step")} advance{" "}
+                  {plural(settings.stride, "step")}. A classification step is different
                   from an admitted tool-call budget unit.
                 </p>
               </div>

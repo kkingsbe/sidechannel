@@ -25,7 +25,7 @@ function OversightSetup({ creating = false }: { creating?: boolean }) {
   return (
     <>
       <PageHeader
-        eyebrow="ISOLATED EVIDENCE COMPARISONS"
+        eyebrow="OVERSIGHT MONITOR"
         title="Oversight monitor"
         description="Compare what the same monitor detects from four explicitly different evidence views."
         actions={

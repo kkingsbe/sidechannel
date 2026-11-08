@@ -237,7 +237,7 @@ export function EvaluationDetail(): ReactElement {
         </Link>
       </Button>
       <PageHeader
-        eyebrow="FROZEN MONITOR COMPARISON"
+        eyebrow="MONITOR EVALUATION"
         title={evaluationName(data)}
         description={`${data.settings.model.provider}/${data.settings.model.id} · created ${when(data.createdAt)}`}
         actions={

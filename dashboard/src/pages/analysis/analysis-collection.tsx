@@ -20,7 +20,7 @@ export function AnalysisCollection() {
     <>
       <PageHeader
         title="Analyses"
-        description="Open saved screening results or prepare a new analysis."
+        description="Jev is the automated screener: it estimates, window by window, how likely each behavior code is present. Open saved results or prepare a new analysis."
         actions={
           <Button asChild>
             <Link to="/analysis/new">New analysis</Link>
@@ -83,7 +83,7 @@ export function AnalysisCollectionRow({
           -step windows - revision {job.manifest.codebook.revision}
         </small>
         <details>
-          <summary>Canonical identifiers</summary>
+          <summary>Source identifiers</summary>
           <p className="mono">
             Analysis: {job.id}
             <br />

@@ -65,7 +65,7 @@ export function CanonicalEvent({
       </div>
       <small className="mono">{eventId}</small>
       {event?.id === eventId && (
-        <JsonView value={event} title="Raw canonical payload" />
+        <JsonView value={event} title="Raw recorded payload" />
       )}
     </article>
   );

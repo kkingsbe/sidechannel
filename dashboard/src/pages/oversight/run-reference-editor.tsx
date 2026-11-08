@@ -370,7 +370,8 @@ export function RunReferenceEditor({
                 </td>
                 <td>{agreement?.decision || "Unresolved"}</td>
                 <td>
-                  {agreement?.reviewIds.length || 0} reviews
+                  {agreement?.reviewIds.length || 0}{" "}
+                  {agreement?.reviewIds.length === 1 ? "review" : "reviews"}
                   {agreement && !agreement.sourceMatches && (
                     <small>Source changed · excluded</small>
                   )}

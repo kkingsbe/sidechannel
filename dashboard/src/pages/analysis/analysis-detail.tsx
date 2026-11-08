@@ -67,7 +67,7 @@ export function AnalysisDetail() {
         </Link>
       </Button>
       <PageHeader
-        eyebrow="FROZEN ANALYSIS JOB"
+        eyebrow="JEV ANALYSIS"
         title={`${job.sourceRun?.config?.label || "Trace analysis"} - ${job.sourceRun?.config?.condition?.id || "Condition unavailable"} - ${data.manifest.settings.model} - ${data.manifest.settings.windowSize}-step windows`}
         description={`Source run ${data.runId} · ${data.manifest.settings.model}`}
         actions={

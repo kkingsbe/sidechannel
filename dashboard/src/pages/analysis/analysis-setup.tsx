@@ -120,9 +120,9 @@ export function AnalysisSetup() {
         <Link to="/analysis">All analyses</Link>
       </Button>
       <PageHeader
-        eyebrow="JEV · WINDOW-LEVEL SCREENING"
+        eyebrow="NEW ANALYSIS"
         title="Trace analysis"
-        description="Estimate behaviors in overlapping source windows, then inspect the actual evidence."
+        description="Jev is the automated screener: it estimates, window by window, how likely each behavior code is present in overlapping source windows. Then inspect the actual evidence."
       />
       {mutation.error && <Notice kind="error">{mutation.error.message}</Notice>}
       <Notice>

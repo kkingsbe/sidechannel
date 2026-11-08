@@ -153,9 +153,9 @@ export function WindowInspector({
         <section
           id="analysis-evidence"
           tabIndex={-1}
-          aria-label="Canonical source evidence"
+          aria-label="Source evidence"
         >
-          <h3>Canonical source events ({detail.window.eventIds.length})</h3>
+          <h3>Source events ({detail.window.eventIds.length})</h3>
           <p className="helper">
             Recorded content in source order. Tool requests are proposals until
             their admission and result are recorded. Select citations to support
@@ -163,7 +163,7 @@ export function WindowInspector({
           </p>
           {!detail.window.eventIds.length && (
             <p>
-              No canonical events in this window.
+              No source events in this window.
               {detail.window.incomplete
                 ? " Source evidence is incomplete."
                 : ""}
@@ -373,7 +373,7 @@ export function WindowInspector({
             {!reviewer.trim() ? "Enter a claimed reviewer identity. " : ""}
             {!rationale.trim() ? "Add a rationale before saving. " : ""}
             {scope === "event" && list(eventIds).length !== 1
-              ? "Select exactly one canonical event for event scope. "
+              ? "Select exactly one source event for event scope. "
               : ""}
             {ownLatest.error
               ? "Latest revision unavailable; retry loading before saving. "
