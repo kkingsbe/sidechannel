@@ -1,0 +1,4 @@
+# Dataset package hashes (evaluator/evaluate.py load_package) are over exact UTF-8/LF bytes.
+# Keep these files LF on every checkout, including Windows with core.autocrlf=true.
+evaluator/packages/** text eol=lf
+pilot/packages/** text eol=lf
